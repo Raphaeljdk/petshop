@@ -1,0 +1,196 @@
+// Pet Hub - Schema do Sistema de Pet Shop
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  senha     String
+  role      String   @default("CLIENTE") // ADMIN | CLIENTE
+  clienteId String?  @unique
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  nome      String
+  telefone  String
+  email     String?  @unique
+  endereco  String?
+  cep       String?  // CEP para cálculo de frete
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pets         Pet[]
+  agendamentos Agendamento[]
+  vendas       Venda[]
+  user         User?
+}
+
+model Pet {
+  id          String   @id @default(cuid())
+  nome        String
+  especie     String
+  raca        String?
+  idade       String?
+  peso        String?
+  fotoUrl     String?
+  observacoes String?
+  clienteId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  processos    Processo[]
+  agendamentos Agendamento[]
+}
+
+model Processo {
+  id              String   @id @default(cuid())
+  petId           String
+  status          String   @default("novo")
+  servico         String
+  responsavel     String?
+  anamnese        String?
+  inicioAtendimento DateTime?
+  fimAtendimento   DateTime?
+  valorServico    Float    @default(0)
+  notificadoEm    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  notificacoes Notificacao[]
+}
+
+model Agendamento {
+  id        String   @id @default(cuid())
+  petId     String
+  clienteId String
+  servico   String
+  dataHora  DateTime
+  status    String   @default("agendado")
+  observacoes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+}
+
+model Produto {
+  id          String   @id @default(cuid())
+  nome        String
+  descricao   String?
+  categoria   String
+  preco       Float
+  precoPromo  Float?
+  estoque     Int      @default(0)
+  sku         String?
+  mlItemId    String?
+  amazonAsin  String?
+  imageUrl    String?
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  itensVenda ItemVenda[]
+}
+
+model Venda {
+  id         String   @id @default(cuid())
+  clienteId String?
+  total      Float
+  canal      String   @default("loja")
+  status     String   @default("concluida")
+  observacoes String?
+  // Campos de entrega
+  tipoEntrega     String?  // 'retirada' | 'entrega_propria' | 'sedex'
+  valorFrete      Float?   @default(0)
+  cepEntrega      String?
+  enderecoEntrega String?
+  prazoEntrega    String?  // ex: "1-2 dias úteis"
+  codigoRastreio  String?
+  statusEntrega   String?  @default("pendente") // 'pendente' | 'enviada' | 'entregue' | 'cancelada'
+  // Pagamento Mercado Pago
+  mercadoPagoId String?        // ID da transação no MP
+  mercadoPagoStatus String?   // pending/approved/rejected/cancelled
+  mercadoPagoPaymentUrl String?  // URL do checkout MP (para PIX/boleto)
+  mercadoPagoQrCode String?   // QR code PIX (base64 ou texto)
+  mercadoPagoPixExpiresAt DateTime?  // Validade do PIX
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  cliente Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  itens   ItemVenda[]
+}
+
+model ItemVenda {
+  id        String  @id @default(cuid())
+  vendaId   String
+  produtoId String
+  quantidade Int
+  precoUnit Float
+  venda   Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+}
+
+model Notificacao {
+  id        String   @id @default(cuid())
+  tipo      String
+  destino   String
+  mensagem  String
+  processoId String?
+  status    String   @default("pendente")
+  createdAt DateTime @default(now())
+  enviadaEm DateTime?
+  processo Processo? @relation(fields: [processoId], references: [id], onDelete: SetNull)
+}
+
+model Integracao {
+  id        String   @id @default(cuid())
+  plataforma String
+  ativo     Boolean  @default(false)
+  token     String?
+  sellerId  String?
+  domain    String?
+  ultimaSync DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConfiguracaoFrete {
+  id String @id @default(cuid())
+  // Entrega própria (dentro de SP - capital)
+  entregaPropriaAtiva Boolean @default(true)
+  entregaPropriaValor Float @default(15.00)
+  entregaPropriaPrazo String @default("1-2 dias úteis")
+  entregaPropriaCepInicial String @default("01000-000")  // SP capital início
+  entregaPropriaCepFinal String @default("09999-999")    // SP capital fim
+  // Sedex (fora de SP)
+  sedexAtivo Boolean @default(true)
+  sedexPrazo String @default("3-5 dias úteis")
+  // Retirada na loja
+  retiradaAtiva Boolean @default(true)
+  retiradaPrazo String @default("Pronto em 2h")
+  retiradaEndereco String @default("Av. Água Fria, 1647 — Santana, São Paulo/SP")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConfiguracaoPagamento {
+  id String @id @default(cuid())
+  mercadoPagoAtivo Boolean @default(false)
+  mercadoPagoAccessToken String?  // Token de acesso (produção)
+  mercadoPagoPublicKey String?    // Chave pública
+  mercadoPagoSandbox Boolean @default(true)  // Modo sandbox
+  pixAtivo Boolean @default(true)
+  cartaoAtivo Boolean @default(true)
+  boletoAtivo Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
