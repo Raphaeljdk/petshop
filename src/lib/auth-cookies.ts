@@ -5,10 +5,11 @@ import { db } from '@/lib/db'
 
 const DEV_SECRET = 'matilha-prado-secret-apenas-desenvolvimento'
 
-export const SECRET = process.env.NEXTAUTH_SECRET || DEV_SECRET
-
-if (process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_SECRET) {
-  throw new Error('NEXTAUTH_SECRET deve ser configurado em produção')
+function getSecret(): string {
+  if (process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_SECRET) {
+    throw new Error('NEXTAUTH_SECRET deve ser configurado em produção')
+  }
+  return process.env.NEXTAUTH_SECRET || DEV_SECRET
 }
 export const COOKIE_NAME = 'matilha_token'
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 dias em segundos
@@ -52,7 +53,7 @@ export async function criarToken(user: {
     role: user.role as 'ADMIN' | 'CLIENTE',
     clienteId: user.clienteId ?? null,
   }
-  return jwt.sign(payload, SECRET, { expiresIn: '7d' })
+  return jwt.sign(payload, getSecret(), { expiresIn: '7d' })
 }
 
 export async function setCookieAuth(token: string): Promise<void> {
@@ -79,7 +80,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
     const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return null
 
-    const decoded = jwt.verify(token, SECRET) as TokenPayload
+    const decoded = jwt.verify(token, getSecret()) as TokenPayload
     if (!decoded || !decoded.userId) return null
 
     const user = await db.user.findUnique({
