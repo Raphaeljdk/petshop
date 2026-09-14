@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createHash, randomBytes } from 'node:crypto'
+import { spawn } from 'node:child_process'
 import { PrismaClient } from '@prisma/client'
 
 if (!process.env.DATABASE_URL?.startsWith('file:/tmp/matilha-auth-test') || !process.env.PLAYWRIGHT_MODULE) {
@@ -11,9 +12,9 @@ if (!process.env.DATABASE_URL?.startsWith('file:/tmp/matilha-auth-test') || !pro
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href)
 const db = new PrismaClient()
 const base = 'http://localhost:3102'
-const server = Bun.spawn(['bun', resolve('.next/standalone/server.js')], {
+const server = spawn(process.execPath, [resolve('.next/standalone/server.js')], {
   env: { ...process.env, PORT: '3102', HOSTNAME: '127.0.0.1', NODE_ENV: 'production' },
-  stdout: 'ignore', stderr: 'inherit',
+  stdio: ['ignore', 'ignore', 'inherit'],
 })
 let browser
 let checks = 0
@@ -25,10 +26,16 @@ try {
   for (let i = 0; i < 100; i++) {
     try { if ((await fetch(base + '/api/auth/me')).ok) break } catch {}
     if (i === 99 || server.exitCode !== null) throw new Error('Servidor não iniciou.')
-    await Bun.sleep(200)
+    await new Promise(resolve => setTimeout(resolve, 200))
   }
   await mkdir('test-results/auth', { recursive: true })
-  browser = await chromium.launch({ headless: true })
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? {
+      executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+      args: JSON.parse(process.env.PLAYWRIGHT_LAUNCH_ARGS || '[]'),
+    } : {}),
+  })
   const context = await browser.newContext()
   const page = await context.newPage()
   const errors = []

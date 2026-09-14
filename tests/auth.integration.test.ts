@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { afterAll, beforeAll, expect, test } from 'bun:test'
 import { PrismaClient } from '@prisma/client'
 import { createHash, randomBytes } from 'node:crypto'

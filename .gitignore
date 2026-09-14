@@ -12,6 +12,12 @@ node_modules
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # next.js
 /.next/

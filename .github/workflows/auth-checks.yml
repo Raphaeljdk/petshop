@@ -44,7 +44,7 @@ jobs:
       - name: Browser checks
         env:
           PLAYWRIGHT_MODULE: '${{ runner.temp }}/matilha-browser/node_modules/playwright/index.mjs'
-        run: bun tests/auth-ui.mjs
+        run: node tests/auth-ui.mjs
       - name: Store interface previews
         if: always()
         uses: actions/upload-artifact@v4
