@@ -396,3 +396,58 @@
   .reveal-ready, .stagger-grid > * { opacity: 1; translate: none; }
   .card-hover:hover, .quick-action:hover, .sidebar-nav-item:hover { transform: none; }
 }
+
+
+/* Login e cadastro compartilham a mesma experiência na página e no modal. */
+.account-page {
+  background: radial-gradient(ellipse at 5% 5%, #e2eef5 0, transparent 40%),
+    radial-gradient(ellipse at 95% 90%, #ffeadb 0, transparent 40%), var(--background);
+}
+.account-page-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  box-shadow: 0 18px 65px -35px #14375066;
+  animation: account-enter 300ms ease-out both;
+}
+.account-experience { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); background: var(--card); }
+.account-story {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  min-height: 620px; padding: 2.5rem; color: #f4f7fa;
+  background: radial-gradient(circle at 0% 100%, #25627870, transparent 55%), #102d44;
+}
+.account-paw { border: 1px solid #ffffff26; color: #ffc294; background: #ffffff0c; transform: rotate(-7deg); }
+.account-watermark { position: absolute; right: -2rem; bottom: 3rem; width: 16rem; height: 16rem; color: #ffffff03; transform: rotate(-22deg); pointer-events: none; }
+.account-form-body { min-width: 0; padding: 2.5rem; align-self: center; }
+.account-role { min-width: 0; color: var(--muted-foreground); border-color: var(--border); background: var(--card); }
+.account-role:hover { background: var(--muted); }
+.account-role-active { color: var(--foreground); border-color: #cf854c; background: #ed914a0c; box-shadow: inset 0 0 0 1px #cf854c; }
+.account-role:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.account-field input { background: var(--card); box-shadow: none; }
+.account-field input:focus-visible { box-shadow: 0 0 0 3px #d8874026; }
+.account-submit { color: #102d44; background: #ffad75; box-shadow: 0 5px 14px -9px #d16d27; transition: background-color 180ms ease, transform 180ms ease; }
+.account-submit:hover { background: #ffbd91; }
+.account-submit:active { transform: translateY(1px); }
+.account-address summary::marker { color: var(--primary); }
+[data-slot="dialog-content"].account-dialog { display: block; width: min(960px, calc(100vw - 1.5rem)); max-width: none; padding: 0; }
+.account-dialog .account-form-body { padding-top: 3rem; }
+.account-dialog [data-slot="dialog-close"] { display: flex; width: 2rem; height: 2rem; align-items: center; justify-content: center; border-radius: 50%; background: var(--muted); }
+@keyframes account-enter { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: none; } }
+@media (max-width: 900px) {
+  .account-story { padding: 2rem; }
+  .account-form-body { padding: 2rem; }
+}
+@media (max-width: 767px) {
+  .account-experience { grid-template-columns: minmax(0, 1fr); }
+  .account-story { display: none; }
+  .account-form-body { padding: 1.5rem; }
+  .account-dialog .account-form-body { padding-top: 3rem; }
+}
+@media (max-width: 359px) {
+  .account-form-body { padding-inline: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-page-card { animation: none; }
+  .account-submit { transition: none; }
+  .account-submit:active { transform: none; }
+}

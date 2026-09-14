@@ -1,70 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Reveal } from '@/components/motion/Reveal'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import {
-  ShieldCheck,
-  Zap,
-  Award,
-  Star,
-  ShoppingCart,
-  CalendarClock,
-  KanbanSquare,
-  Bell,
-  Users,
-  Plug,
-  ChevronRight,
-  X,
-  Mail,
-  Lock,
-  User as UserIcon,
-  Phone,
-  MapPin,
-  Heart,
-  PawPrint,
-  Menu,
-  Eye,
-  EyeOff,
-  Loader2,
-} from 'lucide-react'
+import { ShieldCheck, Star, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Logo } from '@/components/brand/Logo'
-import { useAuth } from '@/components/providers/AuthProvider'
-import { toast } from 'sonner'
+import { AccountExperience } from '@/components/auth/AccountExperience'
+import type { AccountMode, AccountRole } from '@/components/auth/AccountForm'
 import { cn } from '@/lib/utils'
 
 export function AuthScreen() {
-  const { login, cadastrar } = useAuth()
-  const [showPassword, setShowPassword] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [modo, setModo] = useState<'login' | 'cadastro'>('login')
-  const [loading, setLoading] = useState(false)
-  const [formLogin, setFormLogin] = useState({ email: '', senha: '' })
-  const [formCadastro, setFormCadastro] = useState({
-    nome: '',
-    telefone: '',
-    email: '',
-    endereco: '',
-    cep: '',
-    senha: '',
-    aceitaTermos: false,
-  })
+  const [modo, setModo] = useState<AccountMode>('login')
+  const [accountRole, setAccountRole] = useState<AccountRole>('CLIENTE')
+  const [authBusy, setAuthBusy] = useState(false)
+  const authTriggerRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30)
@@ -82,63 +39,14 @@ export function AuthScreen() {
     return () => media.removeEventListener('change', closeOnDesktop)
   }, [mobileNavOpen])
 
-  const abrirLogin = () => {
-    setShowPassword(false)
-    setModo('login')
+  const openAccount = (mode: AccountMode, role: AccountRole = 'CLIENTE') => {
+    authTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setModo(mode)
+    setAccountRole(role)
     setDialogOpen(true)
   }
-  const abrirCadastro = () => {
-    setShowPassword(false)
-    setModo('cadastro')
-    setDialogOpen(true)
-  }
-
-  const submitLogin = async () => {
-    if (loading) return
-    if (!formLogin.email || !formLogin.senha) {
-      toast.error('Preencha e-mail e senha')
-      return
-    }
-    setLoading(true)
-    try {
-      await login(formLogin.email, formLogin.senha)
-      toast.success('Bem-vindo de volta!')
-      setDialogOpen(false)
-    } catch (e: any) {
-      toast.error(e.message || 'Erro ao fazer login')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const submitCadastro = async () => {
-    if (loading) return
-    if (!formCadastro.nome || !formCadastro.email || !formCadastro.senha || !formCadastro.telefone) {
-      toast.error('Preencha todos os campos obrigatórios')
-      return
-    }
-    if (!formCadastro.aceitaTermos) {
-      toast.error('Você precisa aceitar os Termos de Uso e a Política LGPD')
-      return
-    }
-    setLoading(true)
-    try {
-      await cadastrar({
-        nome: formCadastro.nome,
-        email: formCadastro.email,
-        senha: formCadastro.senha,
-        telefone: formCadastro.telefone,
-        endereco: formCadastro.endereco || undefined,
-        cep: formCadastro.cep || undefined,
-      })
-      toast.success('Cadastro realizado com sucesso!')
-      setDialogOpen(false)
-    } catch (e: any) {
-      toast.error(e.message || 'Erro ao cadastrar')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const abrirLogin = () => openAccount('login')
+  const abrirCadastro = () => openAccount('cadastro')
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id)
@@ -462,11 +370,11 @@ export function AuthScreen() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">Legal</h4>
+              <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">Sua conta</h4>
               <ul className="space-y-2 text-sm text-white/70">
-                <li><button className="hover:text-white transition-colors">Política de Privacidade</button></li>
-                <li><button className="hover:text-white transition-colors">Termos de Uso</button></li>
-                <li><button className="hover:text-white transition-colors">LGPD</button></li>
+                <li><button onClick={abrirCadastro} className="hover:text-white transition-colors">Cadastro de cliente</button></li>
+                <li><button onClick={() => openAccount('cadastro', 'ADMIN')} className="hover:text-white transition-colors">Cadastro de administrador</button></li>
+                <li><button onClick={() => openAccount('login', 'ADMIN')} className="hover:text-white transition-colors">Acesso da equipe</button></li>
               </ul>
             </div>
           </div>
@@ -475,213 +383,19 @@ export function AuthScreen() {
               © {new Date().getFullYear()} Matilha Prado — Pet Shop. Todos os direitos reservados.
             </p>
             <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-              <ShieldCheck className="size-3" /> Conformidade LGPD
+              <ShieldCheck className="size-3" /> Acesso individual
             </Badge>
           </div>
         </div>
       </footer>
 
-      {/* Dialog Login/Cadastro */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="auth-form sm:max-w-[460px] max-w-[calc(100vw-2rem)] p-6 sm:p-8">
-          <DialogHeader>
-            <div className="flex justify-center mb-2">
-              <Logo size="md" />
-            </div>
-            <DialogTitle className="text-center text-lg sm:text-xl">
-              {modo === 'login' ? 'Acessar minha conta' : 'Criar conta gratuita'}
-            </DialogTitle>
-            <DialogDescription className="text-center text-xs sm:text-sm">
-              {modo === 'login'
-                ? 'Entre com seus dados para acessar o sistema'
-                : 'Preencha seus dados para começar a usar'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {modo === 'login' ? (
-            <form className="space-y-4" onSubmit={event => { event.preventDefault(); void submitLogin() }}>
-              <div>
-                <Label htmlFor="email">E-mail</Label>
-                <div className="relative">
-                  <Mail className="field-icon" />
-                  <Input
-                    id="email"
-                    autoComplete="email"
-                    required
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="pl-10"
-                    value={formLogin.email}
-                    onChange={(e) => setFormLogin({ ...formLogin, email: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="senha">Senha</Label>
-                <div className="relative">
-                  <Lock className="field-icon" />
-                  <Input
-                    id="senha"
-                    autoComplete="current-password"
-                    required
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    className="pl-10 pr-12"
-                    value={formLogin.senha}
-                    onChange={(e) => setFormLogin({ ...formLogin, senha: e.target.value })}
-                  />
-                  <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showPassword} className="absolute right-1 top-1 size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
-                </div>
-              </div>
-              <Button className="w-full btn-brand" type="submit" disabled={loading} aria-busy={loading}>
-                {loading && <Loader2 className="size-4 animate-spin" />} {loading ? 'Entrando...' : 'Entrar'}
-              </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                Não tem conta?{' '}
-                <button type="button" onClick={() => setModo('cadastro')} className="text-primary font-medium hover:underline">
-                  Cadastre-se
-                </button>
-              </p>
-            </form>
-          ) : (
-            <form className="space-y-4" onSubmit={event => { event.preventDefault(); void submitCadastro() }}>
-              <div>
-                <Label htmlFor="nome">Nome completo</Label>
-                <div className="relative">
-                  <UserIcon className="field-icon" />
-                  <Input
-                    id="nome"
-                    autoComplete="name"
-                    required
-                    placeholder="Seu nome"
-                    className="pl-10"
-                    value={formCadastro.nome}
-                    onChange={(e) => setFormCadastro({ ...formCadastro, nome: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="telefone">Telefone</Label>
-                <div className="relative">
-                  <Phone className="field-icon" />
-                  <Input
-                    id="telefone"
-                    type="tel"
-                    autoComplete="tel"
-                    required
-                    placeholder="(11) 99999-9999"
-                    className="pl-10"
-                    value={formCadastro.telefone}
-                    onChange={(e) => setFormCadastro({ ...formCadastro, telefone: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="email-cad">E-mail</Label>
-                <div className="relative">
-                  <Mail className="field-icon" />
-                  <Input
-                    id="email-cad"
-                    autoComplete="email"
-                    required
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="pl-10"
-                    value={formCadastro.email}
-                    onChange={(e) => setFormCadastro({ ...formCadastro, email: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="end-cad">Endereço (opcional)</Label>
-                <div className="relative">
-                  <MapPin className="field-icon" />
-                  <Input
-                    id="end-cad"
-                    autoComplete="street-address"
-                    placeholder="Rua, número, bairro..."
-                    className="pl-10"
-                    value={formCadastro.endereco}
-                    onChange={(e) => setFormCadastro({ ...formCadastro, endereco: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="cep-cad">CEP (opcional)</Label>
-                <div className="relative">
-                  <MapPin className="field-icon" />
-                  <Input
-                    id="cep-cad"
-                    autoComplete="postal-code"
-                    placeholder="00000-000"
-                    inputMode="numeric"
-                    maxLength={9}
-                    className="pl-10"
-                    value={formCadastro.cep}
-                    onChange={(e) => {
-                      const limpo = e.target.value.replace(/\D/g, '').slice(0, 8)
-                      const formatado =
-                        limpo.length <= 5
-                          ? limpo
-                          : `${limpo.slice(0, 5)}-${limpo.slice(5)}`
-                      setFormCadastro({ ...formCadastro, cep: formatado })
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Usado para calcular o frete das suas compras.
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="senha-cad">Senha</Label>
-                <div className="relative">
-                  <Lock className="field-icon" />
-                  <Input
-                    id="senha-cad"
-                    autoComplete="new-password"
-                    required
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    className="pl-10 pr-12"
-                    value={formCadastro.senha}
-                    onChange={(e) => setFormCadastro({ ...formCadastro, senha: e.target.value })}
-                  />
-                  <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showPassword} className="absolute right-1 top-1 size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
-                </div>
-              </div>
-              <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={formCadastro.aceitaTermos}
-                  onChange={(e) => setFormCadastro({ ...formCadastro, aceitaTermos: e.target.checked })}
-                />
-                <span>
-                  Li e aceito os <button type="button" className="text-primary font-medium hover:underline">Termos de Uso</button> e a{' '}
-                  <button type="button" className="text-primary font-medium hover:underline">Política de Privacidade</button> (LGPD — Lei 13.709/2018).
-                </span>
-              </label>
-              <Button className="w-full btn-brand" type="submit" disabled={loading} aria-busy={loading}>
-                {loading && <Loader2 className="size-4 animate-spin" />} {loading ? 'Cadastrando...' : 'Criar conta'}
-              </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                Já tem conta?{' '}
-                <button type="button" onClick={() => setModo('login')} className="text-primary font-medium hover:underline">
-                  Entrar
-                </button>
-              </p>
-            </form>
-          )}
-
-          <DialogFooter className="border-t pt-3">
-            <div className="w-full flex items-center gap-2 text-xs text-muted-foreground">
-              <ShieldCheck className="size-3.5 text-green-600 shrink-0" />
-              <span>
-                Seus dados são protegidos pela Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018).
-                Não compartilhamos suas informações com terceiros.
-              </span>
-            </div>
-          </DialogFooter>
+      <Dialog open={dialogOpen} onOpenChange={open => { if (!authBusy) setDialogOpen(open) }}>
+        <DialogContent className="account-dialog" showCloseButton={!authBusy}
+          onCloseAutoFocus={event => { event.preventDefault(); authTriggerRef.current?.focus() }}>
+          <DialogTitle className="sr-only">Acesso à Matilha Prado</DialogTitle>
+          <DialogDescription className="sr-only">Entre na sua conta ou faça seu cadastro como cliente ou administrador.</DialogDescription>
+          <AccountExperience key={modo + accountRole} initialMode={modo} initialRole={accountRole}
+            onSuccess={() => setDialogOpen(false)} onBusyChange={setAuthBusy} />
         </DialogContent>
       </Dialog>
     </div>

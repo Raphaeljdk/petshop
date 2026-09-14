@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
-import { LayoutDashboard, CalendarClock, Package, Plug, Bell, UsersRound, KanbanSquare, Truck, CreditCard, PawPrint } from 'lucide-react'
+import { LayoutDashboard, CalendarClock, Package, Plug, Bell, UsersRound, KanbanSquare, Truck, CreditCard, PawPrint, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 
-export type TabId = 'dashboard' | 'kanban' | 'agendamentos' | 'ecommerce' | 'integracoes' | 'notificacoes' | 'clientes' | 'entregas' | 'pagamentos'
+export type TabId = 'dashboard' | 'kanban' | 'agendamentos' | 'ecommerce' | 'integracoes' | 'notificacoes' | 'clientes' | 'entregas' | 'pagamentos' | 'equipe'
 interface SidebarCounts { novo?: number; andamento?: number; notificacoesNaoLidas?: number }
 interface SidebarProps {
   active: TabId
@@ -32,6 +32,7 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
       { id: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
     ] },
     { label: 'Gerenciamento', items: [
+      { id: 'equipe', label: 'Equipe e convites', icon: ShieldCheck },
       { id: 'notificacoes', label: 'Notificações', icon: Bell, badge: counts?.notificacoesNaoLidas },
       { id: 'integracoes', label: 'Integrações', icon: Plug },
     ] },

@@ -1,12 +1,6 @@
 'use client'
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 export interface UserLogado {
   id: string
@@ -15,7 +9,6 @@ export interface UserLogado {
   role: 'ADMIN' | 'CLIENTE'
   clienteId?: string | null
 }
-
 export interface ClienteSessao {
   id: string
   nome: string
@@ -25,31 +18,34 @@ export interface ClienteSessao {
   cep: string | null
   pets?: any[]
 }
-
 export interface SessaoUser {
   autenticado: boolean
   user?: UserLogado
   cliente?: ClienteSessao | null
 }
-
+export interface CadastroDados {
+  nome: string
+  email: string
+  senha: string
+  confirmarSenha: string
+  role: 'ADMIN' | 'CLIENTE'
+  telefone?: string
+  endereco?: string
+  cep?: string
+  convite?: string
+}
+export class AuthRequestError extends Error {
+  constructor(message: string, public fields: Record<string, string> = {}) { super(message) }
+}
 interface AuthContextValue {
   sessao: SessaoUser
   loading: boolean
   refresh: () => Promise<SessaoUser>
-  login: (email: string, senha: string) => Promise<boolean>
-  cadastrar: (dados: {
-    nome: string
-    email: string
-    senha: string
-    telefone: string
-    endereco?: string
-    cep?: string
-  }) => Promise<boolean>
+  login: (email: string, senha: string, lembrar?: boolean) => Promise<boolean>
+  cadastrar: (dados: CadastroDados) => Promise<boolean>
   logout: () => Promise<void>
 }
-
 const AuthContext = createContext<AuthContextValue | null>(null)
-
 const SESSAO_INICIAL: SessaoUser = { autenticado: false }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -58,129 +54,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async (): Promise<SessaoUser> => {
     try {
-      const res = await fetch('/api/auth/me', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-      })
-      if (!res.ok) {
-        setSessao(SESSAO_INICIAL)
-        return SESSAO_INICIAL
-      }
-      const data = await res.json()
-      if (data?.autenticado && data.user) {
-        const user: UserLogado = {
-          id: data.user.id,
-          nome: data.user.nome,
-          email: data.user.email,
-          role: data.user.role,
-          clienteId: data.user.clienteId ?? null,
-        }
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      const data = res.ok ? await res.json() : null
+      if (data?.autenticado && data.user && ['ADMIN', 'CLIENTE'].includes(data.user.role)) {
         const novaSessao: SessaoUser = {
           autenticado: true,
-          user,
+          user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null },
           cliente: data.cliente ?? null,
         }
         setSessao(novaSessao)
         return novaSessao
       }
-      setSessao(SESSAO_INICIAL)
-      return SESSAO_INICIAL
-    } catch {
-      setSessao(SESSAO_INICIAL)
-      return SESSAO_INICIAL
-    }
+    } catch { /* Uma falha de rede não deve manter uma sessão presumida. */ }
+    setSessao(SESSAO_INICIAL)
+    return SESSAO_INICIAL
   }, [])
 
-  const login = useCallback(
-    async (email: string, senha: string): Promise<boolean> => {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ email, senha }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error || 'Credenciais inválidas')
-      }
-      const data = await res.json()
-      if (!data?.success) {
-        throw new Error(data?.error || 'Falha no login')
-      }
-      await refresh()
-      return true
-    },
-    [refresh]
-  )
-
-  const cadastrar = useCallback(
-    async (dados: {
-      nome: string
-      email: string
-      senha: string
-      telefone: string
-      endereco?: string
-      cep?: string
-    }): Promise<boolean> => {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(dados),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error || 'Falha no cadastro')
-      }
-      const data = await res.json()
-      if (!data?.success) {
-        throw new Error(data?.error || 'Falha no cadastro')
-      }
-      await refresh()
-      return true
-    },
-    [refresh]
-  )
-
-  const logout = useCallback(async (): Promise<void> => {
+  const authenticate = useCallback(async (url: string, data: unknown, registration = false) => {
+    let res: Response
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-      })
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(data) })
     } catch {
-      // ignore
+      throw new AuthRequestError('Não foi possível conectar. Confira sua internet e tente novamente.')
     }
-    await refresh()
+    const result = await res.json().catch(() => null)
+    if (!res.ok || !result?.success) {
+      throw new AuthRequestError(result?.error || 'Não foi possível concluir agora. Tente novamente.', result?.fields)
+    }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    const current = await refresh()
+    if (!current.autenticado) {
+      throw new AuthRequestError(registration
+        ? 'Conta criada. Entre com seu e-mail e senha para continuar.'
+        : 'Não foi possível confirmar sua sessão. Permita cookies neste site e tente novamente.')
+    }
+    return true
   }, [refresh])
+
+  const login = useCallback((email: string, senha: string, lembrar = false) =>
+    authenticate('/api/auth/login', { email, senha, lembrar }), [authenticate])
+  const cadastrar = useCallback((dados: CadastroDados) =>
+    authenticate(dados.role === 'ADMIN' ? '/api/auth/register/admin' : '/api/auth/register', dados, true), [authenticate])
+
+  const logout = useCallback(async () => {
+    const res = await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    if (!res.ok) throw new AuthRequestError('Não foi possível sair. Tente novamente.')
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    setSessao(SESSAO_INICIAL)
+  }, [])
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      await refresh()
-      if (mounted) setLoading(false)
-    })()
-    return () => {
-      mounted = false
-    }
+    void refresh().finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
   }, [refresh])
 
-  const value: AuthContextValue = {
-    sessao,
-    loading,
-    refresh,
-    login,
-    cadastrar,
-    logout,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ sessao, loading, refresh, login, cadastrar, logout }}>{children}</AuthContext.Provider>
 }
-
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider')
-  }
+  if (!ctx) throw new Error('useAuth deve ser usado dentro de um AuthProvider')
   return ctx
 }

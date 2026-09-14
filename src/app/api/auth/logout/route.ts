@@ -1,15 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { removerCookieAuth } from '@/lib/auth-cookies'
+import { assertSameOrigin, authFailure, authJson } from '@/lib/auth-http'
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    assertSameOrigin(req)
     await removerCookieAuth()
-    return NextResponse.json({ success: true })
-  } catch (e) {
-    console.error('logout erro:', e)
-    return NextResponse.json(
-      { success: false, error: 'Erro no logout' },
-      { status: 500 }
-    )
-  }
+    return authJson({ success: true })
+  } catch (error) { return authFailure(error) }
 }

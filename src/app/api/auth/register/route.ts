@@ -1,99 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
+import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { criarToken, setCookieAuth } from '@/lib/auth-cookies'
+import { bcrypt, criarToken, setCookieAuth } from '@/lib/auth-cookies'
+import { clientRegistrationSchema, fieldErrors } from '@/lib/auth-validation'
+import { AuthError, authFailure, authJson, authReady, limitAuthAttempts, readAuthBody } from '@/lib/auth-http'
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { nome, email, senha, telefone, endereco, cep } = body
-
-    if (!nome || !email || !senha || !telefone) {
-      return NextResponse.json(
-        { success: false, error: 'Nome, email, senha e telefone são obrigatórios' },
-        { status: 400 }
-      )
-    }
-
-    const emailNormalizado = String(email).toLowerCase().trim()
-
-    const existente = await db.user.findUnique({
-      where: { email: emailNormalizado },
-    })
-    if (existente) {
-      return NextResponse.json(
-        { success: false, error: 'Email já cadastrado' },
-        { status: 409 }
-      )
-    }
-
-    const clienteExistente = await db.cliente.findUnique({
-      where: { email: emailNormalizado },
-    })
-
-    const senhaHash = await bcrypt.hash(String(senha), 10)
-
-    const result = await db.$transaction(async (tx) => {
-      const cliente = clienteExistente
-        ? await tx.cliente.update({
-            where: { id: clienteExistente.id },
-            data: {
-              nome,
-              telefone: String(telefone),
-              endereco: endereco || null,
-              cep: cep || null,
-            },
-          })
-        : await tx.cliente.create({
-            data: {
-              nome,
-              telefone: String(telefone),
-              email: emailNormalizado,
-              endereco: endereco || null,
-              cep: cep || null,
-            },
-          })
-
-      const user = await tx.user.create({
+    const parsed = clientRegistrationSchema.safeParse(await readAuthBody(req))
+    if (!parsed.success) return authJson({ success: false, error: 'Revise os campos indicados.', fields: fieldErrors(parsed.error) }, 400)
+    authReady()
+    const { nome, email, senha, telefone, endereco, cep } = parsed.data
+    const limited = await limitAuthAttempts('register', email, 5, 15)
+    if (limited) return limited
+    const senhaHash = await bcrypt.hash(senha, 12)
+    const user = await db.$transaction(async tx => {
+      // Um e-mail digitado não comprova a identidade de um cliente antigo.
+      // Nunca vincular ou sobrescrever um prontuário existente pelo cadastro público.
+      if (await tx.cliente.findUnique({ where: { email }, select: { id: true } })) {
+        throw new AuthError('Já existe um atendimento com este e-mail. Procure a equipe para habilitar seu acesso.', 409)
+      }
+      return tx.user.create({
         data: {
-          nome,
-          email: emailNormalizado,
-          senha: senhaHash,
-          role: 'CLIENTE',
-          clienteId: cliente.id,
+          nome, email, senha: senhaHash, role: 'CLIENTE',
+          cliente: { create: { nome, email, telefone, endereco: endereco || null, cep: cep || null } },
         },
-        include: { cliente: true },
+        select: { id: true, nome: true, email: true, role: true, clienteId: true },
       })
-
-      return user
     })
-
-    const token = await criarToken({
-      id: result.id,
-      nome: result.nome,
-      email: result.email,
-      role: result.role,
-      clienteId: result.clienteId,
-    })
-
-    await setCookieAuth(token)
-
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: result.id,
-        nome: result.nome,
-        email: result.email,
-        role: result.role,
-        clienteId: result.clienteId,
-        cliente: result.cliente,
-      },
-    })
-  } catch (e) {
-    console.error('register erro:', e)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao registrar usuário' },
-      { status: 500 }
-    )
-  }
+    await setCookieAuth(await criarToken(user))
+    return authJson({ success: true, user }, 201)
+  } catch (error) { return authFailure(error) }
 }

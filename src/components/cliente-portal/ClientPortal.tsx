@@ -45,8 +45,10 @@ export function ClientPortal() {
     .toUpperCase()
 
   const handleLogout = async () => {
-    await logout()
-    toast.success('Sessão encerrada')
+    try {
+      await logout()
+      toast.success('Sessão encerrada')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível sair.') }
   }
 
   const onCompraFinalizada = () => {

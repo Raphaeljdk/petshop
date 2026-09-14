@@ -1,5 +1,5 @@
 // GET /api/auth/me - retorna dados do usuário logado (lê cookie HTTP-only)
-import { NextResponse } from 'next/server'
+import { authJson } from '@/lib/auth-http'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { db } from '@/lib/db'
 
@@ -18,7 +18,7 @@ export async function GET() {
     const user = await getUsuarioLogado()
 
     if (!user) {
-      return NextResponse.json({ autenticado: false })
+      return authJson({ autenticado: false })
     }
 
     // Buscar pets do cliente se for CLIENTE
@@ -50,7 +50,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
+    return authJson({
       autenticado: true,
       user: {
         id: user.id,
@@ -64,6 +64,6 @@ export async function GET() {
     })
   } catch (e) {
     console.error('me erro:', e)
-    return NextResponse.json({ autenticado: false })
+    return authJson({ autenticado: false })
   }
 }

@@ -13,6 +13,7 @@ import { NotificacoesView } from '@/components/notificacoes/NotificacoesView'
 import { ClientesView } from '@/components/clientes/ClientesView'
 import { EntregasView } from '@/components/admin/EntregasView'
 import { PagamentosView } from '@/components/admin/PagamentosView'
+import { AdminInvitations } from '@/components/admin/AdminInvitations'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/brand/Logo'
@@ -41,7 +42,7 @@ function AdminPanelImpl() {
   const pageNames: Record<TabId, string> = {
     dashboard: 'Visão geral', kanban: 'Kanban de pets', agendamentos: 'Agendamentos',
     ecommerce: 'Estoque', integracoes: 'Integrações', notificacoes: 'Notificações',
-    clientes: 'Clientes e pets', entregas: 'Entregas', pagamentos: 'Pagamentos',
+    clientes: 'Clientes e pets', entregas: 'Entregas', pagamentos: 'Pagamentos', equipe: 'Equipe e convites',
   }
   const user = sessao.user
 
@@ -135,8 +136,10 @@ function AdminPanelImpl() {
   }, [tab])
 
   const handleLogout = async () => {
-    await logout()
-    toast.success('Sessão encerrada')
+    try {
+      await logout()
+      toast.success('Sessão encerrada')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível sair.') }
   }
 
   if (!user) {
@@ -235,6 +238,7 @@ function AdminPanelImpl() {
             {tab === 'integracoes' && <IntegracoesView />}
             {tab === 'notificacoes' && <NotificacoesView />}
             {tab === 'clientes' && <ClientesView />}
+            {tab === 'equipe' && <AdminInvitations />}
             {tab === 'entregas' && (
               <EntregasView refreshSignal={entregasRefreshSignal} />
             )}

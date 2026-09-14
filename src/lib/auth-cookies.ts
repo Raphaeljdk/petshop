@@ -6,11 +6,13 @@ import { db } from '@/lib/db'
 const DEV_SECRET = 'matilha-prado-secret-apenas-desenvolvimento'
 
 function getSecret(): string {
-  if (process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_SECRET) {
-    throw new Error('NEXTAUTH_SECRET deve ser configurado em produção')
+  if (process.env.NODE_ENV === 'production' && (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32)) {
+    throw new Error('NEXTAUTH_SECRET deve ter pelo menos 32 caracteres em produção')
   }
   return process.env.NEXTAUTH_SECRET || DEV_SECRET
 }
+export function assertAuthConfigured(): void { getSecret() }
+
 export const COOKIE_NAME = 'matilha_token'
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 dias em segundos
 
@@ -45,7 +47,7 @@ export async function criarToken(user: {
   email: string
   role: string
   clienteId?: string | null
-}): Promise<string> {
+}, lembrar = false): Promise<string> {
   const payload: TokenPayload = {
     userId: user.id,
     email: user.email,
@@ -53,10 +55,10 @@ export async function criarToken(user: {
     role: user.role as 'ADMIN' | 'CLIENTE',
     clienteId: user.clienteId ?? null,
   }
-  return jwt.sign(payload, getSecret(), { expiresIn: '7d' })
+  return jwt.sign(payload, getSecret(), { expiresIn: lembrar ? '7d' : '12h', algorithm: 'HS256' })
 }
 
-export async function setCookieAuth(token: string): Promise<void> {
+export async function setCookieAuth(token: string, lembrar = false): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.set({
     name: COOKIE_NAME,
@@ -65,7 +67,7 @@ export async function setCookieAuth(token: string): Promise<void> {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: COOKIE_MAX_AGE,
+    ...(lembrar ? { maxAge: COOKIE_MAX_AGE } : {}),
   })
 }
 
@@ -80,7 +82,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
     const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return null
 
-    const decoded = jwt.verify(token, getSecret()) as TokenPayload
+    const decoded = jwt.verify(token, getSecret(), { algorithms: ['HS256'] }) as TokenPayload
     if (!decoded || !decoded.userId) return null
 
     const user = await db.user.findUnique({
@@ -92,7 +94,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
       },
     })
 
-    if (!user || !user.ativo) return null
+    if (!user || !user.ativo || !['ADMIN', 'CLIENTE'].includes(user.role)) return null
 
     return {
       id: user.id,
