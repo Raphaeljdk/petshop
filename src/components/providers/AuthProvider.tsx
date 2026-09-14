@@ -48,25 +48,26 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 const SESSAO_INICIAL: SessaoUser = { autenticado: false }
 
+async function readSession(signal?: AbortSignal): Promise<SessaoUser> {
+  const data = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store', signal })
+    .then(res => res.ok ? res.json() : null)
+    .catch(() => null)
+  if (!data?.autenticado || !data.user || !['ADMIN', 'CLIENTE'].includes(data.user.role)) return SESSAO_INICIAL
+  return {
+    autenticado: true,
+    user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null },
+    cliente: data.cliente ?? null,
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [sessao, setSessao] = useState<SessaoUser>(SESSAO_INICIAL)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async (): Promise<SessaoUser> => {
-    const data = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
-      .then(res => res.ok ? res.json() : null)
-      .catch(() => null)
-    if (data?.autenticado && data.user && ['ADMIN', 'CLIENTE'].includes(data.user.role)) {
-      const novaSessao: SessaoUser = {
-        autenticado: true,
-        user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null },
-        cliente: data.cliente ?? null,
-      }
-      setSessao(novaSessao)
-      return novaSessao
-    }
-    setSessao(SESSAO_INICIAL)
-    return SESSAO_INICIAL
+    const current = await readSession()
+    setSessao(current)
+    return current
   }, [])
 
   const authenticate = useCallback(async (url: string, data: unknown, registration = false) => {
@@ -103,10 +104,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    let mounted = true
-    void refresh().finally(() => { if (mounted) setLoading(false) })
-    return () => { mounted = false }
-  }, [refresh])
+    const controller = new AbortController()
+    void readSession(controller.signal).then(current => {
+      if (!controller.signal.aborted) {
+        setSessao(current)
+        setLoading(false)
+      }
+    })
+    return () => controller.abort()
+  }, [])
 
   return <AuthContext.Provider value={{ sessao, loading, refresh, login, cadastrar, logout }}>{children}</AuthContext.Provider>
 }
