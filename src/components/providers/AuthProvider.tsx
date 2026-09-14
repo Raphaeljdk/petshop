@@ -53,19 +53,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async (): Promise<SessaoUser> => {
-    try {
-      const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
-      const data = res.ok ? await res.json() : null
-      if (data?.autenticado && data.user && ['ADMIN', 'CLIENTE'].includes(data.user.role)) {
-        const novaSessao: SessaoUser = {
-          autenticado: true,
-          user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null },
-          cliente: data.cliente ?? null,
-        }
-        setSessao(novaSessao)
-        return novaSessao
+    const data = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .catch(() => null)
+    if (data?.autenticado && data.user && ['ADMIN', 'CLIENTE'].includes(data.user.role)) {
+      const novaSessao: SessaoUser = {
+        autenticado: true,
+        user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null },
+        cliente: data.cliente ?? null,
       }
-    } catch { /* Uma falha de rede não deve manter uma sessão presumida. */ }
+      setSessao(novaSessao)
+      return novaSessao
+    }
     setSessao(SESSAO_INICIAL)
     return SESSAO_INICIAL
   }, [])
