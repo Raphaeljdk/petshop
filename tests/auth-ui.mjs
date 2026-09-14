@@ -57,7 +57,7 @@ try {
   await dialog.waitFor()
   await page.keyboard.press('Escape')
   await dialog.waitFor({ state: 'hidden' })
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'Cadastrar')
+  assert.ok(await page.getByRole('button', { name: 'Cadastrar', exact: true }).evaluate(el => el === document.activeElement))
   passed('Modal abre, fecha por teclado e restaura foco')
 
   await page.goto(base + '/cadastro')
@@ -70,7 +70,7 @@ try {
   await page.getByLabel('Confirmar senha', { exact: true }).fill('OutraSenha999')
   await page.getByRole('button', { name: 'Criar minha conta', exact: true }).click()
   await page.getByText('As senhas não coincidem.').waitFor()
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'confirmarSenha')
+  await page.waitForFunction(() => document.activeElement?.getAttribute('name') === 'confirmarSenha')
   passed('Senha visível e confirmação com erro e foco no campo')
 
   await page.getByLabel('Confirmar senha', { exact: true }).fill(password)
@@ -112,7 +112,7 @@ try {
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Entrar na minha conta', exact: true }).click()
   await page.getByRole('navigation', { name: 'Navegação do cliente' }).waitFor()
-  assert.equal(new URL(page.url()).hash, '#inicio')
+  await page.waitForURL('**/#inicio')
   passed('Troca de administrador para cliente não mantém a aba da equipe')
 
   const reduced = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 390, height: 844 } })
