@@ -13,6 +13,16 @@ function secureCodeEquals(received: string, expected: string): boolean {
   return timingSafeEqual(receivedHash, expectedHash)
 }
 
+function assertBootstrapCode(invite: string): void {
+  const setupCode = process.env.ADMIN_BOOTSTRAP_CODE?.trim().toLowerCase() || ''
+  if (!/^[a-f0-9]{64}$/.test(setupCode)) {
+    throw new AuthError('A ativação inicial do administrador ainda não foi configurada no servidor.', 503)
+  }
+  if (!secureCodeEquals(invite.toLowerCase(), setupCode)) {
+    throw new AuthError('Código de ativação do administrador inválido.', 403)
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const parsed = adminRegistrationSchema.safeParse(await readAuthBody(req))
@@ -21,6 +31,34 @@ export async function POST(req: NextRequest) {
     const { nome, email, senha, convite } = parsed.data
     const limited = await limitAuthAttempts('register-admin', email, 5, 15)
     if (limited) return limited
+
+    // O bootstrap do e-mail oficial é idempotente. Se a primeira criação já ocorreu,
+    // repetir o mesmo código e a mesma senha apenas recupera a sessão, sem criar outra conta.
+    if (email === PRIMARY_ADMIN_EMAIL) {
+      assertBootstrapCode(convite)
+      const existingPrimary = await db.user.findUnique({
+        where: { email: PRIMARY_ADMIN_EMAIL },
+        select: { id: true, nome: true, email: true, senha: true, role: true, clienteId: true, ativo: true },
+      })
+      if (existingPrimary) {
+        if (existingPrimary.role !== 'ADMIN' || !existingPrimary.ativo) {
+          throw new AuthError('O e-mail oficial já está associado a uma conta que precisa de revisão pela administração.', 409)
+        }
+        if (!(await bcrypt.compare(senha, existingPrimary.senha))) {
+          throw new AuthError('A conta administrativa já foi criada. Use a senha definida na primeira tentativa ou entre pela tela de login.', 409)
+        }
+        const user = {
+          id: existingPrimary.id,
+          nome: existingPrimary.nome,
+          email: existingPrimary.email,
+          role: existingPrimary.role,
+          clienteId: existingPrimary.clienteId,
+        }
+        await setCookieAuth(await criarToken(user))
+        return authJson({ success: true, user, existing: true }, 200)
+      }
+    }
+
     const tokenHash = createHash('sha256').update(convite).digest('hex')
     const senhaHash = await bcrypt.hash(senha, 12)
     const user = await db.$transaction(async tx => {
@@ -30,13 +68,7 @@ export async function POST(req: NextRequest) {
       // Bootstrap do primeiro administrador: somente o e-mail oficial da Matilha Prado,
       // somente enquanto não existir nenhum ADMIN e protegido por um código secreto da Vercel.
       if (!existingAdmin && email === PRIMARY_ADMIN_EMAIL) {
-        const setupCode = process.env.ADMIN_BOOTSTRAP_CODE?.trim().toLowerCase() || ''
-        if (!/^[a-f0-9]{64}$/.test(setupCode)) {
-          throw new AuthError('A ativação inicial do administrador ainda não foi configurada no servidor.', 503)
-        }
-        if (!secureCodeEquals(convite.toLowerCase(), setupCode)) {
-          throw new AuthError('Código de ativação do administrador inválido.', 403)
-        }
+        assertBootstrapCode(convite)
         return tx.user.create({
           data: { nome, email, senha: senhaHash, role: 'ADMIN' },
           select: { id: true, nome: true, email: true, role: true, clienteId: true },
