@@ -26,13 +26,17 @@ export async function readAuthBody(req: NextRequest): Promise<unknown> {
 }
 
 export function authReady() {
-  try {
-    assertAuthConfigured()
-    if (!process.env.DATABASE_URL || (process.env.VERCEL && process.env.DATABASE_URL.startsWith('file:'))) {
-      throw new Error('Banco persistente indisponível')
-    }
-  } catch {
-    throw new AuthError('O acesso está temporariamente indisponível. Tente novamente mais tarde.', 503)
+  const missing: string[] = []
+  if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32) missing.push('NEXTAUTH_SECRET')
+  if (!process.env.DATABASE_URL) missing.push('DATABASE_URL')
+  else if (process.env.VERCEL && process.env.DATABASE_URL.startsWith('file:')) missing.push('DATABASE_URL_POSTGRESQL')
+
+  try { assertAuthConfigured() } catch { if (!missing.includes('NEXTAUTH_SECRET')) missing.push('NEXTAUTH_SECRET') }
+
+  if (missing.length > 0) {
+    // Registra somente os nomes das configurações ausentes; nunca seus valores.
+    console.error('Configuração de autenticação indisponível:', missing.join(', '))
+    throw new AuthError('O acesso está temporariamente indisponível. A configuração do servidor ainda não foi concluída.', 503)
   }
 }
 
