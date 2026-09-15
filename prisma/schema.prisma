@@ -1,6 +1,7 @@
 // Pet Hub - Schema do Sistema de Pet Shop
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -110,20 +111,18 @@ model Venda {
   canal      String   @default("loja")
   status     String   @default("concluida")
   observacoes String?
-  // Campos de entrega
-  tipoEntrega     String?  // 'retirada' | 'entrega_propria' | 'sedex'
+  tipoEntrega     String?
   valorFrete      Float?   @default(0)
   cepEntrega      String?
   enderecoEntrega String?
-  prazoEntrega    String?  // ex: "1-2 dias úteis"
+  prazoEntrega    String?
   codigoRastreio  String?
-  statusEntrega   String?  @default("pendente") // 'pendente' | 'enviada' | 'entregue' | 'cancelada'
-  // Pagamento Mercado Pago
-  mercadoPagoId String?        // ID da transação no MP
-  mercadoPagoStatus String?   // pending/approved/rejected/cancelled
-  mercadoPagoPaymentUrl String?  // URL do checkout MP (para PIX/boleto)
-  mercadoPagoQrCode String?   // QR code PIX (base64 ou texto)
-  mercadoPagoPixExpiresAt DateTime?  // Validade do PIX
+  statusEntrega   String?  @default("pendente")
+  mercadoPagoId String?
+  mercadoPagoStatus String?
+  mercadoPagoPaymentUrl String?
+  mercadoPagoQrCode String?
+  mercadoPagoPixExpiresAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   cliente Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
@@ -166,16 +165,13 @@ model Integracao {
 
 model ConfiguracaoFrete {
   id String @id @default(cuid())
-  // Entrega própria (dentro de SP - capital)
   entregaPropriaAtiva Boolean @default(true)
   entregaPropriaValor Float @default(15.00)
   entregaPropriaPrazo String @default("1-2 dias úteis")
-  entregaPropriaCepInicial String @default("01000-000")  // SP capital início
-  entregaPropriaCepFinal String @default("09999-999")    // SP capital fim
-  // Sedex (fora de SP)
+  entregaPropriaCepInicial String @default("01000-000")
+  entregaPropriaCepFinal String @default("09999-999")
   sedexAtivo Boolean @default(true)
   sedexPrazo String @default("3-5 dias úteis")
-  // Retirada na loja
   retiradaAtiva Boolean @default(true)
   retiradaPrazo String @default("Pronto em 2h")
   retiradaEndereco String @default("Av. Água Fria, 1647 — Santana, São Paulo/SP")
@@ -186,16 +182,15 @@ model ConfiguracaoFrete {
 model ConfiguracaoPagamento {
   id String @id @default(cuid())
   mercadoPagoAtivo Boolean @default(false)
-  mercadoPagoAccessToken String?  // Token de acesso (produção)
-  mercadoPagoPublicKey String?    // Chave pública
-  mercadoPagoSandbox Boolean @default(true)  // Modo sandbox
+  mercadoPagoAccessToken String?
+  mercadoPagoPublicKey String?
+  mercadoPagoSandbox Boolean @default(true)
   pixAtivo Boolean @default(true)
   cartaoAtivo Boolean @default(true)
   boletoAtivo Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
 
 model AdminInvitation {
   id          String   @id @default(cuid())
