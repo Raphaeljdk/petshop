@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "prisma generate && prisma db push && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "build": "bunx prisma generate --schema=prisma/schema.prisma && bunx prisma db push --schema=prisma/schema.prisma && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push",
@@ -13,7 +13,8 @@
     "db:reset": "prisma migrate reset",
     "admin:invite": "node --env-file=.env scripts/create-admin-invite.mjs",
     "test:auth": "bun test tests/auth.integration.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate --schema=prisma/schema.prisma"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -100,5 +101,6 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
-  }
+  },
+  "packageManager": "bun@1.3.4"
 }
