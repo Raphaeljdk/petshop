@@ -6,16 +6,18 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const missing: string[] = []
   const databaseUrl = process.env.DATABASE_URL || ''
-  const nextAuthSecret = process.env.NEXTAUTH_SECRET || ''
-  const bootstrapCode = process.env.ADMIN_BOOTSTRAP_CODE || ''
+  const nextAuthSecret = process.env.NEXTAUTH_SECRET?.trim() || ''
+  const bootstrapCode = process.env.ADMIN_BOOTSTRAP_CODE?.trim() || ''
+  const bootstrapValid = /^[a-f0-9]{64}$/i.test(bootstrapCode)
+  const authSecretReady = nextAuthSecret.length >= 32 || bootstrapValid
 
   if (!databaseUrl) missing.push('DATABASE_URL')
-  if (nextAuthSecret.length < 32) missing.push('NEXTAUTH_SECRET')
-  if (!/^[a-f0-9]{64}$/i.test(bootstrapCode.trim())) missing.push('ADMIN_BOOTSTRAP_CODE')
+  if (!authSecretReady) missing.push('AUTH_SECRET')
+  if (!bootstrapValid) missing.push('ADMIN_BOOTSTRAP_CODE')
 
   const envNames = Object.keys(process.env)
   const databaseCandidates = envNames.filter(name => /DATABASE|POSTGRES|NEON|PGHOST|PGUSER|PGPORT|PGDATABASE/i.test(name)).sort()
-  const authCandidates = envNames.filter(name => /NEXTAUTH|AUTH_SECRET|JWT_SECRET/i.test(name)).sort()
+  const authCandidates = envNames.filter(name => /NEXTAUTH|AUTH_SECRET|JWT_SECRET|ADMIN_BOOTSTRAP_CODE/i.test(name)).sort()
 
   let database = 'not-configured'
   let schema = 'not-checked'
@@ -47,6 +49,8 @@ export async function GET() {
     missing,
     database,
     schema,
+    authSecretReady,
+    bootstrapReady: bootstrapValid,
     databaseCandidates,
     authCandidates,
   }, { headers: { 'Cache-Control': 'no-store' } })
