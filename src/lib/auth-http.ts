@@ -27,18 +27,16 @@ export async function readAuthBody(req: NextRequest): Promise<unknown> {
 
 export function authReady() {
   const missing: string[] = []
-  if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32) missing.push('NEXTAUTH_SECRET')
   if (!process.env.DATABASE_URL) missing.push('DATABASE_URL')
   else if (process.env.VERCEL && process.env.DATABASE_URL.startsWith('file:')) missing.push('DATABASE_URL_POSTGRESQL')
 
-  try { assertAuthConfigured() } catch { if (!missing.includes('NEXTAUTH_SECRET')) missing.push('NEXTAUTH_SECRET') }
+  try { assertAuthConfigured() } catch { missing.push('AUTH_SECRET') }
 
   if (missing.length > 0) {
-    // Registra somente os nomes das configurações ausentes; nunca seus valores.
     console.error('Configuração de autenticação indisponível:', missing.join(', '))
     const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development'
     const message = isPreview
-      ? `Configuração incompleta neste ambiente da Vercel: ${missing.join(', ')}. Salve a variável em Preview e faça um novo deploy.`
+      ? `Configuração incompleta neste ambiente da Vercel: ${missing.join(', ')}. Salve a variável correta e faça um novo deploy.`
       : 'O acesso está temporariamente indisponível. A configuração do servidor ainda não foi concluída.'
     throw new AuthError(message, 503)
   }
@@ -53,7 +51,6 @@ export function authFailure(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     return authJson({ success: false, error: 'Não foi possível cadastrar este e-mail. Se já tem uma conta, entre ou procure a equipe.' }, 409)
   }
-  // Não registrar formulários, senhas, tokens ou dados pessoais nos logs.
   console.error('Falha na autenticação:', error instanceof Prisma.PrismaClientKnownRequestError ? error.code : 'indisponível')
   return authJson({ success: false, error: 'Não foi possível concluir agora. Tente novamente em alguns instantes.' }, 503)
 }
@@ -61,7 +58,6 @@ export function authFailure(error: unknown) {
 export async function limitAuthAttempts(scope: string, email: string, limit = 10, minutes = 10) {
   const now = new Date()
   const key = createHash('sha256').update(scope + ':' + email).digest('hex')
-  // O contador fica no banco e é compartilhado entre instâncias do servidor.
   const record = await db.$transaction(async tx => {
     await tx.authAttempt.deleteMany({ where: { key, expiresAt: { lte: now } } })
     return tx.authAttempt.upsert({
