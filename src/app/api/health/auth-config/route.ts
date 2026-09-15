@@ -13,6 +13,10 @@ export async function GET() {
   if (nextAuthSecret.length < 32) missing.push('NEXTAUTH_SECRET')
   if (!/^[a-f0-9]{64}$/i.test(bootstrapCode.trim())) missing.push('ADMIN_BOOTSTRAP_CODE')
 
+  const envNames = Object.keys(process.env)
+  const databaseCandidates = envNames.filter(name => /DATABASE|POSTGRES|NEON|PGHOST|PGUSER|PGPORT|PGDATABASE/i.test(name)).sort()
+  const authCandidates = envNames.filter(name => /NEXTAUTH|AUTH_SECRET|JWT_SECRET/i.test(name)).sort()
+
   let database = 'not-configured'
   let schema = 'not-checked'
 
@@ -43,5 +47,7 @@ export async function GET() {
     missing,
     database,
     schema,
+    databaseCandidates,
+    authCandidates,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
