@@ -23,18 +23,23 @@ export async function GET() {
   let database = 'not-configured'
   let schema = 'not-checked'
   let writeTest = 'not-checked'
+  let adminCount: number | null = null
+  let primaryAdminState: 'none' | 'admin' | 'other-role' | 'not-checked' = 'not-checked'
 
   if (databaseUrl) {
     try {
       await db.$queryRaw`SELECT 1`
       database = 'reachable'
       try {
-        await Promise.all([
-          db.user.count(),
+        const [admins, primary] = await Promise.all([
+          db.user.count({ where: { role: 'ADMIN' } }),
+          db.user.findUnique({ where: { email: 'matilhaprado@gmail.com' }, select: { role: true } }),
           db.cliente.count(),
           db.authAttempt.count(),
           db.adminInvitation.count(),
         ])
+        adminCount = admins
+        primaryAdminState = !primary ? 'none' : primary.role === 'ADMIN' ? 'admin' : 'other-role'
         schema = 'ready'
 
         const probeEmail = `health-${randomUUID()}@example.invalid`
@@ -78,6 +83,8 @@ export async function GET() {
     database,
     schema,
     writeTest,
+    adminCount,
+    primaryAdminState,
     authSecretReady,
     bootstrapReady: bootstrapValid,
     databaseCandidates,
