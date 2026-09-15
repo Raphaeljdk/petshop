@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
@@ -5,11 +6,23 @@ import { db } from '@/lib/db'
 
 const DEV_SECRET = 'matilha-prado-secret-apenas-desenvolvimento'
 
+function bootstrapDerivedSecret(): string | null {
+  const bootstrap = process.env.ADMIN_BOOTSTRAP_CODE?.trim() || ''
+  if (!/^[a-f0-9]{64}$/i.test(bootstrap)) return null
+  return createHash('sha256').update('matilha-prado:jwt:' + bootstrap.toLowerCase()).digest('hex')
+}
+
 function getSecret(): string {
-  if (process.env.NODE_ENV === 'production' && (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32)) {
-    throw new Error('NEXTAUTH_SECRET deve ter pelo menos 32 caracteres em produção')
+  const configured = process.env.NEXTAUTH_SECRET?.trim() || ''
+  if (configured.length >= 32) return configured
+
+  const derived = bootstrapDerivedSecret()
+  if (derived) return derived
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Configure NEXTAUTH_SECRET ou ADMIN_BOOTSTRAP_CODE com segurança em produção')
   }
-  return process.env.NEXTAUTH_SECRET || DEV_SECRET
+  return DEV_SECRET
 }
 export function assertAuthConfigured(): void { getSecret() }
 
