@@ -36,7 +36,11 @@ export function authReady() {
   if (missing.length > 0) {
     // Registra somente os nomes das configurações ausentes; nunca seus valores.
     console.error('Configuração de autenticação indisponível:', missing.join(', '))
-    throw new AuthError('O acesso está temporariamente indisponível. A configuração do servidor ainda não foi concluída.', 503)
+    const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development'
+    const message = isPreview
+      ? `Configuração incompleta neste ambiente da Vercel: ${missing.join(', ')}. Salve a variável em Preview e faça um novo deploy.`
+      : 'O acesso está temporariamente indisponível. A configuração do servidor ainda não foi concluída.'
+    throw new AuthError(message, 503)
   }
 }
 
