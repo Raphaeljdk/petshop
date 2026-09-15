@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
@@ -21,6 +22,7 @@ export async function GET() {
 
   let database = 'not-configured'
   let schema = 'not-checked'
+  let writeTest = 'not-checked'
 
   if (databaseUrl) {
     try {
@@ -34,6 +36,32 @@ export async function GET() {
           db.adminInvitation.count(),
         ])
         schema = 'ready'
+
+        const probeEmail = `health-${randomUUID()}@example.invalid`
+        try {
+          await db.$transaction(async tx => {
+            const created = await tx.user.create({
+              data: {
+                nome: 'Health Probe',
+                email: probeEmail,
+                senha: 'health-probe-not-a-real-password',
+                role: 'CLIENTE',
+                cliente: {
+                  create: {
+                    nome: 'Health Probe',
+                    email: probeEmail,
+                    telefone: '(11) 99999-9999',
+                  },
+                },
+              },
+              include: { cliente: true },
+            })
+            if (!created.cliente) throw new Error('WRITE_PROBE_FAILED')
+            throw new Error('ROLLBACK_WRITE_PROBE')
+          })
+        } catch (error) {
+          writeTest = error instanceof Error && error.message === 'ROLLBACK_WRITE_PROBE' ? 'ready' : 'failed'
+        }
       } catch {
         schema = 'missing-or-outdated'
       }
@@ -44,11 +72,12 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    ok: missing.length === 0 && database === 'reachable' && schema === 'ready',
+    ok: missing.length === 0 && database === 'reachable' && schema === 'ready' && writeTest === 'ready',
     vercelEnv: process.env.VERCEL_ENV || null,
     missing,
     database,
     schema,
+    writeTest,
     authSecretReady,
     bootstrapReady: bootstrapValid,
     databaseCandidates,
