@@ -6,8 +6,8 @@ import { createHash, randomBytes } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { PrismaClient } from '@prisma/client'
 
-if (!process.env.DATABASE_URL?.startsWith('file:/tmp/matilha-auth-test') || !process.env.PLAYWRIGHT_MODULE) {
-  throw new Error('Use o banco isolado de teste e informe PLAYWRIGHT_MODULE.')
+if (!/postgresql:\/\/[^/]+\/matilha_auth_test\b/.test(process.env.DATABASE_URL || '') || !process.env.PLAYWRIGHT_MODULE) {
+  throw new Error('Use o banco Postgres isolado de teste matilha_auth_test e informe PLAYWRIGHT_MODULE.')
 }
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href)
 const db = new PrismaClient()

@@ -5,8 +5,8 @@ import { createHash, randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import type { Subprocess } from 'bun'
 
-if (!process.env.DATABASE_URL?.startsWith('file:/tmp/matilha-auth-test')) {
-  throw new Error('Use exclusivamente um banco de teste file:/tmp/matilha-auth-test*.db.')
+if (!/postgresql:\/\/[^/]+\/matilha_auth_test\b/.test(process.env.DATABASE_URL || '')) {
+  throw new Error('Use exclusivamente o banco Postgres isolado de teste matilha_auth_test.')
 }
 const db = new PrismaClient()
 const base = 'http://localhost:3101'

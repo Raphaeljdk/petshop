@@ -21,7 +21,7 @@ Clientes já registrados pela loja precisam de atendimento da equipe para compro
 
 Requer Node.js 20.19+ para o script de convite; os comandos de testes usam Bun 1.3.4.
 
-1. Copie .env.example para .env e configure DATABASE_URL.
+1. Copie .env.example para .env e configure DATABASE_URL com uma URL PostgreSQL.
 2. Gere NEXTAUTH_SECRET com pelo menos 32 caracteres aleatórios. Exemplo:
 
 ~~~bash
@@ -37,7 +37,7 @@ npx prisma db push
 npm run dev
 ~~~
 
-A atualização adiciona AdminInvitation e AuthAttempt. Em um banco existente, revise as alterações do schema e faça backup antes de aplicá-las. O comando db:push não aceita perda de dados automaticamente.
+A atualização usa PostgreSQL e adiciona AdminInvitation e AuthAttempt. Em um banco existente, revise as alterações do schema e faça backup antes de aplicá-las. O comando db:push não aceita perda de dados automaticamente.
 
 ## Primeiro administrador
 
@@ -71,7 +71,7 @@ O workflow **Authentication checks** executa Prisma, ESLint, build, TypeScript, 
 Para reproduzir as verificações de API, a partir de um terminal preparado para testes:
 
 ~~~bash
-export DATABASE_URL="file:/tmp/matilha-auth-test.db"
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/matilha_auth_test?schema=public"
 export NEXTAUTH_SECRET="chave-exclusiva-para-testes-com-mais-de-32-caracteres"
 npx prisma db push
 npm run build
@@ -80,10 +80,14 @@ bun run test:auth
 
 O script de interface requer o caminho do módulo Playwright em PLAYWRIGHT_MODULE; veja o workflow para a instalação isolada do navegador.
 
-## Publicação
+## Publicação na Vercel
 
-O schema atual usa SQLite para desenvolvimento. A Vercel precisa de um banco persistente compatível e das variáveis DATABASE_URL e NEXTAUTH_SECRET. Migre o provider do Prisma e os dados para o banco escolhido antes de habilitar cadastros reais na Vercel; mudar apenas a URL para PostgreSQL não muda o provider.
+Use Neon Postgres na Vercel e configure as variáveis DATABASE_URL e NEXTAUTH_SECRET no projeto antes do deploy de produção. Depois execute o schema Prisma no banco conectado:
 
-O backend recusa autenticação com banco SQLite em arquivo na Vercel e recusa segredo ausente ou curto em produção. Não execute reset do banco de produção.
+~~~bash
+npx prisma db push
+~~~
+
+O backend recusa segredo ausente ou curto em produção. Não execute reset do banco de produção.
 
 Nunca publique .env, banco, convites, senhas, contratos ou credenciais no repositório.
