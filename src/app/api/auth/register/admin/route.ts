@@ -1,9 +1,17 @@
-import { createHash } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { bcrypt, criarToken, setCookieAuth } from '@/lib/auth-cookies'
 import { adminRegistrationSchema, fieldErrors } from '@/lib/auth-validation'
 import { AuthError, authFailure, authJson, authReady, limitAuthAttempts, readAuthBody } from '@/lib/auth-http'
+
+const PRIMARY_ADMIN_EMAIL = 'matilhaprado@gmail.com'
+
+function secureCodeEquals(received: string, expected: string): boolean {
+  const receivedHash = createHash('sha256').update(received).digest()
+  const expectedHash = createHash('sha256').update(expected).digest()
+  return timingSafeEqual(receivedHash, expectedHash)
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +25,24 @@ export async function POST(req: NextRequest) {
     const senhaHash = await bcrypt.hash(senha, 12)
     const user = await db.$transaction(async tx => {
       const now = new Date()
+      const existingAdmin = await tx.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
+
+      // Bootstrap do primeiro administrador: somente o e-mail oficial da Matilha Prado,
+      // somente enquanto não existir nenhum ADMIN e protegido por um código secreto da Vercel.
+      if (!existingAdmin && email === PRIMARY_ADMIN_EMAIL) {
+        const setupCode = process.env.ADMIN_BOOTSTRAP_CODE?.trim().toLowerCase() || ''
+        if (!/^[a-f0-9]{64}$/.test(setupCode)) {
+          throw new AuthError('A ativação inicial do administrador ainda não foi configurada no servidor.', 503)
+        }
+        if (!secureCodeEquals(convite.toLowerCase(), setupCode)) {
+          throw new AuthError('Código de ativação do administrador inválido.', 403)
+        }
+        return tx.user.create({
+          data: { nome, email, senha: senhaHash, role: 'ADMIN' },
+          select: { id: true, nome: true, email: true, role: true, clienteId: true },
+        })
+      }
+
       const invitation = await tx.adminInvitation.findUnique({
         where: { tokenHash }, include: { createdBy: { select: { ativo: true, role: true } } },
       })
