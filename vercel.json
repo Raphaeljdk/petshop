@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bunx prisma generate --schema=prisma/schema.prisma && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/"
+  "buildCommand": "bunx prisma generate --schema=prisma/schema.prisma && bunx prisma db push --schema=prisma/schema.prisma && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/"
 }
