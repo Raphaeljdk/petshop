@@ -1,0 +1,19 @@
+name: Deployment probe
+
+on:
+  push:
+    branches:
+      - codex/auth-clientes-administradores
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Vercel deployment
+        run: sleep 45
+      - name: Check public auth configuration
+        run: |
+          set -e
+          echo "Auth configuration response:"
+          curl -sS --fail-with-body https://petshop-ten-jade.vercel.app/api/health/auth-config
+          echo
