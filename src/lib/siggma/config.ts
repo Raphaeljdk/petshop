@@ -1,4 +1,4 @@
-export const SIGGMA_HOMOLOGATION_URL = 'https://virtuais.zettabrasil.com.br/siggma-integracoesapis'
+export const SIGGMA_HOMOLOGATION_URL = 'https://virtuais.zettabrasil.com.br/siggma-3860testesapi'
 export const SIGGMA_PRODUCTION_URL = 'https://sistema.zettabrasil.com.br/siggma'
 
 export type SiggmaConfig = {
