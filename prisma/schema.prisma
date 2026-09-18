@@ -16,6 +16,7 @@ model User {
   senha     String
   role      String   @default("CLIENTE") // ADMIN | CLIENTE
   clienteId String?  @unique
+  siggmaCliCod Int?    @unique // vínculo com o cliente oficial no Siggma
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
