@@ -85,15 +85,15 @@ export async function siggmaRequest<T>(
 ): Promise<T> {
   const { baseUrl } = getSiggmaConfig()
   const token = await getAccessToken()
+  const headers = new Headers(init.headers)
+
+  headers.set('Accept', 'application/json')
+  headers.set('Authorization', `Bearer ${token}`)
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
 
   const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, {
     ...init,
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers || {}),
-    },
+    headers,
     cache: 'no-store',
   })
 
