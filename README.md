@@ -120,3 +120,46 @@ npx prisma db push
 O backend recusa segredo ausente ou curto em produção. Não execute reset nem `prisma db push` automaticamente contra banco de produção.
 
 Nunca publique .env, banco, convites, senhas, contratos ou credenciais no repositório.
+
+## Acesso direto ao banco Siggma
+
+A Zettabrasil confirmou que o banco é PostgreSQL e que o acesso direto será liberado apenas para leitura. Toda criação, alteração ou exclusão deve continuar sendo feita pela API oficial do ERP, para preservar validações e regras de negócio.
+
+Parâmetros já confirmados:
+
+- SGBD: PostgreSQL
+- Porta: 5734
+- Permissão: somente leitura
+- SSL/TLS: obrigatório, com `sslmode=require`
+- Origem permitida: servidor Oracle com IP público reservado `146.235.58.230`
+
+As credenciais do banco não devem ser configuradas na Vercel nem commitadas no GitHub. Elas devem ficar somente como secrets/variáveis de ambiente no servidor Oracle responsável pelo acesso direto.
+
+Variáveis previstas no servidor Oracle:
+
+~~~env
+SIGGMA_DB_HOST=""
+SIGGMA_DB_PORT="5734"
+SIGGMA_DB_NAME=""
+SIGGMA_DB_USER=""
+SIGGMA_DB_PASSWORD=""
+SIGGMA_DB_SSLMODE="require"
+~~~
+
+Arquitetura:
+
+~~~text
+Navegador
+   |
+   v
+Vercel / Matilha Prado
+   |-----------------------> API Siggma (leituras/escritas suportadas)
+   |
+   +---- HTTPS privado ----> Oracle VM (146.235.58.230)
+                                |
+                                +---- PostgreSQL:5734 + SSL ----> Banco Siggma (somente leitura)
+~~~
+
+Não abrir a porta 5734 na Oracle para entrada. A VM apenas inicia uma conexão de saída para o banco da Zettabrasil. A exposição pública do banco permanece controlada pela whitelist da Zettabrasil.
+
+Sem webhooks/callbacks, a sincronização deve usar consultas incrementais da API por `since` e, quando necessário, consultas de leitura no PostgreSQL.
