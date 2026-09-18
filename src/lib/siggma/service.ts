@@ -28,7 +28,7 @@ export const siggma = {
   },
 
   animais: {
-    listar(params: { pagina?: number; cliente?: number; since?: string; q?: string } = {}) {
+    listar(params: { pagina?: number; cliente?: number; since?: string } = {}) {
       return siggmaRequest<SiggmaPage<SiggmaAnimal>>(`/api/animais${queryString(params)}`)
     },
     buscar(id: number) {
@@ -37,7 +37,13 @@ export const siggma = {
   },
 
   vacinas: {
-    listar(params: { pagina?: number; animal?: number; cliente?: number; since?: string } = {}) {
+    listar(params: {
+      pagina?: number
+      animal?: number
+      since?: string
+      dataInicial?: string
+      dataFinal?: string
+    } = {}) {
       return siggmaRequest<SiggmaPage<SiggmaVacina>>(`/api/animais-vacinas${queryString(params)}`)
     },
     buscar(id: number) {
@@ -54,6 +60,8 @@ export const siggma = {
       tipo?: string
       status?: string
       since?: string
+      dataInicial?: string
+      dataFinal?: string
     } = {}) {
       return siggmaRequest<SiggmaPage<SiggmaAtendimento>>(`/api/animais-historicos${queryString(params)}`)
     },
