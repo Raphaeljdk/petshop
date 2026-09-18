@@ -87,7 +87,7 @@ Os dados operacionais do pet shop devem ter o **Siggma como fonte oficial**. O H
 Variáveis necessárias:
 
 ~~~env
-SIGGMA_BASE_URL="https://virtuais.zettabrasil.com.br/siggma-integracoesapis"
+SIGGMA_BASE_URL="https://virtuais.zettabrasil.com.br/siggma-3860testesapi"
 SIGGMA_CLIENT_ID=""
 SIGGMA_CLIENT_SECRET=""
 SIGGMA_EMP=""
@@ -163,3 +163,18 @@ Vercel / Matilha Prado
 Não abrir a porta 5734 na Oracle para entrada. A VM apenas inicia uma conexão de saída para o banco da Zettabrasil. A exposição pública do banco permanece controlada pela whitelist da Zettabrasil.
 
 Sem webhooks/callbacks, a sincronização deve usar consultas incrementais da API por `since` e, quando necessário, consultas de leitura no PostgreSQL.
+
+
+## Regras finais de integração confirmadas pela Zettabrasil
+
+- O PostgreSQL do ERP é somente leitura. O Hub não executa INSERT, UPDATE, DELETE ou alterações de schema nesse banco.
+- Toda escrita suportada pelo ERP deve passar pela API Siggma para preservar regras de negócio.
+- O acesso direto ao PostgreSQL usa a porta 5734 a partir do IP reservado do servidor de integração.
+- SSL/TLS não é exigido para essa conexão, conforme confirmação mais recente do fornecedor.
+- Não há Webhooks/Callbacks; atualizações devem ser obtidas por sincronização incremental, principalmente com o parâmetro `since`.
+- Animais/pets são somente leitura na API atual. Não existem endpoints para criar, atualizar, vincular ou alterar status de animais.
+- Usuários do portal Matilha Prado não pertencem ao cadastro de usuários internos do ERP. Conta, hash de senha e perfil de acesso ficam na base própria do Hub.
+- O usuário do Hub deve manter somente o vínculo com o cliente oficial do Siggma por meio do `cliCod`.
+- Clientes e seus dados cadastrais podem ser criados/atualizados pela rota `POST /api/clientes/importar`.
+- O ambiente de homologação é `https://virtuais.zettabrasil.com.br/siggma-3860testesapi` e produção é `https://sistema.zettabrasil.com.br/siggma`.
+- Segredos de API e banco nunca são versionados no GitHub.
