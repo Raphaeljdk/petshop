@@ -80,14 +80,43 @@ bun run test:auth
 
 O script de interface requer o caminho do módulo Playwright em PLAYWRIGHT_MODULE; veja o workflow para a instalação isolada do navegador.
 
+## Integração Siggma / Zettabrasil
+
+Os dados operacionais do pet shop devem ter o **Siggma como fonte oficial**. O Hub acessa esses dados pelo backend usando a API REST disponibilizada pela Zettabrasil; as credenciais nunca são expostas ao navegador.
+
+Variáveis necessárias:
+
+~~~env
+SIGGMA_BASE_URL="https://virtuais.zettabrasil.com.br/siggma-integracoesapis"
+SIGGMA_CLIENT_ID=""
+SIGGMA_CLIENT_SECRET=""
+SIGGMA_EMP=""
+~~~
+
+O ambiente de homologação é obrigatório durante a validação. Depois dos testes, altere somente `SIGGMA_BASE_URL` para `https://sistema.zettabrasil.com.br/siggma`.
+
+A autenticação da API usa `POST /v2/oauth` com `grant_type=client_credentials_emp`. O token retornado fica apenas no servidor e é renovado automaticamente.
+
+Rotas internas administrativas já preparadas:
+
+- `GET /api/admin/siggma/status` — verifica configuração e autenticação sem expor credenciais.
+- `GET /api/admin/siggma/dados?recurso=clientes`
+- `GET /api/admin/siggma/dados?recurso=animais&cliente=<cliCod>`
+- `GET /api/admin/siggma/dados?recurso=vacinas&animal=<id>`
+- `GET /api/admin/siggma/dados?recurso=atendimentos&cliente=<cliCod>`
+- `GET /api/admin/siggma/dados?recurso=produtos`
+
+O PostgreSQL definido em `DATABASE_URL` permanece, por enquanto, somente para dados próprios do Hub que não existem na API do Siggma, como autenticação, convites e configurações internas. Antes de produção, essa conexão deve apontar para uma base/schema dedicado e autorizado pelo cliente. Não conecte o Prisma diretamente ao schema central do ERP.
+
+
 ## Publicação na Vercel
 
-Use Neon Postgres na Vercel e configure as variáveis DATABASE_URL e NEXTAUTH_SECRET no projeto antes do deploy de produção. Depois execute o schema Prisma no banco conectado:
+Configure DATABASE_URL para uma base/schema dedicado ao Hub, além de NEXTAUTH_SECRET e das variáveis SIGGMA_*. O banco Neon usado durante desenvolvimento não deve ser tratado como fonte oficial dos dados operacionais. A criação/migração das tabelas do Hub deve ser executada de forma controlada, fora do build da Vercel:
 
 ~~~bash
 npx prisma db push
 ~~~
 
-O backend recusa segredo ausente ou curto em produção. Não execute reset do banco de produção.
+O backend recusa segredo ausente ou curto em produção. Não execute reset nem `prisma db push` automaticamente contra banco de produção.
 
 Nunca publique .env, banco, convites, senhas, contratos ou credenciais no repositório.
