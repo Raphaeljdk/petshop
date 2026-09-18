@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
     const since = req.nextUrl.searchParams.get('since') || undefined
     const cliente = intParam(req.nextUrl.searchParams.get('cliente'))
     const animal = intParam(req.nextUrl.searchParams.get('animal'))
+    const dataInicial = req.nextUrl.searchParams.get('dataInicial') || undefined
+    const dataFinal = req.nextUrl.searchParams.get('dataFinal') || undefined
 
     if (recurso === 'clientes') {
       const data = await siggma.clientes.listar({
@@ -38,17 +40,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (recurso === 'animais') {
-      const data = await siggma.animais.listar({
-        pagina,
-        cliente,
-        since,
-        q: req.nextUrl.searchParams.get('q') || undefined,
-      })
+      const data = await siggma.animais.listar({ pagina, cliente, since })
       return authJson({ success: true, source: 'siggma', data })
     }
 
     if (recurso === 'vacinas') {
-      const data = await siggma.vacinas.listar({ pagina, cliente, animal, since })
+      const data = await siggma.vacinas.listar({ pagina, animal, since, dataInicial, dataFinal })
       return authJson({ success: true, source: 'siggma', data })
     }
 
@@ -58,6 +55,8 @@ export async function GET(req: NextRequest) {
         cliente,
         animal,
         since,
+        dataInicial,
+        dataFinal,
         tipo: req.nextUrl.searchParams.get('tipo') || undefined,
         status: req.nextUrl.searchParams.get('status') || undefined,
       })
