@@ -279,18 +279,18 @@ export function PagamentosView({ refreshSignal }: PagamentosViewProps) {
                 variant="outline"
                 className={cn(
                   'text-[10px]',
-                  config.mercadoPagoAtivo
+                  (config.checkoutPronto ?? config.mercadoPagoAtivo)
                     ? 'border-green-300 bg-green-50 text-green-700'
                     : 'border-amber-300 bg-amber-50 text-amber-700'
                 )}
               >
-                {config.mercadoPagoAtivo ? (
+                {(config.checkoutPronto ?? config.mercadoPagoAtivo) ? (
                   <>
-                    <CheckCircle2 className="size-3 mr-1" /> Ativo
+                    <CheckCircle2 className="size-3 mr-1" /> Pronto
                   </>
                 ) : (
                   <>
-                    <AlertCircle className="size-3 mr-1" /> Inativo / Simulado
+                    <AlertCircle className="size-3 mr-1" /> Configuração incompleta
                   </>
                 )}
               </Badge>
@@ -306,6 +306,24 @@ export function PagamentosView({ refreshSignal }: PagamentosViewProps) {
             </div>
           ) : config ? (
             <>
+              {config.checkoutPronto === false && (
+                <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-900 space-y-1">
+                  <p className="font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="size-4" />
+                    Checkout Transparente ainda não está pronto
+                  </p>
+                  <p>
+                    Access Token: {config.accessTokenConfigurado ? 'configurado' : 'faltando'} · Public Key:{' '}
+                    {config.publicKeyConfigurada ? 'configurada' : 'faltando'}.
+                  </p>
+                  {!config.webhookSecretConfigurado && (
+                    <p>
+                      O segredo do webhook também está pendente para confirmação automática dos pagamentos.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Toggle principal */}
               <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border border-border">
                 <div className="min-w-0">
