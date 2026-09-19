@@ -22,32 +22,51 @@ export async function GET() {
 
     const config = await getOuCriarConfigPagamento()
 
+    const envEnabled = process.env.MERCADO_PAGO_ENABLED?.trim().toLowerCase()
+    const tokenEnvConfigurado = Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim())
+    const mercadoPagoAtivoEfetivo =
+      envEnabled === 'true'
+        ? true
+        : envEnabled === 'false'
+          ? false
+          : tokenEnvConfigurado || config.mercadoPagoAtivo
+
+    const publicKeyEfetiva =
+      process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY?.trim() ||
+      config.mercadoPagoPublicKey ||
+      null
+
     if (usuario.role === 'ADMIN') {
       // Admin vê tudo, mas mascaramos tokens parciais
-      const resposta: ConfiguracaoPagamento = {
+      const resposta: ConfiguracaoPagamento & {
+        publicKey: string | null
+        ambienteConfigurado: boolean
+      } = {
         ...config,
-        // Mantém tokens visíveis para admin editar (mascarado só no front)
-        mercadoPagoAccessToken: config.mercadoPagoAccessToken,
-        mercadoPagoPublicKey: config.mercadoPagoPublicKey,
+        mercadoPagoAtivo: mercadoPagoAtivoEfetivo,
+        // Credenciais reais devem ficar no ambiente do servidor, não expostas pela API.
+        mercadoPagoAccessToken: tokenEnvConfigurado ? null : config.mercadoPagoAccessToken,
+        mercadoPagoPublicKey: publicKeyEfetiva,
+        publicKey: publicKeyEfetiva,
+        ambienteConfigurado: tokenEnvConfigurado,
       }
       return NextResponse.json(resposta)
     }
 
     // Cliente vê apenas flags + indicador de modo simulado
-    const ehSimulado =
-      !config.mercadoPagoAtivo ||
-      ((!config.mercadoPagoAccessToken ||
-        !config.mercadoPagoAccessToken.trim() ||
-        config.mercadoPagoAccessToken.includes('xxxxxxxx')) &&
-        (!process.env.MERCADO_PAGO_ACCESS_TOKEN ||
-          process.env.MERCADO_PAGO_ACCESS_TOKEN.includes('xxxxxxxx')))
+    const tokenConfigurado =
+      tokenEnvConfigurado ||
+      Boolean(config.mercadoPagoAccessToken?.trim())
+
+    const ehSimulado = !mercadoPagoAtivoEfetivo || !tokenConfigurado
 
     return NextResponse.json({
-      mercadoPagoAtivo: config.mercadoPagoAtivo,
+      mercadoPagoAtivo: mercadoPagoAtivoEfetivo,
       pixAtivo: config.pixAtivo,
       cartaoAtivo: config.cartaoAtivo,
       boletoAtivo: config.boletoAtivo,
       simulado: ehSimulado,
+      publicKey: publicKeyEfetiva,
     })
   } catch (e) {
     console.error('[pagamento/config GET] erro:', e)

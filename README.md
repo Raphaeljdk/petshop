@@ -80,14 +80,101 @@ bun run test:auth
 
 O script de interface requer o caminho do módulo Playwright em PLAYWRIGHT_MODULE; veja o workflow para a instalação isolada do navegador.
 
+## Integração Siggma / Zettabrasil
+
+Os dados operacionais do pet shop devem ter o **Siggma como fonte oficial**. O Hub acessa esses dados pelo backend usando a API REST disponibilizada pela Zettabrasil; as credenciais nunca são expostas ao navegador.
+
+Variáveis necessárias:
+
+~~~env
+SIGGMA_BASE_URL="https://virtuais.zettabrasil.com.br/siggma-3860testesapi"
+SIGGMA_CLIENT_ID=""
+SIGGMA_CLIENT_SECRET=""
+SIGGMA_EMP=""
+~~~
+
+O ambiente de homologação é obrigatório durante a validação. Depois dos testes, altere somente `SIGGMA_BASE_URL` para `https://sistema.zettabrasil.com.br/siggma`.
+
+A autenticação da API usa `POST /v2/oauth` com `grant_type=client_credentials_emp`. O token retornado fica apenas no servidor e é renovado automaticamente.
+
+Rotas internas administrativas já preparadas:
+
+- `GET /api/admin/siggma/status` — verifica configuração e autenticação sem expor credenciais.
+- `GET /api/admin/siggma/dados?recurso=clientes`
+- `GET /api/admin/siggma/dados?recurso=animais&cliente=<cliCod>`
+- `GET /api/admin/siggma/dados?recurso=vacinas&animal=<id>`
+- `GET /api/admin/siggma/dados?recurso=atendimentos&cliente=<cliCod>`
+- `GET /api/admin/siggma/dados?recurso=produtos`
+
+O PostgreSQL definido em `DATABASE_URL` permanece, por enquanto, somente para dados próprios do Hub que não existem na API do Siggma, como autenticação, convites e configurações internas. Antes de produção, essa conexão deve apontar para uma base/schema dedicado e autorizado pelo cliente. Não conecte o Prisma diretamente ao schema central do ERP.
+
+
 ## Publicação na Vercel
 
-Use Neon Postgres na Vercel e configure as variáveis DATABASE_URL e NEXTAUTH_SECRET no projeto antes do deploy de produção. Depois execute o schema Prisma no banco conectado:
+Configure DATABASE_URL para uma base/schema dedicado ao Hub, além de NEXTAUTH_SECRET e das variáveis SIGGMA_*. O banco Neon usado durante desenvolvimento não deve ser tratado como fonte oficial dos dados operacionais. A criação/migração das tabelas do Hub deve ser executada de forma controlada, fora do build da Vercel:
 
 ~~~bash
 npx prisma db push
 ~~~
 
-O backend recusa segredo ausente ou curto em produção. Não execute reset do banco de produção.
+O backend recusa segredo ausente ou curto em produção. Não execute reset nem `prisma db push` automaticamente contra banco de produção.
 
 Nunca publique .env, banco, convites, senhas, contratos ou credenciais no repositório.
+
+## Acesso direto ao banco Siggma
+
+A Zettabrasil confirmou que o banco é PostgreSQL e que o acesso direto será liberado apenas para leitura. Toda criação, alteração ou exclusão deve continuar sendo feita pela API oficial do ERP, para preservar validações e regras de negócio.
+
+Parâmetros já confirmados:
+
+- SGBD: PostgreSQL
+- Porta: 5734
+- Permissão: somente leitura
+- SSL/TLS: obrigatório, com `sslmode=require`
+- Origem permitida: servidor Oracle com IP público reservado `146.235.58.230`
+
+As credenciais do banco não devem ser configuradas na Vercel nem commitadas no GitHub. Elas devem ficar somente como secrets/variáveis de ambiente no servidor Oracle responsável pelo acesso direto.
+
+Variáveis previstas no servidor Oracle:
+
+~~~env
+SIGGMA_DB_HOST=""
+SIGGMA_DB_PORT="5734"
+SIGGMA_DB_NAME=""
+SIGGMA_DB_USER=""
+SIGGMA_DB_PASSWORD=""
+SIGGMA_DB_SSLMODE="require"
+~~~
+
+Arquitetura:
+
+~~~text
+Navegador
+   |
+   v
+Vercel / Matilha Prado
+   |-----------------------> API Siggma (leituras/escritas suportadas)
+   |
+   +---- HTTPS privado ----> Oracle VM (146.235.58.230)
+                                |
+                                +---- PostgreSQL:5734 + SSL ----> Banco Siggma (somente leitura)
+~~~
+
+Não abrir a porta 5734 na Oracle para entrada. A VM apenas inicia uma conexão de saída para o banco da Zettabrasil. A exposição pública do banco permanece controlada pela whitelist da Zettabrasil.
+
+Sem webhooks/callbacks, a sincronização deve usar consultas incrementais da API por `since` e, quando necessário, consultas de leitura no PostgreSQL.
+
+
+## Regras finais de integração confirmadas pela Zettabrasil
+
+- O PostgreSQL do ERP é somente leitura. O Hub não executa INSERT, UPDATE, DELETE ou alterações de schema nesse banco.
+- Toda escrita suportada pelo ERP deve passar pela API Siggma para preservar regras de negócio.
+- O acesso direto ao PostgreSQL usa a porta 5734 a partir do IP reservado do servidor de integração.
+- SSL/TLS não é exigido para essa conexão, conforme confirmação mais recente do fornecedor.
+- Não há Webhooks/Callbacks; atualizações devem ser obtidas por sincronização incremental, principalmente com o parâmetro `since`.
+- Animais/pets são somente leitura na API atual. Não existem endpoints para criar, atualizar, vincular ou alterar status de animais.
+- Usuários do portal Matilha Prado não pertencem ao cadastro de usuários internos do ERP. Conta, hash de senha e perfil de acesso ficam na base própria do Hub.
+- O usuário do Hub deve manter somente o vínculo com o cliente oficial do Siggma por meio do `cliCod`.
+- Clientes e seus dados cadastrais podem ser criados/atualizados pela rota `POST /api/clientes/importar`.
+- O ambiente de homologação é `https://virtuais.zettabrasil.com.br/siggma-3860testesapi` e produção é `https://sistema.zettabrasil.com.br/siggma`.
+- Segredos de API e banco nunca são versionados no GitHub.
