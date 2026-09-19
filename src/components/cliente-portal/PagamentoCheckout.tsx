@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { MetodoPagamento, PagamentoCriarResposta } from '@/lib/types'
@@ -41,6 +42,7 @@ interface ConfigPublica {
   cartaoAtivo: boolean
   boletoAtivo: boolean
   simulado: boolean
+  publicKey: string | null
 }
 
 interface StatusResponse {
@@ -97,6 +99,7 @@ export function PagamentoCheckout({
   const [loadingConfig, setLoadingConfig] = useState(true)
 
   const [metodo, setMetodo] = useState<MetodoPagamento | null>(null)
+  const [dadosAberto, setDadosAberto] = useState(false)
   const [criando, setCriando] = useState(false)
   const [pagamento, setPagamento] = useState<PagamentoCriarResposta | null>(null)
 
@@ -234,39 +237,53 @@ export function PagamentoCheckout({
       } catch (e) {
         console.error('[PagamentoCheckout] polling erro:', e)
       }
-    }, 3000)
+    }, 4000)
   }, [vendaId, onAprovado])
 
   // Iniciar pagamento quando método selecionado (não inicia automático —
   // espera clique do usuário, exceto PIX que já mostra QR ao selecionar)
   const criarPagamento = useCallback(
-    async (metodoSel: MetodoPagamento) => {
+    async (
+      metodoSel: MetodoPagamento,
+      extra: Record<string, unknown> = {}
+    ): Promise<PagamentoCriarResposta> => {
       setCriando(true)
       setPagamento(null)
       setStatus(null)
       setTempoEsgotado(false)
       comecouRef.current = Date.now()
+
       try {
         const res = await fetch('/api/pagamento/criar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ vendaId, metodo: metodoSel }),
+          body: JSON.stringify({ vendaId, metodo: metodoSel, ...extra }),
         })
+
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
           throw new Error(d?.error || 'Erro ao criar pagamento')
         }
+
         const data: PagamentoCriarResposta = await res.json()
         setPagamento(data)
+
         if (data.simulado) {
           toast.info('Modo simulado ativo — pagamento será aprovado em 10s')
         } else if (metodoSel === 'pix') {
-          toast.success('QR Code gerado')
+          toast.success('PIX gerado pelo Mercado Pago')
+        } else if (metodoSel === 'boleto') {
+          toast.success('Boleto gerado pelo Mercado Pago')
+        } else if (data.orderStatus === 'processed') {
+          toast.success('Pagamento processado')
         }
+
         iniciarPolling()
+        return data
       } catch (e: any) {
         toast.error(e.message || 'Erro ao criar pagamento')
+        throw e
       } finally {
         setCriando(false)
       }
@@ -292,17 +309,7 @@ export function PagamentoCheckout({
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
   }
 
-  const abrirCheckoutMP = () => {
-    if (pagamento?.initPoint && pagamento.initPoint !== 'about:blank') {
-      window.open(pagamento.initPoint, '_blank', 'noopener,noreferrer')
-    } else if (pagamento?.simulado) {
-      toast.info(
-        'Modo simulado: o pagamento será aprovado automaticamente em 10s'
-      )
-    } else {
-      toast.error('URL de checkout indisponível')
-    }
-  }
+
 
   if (loadingConfig) {
     return (
@@ -358,6 +365,7 @@ export function PagamentoCheckout({
             setPagamento(null)
             setStatus(null)
             setTempoEsgotado(false)
+            setDadosAberto(false)
           }}
         >
           Voltar
@@ -416,8 +424,23 @@ export function PagamentoCheckout({
         )}
       </div>
 
-      {/* Se ainda não tem pagamento criado, mostra opções */}
-      {!pagamento ? (
+      {/* Fluxo transparente: PIX direto; cartão via Brick; boleto com dados do pagador */}
+      {!pagamento && dadosAberto && metodo === 'cartao' ? (
+        <CartaoTransparente
+          vendaId={vendaId}
+          total={total}
+          publicKey={config?.publicKey || ''}
+          criando={criando}
+          onSubmit={(card) => criarPagamento('cartao', { card })}
+          onVoltar={() => setDadosAberto(false)}
+        />
+      ) : !pagamento && dadosAberto && metodo === 'boleto' ? (
+        <BoletoForm
+          criando={criando}
+          onSubmit={(boleto) => criarPagamento('boleto', { boleto })}
+          onVoltar={() => setDadosAberto(false)}
+        />
+      ) : !pagamento ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium">Escolha o método de pagamento</p>
@@ -430,7 +453,10 @@ export function PagamentoCheckout({
           ) : (
             <RadioGroup
               value={metodo || ''}
-              onValueChange={(v) => setMetodo(v as MetodoPagamento)}
+              onValueChange={(v) => {
+                setMetodo(v as MetodoPagamento)
+                setDadosAberto(false)
+              }}
               className="gap-2"
             >
               {metodosDisponiveis.map((m) => {
@@ -475,11 +501,18 @@ export function PagamentoCheckout({
           <Button
             className="w-full btn-brand h-11"
             disabled={!metodo || criando}
-            onClick={() => metodo && criarPagamento(metodo)}
+            onClick={() => {
+              if (!metodo) return
+              if (metodo === 'pix') {
+                void criarPagamento('pix')
+                return
+              }
+              setDadosAberto(true)
+            }}
           >
             {criando ? (
               <>
-                <Loader2 className="size-4 animate-spin" /> Gerando...
+                <Loader2 className="size-4 animate-spin" /> Processando...
               </>
             ) : (
               <>
@@ -490,7 +523,6 @@ export function PagamentoCheckout({
         </div>
       ) : (
         <>
-          {/* Mostra o conteúdo conforme o método */}
           {metodo === 'pix' && (
             <PixView
               pagamento={pagamento}
@@ -503,23 +535,22 @@ export function PagamentoCheckout({
           )}
 
           {metodo === 'cartao' && (
-            <CartaoView
-              pagamento={pagamento}
-              onAbrirMP={abrirCheckoutMP}
-            />
+            <CartaoProcessadoView pagamento={pagamento} />
           )}
 
           {metodo === 'boleto' && (
-            <BoletoView pagamento={pagamento} />
+            <BoletoView
+              pagamento={pagamento}
+              copiado={copiado}
+              onCopiar={copiarCodigo}
+            />
           )}
 
-          {/* Polling indicator */}
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3 animate-spin" />
-            <span>Aguardando confirmação...</span>
+            <span>Aguardando confirmação do Mercado Pago...</span>
           </div>
 
-          {/* Botão trocar método */}
           <Button
             variant="ghost"
             size="sm"
@@ -529,6 +560,7 @@ export function PagamentoCheckout({
               setPagamento(null)
               setStatus(null)
               setTempoEsgotado(false)
+              setDadosAberto(false)
               if (pollingRef.current) {
                 clearInterval(pollingRef.current)
                 pollingRef.current = null
@@ -647,13 +679,216 @@ function PixView({
   )
 }
 
-function CartaoView({
+type MercadoPagoCardPayload = {
+  token: string
+  paymentMethodId: string
+  paymentTypeId: string
+  installments: number
+  payer: {
+    email: string
+    identification?: {
+      type?: string
+      number?: string
+    }
+  }
+}
+
+declare global {
+  interface Window {
+    MercadoPago?: any
+    cardPaymentBrickController?: any
+  }
+}
+
+function carregarMercadoPagoJs(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  if (window.MercadoPago) return Promise.resolve()
+
+  const existente = document.querySelector<HTMLScriptElement>(
+    'script[data-matilha-mercado-pago="true"]'
+  )
+
+  if (existente) {
+    return new Promise((resolve, reject) => {
+      if (window.MercadoPago) return resolve()
+      existente.addEventListener('load', () => resolve(), { once: true })
+      existente.addEventListener(
+        'error',
+        () => reject(new Error('Falha ao carregar MercadoPago.js')),
+        { once: true }
+      )
+    })
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://sdk.mercadopago.com/js/v2'
+    script.async = true
+    script.dataset.matilhaMercadoPago = 'true'
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Falha ao carregar MercadoPago.js'))
+    document.head.appendChild(script)
+  })
+}
+
+function CartaoTransparente({
+  vendaId,
+  total,
+  publicKey,
+  criando,
+  onSubmit,
+  onVoltar,
+}: {
+  vendaId: string
+  total: number
+  publicKey: string
+  criando: boolean
+  onSubmit: (card: MercadoPagoCardPayload) => Promise<PagamentoCriarResposta>
+  onVoltar: () => void
+}) {
+  const [erro, setErro] = useState<string | null>(null)
+  const containerId = `cardPaymentBrick_${vendaId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+  useEffect(() => {
+    let ativo = true
+    let controller: any = null
+
+    if (!publicKey) {
+      setErro(
+        'Public Key do Mercado Pago não configurada. Adicione NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY na Vercel.'
+      )
+      return
+    }
+
+    ;(async () => {
+      try {
+        await carregarMercadoPagoJs()
+        if (!ativo || !window.MercadoPago) return
+
+        const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' })
+        const bricksBuilder = mp.bricks()
+
+        controller = await bricksBuilder.create(
+          'cardPayment',
+          containerId,
+          {
+            initialization: {
+              amount: Number(total.toFixed(2)),
+            },
+            callbacks: {
+              onReady: () => {
+                if (ativo) setErro(null)
+              },
+              onSubmit: (formData: any, additionalData: any) => {
+                return new Promise<void>(async (resolve, reject) => {
+                  try {
+                    const card: MercadoPagoCardPayload = {
+                      token: formData.token,
+                      paymentMethodId: formData.payment_method_id,
+                      paymentTypeId:
+                        additionalData?.paymentTypeId || 'credit_card',
+                      installments: Number(formData.installments || 1),
+                      payer: {
+                        email: formData.payer?.email,
+                        identification: formData.payer?.identification,
+                      },
+                    }
+
+                    await onSubmit(card)
+                    resolve()
+                  } catch (e) {
+                    reject(e)
+                  }
+                })
+              },
+              onError: (e: any) => {
+                console.error('[MercadoPago Brick] erro:', e)
+                if (ativo) {
+                  setErro(
+                    'Não foi possível carregar ou processar o formulário do cartão.'
+                  )
+                }
+              },
+            },
+          }
+        )
+
+        window.cardPaymentBrickController = controller
+      } catch (e: any) {
+        console.error('[CartaoTransparente] erro:', e)
+        if (ativo) setErro(e?.message || 'Erro ao carregar pagamento com cartão')
+      }
+    })()
+
+    return () => {
+      ativo = false
+      try {
+        controller?.unmount?.()
+      } catch {}
+      if (window.cardPaymentBrickController === controller) {
+        window.cardPaymentBrickController = undefined
+      }
+    }
+  }, [containerId, publicKey, total, onSubmit])
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <CreditCard className="size-5 text-primary" />
+          <div>
+            <p className="font-semibold text-sm">Cartão de crédito</p>
+            <p className="text-xs text-muted-foreground">
+              Checkout Transparente — você continua no Matilha Prado.
+            </p>
+          </div>
+        </div>
+
+        {erro && (
+          <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded p-2">
+            {erro}
+          </div>
+        )}
+
+        <div id={containerId} className={cn(criando && 'pointer-events-none opacity-60')} />
+
+        <div className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+          <span>🔒 Dados do cartão tokenizados diretamente pelo Mercado Pago</span>
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full"
+          disabled={criando}
+          onClick={onVoltar}
+        >
+          Voltar aos métodos de pagamento
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CartaoProcessadoView({
   pagamento,
-  onAbrirMP,
 }: {
   pagamento: PagamentoCriarResposta
-  onAbrirMP: () => void
 }) {
+  useEffect(() => {
+    if (!pagamento.challengeUrl) return
+
+    const listener = (event: MessageEvent) => {
+      if (event?.data?.status === 'COMPLETE') {
+        toast.info('Autenticação do banco concluída. Confirmando pagamento...')
+      }
+    }
+
+    window.addEventListener('message', listener)
+    return () => window.removeEventListener('message', listener)
+  }, [pagamento.challengeUrl])
+
   return (
     <Card>
       <CardContent className="p-4 space-y-3">
@@ -662,83 +897,297 @@ function CartaoView({
           <p className="font-semibold text-sm">Pagamento com cartão</p>
         </div>
 
-        {pagamento.simulado ? (
-          <div className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 flex items-start gap-1.5">
-            <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
-            <span>
-              Modo simulado ativo. O pagamento será aprovado automaticamente em 10 segundos.
-            </span>
-          </div>
+        {pagamento.challengeUrl ? (
+          <>
+            <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2">
+              Seu banco solicitou uma autenticação adicional (3DS). Conclua abaixo sem sair do site.
+            </div>
+            <iframe
+              src={pagamento.challengeUrl}
+              title="Autenticação 3DS do cartão"
+              className="w-full min-h-[420px] rounded-lg border bg-white"
+              allow="payment"
+            />
+          </>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Você será redirecionado para o ambiente seguro do Mercado Pago.
-            Após concluir o pagamento, voltaremos automaticamente.
-          </p>
+          <div className="text-sm text-muted-foreground text-center py-4">
+            Pagamento enviado com segurança ao Mercado Pago. Estamos confirmando o status.
+          </div>
         )}
 
-        <Button
-          className="w-full btn-brand h-11"
-          onClick={onAbrirMP}
-        >
-          <ExternalLink className="size-4" />
-          {pagamento.simulado
-            ? 'Simular pagamento no Mercado Pago'
-            : 'Pagar com Mercado Pago'}
-        </Button>
-
         <p className="text-[11px] text-muted-foreground text-center">
-          🔒 Pagamento processado pelo Mercado Pago
+          🔒 O Matilha Prado não recebe nem armazena número ou CVV do cartão.
         </p>
       </CardContent>
     </Card>
   )
 }
 
-function BoletoView({ pagamento }: { pagamento: PagamentoCriarResposta }) {
-  const baixarBoleto = () => {
-    if (!pagamento.boletoUrl) {
-      toast.info(
-        'Modo simulado: o boleto será aprovado automaticamente em 10s'
-      )
+type BoletoPayload = {
+  email: string
+  firstName: string
+  lastName: string
+  identification: { type: string; number: string }
+  address: {
+    zipCode: string
+    streetName: string
+    streetNumber: string
+    neighborhood: string
+    city: string
+    state: string
+  }
+}
+
+function BoletoForm({
+  criando,
+  onSubmit,
+  onVoltar,
+}: {
+  criando: boolean
+  onSubmit: (boleto: BoletoPayload) => Promise<PagamentoCriarResposta>
+  onVoltar: () => void
+}) {
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    cpf: '',
+    cep: '',
+    streetName: '',
+    streetNumber: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+  })
+
+  const set = (key: keyof typeof form, value: string) =>
+    setForm((prev) => ({ ...prev, [key]: value }))
+
+  const enviar = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const cpf = form.cpf.replace(/\D/g, '')
+    const cep = form.cep.replace(/\D/g, '')
+
+    if (cpf.length !== 11) {
+      toast.error('Informe um CPF válido para gerar o boleto')
       return
     }
-    // Boleto simulado — abre como download
-    const a = document.createElement('a')
-    a.href = pagamento.boletoUrl
-    a.download = `boleto-matilha-${Date.now()}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    toast.success('Boleto gerado!')
+
+    if (cep.length !== 8) {
+      toast.error('Informe um CEP válido')
+      return
+    }
+
+    await onSubmit({
+      email: form.email.trim(),
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      identification: {
+        type: 'CPF',
+        number: cpf,
+      },
+      address: {
+        zipCode: cep,
+        streetName: form.streetName.trim(),
+        streetNumber: form.streetNumber.trim() || 'S/N',
+        neighborhood: form.neighborhood.trim(),
+        city: form.city.trim(),
+        state: form.state.trim().toUpperCase(),
+      },
+    })
   }
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <form className="space-y-3" onSubmit={enviar}>
+          <div className="flex items-center gap-2">
+            <Barcode className="size-5 text-primary" />
+            <div>
+              <p className="font-semibold text-sm">Gerar boleto</p>
+              <p className="text-xs text-muted-foreground">
+                Dados exigidos pelo Mercado Pago para emissão.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Input
+              required
+              placeholder="Nome"
+              value={form.firstName}
+              onChange={(e) => set('firstName', e.target.value)}
+            />
+            <Input
+              required
+              placeholder="Sobrenome"
+              value={form.lastName}
+              onChange={(e) => set('lastName', e.target.value)}
+            />
+          </div>
+
+          <Input
+            required
+            type="email"
+            placeholder="E-mail"
+            value={form.email}
+            onChange={(e) => set('email', e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Input
+              required
+              inputMode="numeric"
+              placeholder="CPF"
+              value={form.cpf}
+              onChange={(e) => set('cpf', e.target.value)}
+            />
+            <Input
+              required
+              inputMode="numeric"
+              placeholder="CEP"
+              value={form.cep}
+              onChange={(e) => set('cep', e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-2">
+            <Input
+              required
+              placeholder="Rua"
+              value={form.streetName}
+              onChange={(e) => set('streetName', e.target.value)}
+            />
+            <Input
+              required
+              placeholder="Número"
+              value={form.streetNumber}
+              onChange={(e) => set('streetNumber', e.target.value)}
+            />
+          </div>
+
+          <Input
+            required
+            placeholder="Bairro"
+            value={form.neighborhood}
+            onChange={(e) => set('neighborhood', e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px] gap-2">
+            <Input
+              required
+              placeholder="Cidade"
+              value={form.city}
+              onChange={(e) => set('city', e.target.value)}
+            />
+            <Input
+              required
+              maxLength={2}
+              placeholder="UF"
+              value={form.state}
+              onChange={(e) => set('state', e.target.value)}
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full btn-brand h-11"
+            disabled={criando}
+          >
+            {criando ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Gerando boleto...
+              </>
+            ) : (
+              <>
+                <Barcode className="size-4" /> Gerar boleto
+              </>
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            disabled={criando}
+            onClick={onVoltar}
+          >
+            Voltar aos métodos de pagamento
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function BoletoView({
+  pagamento,
+  copiado,
+  onCopiar,
+}: {
+  pagamento: PagamentoCriarResposta
+  copiado: boolean
+  onCopiar: (codigo: string) => void
+}) {
+  const abrirBoleto = () => {
+    if (!pagamento.boletoUrl) {
+      toast.error('URL do boleto indisponível')
+      return
+    }
+    window.open(pagamento.boletoUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const codigo =
+    pagamento.boletoLinhaDigitavel ||
+    pagamento.boletoCodigoBarras ||
+    ''
 
   return (
     <Card>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Barcode className="size-5 text-primary" />
-          <p className="font-semibold text-sm">Pagamento com boleto</p>
+          <p className="font-semibold text-sm">Boleto bancário</p>
         </div>
 
-        {pagamento.simulado && (
-          <div className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 flex items-start gap-1.5">
-            <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
-            <span>
-              Modo simulado: o boleto será aprovado automaticamente em 10 segundos.
-            </span>
+        <p className="text-xs text-muted-foreground">
+          O boleto é emitido pelo Mercado Pago e normalmente vence em 3 dias úteis.
+        </p>
+
+        {codigo && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">
+              Linha digitável
+            </Label>
+            <div className="flex gap-2">
+              <div className="flex-1 min-w-0 p-2 bg-muted rounded text-[11px] font-mono break-all">
+                {codigo}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-auto shrink-0"
+                onClick={() => onCopiar(codigo)}
+              >
+                {copiado ? (
+                  <Check className="size-3.5 text-green-600" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">
-          O boleto vence em 3 dias. Após o pagamento, a compensação leva 1-2
-          dias úteis.
-        </p>
-
         <Button
           className="w-full btn-brand h-11"
-          onClick={baixarBoleto}
+          onClick={abrirBoleto}
+          disabled={!pagamento.boletoUrl}
         >
-          <Download className="size-4" /> Gerar boleto
+          <ExternalLink className="size-4" /> Abrir boleto
         </Button>
       </CardContent>
     </Card>
