@@ -61,7 +61,11 @@ export async function GET(req: NextRequest) {
 
     const orderId = venda.mercadoPagoId
     const deveReconciliar =
-      Boolean(orderId?.startsWith('ORD')) &&
+      Boolean(
+        orderId &&
+          !orderId.startsWith('SIM-') &&
+          !orderId.startsWith('SIM_')
+      ) &&
       venda.status !== 'concluida' &&
       venda.status !== 'cancelada'
 
