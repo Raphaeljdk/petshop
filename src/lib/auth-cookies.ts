@@ -98,11 +98,27 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
     const decoded = jwt.verify(token, getSecret(), { algorithms: ['HS256'] }) as TokenPayload
     if (!decoded || !decoded.userId) return null
 
+    // Não selecione automaticamente todas as colunas de User.
+    // Campos de integração opcionais podem existir no Prisma antes da migração do banco.
     const user = await db.user.findUnique({
       where: { id: decoded.userId },
-      include: {
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        role: true,
+        clienteId: true,
+        ativo: true,
         cliente: {
-          include: { pets: true },
+          select: {
+            id: true,
+            nome: true,
+            telefone: true,
+            email: true,
+            endereco: true,
+            cep: true,
+            pets: true,
+          },
         },
       },
     })
