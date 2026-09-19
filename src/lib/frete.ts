@@ -3,15 +3,20 @@ import type { ConfiguracaoFrete as ConfigFretePrisma } from '@prisma/client'
 import type { ConfiguracaoFrete, OpcaoFrete, TipoEntrega } from '@/lib/types'
 
 /**
- * Helpers de frete do Matilha Prado.
+ * Regras de entrega do Matilha Prado.
  *
- * Modelo:
- *  - Retirada na loja (sempre disponível se ativa)
- *  - Entrega própria (apenas para CEPs dentro da faixa de SP capital)
- *  - Sedex (simulado, para qualquer CEP válido do Brasil)
+ * Política atual definida pelo cliente:
+ *  - Motoboy próprio somente na Zona Norte de São Paulo
+ *  - Valor fixo de R$ 20,00
+ *  - CEPs aceitos: 02000-000 a 02999-999
+ *  - Correios/Sedex desativado
+ *  - Retirada na loja continua disponível quando habilitada
  */
 
 const CEP_REGEX = /^\d{5}-?\d{3}$/
+export const MOTOBOY_ZONA_NORTE_CEP_INICIAL = '02000-000'
+export const MOTOBOY_ZONA_NORTE_CEP_FINAL = '02999-999'
+export const MOTOBOY_ZONA_NORTE_VALOR = 20
 
 /** Normaliza o CEP removendo tudo que não for dígito. */
 export function normalizarCep(cep: string): string {
@@ -27,8 +32,7 @@ export function formatarCep(cep: string): string {
 
 /** Valida o CEP informado (8 dígitos). */
 export function validarCep(cep: string): boolean {
-  const limpo = normalizarCep(cep)
-  return limpo.length === 8
+  return normalizarCep(cep).length === 8
 }
 
 /** Aplica máscara enquanto o usuário digita. */
@@ -38,10 +42,6 @@ export function aplicarMascaraCep(valor: string): string {
   return `${limpo.slice(0, 5)}-${limpo.slice(5)}`
 }
 
-/**
- * Compara dois CEPs normalizados como inteiros de 8 dígitos.
- * Faixa inclusiva nos dois extremos.
- */
 function cepDentroDeFaixa(
   cep: string,
   cepInicial: string,
@@ -55,39 +55,58 @@ function cepDentroDeFaixa(
 }
 
 /**
- * Calcula um valor "simulado" de Sedex baseado no CEP.
- * Em produção isso chamaria a API real dos Correios (SIGEP).
- *
- * Lógica determinística baseada em hash simples do CEP + faixa:
- *  - Dentro de SP capital: R$ 25 a R$ 40
- *  - Demais localidades (BR): R$ 30 a R$ 60
+ * Mantido apenas para compatibilidade com pedidos antigos que possam ter usado Sedex.
+ * Novos cálculos de frete não oferecem Correios/Sedex.
  */
 export function calcularValorSedex(cep: string, dentroSP: boolean): number {
   const limpo = normalizarCep(cep)
-  // soma simples dos dígitos para variar o valor
   let soma = 0
   for (let i = 0; i < limpo.length; i++) {
     soma += parseInt(limpo[i] || '0', 10) * (i + 1)
   }
   const min = dentroSP ? 25 : 30
   const max = dentroSP ? 40 : 60
-  const delta = max - min
-  // espalha usando o resto da soma
-  const valor = min + (soma % (delta + 1))
-  // Arredonda para 0,50 mais próxima
-  return Math.round(valor * 2) / 2
+  return Math.round((min + (soma % (max - min + 1))) * 2) / 2
 }
 
 /**
- * Retorna as configurações atuais de frete, criando um registro
- * padrão se ainda não existir nenhum.
+ * Retorna as configurações atuais de frete.
+ *
+ * As regras de motoboy são normalizadas aqui para refletirem a política comercial
+ * vigente sem depender de uma migração manual do registro já existente no banco.
  */
 export async function getOuCriarConfigFrete(): Promise<ConfiguracaoFrete> {
   let config: ConfigFretePrisma | null = await db.configuracaoFrete.findFirst()
+
   if (!config) {
-    config = await db.configuracaoFrete.create({ data: {} })
+    config = await db.configuracaoFrete.create({
+      data: {
+        entregaPropriaAtiva: true,
+        entregaPropriaValor: MOTOBOY_ZONA_NORTE_VALOR,
+        entregaPropriaCepInicial: MOTOBOY_ZONA_NORTE_CEP_INICIAL,
+        entregaPropriaCepFinal: MOTOBOY_ZONA_NORTE_CEP_FINAL,
+        sedexAtivo: false,
+      },
+    })
+  } else if (
+    !config.entregaPropriaAtiva ||
+    config.entregaPropriaValor !== MOTOBOY_ZONA_NORTE_VALOR ||
+    config.entregaPropriaCepInicial !== MOTOBOY_ZONA_NORTE_CEP_INICIAL ||
+    config.entregaPropriaCepFinal !== MOTOBOY_ZONA_NORTE_CEP_FINAL ||
+    config.sedexAtivo
+  ) {
+    config = await db.configuracaoFrete.update({
+      where: { id: config.id },
+      data: {
+        entregaPropriaAtiva: true,
+        entregaPropriaValor: MOTOBOY_ZONA_NORTE_VALOR,
+        entregaPropriaCepInicial: MOTOBOY_ZONA_NORTE_CEP_INICIAL,
+        entregaPropriaCepFinal: MOTOBOY_ZONA_NORTE_CEP_FINAL,
+        sedexAtivo: false,
+      },
+    })
   }
-  // Prisma retorna Date, serializamos para string (NextResponse.json)
+
   return {
     ...config,
     createdAt: config.createdAt.toISOString(),
@@ -96,9 +115,8 @@ export async function getOuCriarConfigFrete(): Promise<ConfiguracaoFrete> {
 }
 
 /**
- * Calcula as opções de entrega disponíveis para um CEP informado.
- *
- * @param cep CEP bruto (com ou sem máscara)
+ * Calcula as opções de entrega disponíveis para o CEP informado.
+ * Motoboy só aparece para CEPs da faixa 02000-000 a 02999-999.
  */
 export async function calcularOpcoesFrete(
   cep: string
@@ -106,15 +124,15 @@ export async function calcularOpcoesFrete(
   const config = await getOuCriarConfigFrete()
   const opcoes: OpcaoFrete[] = []
   const cepValido = CEP_REGEX.test(cep) && validarCep(cep)
-  const dentroSP =
+
+  const dentroZonaNorte =
     cepValido &&
     cepDentroDeFaixa(
       cep,
-      config.entregaPropriaCepInicial,
-      config.entregaPropriaCepFinal
+      MOTOBOY_ZONA_NORTE_CEP_INICIAL,
+      MOTOBOY_ZONA_NORTE_CEP_FINAL
     )
 
-  // 1. Retirada na loja (sempre que ativa, mesmo para CEP inválido)
   if (config.retiradaAtiva) {
     opcoes.push({
       tipo: 'retirada',
@@ -127,37 +145,21 @@ export async function calcularOpcoesFrete(
     })
   }
 
-  // 2. Entrega própria (somente para CEP dentro de SP capital)
-  if (config.entregaPropriaAtiva && cepValido && dentroSP) {
+  if (dentroZonaNorte) {
     opcoes.push({
       tipo: 'entrega_propria',
-      label: 'Entrega própria (Santana e região)',
-      valor: config.entregaPropriaValor,
+      label: 'Motoboy Matilha Prado',
+      valor: MOTOBOY_ZONA_NORTE_VALOR,
       prazo: config.entregaPropriaPrazo,
-      descricao: 'Entregamos até a sua porta',
+      descricao: 'Entrega própria na Zona Norte de São Paulo',
       disponivel: true,
     })
   }
 
-  // 3. Sedex (qualquer CEP válido do Brasil)
-  if (config.sedexAtivo && cepValido) {
-    opcoes.push({
-      tipo: 'sedex',
-      label: 'Sedex (Correios)',
-      valor: calcularValorSedex(cep, dentroSP),
-      prazo: config.sedexPrazo,
-      descricao: 'Envio nacional',
-      disponivel: true,
-    })
-  }
-
-  return { opcoes, dentroSP: !!dentroSP, config }
+  // Sedex/Correios está intencionalmente desativado para novos pedidos.
+  return { opcoes, dentroSP: !!dentroZonaNorte, config }
 }
 
-/**
- * Recupera os detalhes de uma opção específica de entrega para um CEP.
- * Útil para o backend confirmar o valor antes de salvar a venda.
- */
 export async function getOpcaoFrete(
   cep: string,
   tipo: TipoEntrega
