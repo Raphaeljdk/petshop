@@ -14,7 +14,6 @@ import {
   XCircle,
   AlertCircle,
   Wallet,
-  Download,
   ArrowRight,
   PartyPopper,
 } from 'lucide-react'
@@ -747,7 +746,12 @@ function CartaoTransparente({
   onVoltar: () => void
 }) {
   const [erro, setErro] = useState<string | null>(null)
+  const onSubmitRef = useRef(onSubmit)
   const containerId = `cardPaymentBrick_${vendaId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+  useEffect(() => {
+    onSubmitRef.current = onSubmit
+  }, [onSubmit])
 
   useEffect(() => {
     let ativo = true
@@ -794,7 +798,7 @@ function CartaoTransparente({
                       },
                     }
 
-                    await onSubmit(card)
+                    await onSubmitRef.current(card)
                     resolve()
                   } catch (e) {
                     reject(e)
@@ -829,7 +833,7 @@ function CartaoTransparente({
         window.cardPaymentBrickController = undefined
       }
     }
-  }, [containerId, publicKey, total, onSubmit])
+  }, [containerId, publicKey, total])
 
   return (
     <Card>
