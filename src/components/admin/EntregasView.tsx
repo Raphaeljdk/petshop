@@ -78,8 +78,8 @@ const STATUS_META: Record<
 
 const TIPO_META: Record<TipoEntrega, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   retirada: { label: 'Retirada na loja', icon: PackageCheck },
-  entrega_propria: { label: 'Entrega própria', icon: Truck },
-  sedex: { label: 'Sedex', icon: Package },
+  entrega_propria: { label: 'Motoboy', icon: Truck },
+  sedex: { label: 'Sedex (legado)', icon: Package },
 }
 
 const FLUXO_STATUS: StatusEntrega[] = ['pendente', 'enviada', 'entregue']
@@ -251,7 +251,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             Entregas
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Gerencie pedidos com entrega — própria e Sedex
+            Gerencie pedidos com motoboy próprio na Zona Norte
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
