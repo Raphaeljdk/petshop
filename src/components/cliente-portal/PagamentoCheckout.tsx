@@ -746,6 +746,9 @@ function CartaoTransparente({
   onVoltar: () => void
 }) {
   const [erro, setErro] = useState<string | null>(null)
+  const erroConfiguracao = publicKey
+    ? null
+    : 'Public Key do Mercado Pago não configurada. Adicione NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY na Vercel.'
   const onSubmitRef = useRef(onSubmit)
   const containerId = `cardPaymentBrick_${vendaId.replace(/[^a-zA-Z0-9_-]/g, '')}`
 
@@ -757,12 +760,7 @@ function CartaoTransparente({
     let ativo = true
     let controller: any = null
 
-    if (!publicKey) {
-      setErro(
-        'Public Key do Mercado Pago não configurada. Adicione NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY na Vercel.'
-      )
-      return
-    }
+    if (!publicKey) return
 
     ;(async () => {
       try {
@@ -848,9 +846,9 @@ function CartaoTransparente({
           </div>
         </div>
 
-        {erro && (
+        {(erroConfiguracao || erro) && (
           <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded p-2">
-            {erro}
+            {erroConfiguracao || erro}
           </div>
         )}
 
