@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getClienteLogado } from '@/lib/auth-helpers'
+import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
+import {
+  consultarOrderMercadoPago,
+  mapearOrderParaVenda,
+} from '@/lib/mercado-pago-orders'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/pagamento/status?vendaId=xxx
  *
- * Retorna o status atual do pagamento de uma venda.
- * O cliente usa para polling (verificar se foi aprovado).
+ * Retorna o estado local e, quando há uma order real do Mercado Pago ainda
+ * pendente, consulta /v1/orders/{id} para reconciliar o status.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -22,6 +27,7 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url)
     const vendaId = url.searchParams.get('vendaId')
+
     if (!vendaId) {
       return NextResponse.json(
         { error: 'vendaId é obrigatório' },
@@ -29,10 +35,11 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const venda = await db.venda.findUnique({
+    let venda = await db.venda.findUnique({
       where: { id: vendaId },
       select: {
         id: true,
+        clienteId: true,
         status: true,
         total: true,
         mercadoPagoId: true,
@@ -48,9 +55,56 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    // Em modo simulado, se a venda foi criada há mais de 10s e ainda está
-    // pending, o setTimeout do endpoint /criar já deve ter aprovado ela.
-    // Aqui só retornamos o estado atual.
+    if (venda.clienteId && venda.clienteId !== cliente.id) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
+    const orderId = venda.mercadoPagoId
+    const deveReconciliar =
+      Boolean(orderId?.startsWith('ORD')) &&
+      venda.status !== 'concluida' &&
+      venda.status !== 'cancelada'
+
+    if (deveReconciliar && orderId) {
+      try {
+        const config = await getOuCriarConfigPagamento()
+        const order = await consultarOrderMercadoPago(orderId, config)
+        const statusMap = mapearOrderParaVenda(order.status, order.statusDetail)
+
+        venda = await db.venda.update({
+          where: { id: venda.id },
+          data: {
+            mercadoPagoStatus: statusMap.mercadoPagoStatus,
+            mercadoPagoPaymentUrl:
+              order.ticketUrl ||
+              order.challengeUrl ||
+              venda.mercadoPagoPaymentUrl,
+            mercadoPagoQrCode:
+              order.qrCodeBase64 ||
+              order.qrCode ||
+              venda.mercadoPagoQrCode,
+            status: statusMap.vendaStatus,
+            updatedAt: new Date(),
+          },
+          select: {
+            id: true,
+            clienteId: true,
+            status: true,
+            total: true,
+            mercadoPagoId: true,
+            mercadoPagoStatus: true,
+            mercadoPagoPaymentUrl: true,
+            mercadoPagoQrCode: true,
+            mercadoPagoPixExpiresAt: true,
+            updatedAt: true,
+          },
+        })
+      } catch (e) {
+        // O webhook continua sendo a fonte principal. Falha de polling não
+        // deve derrubar a tela do cliente.
+        console.error('[pagamento/status] reconciliação MP falhou:', e)
+      }
+    }
 
     return NextResponse.json({
       vendaId: venda.id,
@@ -63,7 +117,6 @@ export async function GET(req: NextRequest) {
       pixExpiresAt: venda.mercadoPagoPixExpiresAt
         ? venda.mercadoPagoPixExpiresAt.toISOString()
         : null,
-      // Flag de conveniência para o client
       aprovado:
         venda.mercadoPagoStatus === 'approved' ||
         venda.mercadoPagoStatus === 'authorized' ||
@@ -80,6 +133,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (e: any) {
     console.error('[pagamento/status] erro:', e)
+
     return NextResponse.json(
       { error: e?.message || 'Erro ao consultar status' },
       { status: 500 }
