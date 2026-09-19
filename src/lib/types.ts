@@ -162,6 +162,13 @@ export interface ConfiguracaoPagamento {
   boletoAtivo: boolean
   createdAt: string
   updatedAt: string
+  /** Campos calculados pelo servidor para diagnóstico do Checkout Transparente. */
+  publicKey?: string | null
+  ambienteConfigurado?: boolean
+  accessTokenConfigurado?: boolean
+  publicKeyConfigurada?: boolean
+  checkoutPronto?: boolean
+  webhookSecretConfigurado?: boolean
 }
 
 export interface PagamentoCriarResposta {
