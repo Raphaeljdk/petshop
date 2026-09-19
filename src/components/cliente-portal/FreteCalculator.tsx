@@ -203,11 +203,11 @@ export function FreteCalculator({
         <>
           {dados.dentroSP ? (
             <p className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
-              CEP dentro da área de cobertura (São Paulo capital) — entrega própria disponível!
+              CEP dentro da área de cobertura da Zona Norte — motoboy disponível por R$ 20,00.
             </p>
           ) : (
             <p className="text-[11px] text-muted-foreground bg-muted/50 border border-border rounded px-2 py-1">
-              CEP fora da área de entrega própria — disponível apenas Sedex e retirada.
+              CEP fora da área de motoboy da Zona Norte. Se a retirada estiver ativa, ela continuará disponível.
             </p>
           )}
           <RadioGroup
@@ -292,7 +292,7 @@ export function FreteCalculator({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Truck className="size-4 text-primary" />
-          Opções de entrega
+          Entrega e retirada
         </CardTitle>
       </CardHeader>
       <CardContent>{conteudo}</CardContent>
@@ -316,7 +316,7 @@ export function FreteSelecionadoBadge({
       {tipoEntrega === 'retirada'
         ? 'Retirada na loja'
         : tipoEntrega === 'entrega_propria'
-          ? 'Entrega própria'
+          ? 'Motoboy'
           : 'Sedex'}
       <span className="text-primary">
         {valorFrete === 0 ? 'Grátis' : fmtMoeda(valorFrete)}
