@@ -165,13 +165,21 @@ export interface ConfiguracaoPagamento {
 }
 
 export interface PagamentoCriarResposta {
+  /** Compatibilidade: no Checkout Transparente este campo contém o orderId. */
   preferenceId: string
+  /** URL auxiliar (ticket Pix/Boleto). Cartão não redireciona para Checkout Pro. */
   initPoint: string
+  orderId?: string
+  orderStatus?: string
+  statusDetail?: string
   qrCode?: string
   qrCodeBase64?: string
   pixCopiaECola?: string
   pixExpiresAt?: string
   boletoUrl?: string
+  boletoLinhaDigitavel?: string
+  boletoCodigoBarras?: string
+  challengeUrl?: string
   simulado: boolean
   mercadoPagoId?: string
 }
