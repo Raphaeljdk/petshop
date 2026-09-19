@@ -12,7 +12,21 @@ export async function POST(req: NextRequest) {
     const { email, senha, lembrar } = parsed.data
     const limited = await limitAuthAttempts('login', email)
     if (limited) return limited
-    const user = await db.user.findUnique({ where: { email } })
+    // Selecione apenas os campos necessários para autenticação.
+    // Isso mantém o login compatível enquanto colunas novas e opcionais (ex.: siggmaCliCod)
+    // ainda não tiverem sido aplicadas ao banco de produção.
+    const user = await db.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        senha: true,
+        role: true,
+        clienteId: true,
+        ativo: true,
+      },
+    })
     // Hash de comparação público, sem conta associada, para reduzir diferença de tempo.
     const fallbackHash = '$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW'
     const valid = await bcrypt.compare(senha, user?.senha || fallbackHash)
