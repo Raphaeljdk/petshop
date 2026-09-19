@@ -36,12 +36,21 @@ export async function GET() {
       config.mercadoPagoPublicKey ||
       null
 
+    const accessTokenConfigurado =
+      tokenEnvConfigurado ||
+      Boolean(config.mercadoPagoAccessToken?.trim())
+    const publicKeyConfigurada = Boolean(publicKeyEfetiva?.trim())
+    const checkoutPronto =
+      mercadoPagoAtivoEfetivo &&
+      accessTokenConfigurado &&
+      publicKeyConfigurada
+    const webhookSecretConfigurado = Boolean(
+      process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim()
+    )
+
     if (usuario.role === 'ADMIN') {
       // Admin vê tudo, mas mascaramos tokens parciais
-      const resposta: ConfiguracaoPagamento & {
-        publicKey: string | null
-        ambienteConfigurado: boolean
-      } = {
+      const resposta: ConfiguracaoPagamento = {
         ...config,
         mercadoPagoAtivo: mercadoPagoAtivoEfetivo,
         // Credenciais reais devem ficar no ambiente do servidor, não expostas pela API.
@@ -49,15 +58,16 @@ export async function GET() {
         mercadoPagoPublicKey: publicKeyEfetiva,
         publicKey: publicKeyEfetiva,
         ambienteConfigurado: tokenEnvConfigurado,
+        accessTokenConfigurado,
+        publicKeyConfigurada,
+        checkoutPronto,
+        webhookSecretConfigurado,
       }
       return NextResponse.json(resposta)
     }
 
     // Cliente vê apenas flags + indicador de modo simulado
-    const tokenConfigurado =
-      tokenEnvConfigurado ||
-      Boolean(config.mercadoPagoAccessToken?.trim())
-
+    const tokenConfigurado = accessTokenConfigurado
     const ehSimulado = !mercadoPagoAtivoEfetivo || !tokenConfigurado
 
     return NextResponse.json({
