@@ -167,7 +167,7 @@ function DataTable({ resource, rows }: { resource: Resource; rows: Array<Record<
               <tr key={textValue(row.id)} className="hover:bg-muted/40">
                 <td className="px-3 py-3">
                   <div className="font-mono text-xs">{textValue(row.id)}</div>
-                  {row.codigo && <div className="text-xs text-muted-foreground">{textValue(row.codigo)}</div>}
+                  {Boolean(row.codigo) && <div className="text-xs text-muted-foreground">{textValue(row.codigo)}</div>}
                 </td>
                 <td className="px-3 py-3 font-medium">{textValue(row.nome)}</td>
                 <td className="px-3 py-3">{textValue(row.marca)}</td>
