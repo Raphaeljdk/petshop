@@ -43,6 +43,7 @@ export interface UsuarioLogado {
   email: string
   role: 'ADMIN' | 'CLIENTE'
   clienteId: string | null
+  siggmaCliCod: number | null
   cliente: {
     id: string
     nome: string
@@ -108,6 +109,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
         email: true,
         role: true,
         clienteId: true,
+        siggmaCliCod: true,
         ativo: true,
         cliente: {
           select: {
@@ -131,6 +133,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
       email: user.email,
       role: user.role as 'ADMIN' | 'CLIENTE',
       clienteId: user.clienteId,
+      siggmaCliCod: user.siggmaCliCod,
       cliente: user.cliente
         ? {
             id: user.cliente.id,
