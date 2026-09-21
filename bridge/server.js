@@ -9,6 +9,7 @@ const { Pool } = require('pg')
 dotenv.config({ path: process.env.ENV_FILE || '/opt/matilha-integration/.env' })
 
 const app = express()
+app.set('trust proxy', 1)
 const PORT = Number(process.env.PORT || 3001)
 const HOST = process.env.HOST || '127.0.0.1'
 
