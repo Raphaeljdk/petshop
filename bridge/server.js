@@ -120,7 +120,7 @@ function pagination(req) {
 
 function addFilter(filters, values, sql, value) {
   values.push(value)
-  filters.push(sql.replace('?', `$${values.length}`))
+  filters.push(sql.replaceAll('?', `${values.length}`))
 }
 
 function asyncRoute(handler) {
@@ -252,9 +252,6 @@ app.get(
         `(p.nome ILIKE ? OR p.email ILIKE ? OR p.telefone ILIKE ? OR p.celular ILIKE ?)`,
         `%${q}%`
       )
-      const index = values.length
-      filters[filters.length - 1] = filters[filters.length - 1]
-        .replace(new RegExp(`\\$${index}`, 'g'), `$${index}`)
     }
 
     if (since) {
@@ -401,9 +398,6 @@ app.get(
         )`,
         `%${q}%`
       )
-      const index = values.length
-      filters[filters.length - 1] = filters[filters.length - 1]
-        .replace(new RegExp(`\\$${index}`, 'g'), `$${index}`)
     }
     if (since) {
       addFilter(filters, values, 'p.data_atualizacao >= ?', since)
