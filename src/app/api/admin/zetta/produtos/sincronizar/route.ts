@@ -49,6 +49,7 @@ export async function POST() {
         update: {
           nome: product.nome || `Produto Zetta ${product.id}`,
           preco: zettaProductPrice(product),
+          precoPromo: null,
           estoque: zettaProductStock(product),
           sku: zettaProductSku(product),
         },
