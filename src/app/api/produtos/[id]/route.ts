@@ -37,13 +37,19 @@ export async function PUT(
     }
 
     const dados: any = {}
-    if (nome !== undefined) dados.nome = nome
+
+    // Produtos vinculados ao Zetta recebem nome, preço, estoque e SKU do ERP.
+    // O painel local continua podendo editar apenas metadados de exibição.
+    if (!produtoExistente.zettaProCod) {
+      if (nome !== undefined) dados.nome = nome
+      if (preco !== undefined) dados.preco = preco
+      if (precoPromo !== undefined) dados.precoPromo = precoPromo
+      if (estoque !== undefined) dados.estoque = estoque
+      if (sku !== undefined) dados.sku = sku
+    }
+
     if (descricao !== undefined) dados.descricao = descricao
     if (categoria !== undefined) dados.categoria = categoria
-    if (preco !== undefined) dados.preco = preco
-    if (precoPromo !== undefined) dados.precoPromo = precoPromo
-    if (estoque !== undefined) dados.estoque = estoque
-    if (sku !== undefined) dados.sku = sku
     if (mlItemId !== undefined) dados.mlItemId = mlItemId
     if (amazonAsin !== undefined) dados.amazonAsin = amazonAsin
     if (imageUrl !== undefined) dados.imageUrl = imageUrl
@@ -78,6 +84,14 @@ export async function DELETE(
     const produtoExistente = await db.produto.findUnique({ where: { id } })
     if (!produtoExistente) {
       return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 })
+    }
+
+    if (produtoExistente.zettaProCod) {
+      await db.produto.update({
+        where: { id },
+        data: { ativo: false },
+      })
+      return NextResponse.json({ success: true, disabled: true })
     }
 
     await db.produto.delete({ where: { id } })
