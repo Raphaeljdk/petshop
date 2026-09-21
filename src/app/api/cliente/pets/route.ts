@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado, getUsuarioLogado } from '@/lib/auth-helpers'
+import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { ageLabel, getZettaAnimalsByClient } from '@/lib/zetta-client'
 
 export async function GET() {
