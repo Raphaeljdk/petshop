@@ -8,6 +8,7 @@ export interface UserLogado {
   email: string
   role: 'ADMIN' | 'CLIENTE'
   clienteId?: string | null
+  siggmaCliCod?: number | null
 }
 export interface ClienteSessao {
   id: string
@@ -55,7 +56,7 @@ async function readSession(signal?: AbortSignal): Promise<SessaoUser> {
   if (!data?.autenticado || !data.user || !['ADMIN', 'CLIENTE'].includes(data.user.role)) return SESSAO_INICIAL
   return {
     autenticado: true,
-    user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null },
+    user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null, siggmaCliCod: data.user.siggmaCliCod ?? null },
     cliente: data.cliente ?? null,
   }
 }
