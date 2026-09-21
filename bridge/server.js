@@ -456,7 +456,12 @@ app.get(
     )
 
     const dataValues = [...values, limit, offset]
-    const limitParam = '
+    const limitParam = '$' + (dataValues.length - 1)
+    const offsetParam = '$' + dataValues.length
+    const data = await db.query(
+      `
+      SELECT
+        h.id,
         h.animal AS "animalId",
         a.cliente AS "clienteId",
         a.nome AS "animalNome",
@@ -494,7 +499,6 @@ app.get(
     })
   })
 )
-
 app.get(
   '/api/zetta/produtos',
   asyncRoute(async (req, res) => {
