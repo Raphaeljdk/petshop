@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "Cupom" (
+CREATE TABLE IF NOT EXISTS "Cupom" (
     "id" TEXT NOT NULL,
     "codigo" TEXT NOT NULL,
     "descricao" TEXT,
@@ -22,13 +22,13 @@ CREATE TABLE "Cupom" (
 
 -- AlterTable
 ALTER TABLE "Venda"
-ADD COLUMN "subtotalProdutos" DOUBLE PRECISION,
-ADD COLUMN "cupomId" TEXT,
-ADD COLUMN "cupomCodigo" TEXT,
-ADD COLUMN "descontoCupom" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ADD COLUMN IF NOT EXISTS "subtotalProdutos" DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS "cupomId" TEXT,
+ADD COLUMN IF NOT EXISTS "cupomCodigo" TEXT,
+ADD COLUMN IF NOT EXISTS "descontoCupom" DOUBLE PRECISION NOT NULL DEFAULT 0;
 
 -- CreateTable
-CREATE TABLE "CupomUso" (
+CREATE TABLE IF NOT EXISTS "CupomUso" (
     "id" TEXT NOT NULL,
     "cupomId" TEXT NOT NULL,
     "vendaId" TEXT NOT NULL,
@@ -42,22 +42,42 @@ CREATE TABLE "CupomUso" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cupom_codigo_key" ON "Cupom"("codigo");
-CREATE INDEX "Cupom_ativo_fimEm_idx" ON "Cupom"("ativo", "fimEm");
-CREATE UNIQUE INDEX "CupomUso_vendaId_key" ON "CupomUso"("vendaId");
-CREATE INDEX "CupomUso_cupomId_createdAt_idx" ON "CupomUso"("cupomId", "createdAt");
-CREATE INDEX "CupomUso_clienteId_idx" ON "CupomUso"("clienteId");
-CREATE INDEX "Venda_cupomId_idx" ON "Venda"("cupomId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Cupom_codigo_key" ON "Cupom"("codigo");
+CREATE INDEX IF NOT EXISTS "Cupom_ativo_fimEm_idx" ON "Cupom"("ativo", "fimEm");
+CREATE UNIQUE INDEX IF NOT EXISTS "CupomUso_vendaId_key" ON "CupomUso"("vendaId");
+CREATE INDEX IF NOT EXISTS "CupomUso_cupomId_createdAt_idx" ON "CupomUso"("cupomId", "createdAt");
+CREATE INDEX IF NOT EXISTS "CupomUso_clienteId_idx" ON "CupomUso"("clienteId");
+CREATE INDEX IF NOT EXISTS "Venda_cupomId_idx" ON "Venda"("cupomId");
 
 -- AddForeignKey
-ALTER TABLE "Venda" ADD CONSTRAINT "Venda_cupomId_fkey"
-FOREIGN KEY ("cupomId") REFERENCES "Cupom"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Venda_cupomId_fkey') THEN
+        ALTER TABLE "Venda" ADD CONSTRAINT "Venda_cupomId_fkey"
+        FOREIGN KEY ("cupomId") REFERENCES "Cupom"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
 
-ALTER TABLE "CupomUso" ADD CONSTRAINT "CupomUso_cupomId_fkey"
-FOREIGN KEY ("cupomId") REFERENCES "Cupom"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CupomUso_cupomId_fkey') THEN
+        ALTER TABLE "CupomUso" ADD CONSTRAINT "CupomUso_cupomId_fkey"
+        FOREIGN KEY ("cupomId") REFERENCES "Cupom"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
-ALTER TABLE "CupomUso" ADD CONSTRAINT "CupomUso_vendaId_fkey"
-FOREIGN KEY ("vendaId") REFERENCES "Venda"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CupomUso_vendaId_fkey') THEN
+        ALTER TABLE "CupomUso" ADD CONSTRAINT "CupomUso_vendaId_fkey"
+        FOREIGN KEY ("vendaId") REFERENCES "Venda"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
-ALTER TABLE "CupomUso" ADD CONSTRAINT "CupomUso_clienteId_fkey"
-FOREIGN KEY ("clienteId") REFERENCES "Cliente"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CupomUso_clienteId_fkey') THEN
+        ALTER TABLE "CupomUso" ADD CONSTRAINT "CupomUso_clienteId_fkey"
+        FOREIGN KEY ("clienteId") REFERENCES "Cliente"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
