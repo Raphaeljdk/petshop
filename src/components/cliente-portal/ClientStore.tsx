@@ -68,13 +68,21 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const [validandoCupom, setValidandoCupom] = useState(false)
   const [vendaEmPagamento, setVendaEmPagamento] = useState<Venda | null>(null)
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
+  const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
 
   useEffect(() => {
     let active = true
     const carregar = async () => {
       try {
-        const res = await fetch('/api/cliente/produtos', { credentials: 'same-origin' })
+        const [res, lojaStatus] = await Promise.all([
+          fetch('/api/cliente/produtos', { credentials: 'same-origin' }),
+          fetch('/api/cliente/loja/status', { credentials: 'same-origin', cache: 'no-store' }),
+        ])
         if (res.ok && active) setProdutos(await res.json())
+        if (lojaStatus.ok && active) {
+          const status = await lojaStatus.json()
+          setSiggmaOrderWriteConfigured(Boolean(status?.siggmaOrderWriteConfigured))
+        }
         const meRes = await fetch('/api/auth/me', { credentials: 'same-origin' })
         if (meRes.ok && active) {
           const me = await meRes.json()
@@ -100,6 +108,8 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   )
   const valorFrete = freteSelecionado?.valorFrete ?? 0
   const descontoCupom = cupomAplicado?.desconto ?? 0
+  const carrinhoTemZetta = carrinho.some((item) => Boolean(item.produto.zettaProCod))
+  const checkoutZettaBloqueado = carrinhoTemZetta && !siggmaOrderWriteConfigured
   const total = Math.max(0, subtotal - descontoCupom) + valorFrete
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -174,6 +184,9 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
   const finalizarCompra = async () => {
     if (carrinho.length === 0) return toast.error('Carrinho vazio')
+    if (checkoutZettaBloqueado) {
+      return toast.error('A venda online dos produtos do ERP aguarda a liberação do endpoint de pedidos da Zetta.')
+    }
     if (!freteSelecionado) return toast.error('Selecione uma opção de entrega')
     if (
       (freteSelecionado.tipoEntrega === 'entrega_propria' || freteSelecionado.tipoEntrega === 'sedex') &&
@@ -243,6 +256,14 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
           </Button>
         )}
       </div>
+
+      {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4 text-sm text-amber-900">
+            O catálogo, preços e estoque já vêm do ERP Zetta em tempo real. A cobrança de produtos do ERP permanece bloqueada até a Zetta liberar o endpoint oficial de criação de pedidos, evitando divergência de estoque.
+          </CardContent>
+        </Card>
+      )}
 
       {loading && <SkeletonLoader type="cards" count={8} />}
 
@@ -361,8 +382,19 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                     <div className="flex items-center justify-between text-lg font-bold pt-1"><span>Total</span><span className="text-primary">{fmtMoeda(total)}</span></div>
                   </div>
 
-                  <Button className="w-full btn-brand h-11" onClick={finalizarCompra} disabled={finalizando || !freteSelecionado}>
-                    <CheckCircle2 className="size-4" />{finalizando ? 'Processando...' : !freteSelecionado ? 'Selecione uma opção de entrega' : 'Confirmar compra'}
+                  <Button
+                    className="w-full btn-brand h-11"
+                    onClick={finalizarCompra}
+                    disabled={finalizando || !freteSelecionado || checkoutZettaBloqueado}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    {finalizando
+                      ? 'Processando...'
+                      : checkoutZettaBloqueado
+                        ? 'Aguardando integração de pedidos do ERP'
+                        : !freteSelecionado
+                          ? 'Selecione uma opção de entrega'
+                          : 'Confirmar compra'}
                   </Button>
                 </>
               )}
