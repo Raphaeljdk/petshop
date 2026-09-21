@@ -122,7 +122,8 @@ function pagination(req) {
 
 function addFilter(filters, values, sql, value) {
   values.push(value)
-  filters.push(sql.replaceAll('?', '
+  const parameter = '$' + values.length
+  filters.push(sql.replaceAll('?', parameter))
 }
 
 function asyncRoute(handler) {
