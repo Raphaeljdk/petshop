@@ -113,10 +113,24 @@ export interface ItemVenda {
   produto?: Produto
 }
 
+export interface CupomResumo {
+  id: string
+  codigo: string
+  descricao: string | null
+  tipoDesconto: 'percentual' | 'fixo'
+  valor: number
+  influenciadorNome: string | null
+  comissaoPercentual: number
+}
+
 export interface Venda {
   id: string
   clienteId: string | null
   total: number
+  subtotalProdutos: number | null
+  cupomId: string | null
+  cupomCodigo: string | null
+  descontoCupom: number
   canal: CanalVenda
   status: StatusVenda
   observacoes: string | null
@@ -137,6 +151,7 @@ export interface Venda {
   createdAt: string
   updatedAt: string
   cliente?: Cliente | null
+  cupom?: CupomResumo | null
   itens?: ItemVenda[]
 }
 
