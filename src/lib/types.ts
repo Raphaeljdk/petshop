@@ -54,6 +54,8 @@ export interface Pet {
   cliente?: Cliente
   processos?: Processo[]
   agendamentos?: Agendamento[]
+  origem?: 'local' | 'zetta'
+  zettaId?: number
 }
 
 export interface Processo {
@@ -71,6 +73,8 @@ export interface Processo {
   updatedAt: string
   pet?: Pet
   notificacoes?: Notificacao[]
+  origem?: 'local' | 'zetta'
+  statusOriginal?: string | null
 }
 
 export interface Agendamento {
