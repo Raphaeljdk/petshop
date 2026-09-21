@@ -1258,7 +1258,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               {editProduto ? 'Editar produto' : 'Novo produto'}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Dados do produto da loja
+              {editProduto?.zettaProCod
+                ? 'Produto vinculado ao ERP: nome, SKU, preço e estoque são controlados pelo Zetta.'
+                : 'Dados do produto da loja'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1268,7 +1270,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 id="nome"
                 value={(form.nome as string) || ''}
                 onChange={(e) => setForm({ ...form, nome: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="desc">Descrição</Label>
@@ -1293,7 +1296,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 id="sku"
                 value={(form.sku as string) || ''}
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="preco">Preço (R$)</Label>
@@ -1303,7 +1307,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 step="0.01"
                 value={(form.preco as number | string) ?? 0}
                 onChange={(e) => setForm({ ...form, preco: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="precoPromo">Preço promocional (R$)</Label>
@@ -1313,7 +1318,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 step="0.01"
                 value={(form.precoPromo as number | string) ?? ''}
                 onChange={(e) => setForm({ ...form, precoPromo: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="estoque">Estoque</Label>
@@ -1322,7 +1328,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 type="number"
                 value={(form.estoque as number | string) ?? 0}
                 onChange={(e) => setForm({ ...form, estoque: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="imageUrl">URL da imagem</Label>
