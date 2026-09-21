@@ -28,6 +28,7 @@ import {
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { toast } from 'sonner'
 import type { Agendamento, Pet } from '@/lib/types'
+import { useAuth } from '@/components/providers/AuthProvider'
 
 const statusVariant = (s: string) => {
   switch (s) {
@@ -45,6 +46,8 @@ const statusVariant = (s: string) => {
 }
 
 export function ClientAgendamentos() {
+  const { sessao } = useAuth()
+  const zettaLinked = Boolean(sessao.user?.siggmaCliCod)
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
@@ -130,10 +133,18 @@ export function ClientAgendamentos() {
             Marque serviços e acompanhe seus atendimentos
           </p>
         </div>
-        <Button onClick={abrirNovo} disabled={pets.length === 0} className="btn-brand">
+        <Button onClick={abrirNovo} disabled={pets.length === 0 || zettaLinked} className="btn-brand">
           <Plus className="size-4" /> Novo
         </Button>
       </div>
+
+      {zettaLinked && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Seus pets vêm do Siggma/Zetta. Para evitar divergência, novos agendamentos pelo portal ficam bloqueados até confirmarmos o endpoint oficial de gravação do ERP.
+          </CardContent>
+        </Card>
+      )}
 
       {pets.length === 0 && (
         <Card>
