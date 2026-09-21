@@ -1371,7 +1371,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               <DollarSign className="size-4" /> Nova venda (loja física)
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Selecione os produtos e quantidades
+              Produtos do ERP Zetta devem ser vendidos no Siggma até a API oficial de pedidos ser integrada. Aqui aparecem apenas produtos locais.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1392,7 +1392,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                     <SelectValue placeholder="Produto" />
                   </SelectTrigger>
                   <SelectContent>
-                    {produtos.map((p) => (
+                    {produtos.filter((p) => !p.zettaProCod).map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.nome} — {fmtMoeda(p.precoPromo ?? p.preco)} (est: {p.estoque})
                       </SelectItem>
