@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado, getUsuarioLogado } from '@/lib/auth-helpers'
+import { getUsuarioLogado } from '@/lib/auth-helpers'
 
 export async function GET() {
   try {
