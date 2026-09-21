@@ -122,7 +122,550 @@ function pagination(req) {
 
 function addFilter(filters, values, sql, value) {
   values.push(value)
-  filters.push(sql.replaceAll('?', `${values.length}`))
+  filters.push(sql.replaceAll('?', '
+}
+
+function asyncRoute(handler) {
+  return async (req, res) => {
+    try {
+      await handler(req, res)
+    } catch (error) {
+      console.error('[bridge]', error)
+      const status = Number(error?.statusCode || 500)
+      res.status(status).json({
+        ok: false,
+        error: status >= 500 ? 'Falha ao consultar integração' : String(error.message || 'Erro'),
+      })
+    }
+  }
+}
+
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'matilha-integration',
+    status: 'online',
+    hostname: require('node:os').hostname(),
+    now: new Date().toISOString(),
+  })
+})
+
+app.use('/api', requireBridgeAuth)
+
+app.get('/api/status', (_req, res) => {
+  const siggma = siggmaConfigStatus()
+  const zetta = dbConfigStatus()
+
+  res.json({
+    ok: true,
+    bridge: 'online',
+    siggmaApiConfigured: siggma.configured,
+    zettaDatabaseConfigured: zetta.configured,
+  })
+})
+
+app.get(
+  '/api/siggma/status',
+  asyncRoute(async (_req, res) => {
+    const status = siggmaConfigStatus()
+    if (!status.configured) {
+      return res.status(503).json({
+        ok: false,
+        configured: false,
+        missing: status.missing,
+        authenticated: false,
+      })
+    }
+
+    const baseUrl = env('SIGGMA_BASE_URL').replace(/\/+$/, '')
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials_emp',
+      client_id: env('SIGGMA_CLIENT_ID'),
+      client_secret: env('SIGGMA_CLIENT_SECRET'),
+      emp: env('SIGGMA_EMP'),
+    })
+
+    const response = await fetch(`${baseUrl}/v2/oauth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body,
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    const payload = await response.json().catch(() => null)
+    const authenticated = Boolean(
+      response.ok &&
+      payload &&
+      typeof payload === 'object' &&
+      payload.access_token
+    )
+
+    res.status(authenticated ? 200 : 502).json({
+      ok: authenticated,
+      configured: true,
+      authenticated,
+      status: response.status,
+    })
+  })
+)
+
+app.get(
+  '/api/zetta/status',
+  asyncRoute(async (_req, res) => {
+    const db = getPool()
+    const result = await db.query(
+      `SELECT
+        current_database() AS database,
+        current_user AS "user",
+        (SELECT COUNT(*)::int FROM "CLIENTES") AS clientes,
+        (SELECT COUNT(*)::int FROM animais) AS animais,
+        (SELECT COUNT(*)::int FROM "PRODUTOS") AS produtos,
+        (SELECT COUNT(*)::int FROM "ESTOQUE") AS estoque,
+        (SELECT COUNT(*)::int FROM petshop_atendimentos) AS atendimentos`
+    )
+
+    res.json({
+      ok: true,
+      configured: true,
+      connected: true,
+      ...result.rows[0],
+    })
+  })
+)
+
+app.get(
+  '/api/zetta/clientes',
+  asyncRoute(async (req, res) => {
+    const db = getPool()
+    const { page, limit, offset } = pagination(req)
+    const filters = []
+    const values = []
+
+    const q = String(req.query.q || '').trim()
+    const since = parseDate(req.query.since)
+
+    if (q) {
+      addFilter(
+        filters,
+        values,
+        `(p.nome ILIKE ? OR p.email ILIKE ? OR p.telefone ILIKE ? OR p.celular ILIKE ?)`,
+        `%${q}%`
+      )
+    }
+
+    if (since) {
+      addFilter(
+        filters,
+        values,
+        `GREATEST(
+          COALESCE(c.data_atualizacao, TIMESTAMP 'epoch'),
+          COALESCE(p.data_atualizacao, TIMESTAMP 'epoch')
+        ) >= ?`,
+        since
+      )
+    }
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM "CLIENTES" c
+      JOIN pessoas p ON p.id = c.pessoa
+      ${where}
+    `
+    const count = await db.query(countSql, values)
+
+    const dataValues = [...values, limit, offset]
+    const limitParam = `$${dataValues.length - 1}`
+    const offsetParam = `$${dataValues.length}`
+
+    const data = await db.query(
+      `
+      SELECT
+        c.cli_cod AS id,
+        p.nome,
+        p.apelido_fantasia AS apelido,
+        p.email,
+        p.telefone,
+        p.celular,
+        c.data_atualizacao AS "dataAtualizacao",
+        (c.data_desativacao IS NULL) AS ativo
+      FROM "CLIENTES" c
+      JOIN pessoas p ON p.id = c.pessoa
+      ${where}
+      ORDER BY c.cli_cod
+      LIMIT ${limitParam} OFFSET ${offsetParam}
+      `,
+      dataValues
+    )
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: count.rows[0].total,
+      data: data.rows,
+    })
+  })
+)
+
+app.get(
+  '/api/zetta/clientes/:id',
+  asyncRoute(async (req, res) => {
+    const id = Number.parseInt(String(req.params.id || ''), 10)
+    if (!Number.isFinite(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: 'Cliente inválido' })
+    }
+
+    const db = getPool()
+    const result = await db.query(
+      `
+      SELECT
+        c.cli_cod AS id,
+        p.nome,
+        p.apelido_fantasia AS apelido,
+        p.email,
+        p.telefone,
+        p.celular,
+        c.data_atualizacao AS "dataAtualizacao",
+        (c.data_desativacao IS NULL) AS ativo
+      FROM "CLIENTES" c
+      JOIN pessoas p ON p.id = c.pessoa
+      WHERE c.cli_cod = $1
+      LIMIT 1
+      `,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Cliente não encontrado' })
+    }
+
+    res.json({ ok: true, data: result.rows[0] })
+  })
+)
+
+app.get(
+  '/api/zetta/animais',
+  asyncRoute(async (req, res) => {
+    const db = getPool()
+    const { page, limit, offset } = pagination(req)
+    const filters = []
+    const values = []
+
+    const cliente = Number.parseInt(String(req.query.cliente || ''), 10)
+    const q = String(req.query.q || '').trim()
+    const since = parseDate(req.query.since)
+
+    if (Number.isFinite(cliente) && cliente > 0) {
+      addFilter(filters, values, 'a.cliente = ?', cliente)
+    }
+    if (q) {
+      addFilter(filters, values, 'a.nome ILIKE ?', `%${q}%`)
+    }
+    if (since) {
+      addFilter(filters, values, 'a.data_atualizacao >= ?', since)
+    }
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+    const count = await db.query(
+      `SELECT COUNT(*)::int AS total FROM animais a ${where}`,
+      values
+    )
+
+    const dataValues = [...values, limit, offset]
+    const data = await db.query(
+      `
+      SELECT
+        a.id,
+        a.cliente AS "clienteId",
+        a.nome,
+        a.data_nascimento AS "dataNascimento",
+        a.microchip,
+        a.sexo,
+        a.peso,
+        a.porte,
+        a.especie,
+        a.raca,
+        a.status,
+        a.pelagem,
+        a.castrado,
+        a.comportamento,
+        a.filial,
+        a.data_atualizacao AS "dataAtualizacao"
+      FROM animais a
+      ${where}
+      ORDER BY a.id
+      LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
+      `,
+      dataValues
+    )
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: count.rows[0].total,
+      data: data.rows,
+    })
+  })
+)
+
+app.get(
+  '/api/zetta/historicos',
+  asyncRoute(async (req, res) => {
+    const db = getPool()
+    const { page, limit, offset } = pagination(req)
+    const filters = []
+    const values = []
+
+    const cliente = Number.parseInt(String(req.query.cliente || ''), 10)
+    const animal = Number.parseInt(String(req.query.animal || ''), 10)
+    const since = parseDate(req.query.since)
+
+    if (Number.isFinite(cliente) && cliente > 0) {
+      addFilter(filters, values, 'a.cliente = ?', cliente)
+    }
+    if (Number.isFinite(animal) && animal > 0) {
+      addFilter(filters, values, 'h.animal = ?', animal)
+    }
+    if (since) {
+      addFilter(
+        filters,
+        values,
+        `GREATEST(
+          COALESCE(h.data_atualizacao, TIMESTAMP 'epoch'),
+          COALESCE(h.datahora, TIMESTAMP 'epoch')
+        ) >= ?`,
+        since
+      )
+    }
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+    const count = await db.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM animais_historicos h
+      JOIN animais a ON a.id = h.animal
+      ${where}
+      `,
+      values
+    )
+
+    const dataValues = [...values, limit, offset]
+    const data = await db.query(
+      `
+      SELECT
+        h.id,
+        h.animal AS "animalId",
+        a.cliente AS "clienteId",
+        a.nome AS "animalNome",
+        a.especie,
+        a.raca,
+        h.datahora,
+        h.tipo,
+        h.status,
+        h.peso,
+        h.evento,
+        h.descricao,
+        h.tipo_servico AS "tipoServico",
+        h.data_atualizacao AS "dataAtualizacao",
+        h.filial,
+        h.excluido,
+        h.entregue,
+        h.data_entregue AS "dataEntregue",
+        h.observacoes,
+        h.quadro_clinico AS "quadroClinico"
+      FROM animais_historicos h
+      JOIN animais a ON a.id = h.animal
+      ${where}
+      ORDER BY h.datahora DESC NULLS LAST, h.id DESC
+      LIMIT ${dataValues.length - 1} OFFSET ${dataValues.length}
+      `,
+      dataValues
+    )
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: count.rows[0].total,
+      data: data.rows,
+    })
+  })
+)
+
+app.get(
+  '/api/zetta/produtos',
+  asyncRoute(async (req, res) => {
+    const db = getPool()
+    const { page, limit, offset } = pagination(req)
+    const filters = ['COALESCE(p.excluido, false) = false']
+    const values = []
+
+    const q = String(req.query.q || '').trim()
+    const since = parseDate(req.query.since)
+
+    if (q) {
+      addFilter(
+        filters,
+        values,
+        `(
+          p.pro_nom ILIKE ?
+          OR p.pro_cod_ori ILIKE ?
+          OR p.codigo_barras ILIKE ?
+          OR p.gtin ILIKE ?
+        )`,
+        `%${q}%`
+      )
+    }
+    if (since) {
+      addFilter(filters, values, 'p.data_atualizacao >= ?', since)
+    }
+
+    const where = `WHERE ${filters.join(' AND ')}`
+    const count = await db.query(
+      `SELECT COUNT(*)::int AS total FROM "PRODUTOS" p ${where}`,
+      values
+    )
+
+    const dataValues = [...values, limit, offset]
+    const data = await db.query(
+      `
+      SELECT
+        p.pro_cod AS id,
+        p.pro_cod_ori AS codigo,
+        p.pro_nom AS nome,
+        p.pro_val_ven AS preco,
+        p.pro_car_mar AS marca,
+        p.pro_car_mod AS modelo,
+        p.med_abr AS unidade,
+        p.codigo_barras AS "codigoBarras",
+        p.gtin,
+        p.estoque_real AS "estoqueRealProduto",
+        COALESCE(e.estoque_total, 0) AS "estoqueReal",
+        p.galeria,
+        p.data_atualizacao AS "dataAtualizacao"
+      FROM "PRODUTOS" p
+      LEFT JOIN (
+        SELECT
+          pro_cod,
+          SUM(COALESCE(estoque_real, est_qtd, 0)) AS estoque_total
+        FROM "ESTOQUE"
+        GROUP BY pro_cod
+      ) e ON e.pro_cod = p.pro_cod
+      ${where}
+      ORDER BY p.pro_cod
+      LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
+      `,
+      dataValues
+    )
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: count.rows[0].total,
+      data: data.rows,
+    })
+  })
+)
+
+app.get(
+  '/api/zetta/atendimentos',
+  asyncRoute(async (req, res) => {
+    const db = getPool()
+    const { page, limit, offset } = pagination(req)
+    const filters = []
+    const values = []
+
+    const cliente = Number.parseInt(String(req.query.cliente || ''), 10)
+    const animal = Number.parseInt(String(req.query.animal || ''), 10)
+    const since = parseDate(req.query.since)
+
+    if (Number.isFinite(cliente) && cliente > 0) {
+      addFilter(filters, values, 'pa.cliente = ?', cliente)
+    }
+    if (Number.isFinite(animal) && animal > 0) {
+      addFilter(
+        filters,
+        values,
+        `EXISTS (
+          SELECT 1
+          FROM petshop_atendimentos_itens pai
+          JOIN animais_historicos ah ON ah.id = pai.historico
+          WHERE pai.atendimento = pa.id
+            AND ah.animal = ?
+        )`,
+        animal
+      )
+    }
+    if (since) {
+      addFilter(filters, values, 'pa.datahora >= ?', since)
+    }
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+    const count = await db.query(
+      `SELECT COUNT(*)::int AS total FROM petshop_atendimentos pa ${where}`,
+      values
+    )
+
+    const dataValues = [...values, limit, offset]
+    const data = await db.query(
+      `
+      SELECT
+        pa.id,
+        pa.cliente AS "clienteId",
+        pa.datahora,
+        pa.status,
+        pa.total,
+        pa.filial,
+        pa.total_itens AS "totalItens"
+      FROM petshop_atendimentos pa
+      ${where}
+      ORDER BY pa.datahora DESC, pa.id DESC
+      LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
+      `,
+      dataValues
+    )
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: count.rows[0].total,
+      data: data.rows,
+    })
+  })
+)
+
+app.use((_req, res) => {
+  res.status(404).json({ ok: false, error: 'Rota não encontrada' })
+})
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Matilha Integration online em http://${HOST}:${PORT}`)
+})
+
+async function shutdown(signal) {
+  console.log(`Encerrando bridge (${signal})...`)
+  server.close(async () => {
+    if (pool) {
+      try {
+        await pool.end()
+      } catch (error) {
+        console.error('Erro ao fechar pool PostgreSQL:', error)
+      }
+    }
+    process.exit(0)
+  })
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+ + values.length))
 }
 
 function asyncRoute(handler) {
