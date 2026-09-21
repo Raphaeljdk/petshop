@@ -161,6 +161,7 @@ app.get('/api/status', (_req, res) => {
     ok: true,
     bridge: 'online',
     siggmaApiConfigured: siggma.configured,
+    siggmaOrderWriteConfigured: Boolean(env('SIGGMA_ORDER_CREATE_PATH')),
     zettaDatabaseConfigured: zetta.configured,
   })
 })
