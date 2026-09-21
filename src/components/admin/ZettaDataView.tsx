@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
+import { ZettaClientLinks } from '@/components/admin/ZettaClientLinks'
 
 type Resource = 'clientes' | 'animais' | 'produtos' | 'atendimentos'
 
@@ -354,6 +355,8 @@ export function ZettaDataView() {
           )
         })}
       </div>
+
+      {resource === 'clientes' && <ZettaClientLinks />}
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">

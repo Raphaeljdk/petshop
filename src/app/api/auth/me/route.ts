@@ -58,6 +58,7 @@ export async function GET() {
         email: user.email,
         role: user.role,
         clienteId: user.clienteId,
+        siggmaCliCod: user.siggmaCliCod,
         cliente: clienteCompleto,
       },
       cliente: clienteCompleto,

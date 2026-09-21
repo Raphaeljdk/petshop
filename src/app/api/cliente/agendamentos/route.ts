@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado } from '@/lib/auth-helpers'
+import { getUsuarioLogado } from '@/lib/auth-helpers'
 
 export async function GET() {
   try {
-    const cliente = await getClienteLogado()
-    if (!cliente) {
+    const usuario = await getUsuarioLogado()
+    const cliente = usuario?.cliente
+    if (!usuario || !cliente) {
       return NextResponse.json(
         { error: 'Cliente não autenticado' },
         { status: 401 }
@@ -27,11 +28,22 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const cliente = await getClienteLogado()
-    if (!cliente) {
+    const usuario = await getUsuarioLogado()
+    const cliente = usuario?.cliente
+    if (!usuario || !cliente) {
       return NextResponse.json(
         { error: 'Cliente não autenticado' },
         { status: 401 }
+      )
+    }
+
+    if (usuario.siggmaCliCod) {
+      return NextResponse.json(
+        {
+          error:
+            'Agendamento para pets vinculados ao Siggma será habilitado após o endpoint oficial de gravação do ERP ser confirmado.',
+        },
+        { status: 409 }
       )
     }
 

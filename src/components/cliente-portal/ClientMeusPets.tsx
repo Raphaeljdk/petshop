@@ -43,6 +43,7 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/components/providers/AuthProvider'
 import type { Pet, Processo, StatusProcesso } from '@/lib/types'
 
 /* --------------------------------------------------------------------- */
@@ -220,6 +221,8 @@ function TimelineProcesso({ processo }: { processo: Processo }) {
 /* --------------------------------------------------------------------- */
 
 export function ClientMeusPets() {
+  const { sessao } = useAuth()
+  const zettaLinked = Boolean(sessao.user?.siggmaCliCod)
   const [pets, setPets] = useState<Pet[]>([])
   const [processos, setProcessos] = useState<Processo[]>([])
   const [loading, setLoading] = useState(true)
@@ -360,10 +363,24 @@ export function ClientMeusPets() {
             Cadastre seus pets e acompanhe atendimentos
           </p>
         </div>
-        <Button onClick={abrirNovo} className="btn-brand">
-          <Plus className="size-4" /> Cadastrar pet
-        </Button>
+        {zettaLinked ? (
+          <Badge variant="outline" className="h-9 px-3">
+            Sincronizado com o ERP
+          </Badge>
+        ) : (
+          <Button onClick={abrirNovo} className="btn-brand">
+            <Plus className="size-4" /> Cadastrar pet
+          </Button>
+        )}
       </div>
+
+      {zettaLinked && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Seus pets e o histórico abaixo vêm do Siggma/Zetta. Cadastros e alterações de pets são feitos pela equipe no ERP para evitar divergência de dados.
+          </CardContent>
+        </Card>
+      )}
 
       {loading && <SkeletonLoader type="cards" count={4} />}
 
@@ -398,9 +415,11 @@ export function ClientMeusPets() {
                       </p>
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" className="size-7" onClick={() => abrirEdicao(p)}>
-                    <Pencil className="size-3.5" />
-                  </Button>
+                  {p.origem !== 'zetta' && (
+                    <Button size="icon" variant="ghost" className="size-7" onClick={() => abrirEdicao(p)}>
+                      <Pencil className="size-3.5" />
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

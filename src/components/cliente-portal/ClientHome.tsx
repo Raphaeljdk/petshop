@@ -58,6 +58,7 @@ interface ProdutoDestaque {
 }
 
 interface DashboardData {
+  zettaLinked?: boolean
   cliente: { nome: string; telefone: string; email: string | null; cep?: string | null }
   stats: {
     totalPets: number
@@ -285,6 +286,7 @@ export function ClientHome({
             <CardTitle className="text-base flex items-center gap-2">
               <Dog className="size-4 text-primary" />
               Status dos Meus Pets
+              {data.zettaLinked && <Badge variant="outline">ERP</Badge>}
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={onIrParaPets} className="h-7 text-xs">
               Ver todos <ChevronRight className="size-3" />
@@ -296,7 +298,7 @@ export function ClientHome({
                 <Dog className="size-10 mx-auto mb-2 text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">Nenhum pet cadastrado</p>
                 <Button size="sm" className="mt-3 btn-brand" onClick={onIrParaPets}>
-                  Cadastrar pet
+                  {data.zettaLinked ? 'Ver integração de pets' : 'Cadastrar pet'}
                 </Button>
               </div>
             ) : (

@@ -122,7 +122,8 @@ function pagination(req) {
 
 function addFilter(filters, values, sql, value) {
   values.push(value)
-  filters.push(sql.replaceAll('?', `${values.length}`))
+  const parameter = '$' + values.length
+  filters.push(sql.replaceAll('?', parameter))
 }
 
 function asyncRoute(handler) {
@@ -312,6 +313,42 @@ app.get(
 )
 
 app.get(
+  '/api/zetta/clientes/:id',
+  asyncRoute(async (req, res) => {
+    const id = Number.parseInt(String(req.params.id || ''), 10)
+    if (!Number.isFinite(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: 'Cliente inválido' })
+    }
+
+    const db = getPool()
+    const result = await db.query(
+      `
+      SELECT
+        c.cli_cod AS id,
+        p.nome,
+        p.apelido_fantasia AS apelido,
+        p.email,
+        p.telefone,
+        p.celular,
+        c.data_atualizacao AS "dataAtualizacao",
+        (c.data_desativacao IS NULL) AS ativo
+      FROM "CLIENTES" c
+      JOIN pessoas p ON p.id = c.pessoa
+      WHERE c.cli_cod = $1
+      LIMIT 1
+      `,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Cliente não encontrado' })
+    }
+
+    res.json({ ok: true, data: result.rows[0] })
+  })
+)
+
+app.get(
   '/api/zetta/animais',
   asyncRoute(async (req, res) => {
     const db = getPool()
@@ -377,6 +414,91 @@ app.get(
   })
 )
 
+app.get(
+  '/api/zetta/historicos',
+  asyncRoute(async (req, res) => {
+    const db = getPool()
+    const { page, limit, offset } = pagination(req)
+    const filters = []
+    const values = []
+
+    const cliente = Number.parseInt(String(req.query.cliente || ''), 10)
+    const animal = Number.parseInt(String(req.query.animal || ''), 10)
+    const since = parseDate(req.query.since)
+
+    if (Number.isFinite(cliente) && cliente > 0) {
+      addFilter(filters, values, 'a.cliente = ?', cliente)
+    }
+    if (Number.isFinite(animal) && animal > 0) {
+      addFilter(filters, values, 'h.animal = ?', animal)
+    }
+    if (since) {
+      addFilter(
+        filters,
+        values,
+        `GREATEST(
+          COALESCE(h.data_atualizacao, TIMESTAMP 'epoch'),
+          COALESCE(h.datahora, TIMESTAMP 'epoch')
+        ) >= ?`,
+        since
+      )
+    }
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+    const count = await db.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM animais_historicos h
+      JOIN animais a ON a.id = h.animal
+      ${where}
+      `,
+      values
+    )
+
+    const dataValues = [...values, limit, offset]
+    const limitParam = '$' + (dataValues.length - 1)
+    const offsetParam = '$' + dataValues.length
+    const data = await db.query(
+      `
+      SELECT
+        h.id,
+        h.animal AS "animalId",
+        a.cliente AS "clienteId",
+        a.nome AS "animalNome",
+        a.especie,
+        a.raca,
+        h.datahora,
+        h.tipo,
+        h.status,
+        h.peso,
+        h.evento,
+        h.descricao,
+        h.tipo_servico AS "tipoServico",
+        h.data_atualizacao AS "dataAtualizacao",
+        h.filial,
+        h.excluido,
+        h.entregue,
+        h.data_entregue AS "dataEntregue",
+        h.observacoes,
+        h.quadro_clinico AS "quadroClinico"
+      FROM animais_historicos h
+      JOIN animais a ON a.id = h.animal
+      ${where}
+      ORDER BY h.datahora DESC NULLS LAST, h.id DESC
+      LIMIT ${limitParam} OFFSET ${offsetParam}
+      `,
+      dataValues
+    )
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: count.rows[0].total,
+      data: data.rows,
+    })
+  })
+)
 app.get(
   '/api/zetta/produtos',
   asyncRoute(async (req, res) => {
