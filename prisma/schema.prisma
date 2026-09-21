@@ -36,6 +36,7 @@ model Cliente {
   pets         Pet[]
   agendamentos Agendamento[]
   vendas       Venda[]
+  cuponsUsados CupomUso[]
   user         User?
 }
 
@@ -109,6 +110,10 @@ model Venda {
   id         String   @id @default(cuid())
   clienteId String?
   total      Float
+  subtotalProdutos Float?
+  cupomId    String?
+  cupomCodigo String?
+  descontoCupom Float @default(0)
   canal      String   @default("loja")
   status     String   @default("concluida")
   observacoes String?
@@ -127,7 +132,11 @@ model Venda {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   cliente Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  cupom   Cupom?    @relation(fields: [cupomId], references: [id], onDelete: SetNull)
+  usoCupom CupomUso?
   itens   ItemVenda[]
+
+  @@index([cupomId])
 }
 
 model ItemVenda {
@@ -138,6 +147,46 @@ model ItemVenda {
   precoUnit Float
   venda   Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
   produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+}
+
+model Cupom {
+  id                    String   @id @default(cuid())
+  codigo                String   @unique
+  descricao             String?
+  tipoDesconto          String   @default("percentual") // percentual | fixo
+  valor                 Float
+  valorMinimo           Float    @default(0)
+  limiteUsos            Int?
+  limitePorCliente      Int      @default(1)
+  inicioEm              DateTime?
+  fimEm                 DateTime?
+  ativo                  Boolean  @default(true)
+  influenciadorNome     String?
+  influenciadorContato  String?
+  comissaoPercentual    Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  vendas                Venda[]
+  usos                   CupomUso[]
+
+  @@index([ativo, fimEm])
+}
+
+model CupomUso {
+  id         String   @id @default(cuid())
+  cupomId    String
+  vendaId    String   @unique
+  clienteId  String?
+  codigo     String
+  desconto   Float
+  comissao   Float    @default(0)
+  createdAt  DateTime @default(now())
+  cupom      Cupom    @relation(fields: [cupomId], references: [id], onDelete: Cascade)
+  venda      Venda    @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  cliente    Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
+  @@index([cupomId, createdAt])
+  @@index([clienteId])
 }
 
 model Notificacao {

@@ -13,6 +13,7 @@ import { NotificacoesView } from '@/components/notificacoes/NotificacoesView'
 import { ClientesView } from '@/components/clientes/ClientesView'
 import { EntregasView } from '@/components/admin/EntregasView'
 import { PagamentosView } from '@/components/admin/PagamentosView'
+import { CuponsView } from '@/components/admin/CuponsView'
 import { AdminInvitations } from '@/components/admin/AdminInvitations'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { Button } from '@/components/ui/button'
@@ -31,55 +32,50 @@ function AdminPanelImpl() {
     notificacoesNaoLidas?: number
   }>({})
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  // Sinal para forçar refresh do EcommerceView quando uma nova venda chega
-  // (incrementado a cada venda:nova). Repassado como prop ao EcommerceView.
   const [ecommerceRefreshSignal, setEcommerceRefreshSignal] = useState(0)
-  // Sinal para forçar refresh do EntregasView quando uma nova venda chega
   const [entregasRefreshSignal, setEntregasRefreshSignal] = useState(0)
-  // Sinal para forçar refresh do PagamentosView (aprovado/rejeitado)
   const [pagamentosRefreshSignal, setPagamentosRefreshSignal] = useState(0)
 
   const pageNames: Record<TabId, string> = {
-    dashboard: 'Visão geral', kanban: 'Kanban de pets', agendamentos: 'Agendamentos',
-    ecommerce: 'Estoque', integracoes: 'Integrações', notificacoes: 'Notificações',
-    clientes: 'Clientes e pets', entregas: 'Entregas', pagamentos: 'Pagamentos', equipe: 'Equipe e convites',
+    dashboard: 'Visão geral',
+    kanban: 'Kanban de pets',
+    agendamentos: 'Agendamentos',
+    ecommerce: 'Estoque',
+    integracoes: 'Integrações',
+    notificacoes: 'Notificações',
+    clientes: 'Clientes e pets',
+    entregas: 'Entregas',
+    pagamentos: 'Pagamentos',
+    cupons: 'Cupons e parceiros',
+    equipe: 'Equipe e convites',
   }
   const user = sessao.user
 
-  const handleRealtime = useCallback(
-    (event: string, data: any) => {
-      if (event === 'processo:novo') {
-        toast.info(`Novo processo: ${data?.petNome || 'pet'} — ${data?.servico || ''}`)
-        setCounts((prev) => ({
-          ...prev,
-          novo: (prev.novo || 0) + 1,
-        }))
-      } else if (event === 'processo:finalizado') {
-        toast.success('Processo finalizado e notificações enviadas')
-      } else if (event === 'venda:nova') {
-        toast.success(`Nova venda: R$ ${(data?.total ?? 0).toFixed(2)}`)
-        // Força refresh do conteúdo do EcommerceView
-        setEcommerceRefreshSignal((n) => n + 1)
-        // Força refresh do EntregasView
-        setEntregasRefreshSignal((n) => n + 1)
-        // Força refresh do PagamentosView
-        setPagamentosRefreshSignal((n) => n + 1)
-      } else if (event === 'pagamento:aprovado') {
-        toast.success(`Pagamento aprovado: ${data?.vendaId?.slice(-8).toUpperCase() || ''}`)
-        setPagamentosRefreshSignal((n) => n + 1)
-        setEcommerceRefreshSignal((n) => n + 1)
-      } else if (event === 'pagamento:rejeitado') {
-        toast.error(`Pagamento rejeitado: ${data?.vendaId?.slice(-8).toUpperCase() || ''}`)
-        setPagamentosRefreshSignal((n) => n + 1)
-      } else if (event === 'notificacao:nova') {
-        setCounts((prev) => ({
-          ...prev,
-          notificacoesNaoLidas: (prev.notificacoesNaoLidas || 0) + 1,
-        }))
-      }
-    },
-    []
-  )
+  const handleRealtime = useCallback((event: string, data: any) => {
+    if (event === 'processo:novo') {
+      toast.info(`Novo processo: ${data?.petNome || 'pet'} — ${data?.servico || ''}`)
+      setCounts((prev) => ({ ...prev, novo: (prev.novo || 0) + 1 }))
+    } else if (event === 'processo:finalizado') {
+      toast.success('Processo finalizado e notificações enviadas')
+    } else if (event === 'venda:nova') {
+      toast.success(`Nova venda: R$ ${(data?.total ?? 0).toFixed(2)}`)
+      setEcommerceRefreshSignal((n) => n + 1)
+      setEntregasRefreshSignal((n) => n + 1)
+      setPagamentosRefreshSignal((n) => n + 1)
+    } else if (event === 'pagamento:aprovado') {
+      toast.success(`Pagamento aprovado: ${data?.vendaId?.slice(-8).toUpperCase() || ''}`)
+      setPagamentosRefreshSignal((n) => n + 1)
+      setEcommerceRefreshSignal((n) => n + 1)
+    } else if (event === 'pagamento:rejeitado') {
+      toast.error(`Pagamento rejeitado: ${data?.vendaId?.slice(-8).toUpperCase() || ''}`)
+      setPagamentosRefreshSignal((n) => n + 1)
+    } else if (event === 'notificacao:nova') {
+      setCounts((prev) => ({
+        ...prev,
+        notificacoesNaoLidas: (prev.notificacoesNaoLidas || 0) + 1,
+      }))
+    }
+  }, [])
 
   const { isConnected } = useRealtime([
     { event: 'processo:novo', handler: (d) => handleRealtime('processo:novo', d) },
@@ -90,37 +86,21 @@ function AdminPanelImpl() {
     { event: 'notificacao:nova', handler: (d) => handleRealtime('notificacao:nova', d) },
   ])
 
-  /* ---------------------- quick actions do Dashboard ---------------------- */
-
-  // Quick action "Novo Agendamento": troca para a tab + dispara evento que
-  // o AgendamentosView escuta para abrir o dialog de criação.
   const handleNovoAgendamento = useCallback(() => {
     setTab('agendamentos')
-    // pequeno delay para garantir que o AgendamentosView montou seu listener
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('agendamentos:novo'))
-    }, 80)
+    setTimeout(() => window.dispatchEvent(new CustomEvent('agendamentos:novo')), 80)
   }, [setTab])
 
-  // Quick action "Novo Produto": troca para a tab ecommerce + dispara evento
-  // que o EcommerceView escuta para abrir o dialog de novo produto.
   const handleNovoProduto = useCallback(() => {
     setTab('ecommerce')
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('ecommerce:novo-produto'))
-    }, 80)
+    setTimeout(() => window.dispatchEvent(new CustomEvent('ecommerce:novo-produto')), 80)
   }, [setTab])
 
-  // Quick action "Registrar Venda": troca para a tab ecommerce + dispara evento
-  // que o EcommerceView escuta para abrir o dialog de nova venda.
   const handleNovaVenda = useCallback(() => {
     setTab('ecommerce')
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('ecommerce:nova-venda'))
-    }, 80)
+    setTimeout(() => window.dispatchEvent(new CustomEvent('ecommerce:nova-venda')), 80)
   }, [setTab])
 
-  // Carregar contagem inicial de notificações pendentes
   useEffect(() => {
     const carregar = async () => {
       try {
@@ -132,45 +112,30 @@ function AdminPanelImpl() {
         }
       } catch {}
     }
-    carregar()
+    void carregar()
   }, [tab])
 
   const handleLogout = async () => {
     try {
       await logout()
       toast.success('Sessão encerrada')
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível sair.') }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível sair.')
+    }
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   return (
     <div className="app-shell flex flex-col bg-background">
       <a className="skip-link" href="#admin-content">Pular para o conteúdo</a>
-      {/* Header */}
       <header className="app-header sticky top-0 z-40 border-b border-border">
         <div className="flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 h-16 lg:h-18">
           <div className="flex items-center gap-2 min-w-0">
-            {/* Hamburger mobile */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden shrink-0 size-10"
-              onClick={() => setSidebarOpen(true)}
-              id="admin-menu-trigger"
-              aria-expanded={sidebarOpen}
-              aria-label="Abrir menu"
-            >
+            <Button variant="ghost" size="icon" className="lg:hidden shrink-0 size-10" onClick={() => setSidebarOpen(true)} id="admin-menu-trigger" aria-expanded={sidebarOpen} aria-label="Abrir menu">
               <Menu className="size-5" />
             </Button>
-
-            {/* Logo compacto mobile */}
-            <div className="lg:hidden min-w-0">
-              <Logo size="sm" withText={false} />
-            </div>
-
+            <div className="lg:hidden min-w-0"><Logo size="sm" withText={false} /></div>
             <div className="hidden lg:flex items-center gap-3 text-sm">
               <span className="text-muted-foreground">Administração</span>
               <ChevronRight className="size-3.5 text-muted-foreground/60" />
@@ -191,22 +156,14 @@ function AdminPanelImpl() {
             </div>
             <NotificationBell onVerTodas={() => setTab('notificacoes')} />
             <Button variant="outline" size="sm" onClick={handleLogout} aria-label="Sair da conta" className="h-9 sm:h-9">
-              <LogOut className="size-4" />
-              <span className="hidden sm:inline ml-1">Sair</span>
+              <LogOut className="size-4" /><span className="hidden sm:inline ml-1">Sair</span>
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Conteúdo */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <Sidebar
-          active={tab}
-          onChange={setTab}
-          counts={counts}
-          mobileOpen={sidebarOpen}
-          onMobileClose={() => setSidebarOpen(false)}
-        />
+        <Sidebar active={tab} onChange={setTab} counts={counts} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
         <main id="admin-content" tabIndex={-1} className="app-main flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
           <div className="tab-transition" key={tab}>
             {tab === 'dashboard' && (
@@ -224,36 +181,22 @@ function AdminPanelImpl() {
                 onIrParaPagamentos={() => setTab('pagamentos')}
               />
             )}
-            {tab === 'kanban' && (
-              <KanbanBoard
-                onCountsChange={(c) =>
-                  setCounts((prev) => ({ ...prev, novo: c.novo, andamento: c.andamento }))
-                }
-              />
-            )}
+            {tab === 'kanban' && <KanbanBoard onCountsChange={(c) => setCounts((prev) => ({ ...prev, novo: c.novo, andamento: c.andamento }))} />}
             {tab === 'agendamentos' && <AgendamentosView />}
-            {tab === 'ecommerce' && (
-              <EcommerceView refreshSignal={ecommerceRefreshSignal} />
-            )}
+            {tab === 'ecommerce' && <EcommerceView refreshSignal={ecommerceRefreshSignal} />}
             {tab === 'integracoes' && <IntegracoesView />}
             {tab === 'notificacoes' && <NotificacoesView />}
             {tab === 'clientes' && <ClientesView />}
             {tab === 'equipe' && <AdminInvitations />}
-            {tab === 'entregas' && (
-              <EntregasView refreshSignal={entregasRefreshSignal} />
-            )}
-            {tab === 'pagamentos' && (
-              <PagamentosView refreshSignal={pagamentosRefreshSignal} />
-            )}
+            {tab === 'entregas' && <EntregasView refreshSignal={entregasRefreshSignal} />}
+            {tab === 'pagamentos' && <PagamentosView refreshSignal={pagamentosRefreshSignal} />}
+            {tab === 'cupons' && <CuponsView />}
           </div>
         </main>
       </div>
 
-      {/* Footer */}
       <footer className="hidden sm:block bg-card border-t border-border px-6 py-2">
-        <p className="text-xs text-muted-foreground text-center">
-          Matilha Prado · Painel administrativo
-        </p>
+        <p className="text-xs text-muted-foreground text-center">Matilha Prado · Painel administrativo</p>
       </footer>
     </div>
   )
