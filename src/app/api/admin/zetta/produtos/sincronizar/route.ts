@@ -37,7 +37,7 @@ export async function POST() {
         create: {
           nome: product.nome || `Produto Zetta ${product.id}`,
           descricao: null,
-          categoria: 'ERP Zetta',
+          categoria: 'Pet Shop',
           preco: zettaProductPrice(product),
           precoPromo: null,
           estoque: zettaProductStock(product),
