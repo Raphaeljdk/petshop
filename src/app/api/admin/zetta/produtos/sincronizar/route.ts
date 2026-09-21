@@ -51,7 +51,6 @@ export async function POST() {
           preco: zettaProductPrice(product),
           estoque: zettaProductStock(product),
           sku: zettaProductSku(product),
-          ativo: true,
         },
       })
     )
