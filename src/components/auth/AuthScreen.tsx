@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Reveal } from '@/components/motion/Reveal'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { ShieldCheck, Star, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu } from 'lucide-react'
+import { ShieldCheck, Star, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu, MessageCircle, Instagram, Navigation } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,7 @@ import { Logo } from '@/components/brand/Logo'
 import { AccountExperience } from '@/components/auth/AccountExperience'
 import type { AccountMode, AccountRole } from '@/components/auth/AccountForm'
 import { cn } from '@/lib/utils'
+import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 
 export function AuthScreen() {
   const [scrolled, setScrolled] = useState(false)
@@ -130,6 +131,11 @@ export function AuthScreen() {
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <Button size="lg" onClick={abrirCadastro} className="bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Fazer parte da matilha <ChevronRight className="size-4" /></Button>
               <Button size="lg" variant="outline" onClick={abrirLogin} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Acessar minha conta</Button>
+              <Button asChild size="lg" variant="outline" className="bg-green-500/10 text-white border-green-300/40 hover:bg-green-500/20 hover:text-white">
+                <a href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')} target="_blank" rel="noreferrer">
+                  <MessageCircle className="size-4" /> WhatsApp
+                </a>
+              </Button>
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-white/75">
               <span className="flex items-center gap-2"><CalendarClock className="size-4 text-orange-300" /> Agendamento online</span>
@@ -360,6 +366,23 @@ export function AuthScreen() {
                 <MapPin className="size-4" />
                 Av. Água Fria, 1647 — Santana, São Paulo/SP
               </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button asChild size="sm" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                  <a href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado.')} target="_blank" rel="noreferrer">
+                    <MessageCircle className="size-4" /> {MATILHA_CONTACT.whatsappDisplay}
+                  </a>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                  <a href={MATILHA_CONTACT.instagram} target="_blank" rel="noreferrer">
+                    <Instagram className="size-4" /> Instagram
+                  </a>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                  <a href={MATILHA_CONTACT.google} target="_blank" rel="noreferrer">
+                    <Navigation className="size-4" /> Como chegar
+                  </a>
+                </Button>
+              </div>
             </div>
             <div>
               <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">Navegação</h4>
