@@ -57,6 +57,7 @@ interface CupomAplicado {
 export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [produtos, setProdutos] = useState<Produto[]>([])
+  const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
   const [loading, setLoading] = useState(true)
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>([])
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -100,6 +101,16 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
     void carregar()
     return () => { active = false }
   }, [refreshKey])
+
+  const categorias = useMemo(
+    () => [...new Set(produtos.map((produto) => produto.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [produtos]
+  )
+
+  const produtosFiltrados = useMemo(
+    () => categoriaFiltro === 'todas' ? produtos : produtos.filter((produto) => produto.categoria === categoriaFiltro),
+    [produtos, categoriaFiltro]
+  )
 
   const subtotal = useMemo(
     () => carrinho.reduce(
@@ -278,8 +289,34 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
       {loading && <SkeletonLoader type="cards" count={8} />}
 
+      {!loading && categorias.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
+          <Button
+            type="button"
+            size="sm"
+            variant={categoriaFiltro === 'todas' ? 'default' : 'outline'}
+            onClick={() => setCategoriaFiltro('todas')}
+            className="shrink-0"
+          >
+            Todas
+          </Button>
+          {categorias.map((categoria) => (
+            <Button
+              key={categoria}
+              type="button"
+              size="sm"
+              variant={categoriaFiltro === categoria ? 'default' : 'outline'}
+              onClick={() => setCategoriaFiltro(categoria)}
+              className="shrink-0"
+            >
+              {categoria}
+            </Button>
+          ))}
+        </div>
+      )}
+
       <div className="stagger-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-        {produtos.map((p) => (
+        {produtosFiltrados.map((p) => (
           <Card key={p.id} className="product-card group card-hover overflow-hidden py-0">
             <CardContent className="p-4 flex h-full flex-col gap-4">
               <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
