@@ -8,6 +8,10 @@ export type SiggmaConfig = {
   emp: string
 }
 
+export type SiggmaSchedulingConfig = SiggmaConfig & {
+  expedienteId: number
+}
+
 export class SiggmaConfigurationError extends Error {
   constructor(public missing: string[]) {
     super(`Configuração Siggma incompleta: ${missing.join(', ')}`)
@@ -47,4 +51,16 @@ export function getSiggmaConfig(): SiggmaConfig {
     clientSecret: process.env.SIGGMA_CLIENT_SECRET!.trim(),
     emp: process.env.SIGGMA_EMP!.trim(),
   }
+}
+
+export function getSiggmaSchedulingConfig(): SiggmaSchedulingConfig {
+  const config = getSiggmaConfig()
+  const rawExpediente = process.env.SIGGMA_EXPEDIENTE_ID?.trim() || ''
+  const expedienteId = Number.parseInt(rawExpediente, 10)
+
+  if (!rawExpediente || !Number.isFinite(expedienteId) || expedienteId < 1) {
+    throw new SiggmaConfigurationError(['SIGGMA_EXPEDIENTE_ID'])
+  }
+
+  return { ...config, expedienteId }
 }
