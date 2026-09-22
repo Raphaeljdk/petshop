@@ -6,13 +6,12 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/frete?cep=XXXXX-XXX
  *
- * Retorna as opções de entrega disponíveis para o CEP informado:
- *  - Retirada na loja (sempre que ativa)
- *  - Entrega própria (apenas dentro da faixa de SP capital)
- *  - Sedex (qualquer CEP válido do Brasil, valor simulado)
+ * Retorna as opções de entrega atualmente habilitadas para o CEP informado:
+ *  - Retirada na loja
+ *  - Motoboy Matilha Prado na faixa configurada da Zona Norte de São Paulo
  *
- * Se o CEP for inválido ou não informado, retorna apenas a opção de
- * retirada na loja (se ativa).
+ * Correios/Sedex permanece desativado até a contratação e configuração
+ * das credenciais oficiais do cliente.
  */
 export async function GET(req: NextRequest) {
   try {
