@@ -14,6 +14,7 @@ export interface ClienteSessao {
   id: string
   nome: string
   telefone: string
+  cpfCnpj?: string | null
   email: string | null
   endereco: string | null
   cep: string | null
@@ -31,6 +32,7 @@ export interface CadastroDados {
   confirmarSenha: string
   role: 'ADMIN' | 'CLIENTE'
   telefone?: string
+  cpfCnpj?: string
   endereco?: string
   cep?: string
   convite?: string

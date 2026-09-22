@@ -48,6 +48,7 @@ export interface UsuarioLogado {
     id: string
     nome: string
     telefone: string
+    cpfCnpj: string | null
     email: string | null
     endereco: string | null
     cep: string | null
@@ -116,6 +117,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
             id: true,
             nome: true,
             telefone: true,
+            cpfCnpj: true,
             email: true,
             endereco: true,
             cep: true,
@@ -139,6 +141,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
             id: user.cliente.id,
             nome: user.cliente.nome,
             telefone: user.cliente.telefone,
+            cpfCnpj: user.cliente.cpfCnpj,
             email: user.cliente.email,
             endereco: user.cliente.endereco,
             cep: user.cliente.cep,
@@ -156,6 +159,7 @@ export async function getClienteLogado(): Promise<{
   id: string
   nome: string
   telefone: string
+  cpfCnpj: string | null
   email: string | null
   endereco: string | null
   cep: string | null
@@ -167,6 +171,7 @@ export async function getClienteLogado(): Promise<{
     id: usuario.cliente.id,
     nome: usuario.cliente.nome,
     telefone: usuario.cliente.telefone,
+    cpfCnpj: usuario.cliente.cpfCnpj,
     email: usuario.cliente.email,
     endereco: usuario.cliente.endereco,
     cep: usuario.cliente.cep,

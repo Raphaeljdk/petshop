@@ -110,7 +110,7 @@ export async function siggmaRequest<T>(
   }
 
   if (isWarning(payload)) {
-    throw new SiggmaApiError(payload.msg || 'O Siggma recusou a operação.', 422, payload)
+    throw new SiggmaApiError(payload.msg || payload.message || 'O Siggma recusou a operação.', 422, payload)
   }
 
   return payload as T

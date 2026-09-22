@@ -29,6 +29,7 @@ export interface Cliente {
   id: string
   nome: string
   telefone: string
+  cpfCnpj?: string | null
   email: string | null
   endereco: string | null
   cep: string | null
@@ -157,6 +158,8 @@ export interface Venda {
   mercadoPagoPaymentUrl: string | null
   mercadoPagoQrCode: string | null
   mercadoPagoPixExpiresAt: string | null
+  siggmaGuid?: string | null
+  statusFiscal?: string | null
   createdAt: string
   updatedAt: string
   cliente?: Cliente | null

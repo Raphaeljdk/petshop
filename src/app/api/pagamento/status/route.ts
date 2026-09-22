@@ -6,6 +6,7 @@ import {
   consultarOrderMercadoPago,
   mapearOrderParaVenda,
 } from '@/lib/mercado-pago-orders'
+import { importarVendaNoSiggma } from '@/lib/siggma/orders'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,6 +104,14 @@ export async function GET(req: NextRequest) {
             updatedAt: true,
           },
         })
+
+        if (statusMap.aprovado) {
+          try {
+            await importarVendaNoSiggma(venda.id)
+          } catch (siggmaError) {
+            console.error('[pagamento/status] pagamento aprovado, pedido Siggma pendente:', siggmaError)
+          }
+        }
       } catch (e) {
         // O webhook continua sendo a fonte principal. Falha de polling não
         // deve derrubar a tela do cliente.

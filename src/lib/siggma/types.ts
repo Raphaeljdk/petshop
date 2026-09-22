@@ -9,6 +9,7 @@ export type SiggmaApiWarning = {
   type: 'warning' | 'error'
   code?: number
   msg?: string
+  message?: string
   detail?: string | null
 }
 
@@ -95,18 +96,113 @@ export type SiggmaVacina = {
 export type SiggmaAtendimento = Record<string, unknown>
 
 export type SiggmaProduto = {
-  codigo_integracao?: number | string | null
+  codigo_integracao?: number | null
   pro_cod: number
   codigo?: string
   gtin?: string
   nome?: string
   complemento?: string
+  observacao?: string
   preco?: string
+  peso?: string
+  estoque_min?: string
+  altura?: string
+  largura?: string
+  comprimento?: string
+  marca?: string
+  modelo?: string
   estoque?: string
+  inativar_itens?: string
+  excluido?: string
   valor_promocao?: string | null
   imagens?: string[]
   categorias?: number[]
-  variacoes?: unknown[]
+  variacoes?: Array<Record<string, unknown>>
+  genero?: string | null
+}
+
+export type SiggmaCategoria = {
+  id: number
+  ecommerce?: number
+  nome?: string
+  parent_id?: number | null
+  status?: string
+  data_atualizacao?: string
+  excluido?: boolean
+  ecommerce_codigo?: string | null
+  icon?: string | null
+  ordem?: number | null
+}
+
+export type SiggmaClienteImportInput = {
+  cliCod?: number
+  cliDoc?: string
+  dataAtualizacao?: string
+  cliObs?: string
+  cliNeg?: boolean
+  consumidorFinal?: boolean
+  pessoa?: Record<string, unknown>
+}
+
+export type SiggmaClienteImportResult = {
+  type: 'success' | 'error' | 'warning'
+  data?: Array<{ cpfcnpj?: string | null; cliente?: number; erro?: string }>
+  msg?: string
+  message?: string
+}
+
+export type SiggmaPedidoImportInput = {
+  id: number
+  dataCriacao: string
+  guid: string
+  status?: string
+  cpfCnpj?: string
+  nome?: string
+  email?: string
+  telefone?: string
+  celular?: string
+  cep?: string
+  endereco?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  municipio?: string
+  uf?: string
+  valorFrete: string
+  totalProduto: string
+  desconto: string
+  despesas: string
+  totalGeral: string
+  item: Array<{
+    sku: string
+    codigoIntegracao?: number
+    descricao?: string
+    qtd: string
+    preco: string
+    total: string
+    desconto: string
+    despesas: string
+    valorFrete: string
+    totalGeral: string
+  }>
+}
+
+export type SiggmaFiscalStatus = {
+  guid: string
+  status:
+    | 'PROCESSADA'
+    | 'ENVIADA'
+    | 'HOMOLOGADA'
+    | 'CONTINGENCIA'
+    | 'ERRO'
+    | 'DENEGADA'
+    | 'CANCELADO'
+    | 'EXCLUIDO'
+}
+
+export type SiggmaFiscalStatusResponse = {
+  type: 'success'
+  data: SiggmaFiscalStatus[]
 }
 
 export type SiggmaHorario = {

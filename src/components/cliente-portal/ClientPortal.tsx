@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, MessageCircle } from 'lucide-react'
+import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, MessageCircle, Syringe } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { Confetti } from '@/components/brand/Confetti'
 import { ClientStore } from '@/components/cliente-portal/ClientStore'
@@ -9,6 +9,7 @@ import { ClientHome } from '@/components/cliente-portal/ClientHome'
 import { ClientAgendamentos } from '@/components/cliente-portal/ClientAgendamentos'
 import { ClientMeusPets } from '@/components/cliente-portal/ClientMeusPets'
 import { ClientMinhasCompras } from '@/components/cliente-portal/ClientMinhasCompras'
+import { ClientVacinas } from '@/components/cliente-portal/ClientVacinas'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/components/providers/AuthProvider'
@@ -17,13 +18,14 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 
-type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'compras'
+type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'vacinas' | 'compras'
 
 const TABS: { id: TabClient; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'inicio', label: 'Início', icon: Home },
   { id: 'loja', label: 'Loja', icon: ShoppingCart },
   { id: 'agendamentos', label: 'Agendamentos', icon: CalendarClock },
   { id: 'pets', label: 'Meus Pets', icon: Dog },
+  { id: 'vacinas', label: 'Vacinas', icon: Syringe },
   { id: 'compras', label: 'Minhas Compras', icon: ShoppingBag },
 ]
 
@@ -104,7 +106,7 @@ export function ClientPortal() {
                 >
                   <Icon className="size-4" />
                   <span className="hidden md:inline">{t.label}</span>
-                  <span className="md:hidden">{{ inicio: 'Início', loja: 'Loja', agendamentos: 'Agenda', pets: 'Pets', compras: 'Compras' }[t.id]}</span>
+                  <span className="md:hidden">{{ inicio: 'Início', loja: 'Loja', agendamentos: 'Agenda', pets: 'Pets', vacinas: 'Vacinas', compras: 'Compras' }[t.id]}</span>
                 </button>
               )
             })}
@@ -126,6 +128,7 @@ export function ClientPortal() {
           {tab === 'loja' && <ClientStore onCompraFinalizada={onCompraFinalizada} />}
           {tab === 'agendamentos' && <ClientAgendamentos />}
           {tab === 'pets' && <ClientMeusPets />}
+          {tab === 'vacinas' && <ClientVacinas />}
           {tab === 'compras' && <ClientMinhasCompras />}
         </div>
       </main>
