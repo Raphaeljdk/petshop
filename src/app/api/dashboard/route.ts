@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { integrationBridgeRequest } from '@/lib/integration-bridge'
 import type { DashboardStats } from '@/lib/types'
 
 const NOMES_MESES_PT = [
@@ -56,6 +57,45 @@ export async function GET() {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
+    let zettaStatus: {
+      clientes?: number
+      animais?: number
+      produtos?: number
+      atendimentos?: number
+    } | null = null
+    let zettaAtendimentos: Array<Record<string, unknown>> = []
+
+    try {
+      const [status, atendimentos] = await Promise.all([
+        integrationBridgeRequest<{
+          ok?: boolean
+          connected?: boolean
+          clientes?: number
+          animais?: number
+          produtos?: number
+          atendimentos?: number
+        }>('/api/zetta/status'),
+        integrationBridgeRequest<{
+          ok?: boolean
+          data?: Array<Record<string, unknown>>
+        }>('/api/zetta/atendimentos?page=1&limit=5'),
+      ])
+      zettaStatus = status
+      zettaAtendimentos = atendimentos.data || []
+    } catch (bridgeError) {
+      console.error('[dashboard] Zetta indisponível:', bridgeError)
+    }
+
+    const [contasPortal, contasVinculadas] = await Promise.all([
+      db.user.count({ where: { role: 'CLIENTE' } }),
+      db.user.count({
+        where: {
+          role: 'CLIENTE',
+          siggmaCliCod: { not: null },
+        },
+      }),
+    ])
+
     const hoje = new Date()
     const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
@@ -70,8 +110,8 @@ export async function GET() {
 
     const [
       totalClientes,
-      totalPets,
-      totalProdutos,
+      totalPets: zettaStatus?.animais ?? totalPets,
+      totalProdutos: zettaStatus?.produtos ?? totalProdutos,
       totalVendas,
       totalAgendamentos,
       totalProcessos,
@@ -256,7 +296,25 @@ export async function GET() {
       .slice(0, 6)
 
     const stats: DashboardStats = {
-      totalClientes,
+      zetta: {
+        online: Boolean(zettaStatus),
+        clientes: zettaStatus?.clientes ?? totalClientes,
+        pets: zettaStatus?.animais ?? totalPets,
+        produtos: zettaStatus?.produtos ?? totalProdutos,
+        atendimentos: zettaStatus?.atendimentos ?? 0,
+        contasPortal,
+        contasVinculadas,
+        ultimosAtendimentos: zettaAtendimentos.map((item) => ({
+          id: (item.id as number | string) ?? '',
+          clienteId: (item.clienteId as number | string | null | undefined) ?? null,
+          datahora: (item.datahora as string | null | undefined) ?? null,
+          status: (item.status as string | null | undefined) ?? null,
+          total: (item.total as number | string | null | undefined) ?? null,
+          totalItens: (item.totalItens as number | string | null | undefined) ?? null,
+          filial: (item.filial as number | string | null | undefined) ?? null,
+        })),
+      },
+      totalClientes: zettaStatus?.clientes ?? totalClientes,
       totalPets,
       totalProdutos,
       totalVendas,
