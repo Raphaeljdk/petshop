@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { AuthRequestError, useAuth } from '@/components/providers/AuthProvider'
-import { adminRegistrationSchema, clientRegistrationSchema, fieldErrors, formatCep, formatPhone, loginSchema, passwordRules } from '@/lib/auth-validation'
+import { adminRegistrationSchema, clientRegistrationSchema, fieldErrors, formatCep, formatCpfCnpj, formatPhone, loginSchema, passwordRules } from '@/lib/auth-validation'
 import { cn } from '@/lib/utils'
 
 export type AccountMode = 'login' | 'cadastro'
@@ -53,7 +53,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const [help, setHelp] = useState(false)
-  const [data, setData] = useState({ nome: '', email: '', telefone: '', endereco: '', cep: '', senha: '', confirmarSenha: '', convite: '' })
+  const [data, setData] = useState({ nome: '', email: '', telefone: '', cpfCnpj: '', endereco: '', cep: '', senha: '', confirmarSenha: '', convite: '' })
   const inFlight = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
   const messageRef = useRef<HTMLDivElement>(null)
@@ -93,7 +93,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
     if (inFlight.current) return
     const input = isRegister
       ? { nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
-          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, endereco: data.endereco, cep: data.cep }) }
+          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }) }
       : { email: data.email, senha: data.senha, lembrar: remember }
     const parsed = (isRegister ? (isAdmin ? adminRegistrationSchema : clientRegistrationSchema) : loginSchema).safeParse(input)
     if (!parsed.success) { showErrors(fieldErrors(parsed.error), 'Confira os campos abaixo para continuar.'); return }
@@ -106,7 +106,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
       if (isRegister) {
         await cadastrar({
           nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
-          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, endereco: data.endereco, cep: data.cep }),
+          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }),
         })
       } else {
         await login(data.email, data.senha, remember)
@@ -161,8 +161,13 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
         <Field label="E-mail" icon={Mail} name="email" type="email" autoComplete="email" required maxLength={254}
           autoCapitalize="none" spellCheck={false} placeholder="voce@exemplo.com" value={data.email} onChange={e => update('email', e.target.value)} error={errors.email}
           hint={isRegister && isAdmin ? 'Use o mesmo e-mail que recebeu o convite.' : undefined} />
-        {isRegister && !isAdmin && <Field label="Telefone com DDD" icon={Phone} name="telefone" type="tel" autoComplete="tel-national" required
-          placeholder="(11) 99999-9999" value={data.telefone} onChange={e => update('telefone', formatPhone(e.target.value))} error={errors.telefone} />}
+        {isRegister && !isAdmin && <>
+          <Field label="Telefone com DDD" icon={Phone} name="telefone" type="tel" autoComplete="tel-national" required
+            placeholder="(11) 99999-9999" value={data.telefone} onChange={e => update('telefone', formatPhone(e.target.value))} error={errors.telefone} />
+          <Field label="CPF ou CNPJ" icon={UserRound} name="cpfCnpj" inputMode="numeric" required
+            placeholder="000.000.000-00" value={data.cpfCnpj} onChange={e => update('cpfCnpj', formatCpfCnpj(e.target.value))} error={errors.cpfCnpj}
+            hint="Usado para localizar ou criar seu cadastro no Siggma e emitir pedidos." />
+        </>}
         {isRegister && isAdmin && <Field label="Código de convite" icon={KeyRound} name="convite" autoComplete="off" required maxLength={64}
           spellCheck={false} autoCapitalize="none" placeholder="Cole o código fornecido pela administração" value={data.convite}
           onChange={e => update('convite', e.target.value.trim())} error={errors.convite}
