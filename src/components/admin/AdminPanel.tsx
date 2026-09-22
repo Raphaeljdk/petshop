@@ -15,7 +15,6 @@ import { EntregasView } from '@/components/admin/EntregasView'
 import { PagamentosView } from '@/components/admin/PagamentosView'
 import { CuponsView } from '@/components/admin/CuponsView'
 import { AdminInvitations } from '@/components/admin/AdminInvitations'
-import { ZettaDataView } from '@/components/admin/ZettaDataView'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/brand/Logo'
@@ -49,7 +48,6 @@ function AdminPanelImpl() {
     pagamentos: 'Pagamentos',
     cupons: 'Cupons e parceiros',
     equipe: 'Equipe e convites',
-    zetta: 'ERP Zetta',
   }
   const user = sessao.user
 
@@ -193,7 +191,6 @@ function AdminPanelImpl() {
             {tab === 'entregas' && <EntregasView refreshSignal={entregasRefreshSignal} />}
             {tab === 'pagamentos' && <PagamentosView refreshSignal={pagamentosRefreshSignal} />}
             {tab === 'cupons' && <CuponsView />}
-            {tab === 'zetta' && <ZettaDataView />}
           </div>
         </main>
       </div>
