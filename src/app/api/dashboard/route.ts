@@ -110,8 +110,8 @@ export async function GET() {
 
     const [
       totalClientes,
-      totalPets: zettaStatus?.animais ?? totalPets,
-      totalProdutos: zettaStatus?.produtos ?? totalProdutos,
+      totalPets,
+      totalProdutos,
       totalVendas,
       totalAgendamentos,
       totalProcessos,
@@ -315,8 +315,8 @@ export async function GET() {
         })),
       },
       totalClientes: zettaStatus?.clientes ?? totalClientes,
-      totalPets,
-      totalProdutos,
+      totalPets: zettaStatus?.animais ?? totalPets,
+      totalProdutos: zettaStatus?.produtos ?? totalProdutos,
       totalVendas,
       totalAgendamentos,
       totalProcessos,
