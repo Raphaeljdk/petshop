@@ -246,8 +246,8 @@ export function AuthScreen() {
               },
               {
                 num: '2',
-                title: 'Agende ou compre',
-                desc: 'Marque um serviço ou compre produtos da boutique com poucos cliques.',
+                title: 'Conheça e compre',
+                desc: 'Veja a boutique sem login e entre na sua conta somente quando quiser comprar.',
                 icon: CalendarClock,
               },
               {
@@ -298,7 +298,7 @@ export function AuthScreen() {
             Pronto para cuidar do seu pet?
           </h2>
           <p className="mt-4 text-white/80 text-base sm:text-lg">
-            Crie sua conta gratuita e comece a agendar serviços e comprar produtos premium agora mesmo.
+            Explore a boutique sem login e crie sua conta quando quiser comprar, acompanhar seus pets ou consultar atendimentos.
           </p>
           <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" onClick={abrirCadastro} className="btn-brand h-12">
@@ -354,6 +354,7 @@ export function AuthScreen() {
             <div>
               <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">Navegação</h4>
               <ul className="space-y-2 text-sm text-white/70">
+                <li><button onClick={() => scrollTo('produtos')} className="hover:text-white transition-colors">Produtos</button></li>
                 <li><button onClick={() => scrollTo('como-funciona')} className="hover:text-white transition-colors">Como Funciona</button></li>
                 <li><button onClick={() => scrollTo('depoimentos')} className="hover:text-white transition-colors">Depoimentos</button></li>
                 <li><button onClick={() => scrollTo('nossa-historia')} className="hover:text-white transition-colors">Nossa História</button></li>
