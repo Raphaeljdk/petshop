@@ -238,7 +238,7 @@ export function DashboardView({
           <div>
             <p className="text-sm font-semibold">Zetta como fonte única de dados</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Clientes, pets, produtos e atendimentos exibidos no painel são lidos do ERP. O Hub mantém autenticação, portal, pagamentos e a interface administrativa, sem criar cadastros paralelos. Operações de escrita no ERP serão liberadas conforme os endpoints oficiais da Zetta forem disponibilizados.
+              Clientes, pets, produtos e atendimentos exibidos no painel usam o Siggma como fonte oficial. O Hub mantém autenticação, portal, pagamentos e a interface administrativa; clientes e pedidos utilizam as rotas oficiais de escrita já documentadas pela Zetta.
             </p>
           </div>
         </CardContent>
@@ -336,7 +336,7 @@ export function DashboardView({
               <strong>{zetta?.contasVinculadas ?? 0}</strong>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              A agenda do Siggma já é exibida no Hub em modo de leitura. A criação de agendamentos permanece no ERP até a Zetta disponibilizar uma rota oficial; clientes e pedidos usam os endpoints oficiais já documentados.
+              A agenda consolidada da unidade já é exibida no Hub em modo de leitura. A criação de agendamentos permanece no Siggma e a solicitação de criação pelo Hub já está em avaliação pela equipe de produto da Zetta.
             </div>
             <Button variant="outline" size="sm" onClick={onIrParaIntegracoes} disabled={!onIrParaIntegracoes}>
               Ver integrações
