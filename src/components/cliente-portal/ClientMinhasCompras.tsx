@@ -96,6 +96,11 @@ export function ClientMinhasCompras() {
                     <Badge className={`text-[10px] ${statusVariant(v.status)}`}>
                       {v.status}
                     </Badge>
+                    {v.statusFiscal && v.statusFiscal !== 'EXCLUIDO' && (
+                      <Badge variant="outline" className="ml-1 text-[10px]">
+                        Fiscal: {v.statusFiscal}
+                      </Badge>
+                    )}
                   </div>
                   {v.itens && v.itens.length > 0 && (
                     <Button
@@ -134,6 +139,13 @@ export function ClientMinhasCompras() {
                       </span>
                     </div>
                   ))}
+                  {v.siggmaGuid && (
+                    <div className="pt-2 mt-2 border-t border-border">
+                      <p className="text-[10px] text-muted-foreground break-all">
+                        <strong>GUID Siggma:</strong> {v.siggmaGuid}
+                      </p>
+                    </div>
+                  )}
                   {v.observacoes && (
                     <div className="pt-2 mt-2 border-t border-border">
                       <p className="text-xs text-muted-foreground">
