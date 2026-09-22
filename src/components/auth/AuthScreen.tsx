@@ -14,6 +14,7 @@ import type { AccountMode, AccountRole } from '@/components/auth/AccountForm'
 import { cn } from '@/lib/utils'
 import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { GoogleReviews } from '@/components/landing/GoogleReviews'
+import { PublicProducts } from '@/components/landing/PublicProducts'
 
 export function AuthScreen() {
   const [scrolled, setScrolled] = useState(false)
@@ -70,6 +71,9 @@ export function AuthScreen() {
         <div className="container mx-auto px-4 h-18 sm:h-20 flex items-center justify-between gap-2">
           <Logo size="sm" className="[&>div:last-child]:hidden sm:[&>div:last-child]:flex" />
           <nav className="hidden md:flex items-center gap-6">
+            <button onClick={() => scrollTo('produtos')} className="text-sm font-medium hover:text-primary transition-colors">
+              Produtos
+            </button>
             <button onClick={() => scrollTo('como-funciona')} className="text-sm font-medium hover:text-primary transition-colors">
               Como Funciona
             </button>
@@ -111,7 +115,7 @@ export function AuthScreen() {
           <SheetDescription className="sr-only">Conheça a Matilha Prado ou acesse sua conta.</SheetDescription>
           <Logo size="sm" />
           <nav aria-label="Navegação do site" className="flex-1 pt-4 space-y-2">
-            {[{ id: 'como-funciona', label: 'Como funciona' }, { id: 'depoimentos', label: 'Depoimentos' }, { id: 'nossa-historia', label: 'Nossa história' }].map(item => (
+            {[{ id: 'produtos', label: 'Produtos' }, { id: 'como-funciona', label: 'Como funciona' }, { id: 'depoimentos', label: 'Depoimentos' }, { id: 'nossa-historia', label: 'Nossa história' }].map(item => (
               <button key={item.id} onClick={() => scrollTo(item.id)} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted">{item.label}</button>
             ))}
           </nav>
@@ -127,9 +131,9 @@ export function AuthScreen() {
           <div className="animate-slide-up">
             <p className="eyebrow text-cyan-200 flex items-center gap-2 mb-6"><PawPrint className="size-4" /> Matilha Prado · Pet shop</p>
             <h1 id="hero-title" className="hero-title">O melhor cuidado. <span>Para o seu melhor amigo.</span></h1>
-            <p className="hero-description mt-6">Agende o banho, acompanhe cada etapa e encontre os favoritos do seu pet. Tudo em um só lugar, com o carinho da nossa família.</p>
+            <p className="hero-description mt-6">Conheça os favoritos do seu pet, solicite atendimento e acompanhe os cuidados pela sua conta. Tudo em um só lugar, com o carinho da nossa família.</p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <Button size="lg" onClick={abrirCadastro} className="bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Fazer parte da matilha <ChevronRight className="size-4" /></Button>
+              <Button size="lg" onClick={() => scrollTo('produtos')} className="bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Ver produtos <ChevronRight className="size-4" /></Button>
               <Button size="lg" variant="outline" onClick={abrirLogin} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Acessar minha conta</Button>
               <Button asChild size="lg" variant="outline" className="bg-green-500/10 text-white border-green-300/40 hover:bg-green-500/20 hover:text-white">
                 <a href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')} target="_blank" rel="noreferrer">
@@ -138,7 +142,7 @@ export function AuthScreen() {
               </Button>
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-white/75">
-              <span className="flex items-center gap-2"><CalendarClock className="size-4 text-orange-300" /> Agendamento online</span>
+              <span className="flex items-center gap-2"><CalendarClock className="size-4 text-orange-300" /> Atendimento pelo WhatsApp</span>
               <span className="flex items-center gap-2"><Heart className="size-4 text-cyan-200" /> Cuidado de verdade</span>
             </div>
           </div>
@@ -174,6 +178,7 @@ export function AuthScreen() {
         </div>
       </section>
 
+      <PublicProducts onBuy={abrirLogin} />
 
       <section id="nossa-historia" className="story-section py-16 lg:py-24 mt-12">
         <div className="container mx-auto px-6 story-grid">
@@ -241,8 +246,8 @@ export function AuthScreen() {
               },
               {
                 num: '2',
-                title: 'Agende ou compre',
-                desc: 'Marque um serviço ou compre produtos da boutique com poucos cliques.',
+                title: 'Conheça e compre',
+                desc: 'Veja a boutique sem login e entre na sua conta somente quando quiser comprar.',
                 icon: CalendarClock,
               },
               {
@@ -293,7 +298,7 @@ export function AuthScreen() {
             Pronto para cuidar do seu pet?
           </h2>
           <p className="mt-4 text-white/80 text-base sm:text-lg">
-            Crie sua conta gratuita e comece a agendar serviços e comprar produtos premium agora mesmo.
+            Explore a boutique sem login e crie sua conta quando quiser comprar, acompanhar seus pets ou consultar atendimentos.
           </p>
           <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" onClick={abrirCadastro} className="btn-brand h-12">
@@ -349,6 +354,7 @@ export function AuthScreen() {
             <div>
               <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">Navegação</h4>
               <ul className="space-y-2 text-sm text-white/70">
+                <li><button onClick={() => scrollTo('produtos')} className="hover:text-white transition-colors">Produtos</button></li>
                 <li><button onClick={() => scrollTo('como-funciona')} className="hover:text-white transition-colors">Como Funciona</button></li>
                 <li><button onClick={() => scrollTo('depoimentos')} className="hover:text-white transition-colors">Depoimentos</button></li>
                 <li><button onClick={() => scrollTo('nossa-historia')} className="hover:text-white transition-colors">Nossa História</button></li>
