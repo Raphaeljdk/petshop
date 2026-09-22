@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 export async function POST() {
   return NextResponse.json(
     {
-      error: 'A API oficial do Siggma disponibiliza a agenda em modo de leitura. Novos agendamentos devem ser registrados no Siggma pela equipe da Matilha Prado.',
+      error: 'A API oficial do Siggma disponibiliza a agenda consolidada em modo de leitura. A criação pelo Hub ainda não existe oficialmente e está em avaliação pela equipe de produto da Zetta.',
     },
     { status: 405, headers: { Allow: 'GET' } }
   )
