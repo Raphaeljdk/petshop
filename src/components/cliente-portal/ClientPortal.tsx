@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home } from 'lucide-react'
+import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, MessageCircle } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { Confetti } from '@/components/brand/Confetti'
 import { ClientStore } from '@/components/cliente-portal/ClientStore'
@@ -15,6 +15,7 @@ import { useAuth } from '@/components/providers/AuthProvider'
 import { useTabHistory } from '@/hooks/use-tab-history'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 
 type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'compras'
 
@@ -128,6 +129,16 @@ export function ClientPortal() {
           {tab === 'compras' && <ClientMinhasCompras />}
         </div>
       </main>
+
+      <a
+        href={matilhaWhatsAppUrl('Olá! Estou no portal da Matilha Prado e preciso de ajuda.')}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Falar com a Matilha Prado no WhatsApp"
+        className="fixed bottom-5 right-5 z-40 flex size-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:size-14"
+      >
+        <MessageCircle className="size-5 sm:size-6" />
+      </a>
 
       {/* Footer */}
       <footer className="border-t border-border bg-muted/30">
