@@ -89,6 +89,10 @@ export interface Agendamento {
   updatedAt: string
   pet?: Pet
   cliente?: Cliente
+  origem?: 'local' | 'siggma'
+  siggmaId?: number | null
+  statusOriginal?: string | null
+  cancelavel?: boolean
 }
 
 export interface Produto {

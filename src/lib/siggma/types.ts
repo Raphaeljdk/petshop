@@ -12,6 +12,8 @@ export type SiggmaApiWarning = {
   detail?: string | null
 }
 
+export type SiggmaApiSuccess = { type: 'success' }
+
 export type SiggmaMetadata = {
   paginas: number
   pagina: number
@@ -105,4 +107,39 @@ export type SiggmaProduto = {
   imagens?: string[]
   categorias?: number[]
   variacoes?: unknown[]
+}
+
+export type SiggmaHorario = {
+  time: string
+  amount: number
+  duration: number
+}
+
+export type SiggmaHorariosDia = {
+  data: string
+  horarios: SiggmaHorario[]
+}
+
+export type SiggmaHorariosResponse = SiggmaApiSuccess & {
+  data: SiggmaHorariosDia[]
+}
+
+export type SiggmaAgendamentoCreateInput = {
+  quando: string
+  servicoId: number
+  clienteId?: number
+  clienteDocumento?: string
+  petId?: number
+  pet?: string
+  cliente?: string
+  clienteWhatsapp?: string
+  observacoes?: string
+}
+
+export type SiggmaAgendaItem = Record<string, unknown>
+
+export type SiggmaAgendaPage = {
+  type?: 'success'
+  metadata: SiggmaMetadata
+  data: SiggmaAgendaItem[]
 }
