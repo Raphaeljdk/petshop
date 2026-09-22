@@ -14,7 +14,6 @@ import {
   PawPrint,
   ShieldCheck,
   TicketPercent,
-  Database,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { cn } from '@/lib/utils'
@@ -33,7 +32,6 @@ export type TabId =
   | 'pagamentos'
   | 'cupons'
   | 'equipe'
-  | 'zetta'
 
 interface SidebarCounts {
   novo?: number
@@ -80,7 +78,6 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
         { id: 'equipe', label: 'Equipe e convites', icon: ShieldCheck },
         { id: 'notificacoes', label: 'Notificações', icon: Bell, badge: counts?.notificacoesNaoLidas },
         { id: 'integracoes', label: 'Integrações', icon: Plug },
-        { id: 'zetta', label: 'ERP Zetta', icon: Database },
       ],
     },
   ]
