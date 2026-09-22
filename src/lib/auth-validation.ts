@@ -27,6 +27,8 @@ export const clientRegistrationSchema = z.object({
   role: z.literal('CLIENTE').optional(),
   telefone: z.string().max(25).transform(value => value.replace(/\D/g, ''))
     .refine(value => /^[1-9]{2}\d{8,9}$/.test(value), 'Informe o telefone com DDD (10 ou 11 números).'),
+  cpfCnpj: z.string().max(18).transform(value => value.replace(/\D/g, ''))
+    .refine(value => value.length === 11 || value.length === 14, 'Informe CPF ou CNPJ válido.'),
   endereco: z.string().trim().max(240, 'Use até 240 caracteres.').optional(),
   cep: z.string().max(10).transform(value => value.replace(/\D/g, ''))
     .refine(value => !value || value.length === 8, 'Informe os 8 números do CEP.').optional(),
@@ -63,4 +65,20 @@ export function formatPhone(value: string): string {
 
 export function formatCep(value: string): string {
   return value.replace(/\D/g, '').slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2')
+}
+
+
+export function formatCpfCnpj(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14)
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2')
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\/\d{4})(\d)/, '$1-$2')
 }
