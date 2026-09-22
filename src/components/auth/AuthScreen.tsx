@@ -185,8 +185,8 @@ export function AuthScreen() {
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">marketplaces integrados</p>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">4.9</p>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">avaliação dos clientes</p>
+            <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">Google</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">avaliações reais</p>
           </div>
         </div>
       </section>
