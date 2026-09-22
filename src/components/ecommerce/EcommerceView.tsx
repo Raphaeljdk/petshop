@@ -71,6 +71,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
+import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -546,6 +547,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const [loadingProdutos, setLoadingProdutos] = useState(true)
   const [loadingVendas, setLoadingVendas] = useState(true)
   const [syncingZetta, setSyncingZetta] = useState(false)
+  const [estoqueView, setEstoqueView] = useState<'hub' | 'zetta'>('hub')
 
   // Tab controlada — permite trocar para "vendas" automaticamente ao receber
   // uma nova venda via WebSocket ou via quick action do dashboard.
@@ -1070,6 +1072,47 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   /* ---------------------- render ---------------------- */
 
+  const estoqueTabs = (
+    <div className="inline-flex flex-wrap gap-2 rounded-xl border bg-card p-1">
+      <Button type="button" size="sm" variant={estoqueView === 'hub' ? 'default' : 'ghost'} onClick={() => setEstoqueView('hub')}>
+        Estoque do Hub
+      </Button>
+      <Button type="button" size="sm" variant={estoqueView === 'zetta' ? 'default' : 'ghost'} onClick={() => setEstoqueView('zetta')}>
+        Produtos Zetta
+      </Button>
+    </div>
+  )
+
+  if (estoqueView === 'zetta') {
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Produtos separados entre o cadastro operacional do Hub e a fonte oficial do ERP.
+          </p>
+        </div>
+        {estoqueTabs}
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void sincronizarProdutosZetta()}
+            disabled={syncingZetta}
+          >
+            <RefreshCw className={`size-4 ${syncingZetta ? 'animate-spin' : ''}`} />
+            {syncingZetta ? 'Sincronizando...' : 'Sincronizar Zetta com o Hub'}
+          </Button>
+        </div>
+        <ZettaResourceTable
+          resource="produtos"
+          title="Produtos do ERP Zetta"
+          description="Preço e estoque oficiais do ERP. Estoque negativo é tratado como zero na loja."
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -1078,6 +1121,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
           Gerencie produtos, preços e quantidades em estoque
         </p>
       </div>
+
+      {estoqueTabs}
 
       {/* Apenas estoque - vendas são gerenciadas pelo cliente no portal */}
       {/* ================= PRODUTOS / ESTOQUE ================= */}
