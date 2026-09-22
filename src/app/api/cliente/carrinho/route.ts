@@ -4,7 +4,6 @@ import { getClienteLogado } from '@/lib/auth-helpers'
 import { getOpcaoFrete, normalizarCep, validarCep } from '@/lib/frete'
 import { emitWebSocket } from '@/lib/realtime'
 import { getZettaProduct, zettaProductPrice, zettaProductStock } from '@/lib/zetta-products'
-import { integrationBridgeRequest } from '@/lib/integration-bridge'
 import {
   calcularComissaoCupom,
   CupomValidationError,
@@ -184,26 +183,13 @@ export async function POST(req: NextRequest) {
     )
 
     const temProdutoZetta = itensValidados.some((item) => item.zettaProCod)
+    const temProdutoLocal = itensValidados.some((item) => !item.zettaProCod)
 
-    // O banco Zetta liberado para o Hub é somente leitura. Não cobramos itens do
-    // ERP até a Zetta fornecer o endpoint oficial de criação do pedido/movimentação.
-    if (temProdutoZetta) {
-      let orderWriteConfigured = false
-      try {
-        const bridgeStatus = await integrationBridgeRequest<{
-          siggmaOrderWriteConfigured?: boolean
-        }>('/api/status')
-        orderWriteConfigured = Boolean(bridgeStatus.siggmaOrderWriteConfigured)
-      } catch (error) {
-        console.error('[checkout] falha ao consultar prontidão de pedidos no bridge:', error)
-      }
-
-      if (!orderWriteConfigured) {
-        throw new CheckoutError(
-          'O catálogo do ERP já está sincronizado, mas a venda online destes produtos aguarda a liberação do endpoint oficial de pedidos da Zetta. Nenhuma cobrança foi realizada.',
-          503
-        )
-      }
+    if (temProdutoZetta && temProdutoLocal) {
+      throw new CheckoutError(
+        'Para manter estoque e faturamento consistentes, finalize produtos do Siggma e produtos locais em compras separadas.',
+        409
+      )
     }
 
     // ---------- Venda ----------
