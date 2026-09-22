@@ -1,0 +1,29 @@
+name: Release build
+
+on:
+  push:
+    branches:
+      - feat/release-integracoes-siggma
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://user:pass@127.0.0.1:5432/matilha
+      NEXTAUTH_SECRET: release-build-secret-release-build-secret
+      SIGGMA_BASE_URL: https://example.invalid
+      SIGGMA_CLIENT_ID: build
+      SIGGMA_CLIENT_SECRET: build
+      SIGGMA_EMP: 1-1
+      MERCADO_PAGO_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate --schema=prisma/schema.prisma
+      - run: bun run build
