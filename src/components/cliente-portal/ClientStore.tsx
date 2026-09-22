@@ -14,6 +14,7 @@ import {
   TicketPercent,
   Loader2,
   X,
+  MessageCircle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ import { FreteCalculator } from '@/components/cliente-portal/FreteCalculator'
 import { PagamentoCheckout } from '@/components/cliente-portal/PagamentoCheckout'
 import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
+import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 
 interface ClientStoreProps {
   onCompraFinalizada?: () => void
@@ -242,6 +244,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   }
 
   const requiresEndereco = freteSelecionado?.tipoEntrega === 'entrega_propria' || freteSelecionado?.tipoEntrega === 'sedex'
+  const whatsappLoja = matilhaWhatsAppUrl('Olá! Preciso de ajuda com uma compra na loja da Matilha Prado.')
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -250,11 +253,19 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Loja</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">Produtos premium para o seu pet</p>
         </div>
-        {carrinho.length > 0 && (
-          <Button aria-label={`Abrir carrinho com ${carrinho.length} produtos`} onClick={() => setCheckoutOpen(true)} className="btn-brand h-9 sm:h-10 shrink-0">
-            <ShoppingCart className="size-4" /><span className="hidden sm:inline">Carrinho</span> ({carrinho.length})
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" className="h-9 sm:h-10 shrink-0">
+            <a href={whatsappLoja} target="_blank" rel="noreferrer">
+              <MessageCircle className="size-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </a>
           </Button>
-        )}
+          {carrinho.length > 0 && (
+            <Button aria-label={`Abrir carrinho com ${carrinho.length} produtos`} onClick={() => setCheckoutOpen(true)} className="btn-brand h-9 sm:h-10 shrink-0">
+              <ShoppingCart className="size-4" /><span className="hidden sm:inline">Carrinho</span> ({carrinho.length})
+            </Button>
+          )}
+        </div>
       </div>
 
       {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
@@ -301,14 +312,37 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
       )}
 
       {checkoutOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={() => { if (!vendaEmPagamento) setCheckoutOpen(false) }}>
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl custom-scrollbar" onClick={(e) => e.stopPropagation()}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                {vendaEmPagamento ? (sucessoVisivel ? <><PartyPopper className="size-5 text-green-600" /> Compra realizada!</> : <><Sparkles className="size-5 text-primary" /> Pagamento</>) : <><ShoppingCart className="size-5" /> Finalizar compra</>}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px]" onClick={() => { if (!vendaEmPagamento) setCheckoutOpen(false) }}>
+          <div className="flex min-h-full items-end justify-center sm:items-stretch sm:justify-end sm:p-4">
+            <Card
+              className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border-0 shadow-2xl sm:max-h-none sm:h-[calc(100dvh-2rem)] sm:max-w-lg sm:rounded-3xl sm:border"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <CardHeader className="sticky top-0 z-10 border-b bg-background/95 pb-4 backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      {vendaEmPagamento ? (sucessoVisivel ? <><PartyPopper className="size-5 text-green-600" /> Compra realizada!</> : <><Sparkles className="size-5 text-primary" /> Pagamento</>) : <><ShoppingCart className="size-5" /> Seu carrinho</>}
+                    </CardTitle>
+                    {!vendaEmPagamento && carrinho.length > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">{carrinho.reduce((acc, item) => acc + item.quantidade, 0)} item(ns) selecionado(s)</p>
+                    )}
+                  </div>
+                  {!vendaEmPagamento && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 shrink-0"
+                      onClick={() => setCheckoutOpen(false)}
+                      aria-label="Fechar carrinho"
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
               {sucessoVisivel ? (
                 <div className="text-center py-6 space-y-3"><div className="size-16 rounded-full bg-green-100 text-green-600 mx-auto flex items-center justify-center"><CheckCircle2 className="size-10" /></div><p className="font-bold text-green-700">Compra realizada com sucesso!</p><p className="text-xs text-muted-foreground">Você receberá atualizações por aqui mesmo.</p></div>
               ) : vendaEmPagamento ? (
@@ -322,16 +356,26 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                 <>
                   <div className="space-y-2">
                     {carrinho.map((i) => (
-                      <div key={i.produto.id} className="flex items-center gap-2 sm:gap-3 p-2 border border-border rounded-lg">
-                        <div className="size-10 bg-muted rounded flex items-center justify-center shrink-0">
-                          {i.produto.imageUrl ? <img src={i.produto.imageUrl} alt={i.produto.nome} className="w-full h-full object-cover rounded" /> : <Package className="size-5 text-muted-foreground" />}
+                      <div key={i.produto.id} className="rounded-xl border border-border p-3">
+                        <div className="flex items-start gap-3">
+                          <div className="size-12 bg-muted rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                            {i.produto.imageUrl ? <img src={i.produto.imageUrl} alt={i.produto.nome} className="w-full h-full object-cover" /> : <Package className="size-5 text-muted-foreground" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold leading-snug line-clamp-2">{i.produto.nome}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{fmtMoeda(i.produto.precoPromo ?? i.produto.preco)} cada</p>
+                          </div>
+                          <Button size="icon" variant="ghost" className="size-8 shrink-0 text-destructive" onClick={() => removerItem(i.produto.id)} aria-label={`Remover ${i.produto.nome}`}>
+                            <Trash2 className="size-3.5" />
+                          </Button>
                         </div>
-                        <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{i.produto.nome}</p><p className="text-xs text-muted-foreground">{fmtMoeda(i.produto.precoPromo ?? i.produto.preco)}</p></div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button size="icon" variant="outline" className="size-8" onClick={() => alterarQtd(i.produto.id, -1)}><Minus className="size-3" /></Button>
-                          <span className="text-sm font-semibold w-6 text-center">{i.quantidade}</span>
-                          <Button size="icon" variant="outline" className="size-8" onClick={() => alterarQtd(i.produto.id, 1)}><Plus className="size-3" /></Button>
-                          <Button size="icon" variant="ghost" className="size-8 text-destructive" onClick={() => removerItem(i.produto.id)}><Trash2 className="size-3.5" /></Button>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center rounded-lg border bg-background">
+                            <Button size="icon" variant="ghost" className="size-9 rounded-r-none" onClick={() => alterarQtd(i.produto.id, -1)}><Minus className="size-3" /></Button>
+                            <span className="w-10 text-center text-sm font-semibold">{i.quantidade}</span>
+                            <Button size="icon" variant="ghost" className="size-9 rounded-l-none" onClick={() => alterarQtd(i.produto.id, 1)}><Plus className="size-3" /></Button>
+                          </div>
+                          <p className="text-sm font-bold">{fmtMoeda((i.produto.precoPromo ?? i.produto.preco) * i.quantidade)}</p>
                         </div>
                       </div>
                     ))}
@@ -382,8 +426,20 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                     <div className="flex items-center justify-between text-lg font-bold pt-1"><span>Total</span><span className="text-primary">{fmtMoeda(total)}</span></div>
                   </div>
 
+                  {checkoutZettaBloqueado && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <p className="font-semibold">Compra online temporariamente bloqueada</p>
+                      <p className="mt-1 text-xs leading-relaxed">O estoque e o preço vêm do Zetta, mas ainda aguardamos a API oficial de pedidos para registrar a venda sem divergência.</p>
+                      <Button asChild variant="outline" size="sm" className="mt-3 bg-white">
+                        <a href={whatsappLoja} target="_blank" rel="noreferrer">
+                          <MessageCircle className="size-4" /> Falar no WhatsApp
+                        </a>
+                      </Button>
+                    </div>
+                  )}
+
                   <Button
-                    className="w-full btn-brand h-11"
+                    className="w-full btn-brand h-12"
                     onClick={finalizarCompra}
                     disabled={finalizando || !freteSelecionado || checkoutZettaBloqueado}
                   >
@@ -398,8 +454,9 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                   </Button>
                 </>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </div>

@@ -262,6 +262,24 @@ export interface Integracao {
 }
 
 export interface DashboardStats {
+  zetta?: {
+    online: boolean
+    clientes: number
+    pets: number
+    produtos: number
+    atendimentos: number
+    contasPortal: number
+    contasVinculadas: number
+    ultimosAtendimentos: Array<{
+      id: number | string
+      clienteId?: number | string | null
+      datahora?: string | null
+      status?: string | null
+      total?: number | string | null
+      totalItens?: number | string | null
+      filial?: number | string | null
+    }>
+  }
   totalClientes: number
   totalPets: number
   totalProdutos: number
