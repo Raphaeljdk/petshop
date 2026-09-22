@@ -2,12 +2,14 @@
 import { authJson } from '@/lib/auth-http'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { db } from '@/lib/db'
+import { ensurePortalUserSiggmaLink } from '@/lib/siggma/customer'
 
 interface ClienteInfo {
   id: string
   nome: string
   telefone: string
   email: string | null
+  cpfCnpj: string | null
   endereco: string | null
   cep: string | null
   pets?: unknown[]
@@ -19,6 +21,15 @@ export async function GET() {
 
     if (!user) {
       return authJson({ autenticado: false })
+    }
+
+    let resolvedSiggmaCliCod = user.siggmaCliCod
+    if (user.role === 'CLIENTE' && !resolvedSiggmaCliCod && user.cliente?.id) {
+      try {
+        resolvedSiggmaCliCod = await ensurePortalUserSiggmaLink(user.id)
+      } catch (siggmaError) {
+        console.error('[auth/me] vínculo Siggma pendente:', siggmaError)
+      }
     }
 
     // Buscar pets do cliente se for CLIENTE
@@ -34,6 +45,7 @@ export async function GET() {
           nome: clienteComPets.nome,
           telefone: clienteComPets.telefone,
           email: clienteComPets.email,
+          cpfCnpj: clienteComPets.cpfCnpj,
           endereco: clienteComPets.endereco,
           cep: clienteComPets.cep,
           pets: clienteComPets.pets,
@@ -45,6 +57,7 @@ export async function GET() {
         nome: user.cliente.nome,
         telefone: user.cliente.telefone,
         email: user.cliente.email,
+        cpfCnpj: user.cliente.cpfCnpj,
         endereco: user.cliente.endereco,
         cep: user.cliente.cep,
       }
@@ -58,7 +71,7 @@ export async function GET() {
         email: user.email,
         role: user.role,
         clienteId: user.clienteId,
-        siggmaCliCod: user.siggmaCliCod,
+        siggmaCliCod: resolvedSiggmaCliCod,
         cliente: clienteCompleto,
       },
       cliente: clienteCompleto,
