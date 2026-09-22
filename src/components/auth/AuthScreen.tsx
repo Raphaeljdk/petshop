@@ -4,9 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Reveal } from '@/components/motion/Reveal'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { ShieldCheck, Star, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu, MessageCircle, Instagram, Navigation } from 'lucide-react'
+import { ShieldCheck, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu, MessageCircle, Instagram, Navigation } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Logo } from '@/components/brand/Logo'
@@ -14,6 +13,7 @@ import { AccountExperience } from '@/components/auth/AccountExperience'
 import type { AccountMode, AccountRole } from '@/components/auth/AccountForm'
 import { cn } from '@/lib/utils'
 import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { GoogleReviews } from '@/components/landing/GoogleReviews'
 
 export function AuthScreen() {
   const [scrolled, setScrolled] = useState(false)
@@ -268,56 +268,18 @@ export function AuthScreen() {
         </div>
       </section>
 
-      {/* Depoimentos */}
+      {/* Depoimentos reais do Google Maps */}
       <section id="depoimentos" className="py-12 sm:py-16 lg:py-20 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
-            <Badge variant="secondary" className="mb-3">Depoimentos</Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Quem usa, ama</h2>
+            <Badge variant="secondary" className="mb-3">Avaliações reais</Badge>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold">O que dizem sobre a Matilha Prado</h2>
             <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-              Veja o que os tutores dizem sobre a Matilha Prado.
+              Comentários públicos recentes de clientes, exibidos diretamente do Google Maps.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
-            {[
-              {
-                nome: 'Mariana Silva',
-                pet: 'Tutora do Thor',
-                depo: 'Agendar banho ficou super prático. Recebo SMS quando o Thor está pronto. Equipe atenciosa e produtos premium.',
-              },
-              {
-                nome: 'Carlos Mendes',
-                pet: 'Tutor da Luna',
-                depo: 'Acompanhei todo o atendimento pelo Kanban em tempo real. Transparência total, adorei a experiência.',
-              },
-              {
-                nome: 'Juliana Prado',
-                pet: 'Tutora do Bob',
-                depo: 'Comprei brinquedos KONG pela loja online e recebi rapidinho. Qualidade impecável e preços justos.',
-              },
-            ].map((d) => (
-              <Card key={d.nome} className="card-hover py-0">
-                <CardContent className="p-6">
-                  <div className="flex gap-0.5 mb-3">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star key={i} className="size-4 fill-orange-400 text-orange-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4 italic">
-                    &ldquo;{d.depo}&rdquo;
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold">
-                      {d.nome[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{d.nome}</p>
-                      <p className="text-xs text-muted-foreground">{d.pet}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="max-w-5xl mx-auto">
+            <GoogleReviews />
           </div>
         </div>
       </section>
