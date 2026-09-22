@@ -1,4 +1,4 @@
-export const SIGGMA_HOMOLOGATION_URL = 'https://virtuais.zettabrasil.com.br/siggma-3860testesapi'
+export const SIGGMA_HOMOLOGATION_URL = 'https://virtuais.zettabrasil.com.br/siggma-integracoesapis'
 export const SIGGMA_PRODUCTION_URL = 'https://sistema.zettabrasil.com.br/siggma'
 
 export type SiggmaConfig = {
@@ -6,10 +6,6 @@ export type SiggmaConfig = {
   clientId: string
   clientSecret: string
   emp: string
-}
-
-export type SiggmaSchedulingConfig = SiggmaConfig & {
-  expedienteId: number
 }
 
 export class SiggmaConfigurationError extends Error {
@@ -51,16 +47,4 @@ export function getSiggmaConfig(): SiggmaConfig {
     clientSecret: process.env.SIGGMA_CLIENT_SECRET!.trim(),
     emp: process.env.SIGGMA_EMP!.trim(),
   }
-}
-
-export function getSiggmaSchedulingConfig(): SiggmaSchedulingConfig {
-  const config = getSiggmaConfig()
-  const rawExpediente = process.env.SIGGMA_EXPEDIENTE_ID?.trim() || ''
-  const expedienteId = Number.parseInt(rawExpediente, 10)
-
-  if (!rawExpediente || !Number.isFinite(expedienteId) || expedienteId < 1) {
-    throw new SiggmaConfigurationError(['SIGGMA_EXPEDIENTE_ID'])
-  }
-
-  return { ...config, expedienteId }
 }
