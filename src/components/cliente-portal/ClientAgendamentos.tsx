@@ -113,7 +113,7 @@ export function ClientAgendamentos() {
           <div>
             <p className="font-semibold">Agenda oficial da Matilha Prado</p>
             <p className="mt-1 text-muted-foreground">
-              O portal já exibe os registros do Siggma. A criação de novos horários pelo próprio Hub aguarda a liberação de uma API oficial de agendamento pela Zetta.
+              O portal já exibe a agenda oficial do Siggma. A criação de novos horários pelo próprio Hub ainda não existe na API oficial e já foi encaminhada pela Zetta para avaliação da equipe de produto.
             </p>
           </div>
         </CardContent>
