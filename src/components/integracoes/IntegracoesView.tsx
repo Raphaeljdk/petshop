@@ -27,10 +27,19 @@ import type {
   Integracao,
 } from '@/lib/types'
 
+type BridgeStatus = {
+  reachable?: boolean
+  bridge?: string | null
+  siggmaApiConfigured?: boolean
+  siggmaOrderWriteConfigured?: boolean
+  zettaDatabaseConfigured?: boolean
+}
+
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
   frete: ConfiguracaoFrete | null
   outras: Integracao[]
+  bridge: BridgeStatus | null
 }
 
 export function IntegracoesView() {
@@ -38,6 +47,7 @@ export function IntegracoesView() {
     pagamento: null,
     frete: null,
     outras: [],
+    bridge: null,
   })
   const [loading, setLoading] = useState(true)
 
@@ -46,10 +56,11 @@ export function IntegracoesView() {
 
     async function carregar() {
       try {
-        const [pagamentoRes, freteRes, integracoesRes] = await Promise.all([
+        const [pagamentoRes, freteRes, integracoesRes, bridgeRes] = await Promise.all([
           fetch('/api/pagamento/config', { credentials: 'same-origin' }),
           fetch('/api/frete/config', { credentials: 'same-origin' }),
           fetch('/api/integracoes', { credentials: 'same-origin' }),
+          fetch('/api/admin/integration-bridge/status', { credentials: 'same-origin', cache: 'no-store' }),
         ])
 
         const pagamento = pagamentoRes.ok
@@ -61,6 +72,8 @@ export function IntegracoesView() {
         const todas: Integracao[] = integracoesRes.ok
           ? await integracoesRes.json()
           : []
+        const bridgePayload = bridgeRes.ok ? await bridgeRes.json() : null
+        const bridge: BridgeStatus | null = bridgePayload?.bridge || null
 
         if (!cancelado) {
           setEstado({
@@ -72,6 +85,7 @@ export function IntegracoesView() {
                   i.plataforma
                 )
             ),
+            bridge,
           })
         }
       } catch (e) {
@@ -120,6 +134,33 @@ export function IntegracoesView() {
               desenvolvedor.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className={estado.bridge?.reachable ? 'border-green-300' : 'border-amber-300'}>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Plug className="size-5 text-orange-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Siggma / Zetta</CardTitle>
+                <CardDescription className="text-xs">
+                  Bridge Oracle + ERP
+                </CardDescription>
+              </div>
+            </div>
+            <Badge variant={estado.bridge?.reachable ? 'default' : 'secondary'}>
+              {estado.bridge?.reachable ? 'Online' : 'Verificar'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+          <p>Bridge: <strong className="text-foreground">{estado.bridge?.reachable ? 'Online' : 'Indisponível'}</strong></p>
+          <p>Banco Zetta: <strong className="text-foreground">{estado.bridge?.zettaDatabaseConfigured ? 'Conectado' : 'Pendente'}</strong></p>
+          <p>API Siggma: <strong className="text-foreground">{estado.bridge?.siggmaApiConfigured ? 'Autenticada' : 'Pendente'}</strong></p>
+          <p>Gravação de pedidos: <strong className={estado.bridge?.siggmaOrderWriteConfigured ? 'text-green-700' : 'text-amber-700'}>{estado.bridge?.siggmaOrderWriteConfigured ? 'Ativa' : 'Aguardando endpoint da Zetta'}</strong></p>
         </CardContent>
       </Card>
 

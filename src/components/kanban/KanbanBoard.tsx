@@ -66,6 +66,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { cn } from '@/lib/utils'
 import type { Pet, Processo, StatusProcesso } from '@/lib/types'
+import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
 
 interface KanbanBoardProps {
   onCountsChange?: (counts: { novo: number; andamento: number }) => void
@@ -469,6 +470,7 @@ export function KanbanBoard({ onCountsChange }: KanbanBoardProps) {
   const [processos, setProcessos] = useState<Processo[]>([])
   const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
+  const [atendimentoView, setAtendimentoView] = useState<'hub' | 'zetta'>('hub')
 
   // drag state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -810,6 +812,36 @@ export function KanbanBoard({ onCountsChange }: KanbanBoardProps) {
 
   /* ---------------------- render ---------------------- */
 
+  const atendimentoTabs = (
+    <div className="inline-flex flex-wrap gap-2 rounded-xl border bg-card p-1">
+      <Button type="button" size="sm" variant={atendimentoView === 'hub' ? 'default' : 'ghost'} onClick={() => setAtendimentoView('hub')}>
+        Atendimentos do Hub
+      </Button>
+      <Button type="button" size="sm" variant={atendimentoView === 'zetta' ? 'default' : 'ghost'} onClick={() => setAtendimentoView('zetta')}>
+        Atendimentos Zetta
+      </Button>
+    </div>
+  )
+
+  if (atendimentoView === 'zetta') {
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Kanban de Pets</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Atendimentos operacionais do Hub e registros oficiais do ERP separados por aba.
+          </p>
+        </div>
+        {atendimentoTabs}
+        <ZettaResourceTable
+          resource="atendimentos"
+          title="Atendimentos do ERP Zetta"
+          description="Histórico de atendimentos registrado no ERP. Esta visualização é somente leitura."
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -830,6 +862,8 @@ export function KanbanBoard({ onCountsChange }: KanbanBoardProps) {
           <span className="ml-1 hidden sm:inline">Novo Atendimento</span>
         </Button>
       </div>
+
+      {atendimentoTabs}
 
       {/* Filtros */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">

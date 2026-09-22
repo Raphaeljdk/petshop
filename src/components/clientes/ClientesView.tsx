@@ -29,6 +29,8 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { toast } from 'sonner'
 import type { Cliente, Pet } from '@/lib/types'
+import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
+import { ZettaClientLinks } from '@/components/admin/ZettaClientLinks'
 
 interface ClientesViewProps {
   onCountsChange?: (total: number) => void
@@ -37,6 +39,7 @@ interface ClientesViewProps {
 export function ClientesView({ onCountsChange }: ClientesViewProps) {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
+  const [dataView, setDataView] = useState<'hub' | 'zetta_clientes' | 'zetta_pets'>('hub')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Cliente | null>(null)
   const [form, setForm] = useState({
@@ -216,6 +219,42 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
     }
   }
 
+  const fonteTabs = (
+    <div className="inline-flex flex-wrap gap-2 rounded-xl border bg-card p-1">
+      <Button type="button" size="sm" variant={dataView === 'hub' ? 'default' : 'ghost'} onClick={() => setDataView('hub')}>
+        Contas do Hub
+      </Button>
+      <Button type="button" size="sm" variant={dataView === 'zetta_clientes' ? 'default' : 'ghost'} onClick={() => setDataView('zetta_clientes')}>
+        Clientes Zetta
+      </Button>
+      <Button type="button" size="sm" variant={dataView === 'zetta_pets' ? 'default' : 'ghost'} onClick={() => setDataView('zetta_pets')}>
+        Pets Zetta
+      </Button>
+    </div>
+  )
+
+  if (dataView !== 'hub') {
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Clientes & Pets</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Dados separados por origem: Hub e ERP Zetta.
+          </p>
+        </div>
+        {fonteTabs}
+        {dataView === 'zetta_clientes' ? (
+          <>
+            <ZettaClientLinks />
+            <ZettaResourceTable resource="clientes" title="Clientes do ERP Zetta" description="Cadastro oficial de clientes do ERP. Use o cliCod para vincular uma conta do portal à pessoa correta." />
+          </>
+        ) : (
+          <ZettaResourceTable resource="animais" title="Pets do ERP Zetta" description="Animais oficiais do ERP, vinculados pelo cliCod do cliente." />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -233,6 +272,8 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
           </Button>
         </div>
       </div>
+
+      {fonteTabs}
 
       {/* Filtros de busca */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">
