@@ -131,6 +131,10 @@ model Venda {
   mercadoPagoPaymentUrl String?
   mercadoPagoQrCode String?
   mercadoPagoPixExpiresAt DateTime?
+  siggmaGuid String? @unique
+  siggmaImportStatus String?
+  siggmaImportedAt DateTime?
+  siggmaImportError String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   cliente Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
