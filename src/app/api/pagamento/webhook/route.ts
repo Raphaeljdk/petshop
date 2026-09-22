@@ -8,6 +8,7 @@ import {
   webhookSecretConfigurado,
 } from '@/lib/mercado-pago-orders'
 import { emitWebSocket } from '@/lib/realtime'
+import { importarVendaNoSiggma } from '@/lib/siggma/orders'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (statusMap.aprovado) {
+      await importarVendaNoSiggma(venda.id)
       await emitWebSocket('pagamento:aprovado', {
         vendaId: venda.id,
         mercadoPagoId: order.orderId,
