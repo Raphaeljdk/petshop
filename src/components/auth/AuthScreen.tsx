@@ -379,7 +379,7 @@ export function AuthScreen() {
                 </Button>
                 <Button asChild size="sm" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
                   <a href={MATILHA_CONTACT.google} target="_blank" rel="noreferrer">
-                    <Navigation className="size-4" /> Como chegar
+                    <Navigation className="size-4" /> Google
                   </a>
                 </Button>
               </div>
