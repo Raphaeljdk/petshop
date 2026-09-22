@@ -157,6 +157,8 @@ export interface Venda {
   mercadoPagoPaymentUrl: string | null
   mercadoPagoQrCode: string | null
   mercadoPagoPixExpiresAt: string | null
+  siggmaGuid?: string | null
+  statusFiscal?: string | null
   createdAt: string
   updatedAt: string
   cliente?: Cliente | null
