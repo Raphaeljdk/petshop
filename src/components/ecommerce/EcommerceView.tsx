@@ -11,6 +11,7 @@ import {
   Package,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   ShoppingCart,
   Tag,
@@ -238,6 +239,11 @@ function ProdutoCard({
                 <Tag className="size-3" />
                 {produto.categoria}
               </Badge>
+              {produto.zettaProCod && (
+                <Badge variant="outline" className="text-[9px]">
+                  ERP Zetta #{produto.zettaProCod}
+                </Badge>
+              )}
               {produto.mlItemId && (
                 <Badge className="text-[9px] bg-yellow-100 text-yellow-700 border-yellow-200">
                   ML
@@ -291,7 +297,12 @@ function ProdutoCard({
         </div>
 
         {/* Quick edit: preço + estoque inline */}
-        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
+        {produto.zettaProCod ? (
+          <div className="rounded-md border border-primary/15 bg-primary/5 p-2 text-[11px] text-muted-foreground">
+            Preço e estoque são atualizados pelo ERP Zetta.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
           <div>
             <Label htmlFor={`qpreco-${produto.id}`} className="text-[10px] text-muted-foreground">
               Preço (R$)
@@ -329,7 +340,9 @@ function ProdutoCard({
               }}
             />
           </div>
-        </div>
+
+          </div>
+        )}
 
         {/* Ações */}
         <div className="flex items-center justify-end gap-1 pt-1 border-t border-border">
@@ -532,6 +545,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const [vendas, setVendas] = useState<Venda[]>([])
   const [loadingProdutos, setLoadingProdutos] = useState(true)
   const [loadingVendas, setLoadingVendas] = useState(true)
+  const [syncingZetta, setSyncingZetta] = useState(false)
 
   // Tab controlada — permite trocar para "vendas" automaticamente ao receber
   // uma nova venda via WebSocket ou via quick action do dashboard.
@@ -833,6 +847,26 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   }
 
   /* ---------------------- ações produtos ---------------------- */
+
+  const sincronizarProdutosZetta = async () => {
+    setSyncingZetta(true)
+    try {
+      const res = await fetch('/api/admin/zetta/produtos/sincronizar', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Não foi possível sincronizar o catálogo do ERP.')
+      }
+      toast.success(`${data.sincronizados} produto(s) sincronizado(s) com o Zetta.`)
+      await carregar()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar produtos.')
+    } finally {
+      setSyncingZetta(false)
+    }
+  }
 
   const abrirNovoProduto = () => {
     setEditProduto(null)
@@ -1148,6 +1182,18 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
           </div>
 
           <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void sincronizarProdutosZetta()}
+              disabled={syncingZetta}
+              className="h-9 sm:h-10"
+            >
+              <RefreshCw className={`size-4 ${syncingZetta ? 'animate-spin' : ''}`} />
+              <span className="ml-1 hidden sm:inline">
+                {syncingZetta ? 'Sincronizando...' : 'Sincronizar Zetta'}
+              </span>
+            </Button>
             <ExportButton
               type="produtos"
               label="Exportar Produtos"
@@ -1212,7 +1258,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               {editProduto ? 'Editar produto' : 'Novo produto'}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Dados do produto da loja
+              {editProduto?.zettaProCod
+                ? 'Produto vinculado ao ERP: nome, SKU, preço e estoque são controlados pelo Zetta.'
+                : 'Dados do produto da loja'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1222,7 +1270,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 id="nome"
                 value={(form.nome as string) || ''}
                 onChange={(e) => setForm({ ...form, nome: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="desc">Descrição</Label>
@@ -1247,7 +1296,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 id="sku"
                 value={(form.sku as string) || ''}
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="preco">Preço (R$)</Label>
@@ -1257,7 +1307,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 step="0.01"
                 value={(form.preco as number | string) ?? 0}
                 onChange={(e) => setForm({ ...form, preco: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="precoPromo">Preço promocional (R$)</Label>
@@ -1267,7 +1318,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 step="0.01"
                 value={(form.precoPromo as number | string) ?? ''}
                 onChange={(e) => setForm({ ...form, precoPromo: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="estoque">Estoque</Label>
@@ -1276,7 +1328,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 type="number"
                 value={(form.estoque as number | string) ?? 0}
                 onChange={(e) => setForm({ ...form, estoque: e.target.value })}
-              />
+                              disabled={Boolean(editProduto?.zettaProCod)}
+/>
             </div>
             <div>
               <Label htmlFor="imageUrl">URL da imagem</Label>
@@ -1318,7 +1371,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               <DollarSign className="size-4" /> Nova venda (loja física)
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Selecione os produtos e quantidades
+              Produtos do ERP Zetta devem ser vendidos no Siggma até a API oficial de pedidos ser integrada. Aqui aparecem apenas produtos locais.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1339,7 +1392,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                     <SelectValue placeholder="Produto" />
                   </SelectTrigger>
                   <SelectContent>
-                    {produtos.map((p) => (
+                    {produtos.filter((p) => !p.zettaProCod).map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.nome} — {fmtMoeda(p.precoPromo ?? p.preco)} (est: {p.estoque})
                       </SelectItem>

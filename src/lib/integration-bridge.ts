@@ -98,6 +98,7 @@ export async function testIntegrationBridge() {
     ok?: boolean
     bridge?: string
     siggmaApiConfigured?: boolean
+    siggmaOrderWriteConfigured?: boolean
     zettaDatabaseConfigured?: boolean
   }>('/api/status')
 
@@ -105,6 +106,7 @@ export async function testIntegrationBridge() {
     reachable: result.ok === true,
     bridge: result.bridge || null,
     siggmaApiConfigured: Boolean(result.siggmaApiConfigured),
+    siggmaOrderWriteConfigured: Boolean(result.siggmaOrderWriteConfigured),
     zettaDatabaseConfigured: Boolean(result.zettaDatabaseConfigured),
   }
 }

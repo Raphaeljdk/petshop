@@ -63,6 +63,15 @@ export async function POST(req: NextRequest) {
           { status: 404 }
         )
       }
+      if (produto.zettaProCod) {
+        return NextResponse.json(
+          {
+            error:
+              'Produtos vinculados ao Zetta devem ser vendidos pelo ERP enquanto o endpoint oficial de escrita não estiver integrado.',
+          },
+          { status: 409 }
+        )
+      }
       if (produto.estoque < item.quantidade) {
         return NextResponse.json(
           { error: `Estoque insuficiente para ${produto.nome}` },

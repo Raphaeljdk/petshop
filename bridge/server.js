@@ -161,6 +161,8 @@ app.get('/api/status', (_req, res) => {
     ok: true,
     bridge: 'online',
     siggmaApiConfigured: siggma.configured,
+    siggmaOrderEndpointKnown: Boolean(env('SIGGMA_ORDER_CREATE_PATH')),
+    siggmaOrderWriteConfigured: false,
     zettaDatabaseConfigured: zetta.configured,
   })
 })
@@ -499,6 +501,54 @@ app.get(
     })
   })
 )
+app.get(
+  '/api/zetta/produtos/:id',
+  asyncRoute(async (req, res) => {
+    const id = Number.parseInt(String(req.params.id || ''), 10)
+    if (!Number.isFinite(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: 'Produto inválido' })
+    }
+
+    const db = getPool()
+    const result = await db.query(
+      `
+      SELECT
+        p.pro_cod AS id,
+        p.pro_cod_ori AS codigo,
+        p.pro_nom AS nome,
+        p.pro_val_ven AS preco,
+        p.pro_car_mar AS marca,
+        p.pro_car_mod AS modelo,
+        p.med_abr AS unidade,
+        p.codigo_barras AS "codigoBarras",
+        p.gtin,
+        p.estoque_real AS "estoqueRealProduto",
+        COALESCE(e.estoque_total, 0) AS "estoqueReal",
+        p.galeria,
+        p.data_atualizacao AS "dataAtualizacao",
+        COALESCE(p.excluido, false) AS excluido
+      FROM "PRODUTOS" p
+      LEFT JOIN (
+        SELECT
+          pro_cod,
+          SUM(COALESCE(estoque_real, est_qtd, 0)) AS estoque_total
+        FROM "ESTOQUE"
+        GROUP BY pro_cod
+      ) e ON e.pro_cod = p.pro_cod
+      WHERE p.pro_cod = $1
+      LIMIT 1
+      `,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado' })
+    }
+
+    res.json({ ok: true, data: result.rows[0] })
+  })
+)
+
 app.get(
   '/api/zetta/produtos',
   asyncRoute(async (req, res) => {

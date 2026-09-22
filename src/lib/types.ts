@@ -100,6 +100,7 @@ export interface Produto {
   precoPromo: number | null
   estoque: number
   sku: string | null
+  zettaProCod?: number | null
   mlItemId: string | null
   amazonAsin: string | null
   imageUrl: string | null

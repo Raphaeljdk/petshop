@@ -97,6 +97,7 @@ model Produto {
   precoPromo  Float?
   estoque     Int      @default(0)
   sku         String?
+  zettaProCod Int?     @unique // vínculo com PRODUTOS.pro_cod no ERP Zetta
   mlItemId    String?
   amazonAsin  String?
   imageUrl    String?
