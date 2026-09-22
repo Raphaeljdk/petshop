@@ -120,7 +120,7 @@ export function AgendamentosView() {
           <div className="text-sm">
             <p className="font-semibold">Fonte oficial: Siggma</p>
             <p className="mt-1 text-muted-foreground">
-              O Hub exibe a agenda em modo de leitura. Criação, alteração, remarcação e cancelamento continuam sendo realizados diretamente no Siggma enquanto a Zetta não disponibilizar escrita oficial no OpenAPI.
+              O Hub exibe a agenda consolidada oficial da unidade em modo de leitura. Criação, alteração, remarcação e cancelamento continuam no Siggma; a criação pelo Hub já está em avaliação pela equipe de produto da Zetta.
             </p>
           </div>
         </CardContent>
