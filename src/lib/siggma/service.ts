@@ -6,8 +6,13 @@ import type {
   SiggmaApiSuccess,
   SiggmaAtendimento,
   SiggmaCliente,
+  SiggmaClienteImportInput,
+  SiggmaClienteImportResult,
+  SiggmaCategoria,
+  SiggmaFiscalStatusResponse,
   SiggmaHorariosResponse,
   SiggmaPage,
+  SiggmaPedidoImportInput,
   SiggmaProduto,
   SiggmaVacina,
 } from '@/lib/siggma/types'
@@ -28,6 +33,12 @@ export const siggma = {
     },
     buscar(id: number) {
       return siggmaRequest<SiggmaCliente | null>(`/api/clientes/${id}`)
+    },
+    importar(data: SiggmaClienteImportInput[]) {
+      return siggmaRequest<SiggmaClienteImportResult>('/api/clientes/importar', {
+        method: 'POST',
+        body: JSON.stringify({ data }),
+      })
     },
   },
 
@@ -80,6 +91,33 @@ export const siggma = {
     },
     buscar(id: number) {
       return siggmaRequest<SiggmaProduto | null>(`/api/itens-integracao/${id}`)
+    },
+  },
+
+  categorias: {
+    listar(params: { pagina?: number; since?: string } = {}) {
+      return siggmaRequest<SiggmaPage<SiggmaCategoria>>(`/api/categorias-integracao${queryString(params)}`)
+    },
+    buscar(id: number) {
+      return siggmaRequest<SiggmaCategoria | null>(`/api/categorias-integracao/${id}`)
+    },
+  },
+
+  pedidos: {
+    importar(data: SiggmaPedidoImportInput[]) {
+      return siggmaRequest<{ type: 'success' }>('/api/pedidos-integracao/importar', {
+        method: 'POST',
+        body: JSON.stringify({ data }),
+      })
+    },
+  },
+
+  notas: {
+    status(guidList: string[]) {
+      return siggmaRequest<SiggmaFiscalStatusResponse>('/api/notas-saidas/status-notas', {
+        method: 'POST',
+        body: JSON.stringify({ data: guidList.map((guid) => ({ guid })) }),
+      })
     },
   },
 
