@@ -19,7 +19,11 @@ export function getSiggmaConfigurationStatus() {
   const clientId = process.env.SIGGMA_CLIENT_ID?.trim() || ''
   const clientSecret = process.env.SIGGMA_CLIENT_SECRET?.trim() || ''
   const emp = process.env.SIGGMA_EMP?.trim() || ''
-  const baseUrl = (process.env.SIGGMA_BASE_URL?.trim() || SIGGMA_HOMOLOGATION_URL).replace(/\/+$/, '')
+  const configuredBaseUrl = (process.env.SIGGMA_BASE_URL?.trim() || SIGGMA_HOMOLOGATION_URL).replace(/\/+$/, '')
+  const baseUrl =
+    configuredBaseUrl === 'https://virtuais.zettabrasil.com.br/siggma-3860testesapi'
+      ? SIGGMA_HOMOLOGATION_URL
+      : configuredBaseUrl
 
   const missing: string[] = []
   if (!clientId) missing.push('SIGGMA_CLIENT_ID')
