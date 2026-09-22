@@ -336,7 +336,7 @@ export function DashboardView({
               <strong>{zetta?.contasVinculadas ?? 0}</strong>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Criação/edição de clientes, pets, agendamentos e pedidos no ERP depende dos endpoints oficiais de escrita solicitados à Zetta.
+              A agenda do Siggma já é exibida no Hub em modo de leitura. A criação de agendamentos permanece no ERP até a Zetta disponibilizar uma rota oficial; clientes e pedidos usam os endpoints oficiais já documentados.
             </div>
             <Button variant="outline" size="sm" onClick={onIrParaIntegracoes} disabled={!onIrParaIntegracoes}>
               Ver integrações

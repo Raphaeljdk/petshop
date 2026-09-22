@@ -114,7 +114,44 @@ export async function importarVendaNoSiggma(vendaId: string) {
     }
   })
 
-  const guid = vendaSiggmaGuid(venda.id)
+  const guid = venda.siggmaGuid || vendaSiggmaGuid(venda.id)
+
+  if (venda.siggmaImportedAt) {
+    return { imported: true, duplicate: false, guid, alreadyImported: true }
+  }
+
+  const claim = await db.venda.updateMany({
+    where: {
+      id: venda.id,
+      siggmaImportedAt: null,
+      siggmaImportStatus: null,
+    },
+    data: {
+      siggmaGuid: guid,
+      siggmaImportStatus: 'processing',
+      siggmaImportError: null,
+    },
+  })
+
+  if (claim.count === 0) {
+    const current = await db.venda.findUnique({
+      where: { id: venda.id },
+      select: {
+        siggmaGuid: true,
+        siggmaImportStatus: true,
+        siggmaImportedAt: true,
+      },
+    })
+
+    return {
+      imported: Boolean(current?.siggmaImportedAt),
+      duplicate: false,
+      guid: current?.siggmaGuid || guid,
+      alreadyImported: Boolean(current?.siggmaImportedAt),
+      pendingReview: !current?.siggmaImportedAt,
+      status: current?.siggmaImportStatus || 'unknown',
+    }
+  }
 
   try {
     await siggma.pedidos.importar([
@@ -138,16 +175,26 @@ export async function importarVendaNoSiggma(vendaId: string) {
         item: payloadItems,
       },
     ])
+    await db.venda.update({
+      where: { id: venda.id },
+      data: {
+        siggmaGuid: guid,
+        siggmaImportStatus: 'imported',
+        siggmaImportedAt: new Date(),
+        siggmaImportError: null,
+      },
+    })
   } catch (error) {
-    if (error instanceof SiggmaApiError) {
-      const message = String(error.message || '').toLowerCase()
-      if (
-        message.includes('guid') &&
-        (message.includes('duplic') || message.includes('unic') || message.includes('unique'))
-      ) {
-        return { imported: true, duplicate: true, guid }
-      }
-    }
+    const knownRejection = error instanceof SiggmaApiError
+    await db.venda.update({
+      where: { id: venda.id },
+      data: {
+        siggmaGuid: guid,
+        siggmaImportStatus: knownRejection ? 'rejected' : 'review',
+        siggmaImportError: error instanceof Error ? error.message : 'Falha desconhecida ao importar pedido.',
+      },
+    }).catch(() => undefined)
+
     throw error
   }
 
@@ -157,5 +204,5 @@ export async function importarVendaNoSiggma(vendaId: string) {
     console.error('[siggma/orders] pedido importado, mas atualização de estoque falhou:', syncError)
   }
 
-  return { imported: true, duplicate: false, guid }
+  return { imported: true, duplicate: false, guid, alreadyImported: false }
 }

@@ -1,16 +1,12 @@
 import { siggmaRequest } from '@/lib/siggma/client'
 import type {
-  SiggmaAgendaPage,
-  SiggmaAgendamentoCreateInput,
   SiggmaAnimal,
-  SiggmaApiSuccess,
   SiggmaAtendimento,
   SiggmaCliente,
   SiggmaClienteImportInput,
   SiggmaClienteImportResult,
   SiggmaCategoria,
   SiggmaFiscalStatusResponse,
-  SiggmaHorariosResponse,
   SiggmaPage,
   SiggmaPedidoImportInput,
   SiggmaProduto,
@@ -119,45 +115,5 @@ export const siggma = {
         body: JSON.stringify({ data: guidList.map((guid) => ({ guid })) }),
       })
     },
-  },
-
-  agendamentos: {
-    horarios(expediente: number, params: { inicio?: string; fim?: string } = {}) {
-      return siggmaRequest<SiggmaHorariosResponse>(
-        `/api/petshop-agendamentos/horarios${queryString({
-          expediente,
-          inicio: params.inicio,
-          fim: params.fim,
-        })}`
-      )
-    },
-
-    criar(expediente: number, input: SiggmaAgendamentoCreateInput) {
-      return siggmaRequest<SiggmaApiSuccess>(
-        `/api/petshop-agendamentos/agendar${queryString({ expediente })}`,
-        { method: 'POST', body: JSON.stringify(input) }
-      )
-    },
-
-    cancelar(id: number) {
-      return siggmaRequest<SiggmaApiSuccess>(
-        `/api/petshop-agendamentos/cancelar${queryString({ id })}`,
-        { method: 'POST' }
-      )
-    },
-
-    consultar(params: {
-      cliente?: number
-      animal?: number
-      tipo?: string
-      status?: string
-      dataInicial?: string
-      dataFinal?: string
-      pagina?: number
-    } = {}) {
-      return siggmaRequest<SiggmaAgendaPage>(
-        `/api/petshop-agendamentos/consultar-agenda${queryString(params)}`
-      )
-    },
-  },
+  }
 }

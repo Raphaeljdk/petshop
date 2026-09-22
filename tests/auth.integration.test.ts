@@ -14,7 +14,22 @@ const prefix = 'auth-' + randomBytes(6).toString('hex')
 const password = 'Matilha9-' + randomBytes(10).toString('hex')
 let server: Subprocess
 const email = (name: string) => prefix + '-' + name + '@example.test'
-const client = (name: string) => ({ nome: 'Cliente de Teste', email: email(name), telefone: '(11) 99999-1234', senha: password, confirmarSenha: password, role: 'CLIENTE' })
+function cpfFor(name: string) {
+  const seed = createHash('sha256').update(prefix + ':' + name).digest('hex')
+  const base = seed.replace(/[^0-9]/g, '').padEnd(9, '1').slice(0, 9).split('')
+  if (base.every((digit) => digit === base[0])) base[8] = base[8] === '9' ? '8' : '9'
+  const digit = (length: number) => {
+    let sum = 0
+    for (let i = 0; i < length; i += 1) sum += Number(base[i] ?? digits[i]) * (length + 1 - i)
+    const rest = (sum * 10) % 11
+    return rest === 10 ? 0 : rest
+  }
+  const digits = [...base]
+  digits.push(String(digit(9)))
+  digits.push(String(digit(10)))
+  return digits.join('')
+}
+const client = (name: string) => ({ nome: 'Cliente de Teste', email: email(name), telefone: '(11) 99999-1234', cpfCnpj: cpfFor(name), senha: password, confirmarSenha: password, role: 'CLIENTE' })
 async function post(path: string, data: unknown, cookie?: string, origin = base) {
   return fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(data) })
 }

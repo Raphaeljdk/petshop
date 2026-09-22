@@ -159,6 +159,9 @@ export interface Venda {
   mercadoPagoQrCode: string | null
   mercadoPagoPixExpiresAt: string | null
   siggmaGuid?: string | null
+  siggmaImportStatus?: string | null
+  siggmaImportedAt?: string | null
+  siggmaImportError?: string | null
   statusFiscal?: string | null
   createdAt: string
   updatedAt: string

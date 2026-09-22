@@ -1,29 +1,30 @@
 import type { StatusAgendamento } from '@/lib/types'
-import type { SiggmaAgendaItem } from '@/lib/siggma/types'
+import { siggma } from '@/lib/siggma/service'
+import type { SiggmaAnimal, SiggmaAtendimento, SiggmaCliente } from '@/lib/siggma/types'
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
+type AgendaFilters = {
+  cliente?: number
+  animal?: number
+  colaborador?: number
+  tipo?: string
+  status?: string
+  dataInicial?: string
+  dataFinal?: string
 }
 
-function firstString(...values: unknown[]) {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim()
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  }
-  return null
+const cache = {
+  initialized: false,
+  lastSync: null as Date | null,
+  animals: new Map<number, SiggmaAnimal>(),
+  clients: new Map<number, SiggmaCliente>(),
 }
 
-function firstNumber(...values: unknown[]) {
-  for (const value of values) {
-    if (typeof value === 'number' && Number.isFinite(value)) return value
-    if (typeof value === 'string' && value.trim()) {
-      const parsed = Number.parseInt(value, 10)
-      if (Number.isFinite(parsed)) return parsed
-    }
-  }
-  return null
+function pad(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function formatSince(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 function normalizeStatus(value: unknown) {
@@ -36,77 +37,132 @@ function normalizeStatus(value: unknown) {
 
 function mapStatus(value: unknown): StatusAgendamento {
   const status = normalizeStatus(value)
-  if (status.includes('cancel') || status.includes('transfer')) return 'cancelado'
-  if (status.includes('final') || status.includes('conclu')) return 'concluido'
-  if (status.includes('andamento') || status.includes('atend')) return 'confirmado'
+  if (status === 'cancelado' || status === 'transferido') return 'cancelado'
+  if (status === 'finalizado') return 'concluido'
+  if (status === 'em andamento') return 'confirmado'
   return 'agendado'
 }
 
-function normalizeDateTime(value: unknown, datePart?: unknown, timePart?: unknown) {
-  const direct = firstString(value)
-  if (direct) {
-    const normalized = direct.replace(' ', 'T')
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) return `${normalized}:00`
-    return normalized
+export function parseSiggmaAgendaDate(value?: string | null) {
+  if (!value) return null
+  const raw = value.trim()
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (br) {
+    const [, d, m, y, hh = '00', mm = '00', ss = '00'] = br
+    return `${y}-${m}-${d}T${hh}:${mm}:${ss}`
   }
-  const date = firstString(datePart)
-  const time = firstString(timePart)
-  if (date && time) {
-    const cleanTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time
-    return `${date}T${cleanTime}`
+  const iso = raw.replace(' ', 'T')
+  return Number.isNaN(new Date(iso).getTime()) ? null : iso
+}
+
+async function loadAllAnimals(since?: string) {
+  const first = await siggma.animais.listar({ pagina: 1, since })
+  const rows = [...(first.data || [])]
+  const pages = Math.max(Number(first.metadata?.paginas || 1), 1)
+  for (let page = 2; page <= pages; page += 1) {
+    const current = await siggma.animais.listar({ pagina: page, since })
+    rows.push(...(current.data || []))
   }
-  return new Date(0).toISOString()
+  return rows
 }
 
-export function getSiggmaAgendaItemId(item: SiggmaAgendaItem) {
-  return firstNumber(item.id, item.agendamentoId, item.agendamento_id, item.codigo, asRecord(item.agendamento)?.id)
-}
-
-export function normalizeSiggmaAgendaItem(item: SiggmaAgendaItem, localClientId: string) {
-  const animal = asRecord(item.animal)
-  const pet = asRecord(item.pet)
-  const cliente = asRecord(item.cliente)
-  const servico = asRecord(item.servico)
-  const tipoServico = asRecord(item.tipoServico)
-  const id = getSiggmaAgendaItemId(item)
-  const animalId = firstNumber(item.animalId, item.animal_id, item.petId, item.pet_id, animal?.id, pet?.id)
-  const animalNome = firstString(item.animalNome, item.petNome, animal?.nome, pet?.nome, typeof item.animal === 'string' ? item.animal : null, typeof item.pet === 'string' ? item.pet : null) || 'Pet'
-  const rawStatus = firstString(item.status, asRecord(item.status)?.nome, asRecord(item.status)?.descricao) || 'novo'
-  const dataHora = normalizeDateTime(item.quando ?? item.dataHora ?? item.datahora ?? item.data_hora, item.data, item.hora)
-  const servicoNome = firstString(item.servicoNome, item.tipoServicoNome, item.tipo_servico, item.tipo, servico?.tipo, servico?.nome, servico?.descricao, tipoServico?.tipo, tipoServico?.nome, tipoServico?.descricao, typeof item.servico === 'string' ? item.servico : null, typeof item.tipoServico === 'string' ? item.tipoServico : null) || 'Serviço'
-  const createdAt = firstString(item.createdAt, item.criadoEm, item.dataCriacao) || dataHora
-  const updatedAt = firstString(item.updatedAt, item.atualizadoEm, item.dataAtualizacao) || createdAt
-
-  return {
-    id: id ? `siggma:${id}` : `siggma:${animalId || 'pet'}:${dataHora}`,
-    siggmaId: id,
-    petId: animalId ? `zetta:${animalId}` : '',
-    clienteId: localClientId,
-    servico: servicoNome,
-    dataHora,
-    status: mapStatus(rawStatus),
-    statusOriginal: rawStatus,
-    observacoes: firstString(item.observacoes, item.observacao),
-    createdAt,
-    updatedAt,
-    origem: 'siggma' as const,
-    cancelavel: id !== null && normalizeStatus(rawStatus) === 'novo',
-    pet: animalId ? { id: `zetta:${animalId}`, nome: animalNome } : undefined,
-    siggmaClienteId: firstNumber(item.clienteId, item.cliente_id, cliente?.id, cliente?.cliCod, cliente?.cli_cod),
+async function loadAllClients(since?: string) {
+  const first = await siggma.clientes.listar({ pagina: 1, limit: 100, since })
+  const rows = [...(first.data || [])]
+  const pages = Math.max(Number(first.metadata?.paginas || 1), 1)
+  for (let page = 2; page <= pages; page += 1) {
+    const current = await siggma.clientes.listar({ pagina: page, limit: 100, since })
+    rows.push(...(current.data || []))
   }
+  return rows
 }
 
-export function parseZettaPetId(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.trunc(value)
-  if (typeof value !== 'string') return null
-  const raw = value.startsWith('zetta:') ? value.slice('zetta:'.length) : value
-  const parsed = Number.parseInt(raw, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+export async function refreshAgendaLookups(force = false) {
+  const now = new Date()
+  if (!force && cache.initialized && cache.lastSync && now.getTime() - cache.lastSync.getTime() < 5 * 60_000) {
+    return
+  }
+
+  const startedAt = new Date()
+  const since = cache.initialized && cache.lastSync ? formatSince(cache.lastSync) : undefined
+  const [animals, clients] = await Promise.all([loadAllAnimals(since), loadAllClients(since)])
+
+  for (const animal of animals) cache.animals.set(animal.id, animal)
+  for (const client of clients) cache.clients.set(client.cliCod, client)
+
+  cache.initialized = true
+  cache.lastSync = startedAt
 }
 
-export function formatSiggmaQuando(value: unknown) {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().replace('T', ' ')
-  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(normalized)) return null
-  return normalized.length === 16 ? `${normalized}:00` : normalized
+async function loadAgenda(filters: AgendaFilters) {
+  const first = await siggma.atendimentos.listar({ ...filters, pagina: 1 })
+  const rows = [...(first.data || [])]
+  const pages = Math.max(Number(first.metadata?.paginas || 1), 1)
+
+  for (let page = 2; page <= pages; page += 1) {
+    const current = await siggma.atendimentos.listar({ ...filters, pagina: page })
+    rows.push(...(current.data || []))
+  }
+
+  return rows.filter((item) => item.excluido !== true)
+}
+
+function serviceName(item: SiggmaAtendimento) {
+  const detail = item.dadosEspecificos
+  const descricao = detail && typeof detail.descricao === 'string' ? detail.descricao.trim() : ''
+  return item.tipoServico?.trim() || descricao || item.tipo?.trim() || 'Atendimento'
+}
+
+function clientName(clientId?: number | null) {
+  if (!clientId) return 'Tutor'
+  return cache.clients.get(clientId)?.pessoa?.nome?.trim() || `Cliente #${clientId}`
+}
+
+function animalName(animalId?: number | null) {
+  if (!animalId) return 'Pet'
+  return cache.animals.get(animalId)?.nome?.trim() || `Pet #${animalId}`
+}
+
+export async function listOfficialAgenda(filters: AgendaFilters = {}) {
+  const [rows] = await Promise.all([loadAgenda(filters), refreshAgendaLookups()])
+
+  return rows
+    .map((item) => {
+      const dataHora = parseSiggmaAgendaDate(item.datahora)
+      const dataHoraFinal = parseSiggmaAgendaDate(item.datahoraFinal)
+      const updatedAt = parseSiggmaAgendaDate(item.dataAtualizacao) || dataHora || new Date(0).toISOString()
+      const petId = item.animal ? `zetta:${item.animal}` : ''
+      const clienteId = item.cliente ? `zetta-client:${item.cliente}` : ''
+
+      return {
+        id: `siggma-atendimento:${item.id}`,
+        siggmaId: item.id,
+        petId,
+        clienteId,
+        servico: serviceName(item),
+        dataHora: dataHora || new Date(0).toISOString(),
+        dataHoraFinal,
+        status: mapStatus(item.status),
+        statusOriginal: item.status || 'novo',
+        observacoes: item.observacoes || null,
+        createdAt: dataHora || updatedAt,
+        updatedAt,
+        origem: 'siggma' as const,
+        cancelavel: false,
+        tipo: item.tipo || null,
+        excluido: false,
+        pet: {
+          id: petId,
+          nome: animalName(item.animal),
+          origem: 'zetta' as const,
+          zettaId: item.animal || undefined,
+        },
+        cliente: {
+          id: clienteId,
+          nome: clientName(item.cliente),
+        },
+      }
+    })
+    .filter((item) => item.dataHora !== new Date(0).toISOString())
+    .sort((a, b) => new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime())
 }

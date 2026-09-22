@@ -93,7 +93,23 @@ export type SiggmaVacina = {
   dataAtualizacao?: string
 }
 
-export type SiggmaAtendimento = Record<string, unknown>
+export type SiggmaAtendimento = {
+  id: number
+  tipo?: string | null
+  peso?: string | number | null
+  anexos?: unknown
+  status?: string | null
+  animal?: number | null
+  servico?: number | string | null
+  cliente?: number | null
+  datahora?: string | null
+  excluido?: boolean
+  tipoServico?: string | null
+  observacoes?: string | null
+  datahoraFinal?: string | null
+  dataAtualizacao?: string | null
+  dadosEspecificos?: Record<string, unknown> | null
+}
 
 export type SiggmaProduto = {
   codigo_integracao?: number | null
@@ -203,39 +219,4 @@ export type SiggmaFiscalStatus = {
 export type SiggmaFiscalStatusResponse = {
   type: 'success'
   data: SiggmaFiscalStatus[]
-}
-
-export type SiggmaHorario = {
-  time: string
-  amount: number
-  duration: number
-}
-
-export type SiggmaHorariosDia = {
-  data: string
-  horarios: SiggmaHorario[]
-}
-
-export type SiggmaHorariosResponse = SiggmaApiSuccess & {
-  data: SiggmaHorariosDia[]
-}
-
-export type SiggmaAgendamentoCreateInput = {
-  quando: string
-  servicoId: number
-  clienteId?: number
-  clienteDocumento?: string
-  petId?: number
-  pet?: string
-  cliente?: string
-  clienteWhatsapp?: string
-  observacoes?: string
-}
-
-export type SiggmaAgendaItem = Record<string, unknown>
-
-export type SiggmaAgendaPage = {
-  type?: 'success'
-  metadata: SiggmaMetadata
-  data: SiggmaAgendaItem[]
 }
