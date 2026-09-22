@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Plus, CalendarClock, Clock, Dog } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Plus, CalendarClock, Clock, Dog, Loader2, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,18 @@ import { toast } from 'sonner'
 import type { Agendamento, Pet } from '@/lib/types'
 import { useAuth } from '@/components/providers/AuthProvider'
 
+type Servico = {
+  id: number
+  tipo: string
+  descricao: string | null
+}
+
+type Horario = {
+  time: string
+  amount: number
+  duration: number
+}
+
 const statusVariant = (s: string) => {
   switch (s) {
     case 'agendado':
@@ -48,92 +60,256 @@ const statusVariant = (s: string) => {
 export function ClientAgendamentos() {
   const { sessao } = useAuth()
   const zettaLinked = Boolean(sessao.user?.siggmaCliCod)
+
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [pets, setPets] = useState<Pet[]>([])
+  const [servicos, setServicos] = useState<Servico[]>([])
+  const [horarios, setHorarios] = useState<Horario[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
+
   const [form, setForm] = useState({
     petId: '',
+    servicoId: '',
     servico: '',
+    data: '',
+    horario: '',
     dataHora: '',
     observacoes: '',
   })
 
   const carregar = async () => {
     try {
-      const [r1, r2] = await Promise.all([
+      const requests: Promise<Response>[] = [
         fetch('/api/cliente/agendamentos', { credentials: 'same-origin' }),
         fetch('/api/cliente/pets', { credentials: 'same-origin' }),
-      ])
+      ]
+
+      if (zettaLinked) {
+        requests.push(
+          fetch('/api/cliente/agendamentos/servicos', {
+            credentials: 'same-origin',
+          })
+        )
+      }
+
+      const [r1, r2, r3] = await Promise.all(requests)
+
       if (r1.ok) setAgendamentos(await r1.json())
       if (r2.ok) setPets(await r2.json())
-    } catch (e) {
-      console.error('agendamentos cliente erro:', e)
+
+      if (r3?.ok) {
+        const payload = await r3.json()
+        setServicos(payload.data || [])
+      }
+    } catch (error) {
+      console.error('agendamentos cliente erro:', error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    carregar()
+    void carregar()
   }, [])
 
+  const consultarHorarios = async (data: string) => {
+    if (!zettaLinked || !data) return
+
+    setLoadingSlots(true)
+    setHorarios([])
+
+    try {
+      const res = await fetch(
+        `/api/cliente/agendamentos/horarios?inicio=${encodeURIComponent(data)}&fim=${encodeURIComponent(data)}`,
+        { credentials: 'same-origin' }
+      )
+      const payload = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Erro ao consultar horários')
+      }
+
+      const dia = Array.isArray(payload?.data)
+        ? payload.data.find((item: { data?: string }) => item?.data === data) || payload.data[0]
+        : null
+
+      setHorarios(Array.isArray(dia?.horarios) ? dia.horarios : [])
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível consultar os horários'
+      )
+    } finally {
+      setLoadingSlots(false)
+    }
+  }
+
   const abrirNovo = () => {
+    const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
+
     setForm({
       petId: pets[0]?.id || '',
+      servicoId: servicos[0]?.id ? String(servicos[0].id) : '',
       servico: '',
-      dataHora: format(new Date(Date.now() + 86400000), "yyyy-MM-dd'T'09:00"),
+      data: tomorrow,
+      horario: '',
+      dataHora: format(
+        new Date(Date.now() + 86400000),
+        "yyyy-MM-dd'T'09:00"
+      ),
       observacoes: '',
     })
+
+    setHorarios([])
     setDialogOpen(true)
+
+    if (zettaLinked) {
+      void consultarHorarios(tomorrow)
+    }
   }
 
   const salvar = async () => {
-    if (!form.petId || !form.servico || !form.dataHora) {
-      toast.error('Preencha todos os campos')
+    if (!form.petId) {
+      toast.error('Selecione o pet')
       return
     }
+
+    if (zettaLinked && (!form.servicoId || !form.data || !form.horario)) {
+      toast.error('Selecione serviço, data e horário disponível')
+      return
+    }
+
+    if (!zettaLinked && (!form.servico || !form.dataHora)) {
+      toast.error('Preencha serviço, data e horário')
+      return
+    }
+
+    setSaving(true)
+
     try {
+      const body = zettaLinked
+        ? {
+            petId: form.petId,
+            servicoId: Number(form.servicoId),
+            quando: `${form.data} ${form.horario}:00`,
+            observacoes: form.observacoes || null,
+          }
+        : {
+            petId: form.petId,
+            servico: form.servico,
+            dataHora: new Date(form.dataHora).toISOString(),
+            observacoes: form.observacoes || null,
+          }
+
       const res = await fetch('/api/cliente/agendamentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({
-          petId: form.petId,
-          servico: form.servico,
-          dataHora: new Date(form.dataHora).toISOString(),
-          observacoes: form.observacoes || null,
-        }),
+        body: JSON.stringify(body),
       })
+
+      const payload = await res.json().catch(() => ({}))
+
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.error || 'Erro ao agendar')
+        throw new Error(payload?.error || 'Erro ao agendar')
       }
-      toast.success('Agendamento criado')
+
+      toast.success(
+        zettaLinked
+          ? 'Agendamento criado no Siggma'
+          : 'Agendamento criado'
+      )
       setDialogOpen(false)
-      carregar()
-    } catch (e: any) {
-      toast.error(e.message || 'Erro ao salvar agendamento')
+      await carregar()
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Erro ao salvar agendamento'
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
-  const futuros = agendamentos
-    .filter((a) => new Date(a.dataHora).getTime() >= Date.now() - 86400000)
-    .sort((a, b) => new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime())
-  const passados = agendamentos
-    .filter((a) => new Date(a.dataHora).getTime() < Date.now() - 86400000)
-    .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
+  const cancelar = async (agendamento: Agendamento) => {
+    if (!agendamento.cancelavel) return
+
+    try {
+      const res = await fetch(
+        `/api/cliente/agendamentos/${encodeURIComponent(agendamento.id)}`,
+        {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        }
+      )
+
+      const payload = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Não foi possível cancelar')
+      }
+
+      toast.success('Agendamento cancelado')
+      await carregar()
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : 'Erro ao cancelar'
+      )
+    }
+  }
+
+  const futuros = useMemo(
+    () =>
+      agendamentos
+        .filter(
+          (a) => new Date(a.dataHora).getTime() >= Date.now() - 86400000
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.dataHora).getTime() -
+            new Date(b.dataHora).getTime()
+        ),
+    [agendamentos]
+  )
+
+  const passados = useMemo(
+    () =>
+      agendamentos
+        .filter(
+          (a) => new Date(a.dataHora).getTime() < Date.now() - 86400000
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.dataHora).getTime() -
+            new Date(a.dataHora).getTime()
+        ),
+    [agendamentos]
+  )
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Agendamentos</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Agendamentos
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Marque serviços e acompanhe seus atendimentos
+            {zettaLinked
+              ? 'Agenda sincronizada com o Siggma'
+              : 'Marque serviços e acompanhe seus atendimentos'}
           </p>
         </div>
-        <Button onClick={abrirNovo} disabled={pets.length === 0 || zettaLinked} className="btn-brand">
+
+        <Button
+          onClick={abrirNovo}
+          disabled={pets.length === 0}
+          className="btn-brand"
+        >
           <Plus className="size-4" /> Novo
         </Button>
       </div>
@@ -141,7 +317,8 @@ export function ClientAgendamentos() {
       {zettaLinked && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4 text-sm text-muted-foreground">
-            Seus pets vêm do Siggma/Zetta. Para evitar divergência, novos agendamentos pelo portal ficam bloqueados até confirmarmos o endpoint oficial de gravação do ERP.
+            Os horários exibidos vêm da grade oficial do Siggma. O portal
+            só envia horários retornados como disponíveis.
           </CardContent>
         </Card>
       )}
@@ -151,7 +328,7 @@ export function ClientAgendamentos() {
           <CardContent className="p-8 text-center">
             <Dog className="size-10 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-muted-foreground">
-              Você precisa cadastrar um pet antes de agendar serviços.
+              Você precisa ter um pet vinculado antes de agendar serviços.
             </p>
           </CardContent>
         </Card>
@@ -161,12 +338,14 @@ export function ClientAgendamentos() {
         <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">
           Próximos
         </h2>
+
         <div className="grid md:grid-cols-2 gap-3">
           {loading && (
             <div className="col-span-full">
               <SkeletonLoader type="list" count={4} />
             </div>
           )}
+
           {!loading && futuros.length === 0 && (
             <Card>
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -175,13 +354,21 @@ export function ClientAgendamentos() {
               </CardContent>
             </Card>
           )}
+
           {futuros.map((a) => (
             <Card key={a.id} className="card-hover">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="size-12 rounded-lg bg-primary/10 text-primary flex flex-col items-center justify-center">
-                  <span className="text-xs font-bold">{format(parseISO(a.dataHora), 'dd')}</span>
-                  <span className="text-[10px] uppercase">{format(parseISO(a.dataHora), 'MMM', { locale: ptBR })}</span>
+                  <span className="text-xs font-bold">
+                    {format(parseISO(a.dataHora), 'dd')}
+                  </span>
+                  <span className="text-[10px] uppercase">
+                    {format(parseISO(a.dataHora), 'MMM', {
+                      locale: ptBR,
+                    })}
+                  </span>
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <CalendarClock className="size-3.5 text-muted-foreground" />
@@ -189,14 +376,33 @@ export function ClientAgendamentos() {
                       {format(parseISO(a.dataHora), 'HH:mm')}
                     </span>
                   </div>
-                  <p className="text-sm font-medium truncate">{a.servico}</p>
+                  <p className="text-sm font-medium truncate">
+                    {a.servico}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {a.pet?.nome}
                   </p>
                 </div>
-                <Badge className={`text-[10px] ${statusVariant(a.status)}`}>
-                  {a.status}
-                </Badge>
+
+                <div className="flex items-center gap-2">
+                  <Badge
+                    className={`text-[10px] ${statusVariant(a.status)}`}
+                  >
+                    {a.statusOriginal || a.status}
+                  </Badge>
+
+                  {a.cancelavel && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8"
+                      onClick={() => void cancelar(a)}
+                      title="Cancelar"
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -208,22 +414,36 @@ export function ClientAgendamentos() {
           <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">
             Histórico
           </h2>
+
           <div className="grid md:grid-cols-2 gap-3">
             {passados.map((a) => (
               <Card key={a.id} className="opacity-70">
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="size-12 rounded-lg bg-muted text-muted-foreground flex flex-col items-center justify-center">
-                    <span className="text-xs font-bold">{format(parseISO(a.dataHora), 'dd')}</span>
-                    <span className="text-[10px] uppercase">{format(parseISO(a.dataHora), 'MMM', { locale: ptBR })}</span>
+                    <span className="text-xs font-bold">
+                      {format(parseISO(a.dataHora), 'dd')}
+                    </span>
+                    <span className="text-[10px] uppercase">
+                      {format(parseISO(a.dataHora), 'MMM', {
+                        locale: ptBR,
+                      })}
+                    </span>
                   </div>
+
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{a.servico}</p>
+                    <p className="text-sm font-medium truncate">
+                      {a.servico}
+                    </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {a.pet?.nome}
                     </p>
                   </div>
-                  <Badge variant="outline" className={`text-[10px] ${statusVariant(a.status)}`}>
-                    {a.status}
+
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${statusVariant(a.status)}`}
+                  >
+                    {a.statusOriginal || a.status}
                   </Badge>
                 </CardContent>
               </Card>
@@ -236,57 +456,177 @@ export function ClientAgendamentos() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CalendarClock className="size-5 text-primary" /> Novo agendamento
+              <CalendarClock className="size-5 text-primary" />
+              Novo agendamento
             </DialogTitle>
-            <DialogDescription>Escolha o pet, serviço e horário</DialogDescription>
+            <DialogDescription>
+              {zettaLinked
+                ? 'Selecione apenas horários disponíveis no Siggma.'
+                : 'Escolha o pet, serviço e horário.'}
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-3">
             <div>
-              <Label htmlFor="pet">Pet</Label>
-              <Select value={form.petId} onValueChange={(v) => setForm({ ...form, petId: v })}>
+              <Label>Pet</Label>
+              <Select
+                value={form.petId}
+                onValueChange={(petId) =>
+                  setForm((current) => ({ ...current, petId }))
+                }
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione o pet" />
                 </SelectTrigger>
                 <SelectContent>
-                  {pets.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nome}
+                  {pets.map((pet) => (
+                    <SelectItem key={pet.id} value={pet.id}>
+                      {pet.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {zettaLinked ? (
+              <>
+                <div>
+                  <Label>Serviço</Label>
+                  <Select
+                    value={form.servicoId}
+                    onValueChange={(servicoId) =>
+                      setForm((current) => ({
+                        ...current,
+                        servicoId,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o serviço" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {servicos.map((servico) => (
+                        <SelectItem
+                          key={servico.id}
+                          value={String(servico.id)}
+                        >
+                          {servico.tipo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Data</Label>
+                  <Input
+                    type="date"
+                    value={form.data}
+                    min={format(new Date(), 'yyyy-MM-dd')}
+                    onChange={(event) => {
+                      const data = event.target.value
+                      setForm((current) => ({
+                        ...current,
+                        data,
+                        horario: '',
+                      }))
+                      void consultarHorarios(data)
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label>Horário disponível</Label>
+                  {loadingSlots ? (
+                    <div className="h-10 flex items-center text-sm text-muted-foreground">
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Consultando Siggma...
+                    </div>
+                  ) : (
+                    <Select
+                      value={form.horario}
+                      onValueChange={(horario) =>
+                        setForm((current) => ({
+                          ...current,
+                          horario,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecione o horário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {horarios
+                          .filter((slot) => slot.amount > 0)
+                          .map((slot) => (
+                            <SelectItem
+                              key={slot.time}
+                              value={slot.time}
+                            >
+                              {slot.time} · {slot.amount} vaga
+                              {slot.amount === 1 ? '' : 's'}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Label>Serviço</Label>
+                  <Input
+                    value={form.servico}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        servico: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label>Data e hora</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.dataHora}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        dataHora: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </>
+            )}
+
             <div>
-              <Label htmlFor="servico">Serviço</Label>
-              <Input
-                id="servico"
-                placeholder="Banho, tosa, spa pet..."
-                value={form.servico}
-                onChange={(e) => setForm({ ...form, servico: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="dataHora">Data e hora</Label>
-              <Input
-                id="dataHora"
-                type="datetime-local"
-                value={form.dataHora}
-                onChange={(e) => setForm({ ...form, dataHora: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="obs">Observações</Label>
+              <Label>Observações</Label>
               <Textarea
-                id="obs"
                 rows={2}
-                placeholder="Alguma preferência ou cuidado especial?"
                 value={form.observacoes}
-                onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    observacoes: event.target.value,
+                  }))
+                }
               />
             </div>
           </div>
+
           <DialogFooter>
-            <Button onClick={salvar} className="btn-brand">Confirmar agendamento</Button>
+            <Button
+              onClick={() => void salvar()}
+              disabled={saving}
+              className="btn-brand"
+            >
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              Confirmar agendamento
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
