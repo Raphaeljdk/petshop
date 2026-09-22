@@ -22,6 +22,20 @@ const passed = name => { checks++; console.log('PASS: ' + name) }
 const prefix = 'ui-' + randomBytes(6).toString('hex')
 const password = 'Matilha9-' + randomBytes(10).toString('hex')
 const email = prefix + '@example.test'
+function validCpf(seedText) {
+  const raw = createHash('sha256').update(seedText).digest('hex').replace(/[^0-9]/g, '').padEnd(9, '1').slice(0, 9)
+  const digits = raw.split('')
+  if (digits.every(digit => digit === digits[0])) digits[8] = digits[8] === '9' ? '8' : '9'
+  const calc = length => {
+    let sum = 0
+    for (let i = 0; i < length; i++) sum += Number(digits[i]) * (length + 1 - i)
+    const rest = (sum * 10) % 11
+    return rest === 10 ? 0 : rest
+  }
+  digits.push(String(calc(9)))
+  digits.push(String(calc(10)))
+  return digits.join('')
+}
 try {
   for (let i = 0; i < 100; i++) {
     try { if ((await fetch(base + '/api/auth/me')).ok) break } catch {}
@@ -64,6 +78,7 @@ try {
   await page.getByLabel('Nome completo').fill('Cliente Teste')
   await page.getByLabel('E-mail', { exact: true }).fill(email)
   await page.getByLabel('Telefone com DDD').fill('11999991234')
+  await page.getByLabel('CPF ou CNPJ').fill(validCpf(prefix))
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Mostrar senha', exact: true }).click()
   assert.equal(await page.getByLabel('Senha', { exact: true }).getAttribute('type'), 'text')
