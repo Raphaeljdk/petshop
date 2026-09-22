@@ -31,6 +31,7 @@ export interface CadastroDados {
   confirmarSenha: string
   role: 'ADMIN' | 'CLIENTE'
   telefone?: string
+  cpfCnpj?: string
   endereco?: string
   cep?: string
   convite?: string
