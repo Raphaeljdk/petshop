@@ -14,6 +14,7 @@ import type { AccountMode, AccountRole } from '@/components/auth/AccountForm'
 import { cn } from '@/lib/utils'
 import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { GoogleReviews } from '@/components/landing/GoogleReviews'
+import { PublicProducts } from '@/components/landing/PublicProducts'
 
 export function AuthScreen() {
   const [scrolled, setScrolled] = useState(false)
@@ -174,6 +175,7 @@ export function AuthScreen() {
         </div>
       </section>
 
+      <PublicProducts onBuy={abrirLogin} />
 
       <section id="nossa-historia" className="story-section py-16 lg:py-24 mt-12">
         <div className="container mx-auto px-6 story-grid">
