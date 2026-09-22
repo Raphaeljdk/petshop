@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import { ExternalLink, Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -100,17 +99,7 @@ export function GoogleReviews() {
                     </p>
                     <div className="flex items-center gap-3">
                       <div className="size-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold overflow-hidden shrink-0">
-                        {review.authorPhoto ? (
-                          <Image
-                            src={review.authorPhoto}
-                            alt=""
-                            width={40}
-                            height={40}
-                            className="size-10 object-cover"
-                          />
-                        ) : (
-                          review.author[0]?.toUpperCase() || 'G'
-                        )}
+                        {review.author[0]?.toUpperCase() || 'G'}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold truncate">{review.author}</p>
