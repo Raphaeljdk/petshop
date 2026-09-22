@@ -81,6 +81,12 @@ export function AuthScreen() {
             </button>
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button asChild variant="outline" size="sm" className="hidden md:flex h-9 border-pink-300/60 bg-pink-50 text-pink-700 hover:bg-pink-100 hover:text-pink-800">
+              <a href={MATILHA_CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="Abrir Instagram da Matilha Prado">
+                <Instagram className="size-4" />
+                Instagram
+              </a>
+            </Button>
             <Button variant="ghost" size="sm" onClick={abrirLogin} className="h-9 px-3">
               <span className="hidden sm:inline">Entrar</span>
               <span className="sm:hidden">Entrar</span>
@@ -115,6 +121,11 @@ export function AuthScreen() {
               <button key={item.id} onClick={() => scrollTo(item.id)} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted">{item.label}</button>
             ))}
           </nav>
+          <Button asChild variant="outline">
+            <a href={MATILHA_CONTACT.instagram} target="_blank" rel="noreferrer" onClick={() => setMobileNavOpen(false)}>
+              <Instagram className="size-4" /> Instagram
+            </a>
+          </Button>
           <Button variant="outline" onClick={() => { setMobileNavOpen(false); abrirLogin() }}>Entrar</Button>
           <Button onClick={() => { setMobileNavOpen(false); abrirCadastro() }}>Criar minha conta</Button>
         </SheetContent>
@@ -134,6 +145,11 @@ export function AuthScreen() {
               <Button asChild size="lg" variant="outline" className="bg-green-500/10 text-white border-green-300/40 hover:bg-green-500/20 hover:text-white">
                 <a href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')} target="_blank" rel="noreferrer">
                   <MessageCircle className="size-4" /> WhatsApp
+                </a>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="bg-pink-500/10 text-white border-pink-300/40 hover:bg-pink-500/20 hover:text-white">
+                <a href={MATILHA_CONTACT.instagram} target="_blank" rel="noreferrer">
+                  <Instagram className="size-4" /> Instagram
                 </a>
               </Button>
             </div>
