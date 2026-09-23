@@ -14,7 +14,9 @@ Não há disparo em massa nem envio automático ao publicar o código.
    Em uma base antiga sem histórico Prisma inicializado, revisar a baseline antes
    de executar `prisma migrate deploy`; não aplicar todas as migrações às cegas.
 2. Configurar `RESEND_API_KEY` e `INVITATION_EMAIL_FROM` (remetente de domínio
-   verificado no Resend). Exemplo de formato: `Matilha Prado <acesso@seu-dominio>`.
+   verificado no Resend). Exemplo de formato: `Matilha Prado <convites@matilhaprado.com.br>`.
+   Para receber respostas no Gmail da loja, configurar
+   `INVITATION_EMAIL_REPLY_TO=matilhaprado@gmail.com`.
 3. Configurar `APP_URL=https://www.matilhaprado.com.br`.
 4. Manter `INTEGRATION_BRIDGE_URL` e `INTEGRATION_BRIDGE_SECRET` configurados:
    o servidor verifica o cadastro oficial antes de enviar e de ativar.

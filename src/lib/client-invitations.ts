@@ -9,13 +9,14 @@ export const hashInvitation = (token: string) => createHash('sha256').update(tok
 export function invitationMailConfig() {
   const key = process.env.RESEND_API_KEY?.trim()
   const from = process.env.INVITATION_EMAIL_FROM?.trim()
+  const replyTo = process.env.INVITATION_EMAIL_REPLY_TO?.trim()
   const raw = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim()
   let origin = ''
   try {
     const url = new URL(raw || '')
     if (url.protocol === 'https:' && !url.username && !url.password) origin = url.origin
   } catch {}
-  return { key, from, origin, configured: Boolean(key && from && origin) }
+  return { key, from, replyTo, origin, configured: Boolean(key && from && origin) }
 }
 
 export async function officialInvitationClient(id: number) {
@@ -70,7 +71,14 @@ export async function sendClientInvitation(invitation: { nome: string; email: st
   // Fragment is not sent in HTTP requests, access logs or referrers.
   const link = `${config.origin}/ativar-conta#convite=${token}`
   const text = `Olá, ${invitation.nome}!\n\nA Matilha Prado convida você a acessar o portal do cliente para acompanhar seus pets e atendimentos.\n\nConfirme seu e-mail e defina sua senha neste link individual:\n${link}\n\nO link vale por 48 horas e só pode ser usado uma vez. Não compartilhe este convite.\n\nSe você não reconhece este cadastro, ignore o e-mail e avise a loja.\n\nEquipe Matilha Prado`
-  const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json', 'Idempotency-Key': `client-invitation-${invitation.tokenHash}` }, body: JSON.stringify({ from: config.from, to: [invitation.email], subject: 'Seu acesso ao portal Matilha Prado', text }), signal: AbortSignal.timeout(10_000) })
+  const payload: { from: string; to: string[]; subject: string; text: string; reply_to?: string } = {
+    from: config.from!,
+    to: [invitation.email],
+    subject: 'Seu acesso ao portal Matilha Prado',
+    text,
+  }
+  if (config.replyTo) payload.reply_to = config.replyTo
+  const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json', 'Idempotency-Key': `client-invitation-${invitation.tokenHash}` }, body: JSON.stringify(payload), signal: AbortSignal.timeout(10_000) })
   const result = await response.json().catch(() => null)
   if (!response.ok || typeof result?.id !== 'string') throw new AuthError('O serviço não confirmou o envio. Confira o painel de e-mails antes de tentar novamente.', 502)
   return result.id as string
