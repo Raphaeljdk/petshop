@@ -7,7 +7,7 @@ export const passwordRules = [
   { label: 'No máximo 72 bytes', test: (value: string) => new TextEncoder().encode(value).length <= 72 },
 ]
 
-const passwordSchema = z.string()
+export const passwordSchema = z.string()
   .min(10, 'Use pelo menos 10 caracteres.')
   .max(72, 'A senha é muito longa.')
   .refine(value => new TextEncoder().encode(value).length <= 72, 'A senha deve ter no máximo 72 bytes.')

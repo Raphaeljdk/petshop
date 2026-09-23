@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/select'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { ZettaClientLinks } from '@/components/admin/ZettaClientLinks'
+import { ClientInviteButton } from '@/components/admin/ClientInviteButton'
+import { ClientInvitationHistory } from '@/components/admin/ClientInvitationHistory'
 import { toast } from 'sonner'
 
 type PortalAccount = {
@@ -142,10 +144,6 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
     })
   }, [data, busca, filtro])
 
-  useEffect(() => {
-    setPagina(1)
-  }, [busca, filtro])
-
   const totalPaginas = Math.max(1, Math.ceil(clientesFiltrados.length / PAGE_SIZE))
   const clientesPagina = clientesFiltrados.slice(
     (pagina - 1) * PAGE_SIZE,
@@ -225,14 +223,14 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={busca}
-              onChange={(event) => setBusca(event.target.value)}
+              onChange={(event) => { setBusca(event.target.value); setPagina(1) }}
               placeholder="Buscar cliente, telefone, e-mail, cliCod ou pet..."
               className="pl-9"
             />
             {busca && (
               <button
                 type="button"
-                onClick={() => setBusca('')}
+                onClick={() => { setBusca(''); setPagina(1) }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 aria-label="Limpar busca"
               >
@@ -240,7 +238,7 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
               </button>
             )}
           </div>
-          <Select value={filtro} onValueChange={(value) => setFiltro(value as typeof filtro)}>
+          <Select value={filtro} onValueChange={(value) => { setFiltro(value as typeof filtro); setPagina(1) }}>
             <SelectTrigger className="w-full sm:w-52">
               <SelectValue />
             </SelectTrigger>
@@ -256,6 +254,8 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
           Mostrando {clientesFiltrados.length} de {data?.totalClientes || 0} cliente(s) oficiais.
         </p>
       </div>
+
+      <ClientInvitationHistory />
 
       {loading ? (
         <SkeletonLoader type="cards" count={8} />
@@ -286,6 +286,7 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
+                {!cliente.portal && <ClientInviteButton id={cliente.id} nome={cliente.nome || `Cliente #${cliente.id}`} email={cliente.email || ''} disabled={cliente.ativo === false} />}
                 <div className="space-y-1 text-xs text-muted-foreground">
                   {(cliente.celular || cliente.telefone) && (
                     <p className="flex items-center gap-1.5">

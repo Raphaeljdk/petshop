@@ -270,3 +270,21 @@ model AuthAttempt {
 
   @@index([expiresAt])
 }
+
+model ClientInvitation {
+  id String @id @default(cuid())
+  siggmaCliCod Int @unique
+  nome String
+  email String
+  telefone String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  revokedAt DateTime?
+  issuedAt DateTime @default(now())
+  createdById String
+  emailStatus String @default("pending")
+  providerId String?
+
+  @@index([email])
+}
