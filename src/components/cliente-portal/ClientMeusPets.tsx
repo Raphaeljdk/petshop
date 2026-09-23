@@ -365,7 +365,7 @@ export function ClientMeusPets() {
         </div>
         {zettaLinked ? (
           <Badge variant="outline" className="h-9 px-3">
-            Sincronizado com o ERP
+            Cadastro da loja
           </Badge>
         ) : (
           <Button onClick={abrirNovo} className="btn-brand">
@@ -377,7 +377,7 @@ export function ClientMeusPets() {
       {zettaLinked && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4 text-sm text-muted-foreground">
-            Seus pets e o histórico abaixo vêm do Siggma/Zetta. Cadastros e alterações de pets são feitos pela equipe no ERP para evitar divergência de dados.
+            Consulte seus pets e atendimentos. Para incluir um pet ou corrigir seus dados, fale com a equipe da loja.
           </CardContent>
         </Card>
       )}

@@ -211,7 +211,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
     if (finalizando) return
     if (carrinho.length === 0) return toast.error('Carrinho vazio')
     if (checkoutZettaBloqueado) {
-      return toast.error('A venda online dos produtos do ERP aguarda a liberação do endpoint de pedidos da Zetta.')
+      return toast.error('A compra online está indisponível no momento. Fale com a loja pelo WhatsApp.')
     }
     if (!freteSelecionado) return toast.error('Selecione uma opção de entrega')
     if (
@@ -270,6 +270,12 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
   const requiresEndereco = freteSelecionado?.tipoEntrega === 'entrega_propria' || freteSelecionado?.tipoEntrega === 'sedex'
   const whatsappLoja = matilhaWhatsAppUrl('Olá! Preciso de ajuda com uma compra na loja da Matilha Prado.')
+  const whatsappPedido = matilhaWhatsAppUrl([
+    'Olá! Gostaria de consultar a disponibilidade destes produtos:',
+    ...carrinho.map((item) => `${item.quantidade}x ${item.produto.nome}`),
+    `Subtotal exibido no site: ${fmtMoeda(subtotal)}.`,
+    'Podem confirmar os valores, a entrega e como concluir a compra?',
+  ].join('\n'))
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -296,7 +302,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
       {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-900">
-            O catálogo, preços e estoque já vêm do ERP Zetta em tempo real. A cobrança de produtos do ERP permanece bloqueada até a Zetta liberar o endpoint oficial de criação de pedidos, evitando divergência de estoque.
+            Precisa de ajuda para comprar? Nossa equipe pode confirmar os produtos e a entrega pelo WhatsApp.
           </CardContent>
         </Card>
       )}
@@ -472,10 +478,10 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
                   {checkoutZettaBloqueado && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                      <p className="font-semibold">Compra online temporariamente bloqueada</p>
-                      <p className="mt-1 text-xs leading-relaxed">O estoque e o preço vêm do Zetta, mas ainda aguardamos a API oficial de pedidos para registrar a venda sem divergência.</p>
+                      <p className="font-semibold">Continue sua compra com a nossa equipe</p>
+                      <p className="mt-1 text-sm leading-relaxed">A finalização pelo site está indisponível no momento. Envie os itens pelo WhatsApp para confirmar valores e entrega.</p>
                       <Button asChild variant="outline" size="sm" className="mt-3 bg-white">
-                        <a href={whatsappLoja} target="_blank" rel="noreferrer">
+                        <a href={whatsappPedido} target="_blank" rel="noreferrer">
                           <MessageCircle className="size-4" /> Falar no WhatsApp
                         </a>
                       </Button>
@@ -488,7 +494,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
               {!vendaEmPagamento && carrinho.length > 0 && (
                 <div className="cart-footer shrink-0 border-t bg-background p-4 space-y-3 sm:p-5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm text-muted-foreground">{freteSelecionado ? 'Total da compra' : 'Subtotal · frete a calcular'}</span><strong className="text-xl text-primary tabular-nums">{fmtMoeda(total)}</strong></div>
-                  <Button
+                  {checkoutZettaBloqueado ? <Button asChild className="w-full btn-brand min-h-12 h-auto whitespace-normal py-3"><a href={whatsappPedido} target="_blank" rel="noreferrer"><MessageCircle className="size-4 shrink-0" /> Consultar compra no WhatsApp</a></Button> : <Button
                     className="w-full btn-brand min-h-12 h-auto whitespace-normal py-3 text-sm"
                     onClick={finalizarCompra}
                     disabled={finalizando || !freteSelecionado || checkoutZettaBloqueado}
@@ -501,7 +507,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                         : !freteSelecionado
                           ? 'Selecione uma opção de entrega'
                           : 'Confirmar compra'}
-                  </Button>
+                  </Button>}
                 </div>
               )}
             </SheetContent>

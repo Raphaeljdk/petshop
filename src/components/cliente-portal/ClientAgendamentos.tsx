@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, Clock, MessageCircle, ShieldCheck } from 'lucide-react'
+import { CalendarClock, Clock, MessageCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import type { Agendamento } from '@/lib/types'
@@ -21,6 +24,12 @@ const statusVariant = (status: string) => {
 export function ClientAgendamentos() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState(false)
+  const [dataPreferida, setDataPreferida] = useState<Date>()
+  const [periodo, setPeriodo] = useState('Sem preferência')
+  const [petNome, setPetNome] = useState('')
+  const [servico, setServico] = useState('')
+  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
   useEffect(() => {
     let active = true
@@ -38,7 +47,7 @@ export function ClientAgendamentos() {
       .then((payload) => {
         if (active) setAgendamentos(Array.isArray(payload) ? payload : [])
       })
-      .catch((error) => console.error('cliente/agendamentos erro:', error))
+      .catch((error) => { console.error('cliente/agendamentos erro:', error); if (active) setErro(true) })
       .finally(() => active && setLoading(false))
 
     return () => {
@@ -63,7 +72,12 @@ export function ClientAgendamentos() {
   )
 
   const whatsapp = matilhaWhatsAppUrl(
-    'Olá! Vim pelo portal da Matilha Prado e gostaria de agendar um atendimento para o meu pet.'
+    ['Olá! Vim pelo portal da Matilha Prado e gostaria de consultar as datas e horários disponíveis.',
+      petNome.trim() ? `Pet: ${petNome.trim()}.` : '',
+      servico.trim() ? `Serviço: ${servico.trim()}.` : '',
+      dataPreferida ? `Data de preferência: ${format(dataPreferida, 'dd/MM/yyyy')}. Período: ${periodo}.` : '',
+      'Vocês têm disponibilidade? Se não, podem me informar as próximas datas livres? Aguardo a confirmação do agendamento.',
+    ].filter(Boolean).join('\n')
   )
 
   const card = (item: Agendamento, passado = false) => {
@@ -96,7 +110,7 @@ export function ClientAgendamentos() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Meus Agendamentos</h1>
           <p className="text-sm text-muted-foreground">
-            Seus atendimentos são sincronizados diretamente com o Siggma.
+            Acompanhe seus atendimentos e solicite uma nova data.
           </p>
         </div>
         <Button asChild className="btn-brand">
@@ -107,14 +121,20 @@ export function ClientAgendamentos() {
         </Button>
       </div>
 
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="flex gap-3 p-4 text-sm">
-          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-          <div>
-            <p className="font-semibold">Agenda oficial da Matilha Prado</p>
-            <p className="mt-1 text-muted-foreground">
-              O portal já exibe a agenda oficial do Siggma. A criação de novos horários pelo próprio Hub ainda não existe na API oficial e já foi encaminhada pela Zetta para avaliação da equipe de produto.
-            </p>
+      <Card>
+        <CardContent className="grid gap-6 p-4 sm:p-6 md:grid-cols-2">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">Quando você prefere vir?</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Escolha uma data para consultar. A disponibilidade e o horário serão confirmados pela equipe no WhatsApp.</p>
+            <Calendar mode="single" locale={ptBR} selected={dataPreferida} onSelect={setDataPreferida} disabled={(day) => format(day, 'yyyy-MM-dd') < hojeSP} className="mx-auto mt-4 max-w-full p-0 [--cell-size:clamp(2rem,9vw,2.75rem)]" />
+          </div>
+          <div className="min-w-0 space-y-4">
+            <div className="space-y-2"><Label htmlFor="agenda-pet">Nome do pet</Label><Input id="agenda-pet" value={petNome} maxLength={80} onChange={(e) => setPetNome(e.target.value)} placeholder="Como seu pet se chama?" className="h-11 text-base" /></div>
+            <div className="space-y-2"><Label htmlFor="agenda-servico">Atendimento desejado</Label><Input id="agenda-servico" value={servico} maxLength={120} onChange={(e) => setServico(e.target.value)} placeholder="Ex.: banho e tosa" className="h-11 text-base" /></div>
+            <fieldset><legend className="mb-2 text-sm font-medium">Período de preferência</legend><div className="flex flex-wrap gap-2">{['Manhã', 'Tarde', 'Sem preferência'].map((opcao) => <Button key={opcao} type="button" variant={periodo === opcao ? 'default' : 'outline'} aria-pressed={periodo === opcao} className="min-h-11" onClick={() => setPeriodo(opcao)}>{opcao}</Button>)}</div></fieldset>
+            <p aria-live="polite" className="rounded-xl bg-primary/5 p-3 text-sm">{dataPreferida ? `Data solicitada: ${format(dataPreferida, 'dd/MM/yyyy')} · ${periodo}` : 'Selecione uma data no calendário.'}</p>
+            <Button asChild className="btn-brand min-h-12 h-auto w-full whitespace-normal py-3"><a href={whatsapp} target="_blank" rel="noreferrer"><MessageCircle className="size-4 shrink-0" /> Consultar disponibilidade no WhatsApp</a></Button>
+            <p className="text-xs text-muted-foreground">A seleção de uma data não reserva um horário.</p>
           </div>
         </CardContent>
       </Card>
@@ -123,6 +143,8 @@ export function ClientAgendamentos() {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Próximos</h2>
         {loading ? (
           <SkeletonLoader type="list" count={4} />
+        ) : erro ? (
+          <Card><CardContent className="p-6 text-sm">Não foi possível carregar seus atendimentos. Atualize a página ou fale com a equipe pelo WhatsApp.</CardContent></Card>
         ) : futuros.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">

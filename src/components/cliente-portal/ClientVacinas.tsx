@@ -7,6 +7,8 @@ import { ptBR } from 'date-fns/locale'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
+import { Button } from '@/components/ui/button'
+import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 
 type Vacina = {
   id: number
@@ -32,6 +34,7 @@ export function ClientVacinas() {
   const [vacinas, setVacinas] = useState<Vacina[]>([])
   const [loading, setLoading] = useState(true)
   const [linked, setLinked] = useState(true)
+  const [erro, setErro] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -45,7 +48,7 @@ export function ClientVacinas() {
         setVacinas(payload.data || [])
         setLinked(payload.linked !== false)
       })
-      .catch((error) => console.error('vacinas cliente erro:', error))
+      .catch((error) => { console.error('vacinas cliente erro:', error); if (active) setErro(true) })
       .finally(() => active && setLoading(false))
 
     return () => { active = false }
@@ -66,31 +69,34 @@ export function ClientVacinas() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Vacinas</h1>
         <p className="text-sm text-muted-foreground">
-          Histórico de vacinação dos seus pets sincronizado com o Siggma
+          Acompanhe o histórico de vacinação dos seus pets.
         </p>
       </div>
 
       {loading && <SkeletonLoader type="list" count={4} />}
 
-      {!loading && !linked && (
+      {!loading && erro && <Card><CardContent className="p-6"><p className="font-medium">Não foi possível carregar as vacinas</p><p className="mt-1 text-sm text-muted-foreground">Atualize a página ou entre em contato com a loja. Seu histórico não foi alterado.</p></CardContent></Card>}
+
+      {!loading && !erro && !linked && (
         <Card>
           <CardContent className="p-8 text-center">
             <ShieldCheck className="mx-auto mb-3 size-10 text-muted-foreground/40" />
-            <p className="font-medium">Conta ainda não vinculada ao Siggma</p>
+            <p className="font-medium">Vamos localizar o histórico do seu pet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Assim que o cadastro for vinculado ao cliente do ERP, o histórico aparecerá aqui.
+              Precisamos confirmar seu cadastro na loja para exibir seus pets e vacinas com segurança.
             </p>
+            <Button asChild className="mt-4 min-h-11 h-auto whitespace-normal"><a href={matilhaWhatsAppUrl('Olá! Já tenho cadastro na Matilha Prado, mas meus pets e vacinas não aparecem no portal. Podem conferir o vínculo da minha conta?')} target="_blank" rel="noreferrer">Pedir ajuda com meu cadastro</a></Button>
           </CardContent>
         </Card>
       )}
 
-      {!loading && linked && vacinas.length === 0 && (
+      {!loading && !erro && linked && vacinas.length === 0 && (
         <Card>
           <CardContent className="p-10 text-center">
             <Syringe className="mx-auto mb-3 size-10 text-muted-foreground/40" />
             <p className="font-medium">Nenhuma vacina registrada</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Os registros feitos no Siggma aparecerão automaticamente nesta aba.
+              Se seu pet já recebeu vacinas na loja, fale com a equipe para conferir o histórico.
             </p>
           </CardContent>
         </Card>
