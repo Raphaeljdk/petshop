@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Calculator,
   MapPin,
@@ -66,30 +66,30 @@ export function FreteCalculator({
   const [loading, setLoading] = useState(false)
   const [dados, setDados] = useState<FreteResponse | null>(null)
   const [selecionado, setSelecionado] = useState<TipoEntrega | null>(null)
+  const requestVersion = useRef(0)
+  const initialized = useRef(false)
 
   // Sincroniza CEP inicial (ex: CEP do cliente logado)
   useEffect(() => {
-    if (cepInicial && !cep) {
+    if (cepInicial && !initialized.current) {
+      initialized.current = true
       setCep(aplicarMascaraCep(cepInicial))
     }
   }, [cepInicial, cep])
 
-  // Limpa seleção quando o CEP muda
-  useEffect(() => {
-    if (selecionado) {
-      setSelecionado(null)
-      onClear?.()
-    }
-  }, [cep])
+  useEffect(() => () => { requestVersion.current += 1 }, [])
 
   const podeCalcular = useMemo(() => validarCep(cep), [cep])
 
   const calcular = async () => {
+    if (loading) return
     if (!validarCep(cep)) {
       toast.error('CEP inválido. Digite 8 dígitos no formato XXXXX-XXX.')
       return
     }
     setLoading(true)
+    const version = ++requestVersion.current
+    setDados(null)
     setSelecionado(null)
     onClear?.()
     try {
@@ -98,6 +98,7 @@ export function FreteCalculator({
       })
       if (!res.ok) throw new Error()
       const data: FreteResponse = await res.json()
+      if (version !== requestVersion.current) return
       setDados(data)
       // Seleção automática da primeira opção (mais barata) para conveniência
       if (data.opcoes.length > 0) {
@@ -111,9 +112,10 @@ export function FreteCalculator({
         })
       }
     } catch {
+      if (version !== requestVersion.current) return
       toast.error('Erro ao calcular frete. Tente novamente.')
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
   }
 
@@ -141,14 +143,23 @@ export function FreteCalculator({
               inputMode="numeric"
               placeholder="00000-000"
               value={cep}
-              onChange={(e) => setCep(aplicarMascaraCep(e.target.value))}
+              autoComplete="postal-code"
+              onChange={(e) => {
+                initialized.current = true
+                requestVersion.current += 1
+                setCep(aplicarMascaraCep(e.target.value))
+                setDados(null)
+                setSelecionado(null)
+                setLoading(false)
+                onClear?.()
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && podeCalcular) {
                   e.preventDefault()
                   calcular()
                 }
               }}
-              className="pl-9 h-9"
+              className="pl-9 h-11 text-base"
               maxLength={9}
             />
           </div>
@@ -158,7 +169,7 @@ export function FreteCalculator({
             type="button"
             onClick={calcular}
             disabled={!podeCalcular || loading}
-            className="h-9 w-full sm:w-auto"
+            className="h-11 w-full sm:w-auto"
           >
             {loading ? (
               <>

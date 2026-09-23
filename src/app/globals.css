@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* The cart is portaled outside animated page containers. Keep just its body scrollable. */
+.cart-sheet[data-slot="sheet-content"] { height: 100dvh; max-height: 100dvh; padding-top: env(safe-area-inset-top); }
+.cart-footer { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.cart-sheet input, .cart-sheet textarea { font-size: 16px; }
+.cart-sheet p, .cart-sheet label { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  .cart-sheet[data-slot="sheet-content"] { animation: none; transition: none; }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

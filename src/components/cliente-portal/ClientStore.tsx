@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ShoppingCart,
   Trash2,
@@ -16,12 +16,13 @@ import {
   X,
   MessageCircle,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { FreteCalculator } from '@/components/cliente-portal/FreteCalculator'
 import { PagamentoCheckout } from '@/components/cliente-portal/PagamentoCheckout'
@@ -55,6 +56,8 @@ interface CupomAplicado {
 }
 
 export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
+  const cartTrigger = useRef<HTMLButtonElement>(null)
+  const cartRevision = useRef(0)
   const [refreshKey, setRefreshKey] = useState(0)
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
@@ -126,16 +129,15 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const total = Math.max(0, subtotal - descontoCupom) + valorFrete
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-  useEffect(() => {
-    setCupomAplicado(null)
-  }, [subtotal])
-
   const adicionarAoCarrinho = (produto: Produto) => {
+    const quantidade = carrinho.find((item) => item.produto.id === produto.id)?.quantidade ?? 0
+    if (quantidade >= produto.estoque) return toast.error('Estoque máximo atingido')
+    cartRevision.current += 1
+    setCupomAplicado(null)
     setCarrinho((prev) => {
       const exists = prev.find((i) => i.produto.id === produto.id)
       if (exists) {
         if (exists.quantidade >= produto.estoque) {
-          toast.error('Estoque máximo atingido')
           return prev
         }
         return prev.map((i) => i.produto.id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i)
@@ -146,13 +148,14 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   }
 
   const alterarQtd = (produtoId: string, delta: number) => {
+    cartRevision.current += 1
+    setCupomAplicado(null)
     setCarrinho((prev) => prev
       .map((i) => {
         if (i.produto.id !== produtoId) return i
         const novaQ = i.quantidade + delta
         if (novaQ <= 0) return null
         if (novaQ > i.produto.estoque) {
-          toast.error('Estoque máximo atingido')
           return i
         }
         return { ...i, quantidade: novaQ }
@@ -161,10 +164,15 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   }
 
   const removerItem = (produtoId: string) => {
+    cartRevision.current += 1
+    setCupomAplicado(null)
+    if (carrinho.length === 1) setFreteSelecionado(null)
     setCarrinho((prev) => prev.filter((i) => i.produto.id !== produtoId))
   }
 
   const aplicarCupom = async () => {
+    if (validandoCupom) return
+    const revision = cartRevision.current
     const codigo = cupomCodigo.trim().toUpperCase()
     if (codigo.length < 3) return toast.error('Digite um código de cupom válido.')
     if (subtotal <= 0) return toast.error('Adicione produtos antes de aplicar o cupom.')
@@ -179,6 +187,10 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || 'Cupom inválido.')
+      if (revision !== cartRevision.current) {
+        toast.info('O carrinho mudou. Aplique o cupom novamente.')
+        return
+      }
       setCupomCodigo(data.cupom.codigo)
       setCupomAplicado(data.cupom)
       toast.success(`Cupom ${data.cupom.codigo} aplicado: ${fmtMoeda(data.cupom.desconto)} de desconto.`)
@@ -196,6 +208,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   }
 
   const finalizarCompra = async () => {
+    if (finalizando) return
     if (carrinho.length === 0) return toast.error('Carrinho vazio')
     if (checkoutZettaBloqueado) {
       return toast.error('A venda online dos produtos do ERP aguarda a liberação do endpoint de pedidos da Zetta.')
@@ -235,6 +248,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   }
 
   const onPagamentoAprovado = () => {
+    toast.success('Pagamento aprovado! Compra realizada com sucesso.')
     setSucessoVisivel(true)
     setCarrinho([])
     setObservacoes('')
@@ -272,8 +286,8 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
             </a>
           </Button>
           {carrinho.length > 0 && (
-            <Button aria-label={`Abrir carrinho com ${carrinho.length} produtos`} onClick={() => setCheckoutOpen(true)} className="btn-brand h-9 sm:h-10 shrink-0">
-              <ShoppingCart className="size-4" /><span className="hidden sm:inline">Carrinho</span> ({carrinho.length})
+            <Button ref={cartTrigger} aria-label={`Abrir carrinho com ${carrinho.reduce((sum, item) => sum + item.quantidade, 0)} itens`} onClick={() => setCheckoutOpen(true)} className="btn-brand h-11 shrink-0">
+              <ShoppingCart className="size-4" /><span className="hidden sm:inline">Carrinho</span> ({carrinho.reduce((sum, item) => sum + item.quantidade, 0)})
             </Button>
           )}
         </div>
@@ -348,47 +362,39 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
         <Card><CardContent className="p-8 sm:p-12 text-center"><Package className="size-12 text-muted-foreground/40 mx-auto mb-3" /><p className="text-muted-foreground">Nenhum produto disponível no momento.</p></CardContent></Card>
       )}
 
-      {checkoutOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px]" onClick={() => { if (!vendaEmPagamento) setCheckoutOpen(false) }}>
-          <div className="flex min-h-full items-end justify-center sm:items-stretch sm:justify-end sm:p-4">
-            <Card
-              className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border-0 shadow-2xl sm:max-h-none sm:h-[calc(100dvh-2rem)] sm:max-w-lg sm:rounded-3xl sm:border"
-              onClick={(e) => e.stopPropagation()}
+      <Sheet open={checkoutOpen} onOpenChange={(open) => {
+        if (finalizando) return
+        setCheckoutOpen(open)
+        if (!open) setFreteSelecionado(null)
+      }}>
+            <SheetContent
+              className="cart-sheet w-full sm:max-w-lg gap-0 overflow-hidden [&>button]:size-11 [&>button]:top-3 [&>button]:right-3 [&>button]:flex [&>button]:items-center [&>button]:justify-center"
+              onInteractOutside={(event) => { if (vendaEmPagamento || finalizando) event.preventDefault() }}
+              onCloseAutoFocus={(event) => { event.preventDefault(); cartTrigger.current?.focus() }}
             >
-              <CardHeader className="sticky top-0 z-10 border-b bg-background/95 pb-4 backdrop-blur">
+              <CardHeader className="shrink-0 border-b bg-muted/30 p-5 pr-16">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <SheetTitle className="flex items-center gap-2 text-lg">
                       {vendaEmPagamento ? (sucessoVisivel ? <><PartyPopper className="size-5 text-green-600" /> Compra realizada!</> : <><Sparkles className="size-5 text-primary" /> Pagamento</>) : <><ShoppingCart className="size-5" /> Seu carrinho</>}
-                    </CardTitle>
+                    </SheetTitle>
+                    <SheetDescription className="mt-1">Confira os produtos, a entrega e o pagamento.</SheetDescription>
                     {!vendaEmPagamento && carrinho.length > 0 && (
                       <p className="mt-1 text-xs text-muted-foreground">{carrinho.reduce((acc, item) => acc + item.quantidade, 0)} item(ns) selecionado(s)</p>
                     )}
                   </div>
-                  {!vendaEmPagamento && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-9 shrink-0"
-                      onClick={() => setCheckoutOpen(false)}
-                      aria-label="Fechar carrinho"
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
-              <CardContent className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+              <div className="custom-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-5">
               {sucessoVisivel ? (
                 <div className="text-center py-6 space-y-3"><div className="size-16 rounded-full bg-green-100 text-green-600 mx-auto flex items-center justify-center"><CheckCircle2 className="size-10" /></div><p className="font-bold text-green-700">Compra realizada com sucesso!</p><p className="text-xs text-muted-foreground">Você receberá atualizações por aqui mesmo.</p></div>
               ) : vendaEmPagamento ? (
                 <>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs mb-1 -mt-2" onClick={() => setVendaEmPagamento(null)}><ArrowLeft className="size-3.5" /> Voltar ao carrinho</Button>
+                  <Button variant="ghost" size="sm" className="h-11 text-sm mb-1" onClick={() => { setVendaEmPagamento(null); setFreteSelecionado(null) }}><ArrowLeft className="size-4" /> Voltar ao carrinho</Button>
                   <PagamentoCheckout vendaId={vendaEmPagamento.id} total={vendaEmPagamento.total} onAprovado={onPagamentoAprovado} onCancelar={cancelarPagamento} />
                 </>
               ) : carrinho.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">Seu carrinho está vazio.</p>
+                <div className="py-12 text-center space-y-4"><ShoppingCart className="size-12 mx-auto text-primary/50" /><p className="text-lg font-semibold">Seu carrinho está vazio</p><p className="text-sm text-muted-foreground">Escolha algo especial para o seu pet.</p><Button variant="outline" className="h-11" onClick={() => setCheckoutOpen(false)}>Continuar comprando</Button></div>
               ) : (
                 <>
                   <div className="space-y-2">
@@ -402,15 +408,15 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                             <p className="text-sm font-semibold leading-snug line-clamp-2">{i.produto.nome}</p>
                             <p className="mt-1 text-xs text-muted-foreground">{fmtMoeda(i.produto.precoPromo ?? i.produto.preco)} cada</p>
                           </div>
-                          <Button size="icon" variant="ghost" className="size-8 shrink-0 text-destructive" onClick={() => removerItem(i.produto.id)} aria-label={`Remover ${i.produto.nome}`}>
+                          <Button size="icon" variant="ghost" className="size-11 shrink-0 text-destructive" onClick={() => removerItem(i.produto.id)} aria-label={`Remover ${i.produto.nome}`}>
                             <Trash2 className="size-3.5" />
                           </Button>
                         </div>
                         <div className="mt-3 flex items-center justify-between gap-3">
                           <div className="flex items-center rounded-lg border bg-background">
-                            <Button size="icon" variant="ghost" className="size-9 rounded-r-none" onClick={() => alterarQtd(i.produto.id, -1)}><Minus className="size-3" /></Button>
-                            <span className="w-10 text-center text-sm font-semibold">{i.quantidade}</span>
-                            <Button size="icon" variant="ghost" className="size-9 rounded-l-none" onClick={() => alterarQtd(i.produto.id, 1)}><Plus className="size-3" /></Button>
+                            <Button size="icon" variant="ghost" className="size-11 rounded-r-none" aria-label={`Diminuir quantidade de ${i.produto.nome}`} disabled={i.quantidade <= 1 || finalizando} onClick={() => alterarQtd(i.produto.id, -1)}><Minus className="size-4" /></Button>
+                            <span aria-live="polite" className="w-8 text-center text-sm font-semibold tabular-nums">{i.quantidade}</span>
+                            <Button size="icon" variant="ghost" className="size-11 rounded-l-none" aria-label={`Aumentar quantidade de ${i.produto.nome}`} disabled={i.quantidade >= i.produto.estoque || finalizando} onClick={() => alterarQtd(i.produto.id, 1)}><Plus className="size-4" /></Button>
                           </div>
                           <p className="text-sm font-bold">{fmtMoeda((i.produto.precoPromo ?? i.produto.preco) * i.quantidade)}</p>
                         </div>
@@ -427,7 +433,8 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void aplicarCupom() } }}
                         placeholder="Ex.: MATILHA10"
                         maxLength={30}
-                        className="uppercase font-mono"
+                        aria-label="Código do cupom de desconto"
+                        className="min-w-0 h-11 uppercase font-mono"
                         disabled={validandoCupom}
                       />
                       <Button type="button" variant="outline" onClick={() => void aplicarCupom()} disabled={validandoCupom || cupomCodigo.trim().length < 3}>
@@ -475,8 +482,14 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                     </div>
                   )}
 
+                </>
+              )}
+              </div>
+              {!vendaEmPagamento && carrinho.length > 0 && (
+                <div className="cart-footer shrink-0 border-t bg-background p-4 space-y-3 sm:p-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm text-muted-foreground">{freteSelecionado ? 'Total da compra' : 'Subtotal · frete a calcular'}</span><strong className="text-xl text-primary tabular-nums">{fmtMoeda(total)}</strong></div>
                   <Button
-                    className="w-full btn-brand h-12"
+                    className="w-full btn-brand min-h-12 h-auto whitespace-normal py-3 text-sm"
                     onClick={finalizarCompra}
                     disabled={finalizando || !freteSelecionado || checkoutZettaBloqueado}
                   >
@@ -484,18 +497,15 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                     {finalizando
                       ? 'Processando...'
                       : checkoutZettaBloqueado
-                        ? 'Aguardando integração de pedidos do ERP'
+                        ? 'Compra online indisponível'
                         : !freteSelecionado
                           ? 'Selecione uma opção de entrega'
                           : 'Confirmar compra'}
                   </Button>
-                </>
+                </div>
               )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
+            </SheetContent>
+      </Sheet>
     </div>
   )
 }
