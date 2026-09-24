@@ -62,6 +62,8 @@
 
 :root {
   --radius: 0.875rem;
+  --font-geist-sans: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --background: #f5f7fb;
   --foreground: #17334b;
   --card: oklch(1 0 0);
