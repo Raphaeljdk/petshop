@@ -100,11 +100,11 @@ export function GoogleReviews() {
         {typeof payload?.place?.reviewCount === 'number' && (
           <span>{payload.place.reviewCount} avaliações no Google Maps</span>
         )}
-        <span className="text-xs">Mais recentes primeiro</span>
+        <span className="text-xs">Avaliações exibidas pelo Google</span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {reviews.slice(0, 3).map((review, index) => (
+        {reviews.slice(0, 5).map((review, index) => (
           <Card key={`${review.authorName}-${review.publishedAt || index}`} className="card-hover h-full py-0">
             <CardContent className="flex h-full flex-col p-6">
               <div className="mb-3 flex gap-0.5" aria-label={`${review.rating} de 5 estrelas`}>
@@ -172,6 +172,24 @@ export function GoogleReviews() {
             </CardContent>
           </Card>
         ))}
+
+        <Card className="card-hover h-full border-dashed py-0">
+          <CardContent className="flex h-full min-h-64 flex-col items-center justify-center p-6 text-center">
+            <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-orange-100">
+              <Star className="size-6 fill-orange-400 text-orange-400" />
+            </div>
+            <p className="text-base font-semibold">Veja todas as avaliações</p>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+              Confira todos os comentários e experiências de clientes diretamente no perfil da Matilha Prado no Google Maps.
+            </p>
+            <Button asChild variant="outline" className="mt-5">
+              <a href={googleUrl} target="_blank" rel="noreferrer">
+                Abrir Google Maps
+                <ExternalLink className="size-4" />
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="text-center">
