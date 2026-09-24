@@ -4,26 +4,29 @@ export const dynamic = 'force-dynamic'
 
 const DEFAULT_PLACE_ID = 'ChIJM21vIv33zpQRZ4M0vWnu090'
 
+type LocalizedText = { text?: string }
+
 type GoogleReview = {
-  author_name?: string
-  author_url?: string
-  profile_photo_url?: string
+  relativePublishTimeDescription?: string
   rating?: number
-  relative_time_description?: string
-  text?: string
-  time?: number
+  text?: LocalizedText
+  originalText?: LocalizedText
+  authorAttribution?: {
+    displayName?: string
+    uri?: string
+    photoUri?: string
+  }
+  publishTime?: string
+  googleMapsUri?: string
 }
 
 type GooglePlaceDetailsResponse = {
-  status?: string
-  error_message?: string
-  result?: {
-    name?: string
-    rating?: number
-    user_ratings_total?: number
-    url?: string
-    reviews?: GoogleReview[]
-  }
+  id?: string
+  displayName?: LocalizedText
+  rating?: number
+  userRatingCount?: number
+  googleMapsUri?: string
+  reviews?: GoogleReview[]
 }
 
 export async function GET() {
@@ -42,31 +45,23 @@ export async function GET() {
   }
 
   try {
-    const params = new URLSearchParams({
-      place_id: placeId,
-      key: apiKey,
-      language: 'pt-BR',
-      reviews_sort: 'newest',
-      fields: 'name,rating,user_ratings_total,url,reviews',
-    })
-
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?${params.toString()}`,
+      `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`,
       {
-        cache: 'no-store',
+        next: { revalidate: 3600 },
         headers: {
           Accept: 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,googleMapsUri,reviews',
         },
       }
     )
 
     const payload = (await response.json()) as GooglePlaceDetailsResponse
 
-    if (!response.ok || payload.status !== 'OK' || !payload.result) {
-      console.error('[google-reviews] Places API error:', {
+    if (!response.ok || !payload) {
+      console.error('[google-reviews] Places API (New) error:', {
         httpStatus: response.status,
-        apiStatus: payload.status,
-        message: payload.error_message,
       })
 
       return NextResponse.json(
@@ -79,21 +74,23 @@ export async function GET() {
       )
     }
 
-    const reviews = (payload.result.reviews || [])
-      .filter((review) => review.text?.trim())
-      .sort((a, b) => Number(b.time || 0) - Number(a.time || 0))
-      .slice(0, 5)
+    const reviews = (payload.reviews || [])
       .map((review) => ({
-        authorName: review.author_name || 'Cliente',
-        authorUrl: review.author_url || null,
-        profilePhotoUrl: review.profile_photo_url || null,
+        authorName: review.authorAttribution?.displayName || 'Cliente',
+        authorUrl: review.authorAttribution?.uri || null,
+        profilePhotoUrl: review.authorAttribution?.photoUri || null,
         rating: Math.min(5, Math.max(0, Number(review.rating || 0))),
-        relativeTime: review.relative_time_description || null,
-        text: review.text?.trim() || '',
-        publishedAt: review.time
-          ? new Date(review.time * 1000).toISOString()
-          : null,
+        relativeTime: review.relativePublishTimeDescription || null,
+        text: review.text?.text?.trim() || review.originalText?.text?.trim() || '',
+        publishedAt: review.publishTime || null,
       }))
+      .filter((review) => review.text)
+      .sort((a, b) => {
+        const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0
+        const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0
+        return bTime - aTime
+      })
+      .slice(0, 5)
 
     return NextResponse.json({
       success: true,
@@ -101,15 +98,15 @@ export async function GET() {
       source: 'Google Maps',
       orderedBy: 'newest',
       place: {
-        name: payload.result.name || 'Matilha Prado',
-        rating: payload.result.rating ?? null,
-        reviewCount: payload.result.user_ratings_total ?? null,
-        url: payload.result.url || null,
+        name: payload.displayName?.text || 'Matilha Prado',
+        rating: payload.rating ?? null,
+        reviewCount: payload.userRatingCount ?? null,
+        url: payload.googleMapsUri || null,
       },
       reviews,
     })
   } catch (error) {
-    console.error('[google-reviews] request failed:', error)
+    console.error('[google-reviews] Places API (New) request failed:', error)
     return NextResponse.json(
       {
         success: false,
