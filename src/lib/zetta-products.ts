@@ -28,6 +28,24 @@ function asBoolean(value: unknown) {
   return value === true || String(value).toLowerCase() === 'true'
 }
 
+function normalizeImageUrls(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => {
+      if (!item) return false
+
+      try {
+        const url = new URL(item)
+        return url.protocol === 'https:' || url.protocol === 'http:'
+      } catch {
+        return false
+      }
+    })
+}
+
 function normalizeProduct(product: SiggmaProduto): ZettaProduct {
   return {
     id: Number(product.pro_cod),
@@ -43,7 +61,7 @@ function normalizeProduct(product: SiggmaProduto): ZettaProduct {
     gtin: product.gtin || null,
     estoqueRealProduto: product.estoque ?? null,
     estoqueReal: product.estoque ?? null,
-    galeria: Array.isArray(product.imagens) ? product.imagens : [],
+    galeria: normalizeImageUrls(product.imagens),
     categorias: Array.isArray(product.categorias) ? product.categorias : [],
     variacoes: Array.isArray(product.variacoes) ? product.variacoes : [],
     excluido: asBoolean(product.excluido),
@@ -140,6 +158,7 @@ export async function syncZettaProductsToLocal() {
       (categoryId ? categoryMap.get(Number(categoryId)) : null) || 'Pet Shop'
     const precoBase = zettaProductBasePrice(product)
     const precoPromo = zettaProductPromoPrice(product)
+    const imageUrl = product.galeria?.[0] || null
 
     return db.produto.upsert({
       where: { zettaProCod: product.id },
@@ -152,7 +171,7 @@ export async function syncZettaProductsToLocal() {
         estoque: zettaProductStock(product),
         sku: zettaProductSku(product),
         zettaProCod: product.id,
-        imageUrl: product.galeria?.[0] || null,
+        imageUrl,
         ativo: true,
       },
       update: {
@@ -163,7 +182,7 @@ export async function syncZettaProductsToLocal() {
         precoPromo,
         estoque: zettaProductStock(product),
         sku: zettaProductSku(product),
-        imageUrl: product.galeria?.[0] || null,
+        ...(imageUrl ? { imageUrl } : {}),
         ativo: true,
       },
     })
