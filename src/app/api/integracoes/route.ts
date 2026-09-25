@@ -15,6 +15,7 @@ export async function GET() {
 
     const integracoes = await db.integracao.findMany({
       orderBy: { createdAt: 'desc' },
+      select: { id: true, plataforma: true, ativo: true, sellerId: true, domain: true, ultimaSync: true, createdAt: true, updatedAt: true },
     })
 
     return NextResponse.json(integracoes)
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+    if (plataforma === 'mercado_livre') return NextResponse.json({ error: 'Conecte o Mercado Livre pelo fluxo OAuth.' }, { status: 400 })
 
     const integracao = await db.integracao.create({
       data: {
@@ -67,10 +69,10 @@ export async function POST(req: NextRequest) {
         ultimaSync: atualizada.ultimaSync,
       })
 
-      return NextResponse.json(atualizada, { status: 201 })
+      return NextResponse.json({ ...atualizada, token: undefined }, { status: 201 })
     }
 
-    return NextResponse.json(integracao, { status: 201 })
+    return NextResponse.json({ ...integracao, token: undefined }, { status: 201 })
   } catch (e) {
     console.error('integracoes POST erro:', e)
     return NextResponse.json({ error: 'Erro ao criar integração' }, { status: 500 })
