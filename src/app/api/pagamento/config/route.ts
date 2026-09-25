@@ -22,14 +22,8 @@ export async function GET() {
 
     const config = await getOuCriarConfigPagamento()
 
-    const envEnabled = process.env.MERCADO_PAGO_ENABLED?.trim().toLowerCase()
     const tokenEnvConfigurado = Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim())
-    const mercadoPagoAtivoEfetivo =
-      envEnabled === 'true'
-        ? true
-        : envEnabled === 'false'
-          ? false
-          : tokenEnvConfigurado || config.mercadoPagoAtivo
+    const mercadoPagoAtivoEfetivo = config.mercadoPagoAtivo
 
     const publicKeyEfetiva =
       process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY?.trim() ||
