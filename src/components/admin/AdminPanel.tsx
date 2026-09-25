@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { LogOut, Radio, ChevronRight, Menu } from 'lucide-react'
+import { LogOut, Radio, ChevronRight, Menu, Search, Command as CommandIcon } from 'lucide-react'
 import { Sidebar, type TabId } from '@/components/layout/Sidebar'
 import { DashboardView } from '@/components/dashboard/DashboardView'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
@@ -16,6 +16,7 @@ import { PagamentosView } from '@/components/admin/PagamentosView'
 import { CuponsView } from '@/components/admin/CuponsView'
 import { AdminInvitations } from '@/components/admin/AdminInvitations'
 import { NotificationBell } from '@/components/admin/NotificationBell'
+import { AdminCommandMenu, type AdminCommandAction } from '@/components/admin/AdminCommandMenu'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/brand/Logo'
 import { useAuth } from '@/components/providers/AuthProvider'
@@ -26,10 +27,6 @@ import type { Notificacao } from '@/lib/types'
 function AdminPanelImpl() {
   const { sessao, logout } = useAuth()
   const { tab, setTab } = useTabHistory<TabId>('dashboard')
-  useEffect(() => {
-    const result = new URLSearchParams(window.location.search).get('ml')
-    if (result === 'connected' || result === 'error') setTab('integracoes')
-  }, [setTab])
   const [counts, setCounts] = useState<{
     novo?: number
     andamento?: number
@@ -39,6 +36,23 @@ function AdminPanelImpl() {
   const [ecommerceRefreshSignal, setEcommerceRefreshSignal] = useState(0)
   const [entregasRefreshSignal, setEntregasRefreshSignal] = useState(0)
   const [pagamentosRefreshSignal, setPagamentosRefreshSignal] = useState(0)
+  const [commandOpen, setCommandOpen] = useState(false)
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('ml')
+    if (result === 'connected' || result === 'error') setTab('integracoes')
+  }, [setTab])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen((value) => !value)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const pageNames: Record<TabId, string> = {
     dashboard: 'Visão geral',
@@ -158,6 +172,21 @@ function AdminPanelImpl() {
               <div className="size-9 rounded-full bg-secondary text-white flex items-center justify-center text-xs font-bold" aria-hidden="true">{user.nome.slice(0, 2).toUpperCase()}</div>
               <div><p className="text-sm font-semibold max-w-40 truncate">{user.nome}</p><p className="text-xs text-muted-foreground">Administrador</p></div>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCommandOpen(true)}
+              className="admin-command-trigger h-9 gap-2"
+              aria-label="Abrir busca rápida"
+            >
+              <Search className="size-4 sm:hidden" />
+              <CommandIcon className="hidden size-4 sm:block" />
+              <span className="hidden lg:inline">Buscar ou navegar</span>
+              <kbd className="hidden xl:inline-flex rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                Ctrl K
+              </kbd>
+            </Button>
             <NotificationBell onVerTodas={() => setTab('notificacoes')} />
             <Button variant="outline" size="sm" onClick={handleLogout} aria-label="Sair da conta" className="h-9 sm:h-9">
               <LogOut className="size-4" /><span className="hidden sm:inline ml-1">Sair</span>
@@ -198,6 +227,17 @@ function AdminPanelImpl() {
           </div>
         </main>
       </div>
+
+      <AdminCommandMenu
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onNavigate={(nextTab) => setTab(nextTab)}
+        onAction={(action: AdminCommandAction) => {
+          if (action === 'novo-produto') handleNovoProduto()
+          if (action === 'novo-agendamento') handleNovoAgendamento()
+          if (action === 'nova-venda') handleNovaVenda()
+        }}
+      />
 
       <footer className="hidden sm:block bg-card border-t border-border px-6 py-2">
         <p className="text-xs text-muted-foreground text-center">Matilha Prado · Painel administrativo</p>

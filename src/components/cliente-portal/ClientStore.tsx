@@ -15,6 +15,8 @@ import {
   Loader2,
   X,
   MessageCircle,
+  Search,
+  ArrowUpDown,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,6 +32,9 @@ import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
+import { FloatingCartButton } from '@/components/cliente-portal/FloatingCartButton'
+import { StoreHero } from '@/components/cliente-portal/StoreHero'
+import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
 
 interface ClientStoreProps {
   onCompraFinalizada?: () => void
@@ -77,6 +82,10 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
   const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Produto | null>(null)
+  const [busca, setBusca] = useState('')
+  const [ordenacao, setOrdenacao] = useState<
+    'relevancia' | 'menor-preco' | 'maior-preco' | 'nome'
+  >('relevancia')
 
   useEffect(() => {
     let active = true
@@ -112,10 +121,29 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
     [produtos]
   )
 
-  const produtosFiltrados = useMemo(
-    () => categoriaFiltro === 'todas' ? produtos : produtos.filter((produto) => produto.categoria === categoriaFiltro),
-    [produtos, categoriaFiltro]
-  )
+  const produtosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLocaleLowerCase('pt-BR')
+    const filtrados = produtos.filter((produto) => {
+      const bateCategoria =
+        categoriaFiltro === 'todas' || produto.categoria === categoriaFiltro
+      const bateBusca =
+        !termo ||
+        produto.nome.toLocaleLowerCase('pt-BR').includes(termo) ||
+        produto.categoria.toLocaleLowerCase('pt-BR').includes(termo) ||
+        produto.descricao?.toLocaleLowerCase('pt-BR').includes(termo)
+
+      return bateCategoria && Boolean(bateBusca)
+    })
+
+    return [...filtrados].sort((a, b) => {
+      const priceA = a.precoPromo ?? a.preco
+      const priceB = b.precoPromo ?? b.preco
+      if (ordenacao === 'menor-preco') return priceA - priceB
+      if (ordenacao === 'maior-preco') return priceB - priceA
+      if (ordenacao === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR')
+      return 0
+    })
+  }, [produtos, categoriaFiltro, busca, ordenacao])
 
   const subtotal = useMemo(
     () => carrinho.reduce(
@@ -129,6 +157,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const carrinhoTemZetta = carrinho.some((item) => Boolean(item.produto.zettaProCod))
   const checkoutZettaBloqueado = carrinhoTemZetta && !siggmaOrderWriteConfigured
   const total = Math.max(0, subtotal - descontoCupom) + valorFrete
+  const cartItemCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0)
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   const adicionarQuantidadeAoCarrinho = (produto: Produto, quantidadeAdicionar = 1) => {
@@ -299,26 +328,13 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   ].join('\n'))
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="page-heading">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Loja</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Produtos premium para o seu pet</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" className="h-9 sm:h-10 shrink-0">
-            <a href={whatsappLoja} target="_blank" rel="noreferrer">
-              <MessageCircle className="size-4" />
-              <span className="hidden sm:inline">WhatsApp</span>
-            </a>
-          </Button>
-          {carrinho.length > 0 && (
-            <Button ref={cartTrigger} aria-label={`Abrir carrinho com ${carrinho.reduce((sum, item) => sum + item.quantidade, 0)} itens`} onClick={() => setCheckoutOpen(true)} className="btn-brand h-11 shrink-0">
-              <ShoppingCart className="size-4" /><span className="hidden sm:inline">Carrinho</span> ({carrinho.reduce((sum, item) => sum + item.quantidade, 0)})
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="space-y-5 pb-24 sm:space-y-7 sm:pb-8">
+      <StoreHero
+        whatsappUrl={whatsappLoja}
+        productsCount={produtos.length}
+        categoriesCount={categorias.length}
+      />
+      <StorePromoCarousel />
 
       {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
         <Card className="border-amber-200 bg-amber-50">
@@ -330,40 +346,69 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
       {loading && <SkeletonLoader type="cards" count={8} />}
 
-      {!loading && categorias.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
-          <Button
-            type="button"
-            size="sm"
-            variant={categoriaFiltro === 'todas' ? 'default' : 'outline'}
-            onClick={() => setCategoriaFiltro('todas')}
-            className="shrink-0"
-          >
-            Todas
-          </Button>
-          {categorias.map((categoria) => (
-            <Button
-              key={categoria}
-              type="button"
-              size="sm"
-              variant={categoriaFiltro === categoria ? 'default' : 'outline'}
-              onClick={() => setCategoriaFiltro(categoria)}
-              className="shrink-0"
-            >
-              {categoria}
-            </Button>
-          ))}
+      {!loading && (
+        <section id="catalogo-loja" className="store-toolbar rounded-2xl border bg-card p-3 sm:p-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+                placeholder="Buscar produto ou categoria..."
+                className="h-11 pl-10"
+                aria-label="Buscar produtos"
+              />
+            </div>
+            <div className="relative">
+              <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={ordenacao}
+                onChange={(event) =>
+                  setOrdenacao(event.target.value as 'relevancia' | 'menor-preco' | 'maior-preco' | 'nome')
+                }
+                className="h-11 min-w-52 rounded-md border border-input bg-background pl-10 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                aria-label="Ordenar produtos"
+              >
+                <option value="relevancia">Relevância</option>
+                <option value="menor-preco">Menor preço</option>
+                <option value="maior-preco">Maior preço</option>
+                <option value="nome">Nome A–Z</option>
+              </select>
+            </div>
+          </div>
+          {categorias.length > 0 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
+              <Button type="button" size="sm" variant={categoriaFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setCategoriaFiltro('todas')} className="shrink-0 rounded-full">
+                Todas
+              </Button>
+              {categorias.map((categoria) => (
+                <Button key={categoria} type="button" size="sm" variant={categoriaFiltro === categoria ? 'default' : 'outline'} onClick={() => setCategoriaFiltro(categoria)} className="shrink-0 rounded-full">
+                  {categoria}
+                </Button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {!loading && produtos.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">{produtosFiltrados.length}</strong>{' '}
+            {produtosFiltrados.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+          </p>
+          {busca && <Button variant="ghost" size="sm" onClick={() => setBusca('')}>Limpar busca</Button>}
         </div>
       )}
 
       <div className="stagger-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
         {produtosFiltrados.map((p) => (
-          <Card key={p.id} className="product-card group card-hover overflow-hidden py-0">
+          <Card key={p.id} className="product-card-v2 group card-hover overflow-hidden py-0">
             <CardContent className="p-4 flex h-full flex-col gap-4">
               <button
                 type="button"
                 onClick={() => setSelectedProduct(p)}
-                className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden"
+                className="product-media aspect-square bg-muted rounded-xl flex items-center justify-center overflow-hidden"
                 aria-label={`Ver detalhes de ${p.nome}`}
               >
                 {p.imageUrl ? (
@@ -406,6 +451,13 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
             adicionarQuantidadeAoCarrinho(selectedProduct, quantity)
           }
         }}
+      />
+
+      <FloatingCartButton
+        buttonRef={cartTrigger}
+        itemCount={cartItemCount}
+        total={subtotal}
+        onClick={() => setCheckoutOpen(true)}
       />
 
       {!loading && produtos.length === 0 && (

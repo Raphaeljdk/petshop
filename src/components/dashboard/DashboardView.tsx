@@ -202,7 +202,7 @@ export function DashboardView({
 
   return (
     <div className="dashboard-view space-y-5 sm:space-y-7">
-      <div className="page-heading">
+      <div className="page-heading admin-overview-hero">
         <div>
           <p className="eyebrow text-primary !mb-2 !mt-0">Sua matilha, em dia</p>
           <h1 className="font-bold">Visão geral</h1>
