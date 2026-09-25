@@ -6,17 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import {
+  ProductDetailsDialog,
+  type ProductPreview,
+} from '@/components/products/ProductDetailsDialog'
 
-type PublicProduct = {
-  id: string
-  nome: string
-  descricao: string | null
-  categoria: string
-  preco: number
-  precoPromo: number | null
-  estoque: number
-  imageUrl: string | null
-}
+type PublicProduct = ProductPreview
 
 type ProductShortcut = {
   id: string
@@ -83,6 +78,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [products, setProducts] = useState<PublicProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState('todas')
+  const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
 
   useEffect(() => {
     let active = true
@@ -280,35 +276,42 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                   return (
                     <Card key={product.id} className="group overflow-hidden py-0 card-hover">
                       <CardContent className="flex h-full flex-col p-3 sm:p-4">
-                        <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-muted">
-                          {product.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={product.imageUrl}
-                              alt={product.nome}
-                              loading="lazy"
-                              className="h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center">
-                              <Package className="size-10 text-muted-foreground/35" />
-                            </div>
-                          )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProduct(product)}
+                          className="text-left"
+                          aria-label={`Ver detalhes de ${product.nome}`}
+                        >
+                          <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-muted">
+                            {product.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={product.imageUrl}
+                                alt={product.nome}
+                                loading="lazy"
+                                className="h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center">
+                                <Package className="size-10 text-muted-foreground/35" />
+                              </div>
+                            )}
 
-                          {hasPromo && (
-                            <Badge className="absolute left-2 top-2 bg-orange-500 text-white hover:bg-orange-500">
-                              <Sparkles className="size-3" />
-                              Oferta
-                            </Badge>
-                          )}
-                        </div>
+                            {hasPromo && (
+                              <Badge className="absolute left-2 top-2 bg-orange-500 text-white hover:bg-orange-500">
+                                <Sparkles className="size-3" />
+                                Oferta
+                              </Badge>
+                            )}
+                          </div>
 
-                        <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug">
-                          {product.nome}
-                        </p>
-                        <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                          {product.categoria}
-                        </p>
+                          <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug group-hover:text-primary">
+                            {product.nome}
+                          </p>
+                          <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                            {product.categoria}
+                          </p>
+                        </button>
 
                         <div className="mt-auto pt-3">
                           {hasPromo && (
@@ -352,6 +355,15 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
           </>
         )}
       </div>
+
+      <ProductDetailsDialog
+        product={selectedProduct}
+        open={Boolean(selectedProduct)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedProduct(null)
+        }}
+        onLoginToBuy={onBuy}
+      />
     </section>
   )
 }
