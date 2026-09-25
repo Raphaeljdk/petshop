@@ -21,6 +21,7 @@ import {
   CardDescription,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type {
   ConfiguracaoFrete,
   ConfiguracaoPagamento,
@@ -42,6 +43,8 @@ type EstadoIntegracoes = {
   bridge: BridgeStatus | null
 }
 
+type MercadoLivreStatus = { configured: boolean; connected: boolean; sellerId: string | null; tokenExpired: boolean }
+
 export function IntegracoesView() {
   const [estado, setEstado] = useState<EstadoIntegracoes>({
     pagamento: null,
@@ -50,17 +53,19 @@ export function IntegracoesView() {
     bridge: null,
   })
   const [loading, setLoading] = useState(true)
+  const [mercadoLivre, setMercadoLivre] = useState<MercadoLivreStatus | null>(null)
 
   useEffect(() => {
     let cancelado = false
 
     async function carregar() {
       try {
-        const [pagamentoRes, freteRes, integracoesRes, bridgeRes] = await Promise.all([
+        const [pagamentoRes, freteRes, integracoesRes, bridgeRes, mlRes] = await Promise.all([
           fetch('/api/pagamento/config', { credentials: 'same-origin' }),
           fetch('/api/frete/config', { credentials: 'same-origin' }),
           fetch('/api/integracoes', { credentials: 'same-origin' }),
           fetch('/api/admin/integration-bridge/status', { credentials: 'same-origin', cache: 'no-store' }),
+          fetch('/api/integracoes/mercado-livre/status', { credentials: 'same-origin', cache: 'no-store' }),
         ])
 
         const pagamento = pagamentoRes.ok
@@ -74,6 +79,7 @@ export function IntegracoesView() {
           : []
         const bridgePayload = bridgeRes.ok ? await bridgeRes.json() : null
         const bridge: BridgeStatus | null = bridgePayload?.bridge || null
+        const mlStatus: MercadoLivreStatus | null = mlRes.ok ? await mlRes.json() : null
 
         if (!cancelado) {
           setEstado({
@@ -87,6 +93,7 @@ export function IntegracoesView() {
             ),
             bridge,
           })
+          setMercadoLivre(mlStatus)
         }
       } catch (e) {
         console.error('integracoes erro:', e)
@@ -134,6 +141,30 @@ export function IntegracoesView() {
               desenvolvedor.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className={mercadoLivre?.connected ? 'border-green-300' : 'border-amber-300'}>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Mercado Livre</CardTitle>
+              <CardDescription>Autorize a conta vendedora para integrar seus anúncios.</CardDescription>
+            </div>
+            <Badge variant={mercadoLivre?.connected ? 'default' : 'secondary'}>{mercadoLivre?.connected ? 'Conectado' : 'Pendente'}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {mercadoLivre?.connected && <p>Conta vendedora: {mercadoLivre.sellerId}</p>}
+          {mercadoLivre?.tokenExpired && <p className="text-amber-700">O token de acesso expirou; a renovação será necessária antes de consultar anúncios.</p>}
+          {!mercadoLivre?.configured && <p className="text-amber-700">Configure as variáveis do Mercado Livre na Vercel para habilitar a conexão.</p>}
+          {!mercadoLivre && !loading && <p className="text-amber-700">Status indisponível. Verifique a migração do banco.</p>}
+          {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ml') === 'error' && <p className="text-red-700">A autorização falhou. Tente conectar novamente.</p>}
+          {mercadoLivre?.configured ? (
+            <Button asChild><a href="/api/integracoes/mercado-livre/conectar">{mercadoLivre.connected ? 'Reconectar Mercado Livre' : 'Conectar Mercado Livre'}</a></Button>
+          ) : (
+            <Button disabled>Conectar Mercado Livre</Button>
+          )}
         </CardContent>
       </Card>
 

@@ -24,6 +24,7 @@ export async function PATCH(
     if (!integracaoExistente) {
       return NextResponse.json({ error: 'Integração não encontrada' }, { status: 404 })
     }
+    if (integracaoExistente.plataforma === 'mercado_livre') return NextResponse.json({ error: 'Gerencie o Mercado Livre pelo fluxo OAuth.' }, { status: 400 })
 
     const dados: any = {}
     if (ativo !== undefined) dados.ativo = Boolean(ativo)
@@ -49,7 +50,7 @@ export async function PATCH(
       })
     }
 
-    return NextResponse.json(integracao)
+    return NextResponse.json({ ...integracao, token: undefined })
   } catch (e) {
     console.error('integracao PATCH erro:', e)
     return NextResponse.json({ error: 'Erro ao atualizar integração' }, { status: 500 })

@@ -219,6 +219,16 @@ model Integracao {
   updatedAt DateTime @updatedAt
 }
 
+model MercadoLivreConnection {
+  id                  String   @id @default("matilha-prado")
+  sellerId            String
+  accessToken         String
+  refreshToken        String
+  accessTokenExpiresAt DateTime
+  connectedAt         DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
 model ConfiguracaoFrete {
   id String @id @default(cuid())
   entregaPropriaAtiva Boolean @default(true)

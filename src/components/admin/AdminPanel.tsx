@@ -26,6 +26,10 @@ import type { Notificacao } from '@/lib/types'
 function AdminPanelImpl() {
   const { sessao, logout } = useAuth()
   const { tab, setTab } = useTabHistory<TabId>('dashboard')
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('ml')
+    if (result === 'connected' || result === 'error') setTab('integracoes')
+  }, [setTab])
   const [counts, setCounts] = useState<{
     novo?: number
     andamento?: number
