@@ -17,8 +17,34 @@ const TOKEN_FALLBACK = 'TEST-fallback-no-token'
 /** Retorna as configurações atuais de pagamento, criando defaults se necessário. */
 export async function getOuCriarConfigPagamento(): Promise<ConfiguracaoPagamento> {
   let config: ConfigPagamentoPrisma | null = await db.configuracaoPagamento.findFirst()
+
   if (!config) {
-    config = await db.configuracaoPagamento.create({ data: {} })
+    config = await db.configuracaoPagamento.create({
+      data: {
+        mercadoPagoAtivo: true,
+        mercadoPagoSandbox: false,
+        pixAtivo: true,
+        cartaoAtivo: true,
+        boletoAtivo: true,
+      },
+    })
+  } else if (
+    !config.mercadoPagoAtivo ||
+    config.mercadoPagoSandbox ||
+    !config.pixAtivo ||
+    !config.cartaoAtivo ||
+    !config.boletoAtivo
+  ) {
+    config = await db.configuracaoPagamento.update({
+      where: { id: config.id },
+      data: {
+        mercadoPagoAtivo: true,
+        mercadoPagoSandbox: false,
+        pixAtivo: true,
+        cartaoAtivo: true,
+        boletoAtivo: true,
+      },
+    })
   }
   return {
     ...config,

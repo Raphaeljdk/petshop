@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { calcularOpcoesFrete, formatarCep, validarCep } from '@/lib/frete'
+import {
+  calcularOpcoesFrete,
+  formatarCep,
+  HORARIO_FUNCIONAMENTO_LABEL,
+  validarCep,
+} from '@/lib/frete'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +32,10 @@ export async function GET(req: NextRequest) {
       dentroSP,
       opcoes,
       retiradaEndereco: config.retiradaEndereco,
+      horarioFuncionamento: HORARIO_FUNCIONAMENTO_LABEL,
+      correiosDisponivel: false,
+      correiosMensagem:
+        'Correios temporariamente indisponível. PAC/SEDEX permanecem desativados até nova liberação.',
     })
   } catch (e) {
     console.error('frete GET erro:', e)

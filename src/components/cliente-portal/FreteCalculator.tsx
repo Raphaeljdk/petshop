@@ -29,6 +29,9 @@ interface FreteResponse {
   dentroSP: boolean
   opcoes: OpcaoFrete[]
   retiradaEndereco: string
+  horarioFuncionamento?: string
+  correiosDisponivel?: boolean
+  correiosMensagem?: string
 }
 
 interface FreteCalculatorProps {
@@ -210,11 +213,41 @@ export function FreteCalculator({
         </div>
       )}
 
+      {!loading && dados && dados.valido && (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-blue-900">
+            <Store className="mt-0.5 size-4 shrink-0" />
+            <div className="text-xs">
+              <p className="font-medium">
+                Horário de funcionamento: {dados.horarioFuncionamento || '09h às 20h'}
+              </p>
+              <p>
+                Retirada e motoboy: prazo de até 4 horas dentro do horário de funcionamento.
+                Pedidos feitos fora desse período seguem no próximo horário disponível.
+              </p>
+            </div>
+          </div>
+
+          {dados.correiosDisponivel === false && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <PackageCheck className="mt-0.5 size-4 shrink-0" />
+              <div className="text-xs">
+                <p className="font-medium">Correios temporariamente indisponível</p>
+                <p>
+                  {dados.correiosMensagem ||
+                    'PAC e SEDEX permanecem desativados até nova liberação.'}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {!loading && dados && dados.valido && dados.opcoes.length > 0 && (
         <>
           {dados.dentroSP ? (
             <p className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
-              CEP dentro da área de cobertura da Zona Norte — motoboy disponível por R$ 20,00.
+              CEP dentro da área de cobertura da Zona Norte — motoboy disponível por R$ 20,00, das 09h às 20h.
             </p>
           ) : (
             <p className="text-[11px] text-muted-foreground bg-muted/50 border border-border rounded px-2 py-1">

@@ -223,13 +223,13 @@ model ConfiguracaoFrete {
   id String @id @default(cuid())
   entregaPropriaAtiva Boolean @default(true)
   entregaPropriaValor Float @default(20.00)
-  entregaPropriaPrazo String @default("1-2 dias úteis")
+  entregaPropriaPrazo String @default("Até 4 horas")
   entregaPropriaCepInicial String @default("02000-000")
   entregaPropriaCepFinal String @default("02999-999")
   sedexAtivo Boolean @default(false)
   sedexPrazo String @default("3-5 dias úteis")
   retiradaAtiva Boolean @default(true)
-  retiradaPrazo String @default("Pronto em 2h")
+  retiradaPrazo String @default("Pronto para retirada em até 4 horas")
   retiradaEndereco String @default("Av. Água Fria, 1647 — Santana, São Paulo/SP")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -237,10 +237,10 @@ model ConfiguracaoFrete {
 
 model ConfiguracaoPagamento {
   id String @id @default(cuid())
-  mercadoPagoAtivo Boolean @default(false)
+  mercadoPagoAtivo Boolean @default(true)
   mercadoPagoAccessToken String?
   mercadoPagoPublicKey String?
-  mercadoPagoSandbox Boolean @default(true)
+  mercadoPagoSandbox Boolean @default(false)
   pixAtivo Boolean @default(true)
   cartaoAtivo Boolean @default(true)
   boletoAtivo Boolean @default(true)

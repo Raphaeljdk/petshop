@@ -69,14 +69,7 @@ function tokenEfetivo(config: ConfiguracaoPagamento): string | null {
 }
 
 function mercadoPagoAtivo(config: ConfiguracaoPagamento): boolean {
-  const env = process.env.MERCADO_PAGO_ENABLED?.trim().toLowerCase()
-
-  if (env === 'false') return false
-  if (env === 'true') return true
-
-  // Quando existe token no ambiente do servidor, consideramos a integração
-  // explicitamente configurada. O toggle do banco continua como fallback.
-  return Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()) || config.mercadoPagoAtivo
+  return config.mercadoPagoAtivo
 }
 
 export function checkoutTransparenteConfigurado(
