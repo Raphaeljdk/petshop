@@ -3,20 +3,37 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 
+function uniqueProducts<T extends { id: string }>(products: T[]) {
+  return [...new Map(products.map((product) => [product.id, product])).values()]
+}
+
 const getPublicProducts = unstable_cache(
   async () => {
     try {
       const synced = await syncZettaProductsToLocal()
-      return synced.products
+      const mercadoLivre = await db.produto.findMany({
+        where: {
+          ativo: true,
+          mlItemId: { not: null },
+          estoque: { gt: 0 },
+        },
+        orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
+      })
+
+      return uniqueProducts([...synced.products, ...mercadoLivre])
     } catch (error) {
-      console.error('[public/produtos] Siggma indisponível, usando cache local:', error)
+      console.error(
+        '[public/produtos] Siggma indisponível, usando cache local:',
+        error
+      )
+
       return db.produto.findMany({
         where: { ativo: true, estoque: { gt: 0 } },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
     }
   },
-  ['public-products-v1'],
+  ['public-products-v2'],
   { revalidate: 300 }
 )
 
@@ -34,6 +51,7 @@ export async function GET() {
         precoPromo: product.precoPromo,
         estoque: product.estoque,
         imageUrl: product.imageUrl,
+        origem: product.mlItemId ? 'mercado_livre' : product.zettaProCod ? 'zetta' : 'hub',
       })),
       {
         headers: {
@@ -43,6 +61,9 @@ export async function GET() {
     )
   } catch (error) {
     console.error('[public/produtos] erro:', error)
-    return NextResponse.json({ error: 'Não foi possível carregar a vitrine.' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Não foi possível carregar a vitrine.' },
+      { status: 500 }
+    )
   }
 }
