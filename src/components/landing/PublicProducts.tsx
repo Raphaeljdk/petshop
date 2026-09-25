@@ -18,6 +18,67 @@ type PublicProduct = {
   imageUrl: string | null
 }
 
+type ProductShortcut = {
+  id: string
+  label: string
+  emoji: string
+  keywords: string[]
+  accent: string
+}
+
+const PRODUCT_SHORTCUTS: ProductShortcut[] = [
+  {
+    id: 'banhos-cuidados',
+    label: 'Banhos e cuidados',
+    emoji: '🧴',
+    keywords: ['banho', 'higiene', 'shampoo', 'condicionador', 'perfume', 'hydra', 'pet society', 'escova'],
+    accent: 'bg-pink-100',
+  },
+  {
+    id: 'gatos',
+    label: 'Para gatos',
+    emoji: '🐱',
+    keywords: ['gato', 'gatos', 'felino', 'felinos', 'cat'],
+    accent: 'bg-emerald-100',
+  },
+  {
+    id: 'acessorios',
+    label: 'Acessórios',
+    emoji: '🦮',
+    keywords: ['acessorio', 'acessorios', 'coleira', 'guia', 'peitoral', 'roupa', 'cama', 'comedouro', 'bebedouro'],
+    accent: 'bg-lime-100',
+  },
+  {
+    id: 'treino',
+    label: 'Para treino',
+    emoji: '🎾',
+    keywords: ['treino', 'treinamento', 'adestramento', 'recompensa', 'clicker', 'training'],
+    accent: 'bg-orange-100',
+  },
+  {
+    id: 'mordedores',
+    label: 'Mordedores',
+    emoji: '🦴',
+    keywords: ['mordedor', 'mordedores', 'brinquedo', 'brinquedos', 'kong', 'bola', 'osso'],
+    accent: 'bg-rose-100',
+  },
+]
+
+function normalizeText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function matchesShortcut(product: PublicProduct, shortcut: ProductShortcut) {
+  const haystack = normalizeText(
+    [product.nome, product.descricao || '', product.categoria || ''].join(' ')
+  )
+
+  return shortcut.keywords.some((keyword) => haystack.includes(normalizeText(keyword)))
+}
+
 export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [products, setProducts] = useState<PublicProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,19 +105,31 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
     }
   }, [])
 
-  const categories = useMemo(
-    () => [...new Set(products.map((product) => product.categoria).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, 'pt-BR')
-    ),
-    [products]
+  const selectedShortcut = useMemo(
+    () => PRODUCT_SHORTCUTS.find((shortcut) => shortcut.id === category) || null,
+    [category]
   )
 
   const visible = useMemo(() => {
-    const filtered =
-      category === 'todas' ? products : products.filter((product) => product.categoria === category)
+    const filtered = selectedShortcut
+      ? products.filter((product) => matchesShortcut(product, selectedShortcut))
+      : products
 
     return filtered.slice(0, 12)
-  }, [category, products])
+  }, [products, selectedShortcut])
+
+  const shortcutImages = useMemo(() => {
+    const map = new Map<string, string>()
+
+    for (const shortcut of PRODUCT_SHORTCUTS) {
+      const product = products.find(
+        (item) => item.imageUrl && matchesShortcut(item, shortcut)
+      )
+      if (product?.imageUrl) map.set(shortcut.id, product.imageUrl)
+    }
+
+    return map
+  }, [products])
 
   const money = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -66,7 +139,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   )
 
   return (
-    <section id="produtos" className="py-14 sm:py-18 lg:py-24 bg-background">
+    <section id="produtos" className="bg-background py-14 sm:py-18 lg:py-24">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
           <Badge variant="secondary" className="mb-3">
@@ -74,11 +147,11 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
             Boutique Matilha Prado
           </Badge>
           <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-            Veja alguns produtos antes mesmo de entrar
+            Encontre o que seu pet precisa
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Preços, promoções e disponibilidade vindos do catálogo da Matilha Prado.
-            Você só precisa entrar na sua conta quando quiser comprar.
+            Escolha uma categoria para filtrar a vitrine. Preços, promoções e disponibilidade
+            vêm do catálogo da Matilha Prado.
           </p>
         </div>
 
@@ -104,92 +177,166 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
           </Card>
         ) : (
           <>
-            {categories.length > 1 && (
-              <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+            <div className="mb-8 overflow-x-auto pb-2">
+              <div className="mx-auto flex min-w-max justify-center gap-3 sm:gap-5 lg:gap-7">
+                {PRODUCT_SHORTCUTS.map((shortcut) => {
+                  const imageUrl = shortcutImages.get(shortcut.id)
+                  const selected = category === shortcut.id
+
+                  return (
+                    <button
+                      key={shortcut.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setCategory(selected ? 'todas' : shortcut.id)}
+                      className="group w-32 shrink-0 text-center sm:w-36"
+                    >
+                      <span
+                        className={[
+                          'mx-auto flex aspect-square w-24 items-center justify-center overflow-hidden rounded-[32%] border transition-all duration-300 sm:w-28',
+                          shortcut.accent,
+                          selected
+                            ? 'border-primary ring-2 ring-primary/25 shadow-lg -translate-y-1'
+                            : 'border-transparent group-hover:-translate-y-1 group-hover:shadow-md',
+                        ].join(' ')}
+                      >
+                        {imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={imageUrl}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <span className="text-5xl" aria-hidden="true">{shortcut.emoji}</span>
+                        )}
+                      </span>
+                      <span
+                        className={[
+                          'mt-3 block text-xs font-semibold uppercase tracking-wide transition-colors sm:text-sm',
+                          selected ? 'text-primary' : 'text-foreground group-hover:text-primary',
+                        ].join(' ')}
+                      >
+                        {shortcut.label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">
+                  {selectedShortcut ? selectedShortcut.label : 'Todos os produtos'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedShortcut
+                    ? 'Mostrando itens relacionados à categoria selecionada.'
+                    : 'Selecione uma categoria acima para filtrar.'}
+                </p>
+              </div>
+              {selectedShortcut && (
                 <Button
                   type="button"
                   size="sm"
-                  variant={category === 'todas' ? 'default' : 'outline'}
+                  variant="outline"
                   onClick={() => setCategory('todas')}
-                  className="shrink-0"
                 >
-                  Todos
+                  Ver todos
                 </Button>
-                {categories.slice(0, 10).map((item) => (
-                  <Button
-                    key={item}
-                    type="button"
-                    size="sm"
-                    variant={category === item ? 'default' : 'outline'}
-                    onClick={() => setCategory(item)}
-                    className="shrink-0"
-                  >
-                    {item}
-                  </Button>
-                ))}
+              )}
+            </div>
+
+            {visible.length === 0 ? (
+              <Card className="mb-6 border-dashed">
+                <CardContent className="p-7 text-center">
+                  <Package className="mx-auto mb-2 size-8 text-muted-foreground/40" />
+                  <p className="text-sm font-medium">
+                    Ainda não encontramos produtos nessa categoria.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setCategory('todas')}>
+                      Ver todos
+                    </Button>
+                    <Button asChild size="sm">
+                      <a href={whatsapp} target="_blank" rel="noreferrer">
+                        Falar no WhatsApp
+                      </a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="stagger-grid grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-6">
+                {visible.map((product) => {
+                  const currentPrice = product.precoPromo ?? product.preco
+                  const hasPromo = product.precoPromo != null && product.precoPromo < product.preco
+
+                  return (
+                    <Card key={product.id} className="group overflow-hidden py-0 card-hover">
+                      <CardContent className="flex h-full flex-col p-3 sm:p-4">
+                        <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-muted">
+                          {product.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={product.imageUrl}
+                              alt={product.nome}
+                              loading="lazy"
+                              className="h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <Package className="size-10 text-muted-foreground/35" />
+                            </div>
+                          )}
+
+                          {hasPromo && (
+                            <Badge className="absolute left-2 top-2 bg-orange-500 text-white hover:bg-orange-500">
+                              <Sparkles className="size-3" />
+                              Oferta
+                            </Badge>
+                          )}
+                        </div>
+
+                        <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug">
+                          {product.nome}
+                        </p>
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                          {product.categoria}
+                        </p>
+
+                        <div className="mt-auto pt-3">
+                          {hasPromo && (
+                            <p className="text-[11px] text-muted-foreground line-through">
+                              {money(product.preco)}
+                            </p>
+                          )}
+                          <p className="text-base font-bold text-primary">{money(currentPrice)}</p>
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            {product.estoque > 0 ? 'Disponível' : 'Indisponível'}
+                          </p>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          onClick={onBuy}
+                          disabled={product.estoque <= 0}
+                          className="mt-3 h-9 w-full"
+                        >
+                          Comprar
+                          <ArrowRight className="size-3.5" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
-
-            <div className="stagger-grid grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-6">
-              {visible.map((product) => {
-                const currentPrice = product.precoPromo ?? product.preco
-                const hasPromo = product.precoPromo != null && product.precoPromo < product.preco
-
-                return (
-                  <Card key={product.id} className="group overflow-hidden py-0 card-hover">
-                    <CardContent className="flex h-full flex-col p-3 sm:p-4">
-                      <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-muted">
-                        {product.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={product.imageUrl}
-                            alt={product.nome}
-                            loading="lazy"
-                            className="h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <Package className="size-10 text-muted-foreground/35" />
-                          </div>
-                        )}
-
-                        {hasPromo && (
-                          <Badge className="absolute left-2 top-2 bg-orange-500 text-white hover:bg-orange-500">
-                            <Sparkles className="size-3" />
-                            Oferta
-                          </Badge>
-                        )}
-                      </div>
-
-                      <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug">
-                        {product.nome}
-                      </p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{product.categoria}</p>
-
-                      <div className="mt-auto pt-3">
-                        {hasPromo && (
-                          <p className="text-[11px] text-muted-foreground line-through">{money(product.preco)}</p>
-                        )}
-                        <p className="text-base font-bold text-primary">{money(currentPrice)}</p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">
-                          {product.estoque > 0 ? 'Disponível' : 'Indisponível'}
-                        </p>
-                      </div>
-
-                      <Button
-                        size="sm"
-                        onClick={onBuy}
-                        disabled={product.estoque <= 0}
-                        className="mt-3 h-9 w-full"
-                      >
-                        Comprar
-                        <ArrowRight className="size-3.5" />
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" onClick={onBuy} className="btn-brand">

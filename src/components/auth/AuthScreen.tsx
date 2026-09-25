@@ -83,10 +83,19 @@ export function AuthScreen() {
             <button onClick={() => scrollTo('nossa-historia')} className="text-sm font-medium hover:text-primary transition-colors">
               Nossa História
             </button>
+            <a
+              href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 transition-colors hover:text-green-600"
+            >
+              <MessageCircle className="size-4" />
+              WhatsApp
+            </a>
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Button variant="ghost" size="sm" onClick={abrirLogin} className="h-9 px-3">
-              <span className="hidden sm:inline">Entrar</span>
+              <span className="hidden sm:inline">Entrar no sistema</span>
               <span className="sm:hidden">Entrar</span>
             </Button>
             <Button size="sm" onClick={abrirCadastro} className="btn-brand h-9 px-3">
@@ -119,7 +128,20 @@ export function AuthScreen() {
               <button key={item.id} onClick={() => scrollTo(item.id)} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted">{item.label}</button>
             ))}
           </nav>
-          <Button variant="outline" onClick={() => { setMobileNavOpen(false); abrirLogin() }}>Entrar</Button>
+          <Button asChild variant="outline">
+            <a
+              href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <MessageCircle className="size-4" />
+              Falar no WhatsApp
+            </a>
+          </Button>
+          <Button variant="outline" onClick={() => { setMobileNavOpen(false); abrirLogin() }}>
+            Entrar no sistema
+          </Button>
           <Button onClick={() => { setMobileNavOpen(false); abrirCadastro() }}>Criar minha conta</Button>
         </SheetContent>
       </Sheet>
