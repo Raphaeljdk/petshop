@@ -7,10 +7,16 @@ export type ZettaProduct = {
   codigoIntegracao?: number | null
   codigo?: string | null
   nome: string
+  complemento?: string | null
+  observacao?: string | null
   preco?: number | string | null
   valorPromocao?: number | string | null
   marca?: string | null
   modelo?: string | null
+  peso?: number | string | null
+  altura?: number | string | null
+  largura?: number | string | null
+  comprimento?: number | string | null
   unidade?: string | null
   codigoBarras?: string | null
   gtin?: string | null
@@ -53,10 +59,16 @@ function normalizeProduct(product: SiggmaProduto): ZettaProduct {
       product.codigo_integracao == null ? null : Number(product.codigo_integracao),
     codigo: product.codigo || null,
     nome: product.nome || `Produto Siggma ${product.pro_cod}`,
+    complemento: product.complemento || null,
+    observacao: product.observacao || null,
     preco: product.preco ?? null,
     valorPromocao: product.valor_promocao ?? null,
     marca: product.marca || null,
     modelo: product.modelo || null,
+    peso: product.peso ?? null,
+    altura: product.altura ?? null,
+    largura: product.largura ?? null,
+    comprimento: product.comprimento ?? null,
     codigoBarras: product.gtin || product.codigo || null,
     gtin: product.gtin || null,
     estoqueRealProduto: product.estoque ?? null,

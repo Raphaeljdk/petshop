@@ -29,6 +29,7 @@ import { PagamentoCheckout } from '@/components/cliente-portal/PagamentoCheckout
 import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
 
 interface ClientStoreProps {
   onCompraFinalizada?: () => void
@@ -75,6 +76,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const [vendaEmPagamento, setVendaEmPagamento] = useState<Venda | null>(null)
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
   const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Produto | null>(null)
 
   useEffect(() => {
     let active = true
@@ -129,22 +131,41 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const total = Math.max(0, subtotal - descontoCupom) + valorFrete
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-  const adicionarAoCarrinho = (produto: Produto) => {
-    const quantidade = carrinho.find((item) => item.produto.id === produto.id)?.quantidade ?? 0
-    if (quantidade >= produto.estoque) return toast.error('Estoque máximo atingido')
+  const adicionarQuantidadeAoCarrinho = (produto: Produto, quantidadeAdicionar = 1) => {
+    const quantidadeAtual =
+      carrinho.find((item) => item.produto.id === produto.id)?.quantidade ?? 0
+    const quantidadeFinal = quantidadeAtual + quantidadeAdicionar
+
+    if (quantidadeAdicionar <= 0) return
+    if (quantidadeFinal > produto.estoque) {
+      return toast.error('Estoque máximo atingido')
+    }
+
     cartRevision.current += 1
     setCupomAplicado(null)
     setCarrinho((prev) => {
       const exists = prev.find((i) => i.produto.id === produto.id)
+
       if (exists) {
-        if (exists.quantidade >= produto.estoque) {
-          return prev
-        }
-        return prev.map((i) => i.produto.id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i)
+        return prev.map((i) =>
+          i.produto.id === produto.id
+            ? { ...i, quantidade: i.quantidade + quantidadeAdicionar }
+            : i
+        )
       }
-      return [...prev, { produto, quantidade: 1 }]
+
+      return [...prev, { produto, quantidade: quantidadeAdicionar }]
     })
-    toast.success(`${produto.nome} adicionado`)
+
+    toast.success(
+      quantidadeAdicionar > 1
+        ? `${quantidadeAdicionar}x ${produto.nome} adicionados`
+        : `${produto.nome} adicionado`
+    )
+  }
+
+  const adicionarAoCarrinho = (produto: Produto) => {
+    adicionarQuantidadeAoCarrinho(produto, 1)
   }
 
   const alterarQtd = (produtoId: string, delta: number) => {
@@ -339,15 +360,25 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
         {produtosFiltrados.map((p) => (
           <Card key={p.id} className="product-card group card-hover overflow-hidden py-0">
             <CardContent className="p-4 flex h-full flex-col gap-4">
-              <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(p)}
+                className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden"
+                aria-label={`Ver detalhes de ${p.nome}`}
+              >
                 {p.imageUrl ? (
                   <img src={p.imageUrl} alt={p.nome} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105" />
                 ) : <Package className="size-12 text-muted-foreground/40" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-base leading-snug line-clamp-2 min-h-11">{p.nome}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(p)}
+                className="flex-1 min-w-0 text-left"
+              >
+                <p className="font-semibold text-base leading-snug line-clamp-2 min-h-11 group-hover:text-primary">{p.nome}</p>
                 <p className="text-xs text-muted-foreground truncate">{p.categoria}</p>
-              </div>
+                <p className="mt-1 text-[11px] font-medium text-primary">Ver fotos e detalhes</p>
+              </button>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   {p.precoPromo ? (
@@ -363,6 +394,19 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
           </Card>
         ))}
       </div>
+
+      <ProductDetailsDialog
+        product={selectedProduct}
+        open={Boolean(selectedProduct)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedProduct(null)
+        }}
+        onAddToCart={(_details, quantity) => {
+          if (selectedProduct) {
+            adicionarQuantidadeAoCarrinho(selectedProduct, quantity)
+          }
+        }}
+      />
 
       {!loading && produtos.length === 0 && (
         <Card><CardContent className="p-8 sm:p-12 text-center"><Package className="size-12 text-muted-foreground/40 mx-auto mb-3" /><p className="text-muted-foreground">Nenhum produto disponível no momento.</p></CardContent></Card>
