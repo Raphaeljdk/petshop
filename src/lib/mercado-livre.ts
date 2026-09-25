@@ -5,8 +5,12 @@ export const ML_CALLBACK = 'https://www.matilhaprado.com.br/api/integracoes/merc
 export const ML_COOKIE = 'ml_oauth_pending'
 export const ML_COOKIE_AGE = 600
 
+export function mercadoLivreClientId() {
+  return process.env.MERCADO_LIVRE_CLIENT_ID?.trim() || process.env.ID_DO_CLIENTE_MERCADO_LIVRE?.trim()
+}
+
 export function mercadoLivreConfig() {
-  const clientId = process.env.MERCADO_LIVRE_CLIENT_ID?.trim()
+  const clientId = mercadoLivreClientId()
   const clientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET?.trim()
   const redirectUri = process.env.MERCADO_LIVRE_REDIRECT_URI?.trim() || ML_CALLBACK
   const key = process.env.MERCADO_LIVRE_TOKEN_ENCRYPTION_KEY?.trim()
