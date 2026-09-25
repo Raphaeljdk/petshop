@@ -27,6 +27,17 @@ import type { Notificacao } from '@/lib/types'
 function AdminPanelImpl() {
   const { sessao, logout } = useAuth()
   const { tab, setTab } = useTabHistory<TabId>('dashboard')
+  const [counts, setCounts] = useState<{
+    novo?: number
+    andamento?: number
+    notificacoesNaoLidas?: number
+  }>({})
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [ecommerceRefreshSignal, setEcommerceRefreshSignal] = useState(0)
+  const [entregasRefreshSignal, setEntregasRefreshSignal] = useState(0)
+  const [pagamentosRefreshSignal, setPagamentosRefreshSignal] = useState(0)
+  const [commandOpen, setCommandOpen] = useState(false)
+
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('ml')
     if (result === 'connected' || result === 'error') setTab('integracoes')
@@ -42,16 +53,6 @@ function AdminPanelImpl() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
-  const [counts, setCounts] = useState<{
-    novo?: number
-    andamento?: number
-    notificacoesNaoLidas?: number
-  }>({})
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [ecommerceRefreshSignal, setEcommerceRefreshSignal] = useState(0)
-  const [entregasRefreshSignal, setEntregasRefreshSignal] = useState(0)
-  const [pagamentosRefreshSignal, setPagamentosRefreshSignal] = useState(0)
-  const [commandOpen, setCommandOpen] = useState(false)
 
   const pageNames: Record<TabId, string> = {
     dashboard: 'Visão geral',
