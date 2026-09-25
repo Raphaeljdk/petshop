@@ -298,9 +298,11 @@ function ProdutoCard({
         </div>
 
         {/* Quick edit: preço + estoque inline */}
-        {produto.zettaProCod ? (
+        {produto.zettaProCod || produto.mlItemId ? (
           <div className="rounded-md border border-primary/15 bg-primary/5 p-2 text-[11px] text-muted-foreground">
-            Preço e estoque são atualizados pelo ERP Zetta.
+            {produto.mlItemId
+              ? 'Preço e estoque são atualizados pela sincronização do Mercado Livre.'
+              : 'Preço e estoque são atualizados pelo ERP Zetta.'}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
