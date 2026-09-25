@@ -17,6 +17,11 @@ const CEP_REGEX = /^\d{5}-?\d{3}$/
 export const MOTOBOY_ZONA_NORTE_CEP_INICIAL = '02000-000'
 export const MOTOBOY_ZONA_NORTE_CEP_FINAL = '02999-999'
 export const MOTOBOY_ZONA_NORTE_VALOR = 20
+export const HORARIO_FUNCIONAMENTO_INICIO = '09:00'
+export const HORARIO_FUNCIONAMENTO_FIM = '20:00'
+export const HORARIO_FUNCIONAMENTO_LABEL = '09h às 20h'
+export const PRAZO_MAXIMO_ENTREGA = 'Até 4 horas'
+export const PRAZO_MAXIMO_RETIRADA = 'Pronto para retirada em até 4 horas'
 
 /** Normaliza o CEP removendo tudo que não for dígito. */
 export function normalizarCep(cep: string): string {
@@ -85,6 +90,9 @@ export async function getOuCriarConfigFrete(): Promise<ConfiguracaoFrete> {
         entregaPropriaValor: MOTOBOY_ZONA_NORTE_VALOR,
         entregaPropriaCepInicial: MOTOBOY_ZONA_NORTE_CEP_INICIAL,
         entregaPropriaCepFinal: MOTOBOY_ZONA_NORTE_CEP_FINAL,
+        entregaPropriaPrazo: PRAZO_MAXIMO_ENTREGA,
+        retiradaAtiva: true,
+        retiradaPrazo: PRAZO_MAXIMO_RETIRADA,
         sedexAtivo: false,
       },
     })
@@ -93,6 +101,9 @@ export async function getOuCriarConfigFrete(): Promise<ConfiguracaoFrete> {
     config.entregaPropriaValor !== MOTOBOY_ZONA_NORTE_VALOR ||
     config.entregaPropriaCepInicial !== MOTOBOY_ZONA_NORTE_CEP_INICIAL ||
     config.entregaPropriaCepFinal !== MOTOBOY_ZONA_NORTE_CEP_FINAL ||
+    config.entregaPropriaPrazo !== PRAZO_MAXIMO_ENTREGA ||
+    !config.retiradaAtiva ||
+    config.retiradaPrazo !== PRAZO_MAXIMO_RETIRADA ||
     config.sedexAtivo
   ) {
     config = await db.configuracaoFrete.update({
@@ -102,6 +113,9 @@ export async function getOuCriarConfigFrete(): Promise<ConfiguracaoFrete> {
         entregaPropriaValor: MOTOBOY_ZONA_NORTE_VALOR,
         entregaPropriaCepInicial: MOTOBOY_ZONA_NORTE_CEP_INICIAL,
         entregaPropriaCepFinal: MOTOBOY_ZONA_NORTE_CEP_FINAL,
+        entregaPropriaPrazo: PRAZO_MAXIMO_ENTREGA,
+        retiradaAtiva: true,
+        retiradaPrazo: PRAZO_MAXIMO_RETIRADA,
         sedexAtivo: false,
       },
     })
@@ -139,7 +153,7 @@ export async function calcularOpcoesFrete(
       label: 'Retirada na loja',
       valor: 0,
       prazo: config.retiradaPrazo,
-      descricao: 'Grátis',
+      descricao: `Grátis · Retirada no horário de funcionamento (${HORARIO_FUNCIONAMENTO_LABEL})`,
       enderecoRetirada: config.retiradaEndereco,
       disponivel: true,
     })
@@ -151,7 +165,7 @@ export async function calcularOpcoesFrete(
       label: 'Motoboy Matilha Prado',
       valor: MOTOBOY_ZONA_NORTE_VALOR,
       prazo: config.entregaPropriaPrazo,
-      descricao: 'Entrega própria na Zona Norte de São Paulo',
+      descricao: `Entrega própria na Zona Norte de São Paulo · ${HORARIO_FUNCIONAMENTO_LABEL}`,
       disponivel: true,
     })
   }
