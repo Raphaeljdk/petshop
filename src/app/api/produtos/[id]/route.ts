@@ -38,9 +38,9 @@ export async function PUT(
 
     const dados: any = {}
 
-    // Produtos vinculados ao Zetta recebem nome, preço, estoque e SKU do ERP.
-    // O painel local continua podendo editar apenas metadados de exibição.
-    if (!produtoExistente.zettaProCod) {
+    // Produtos vinculados a fontes externas recebem nome, preço, estoque e SKU
+    // da integração. O painel local edita apenas metadados e publicação.
+    if (!produtoExistente.zettaProCod && !produtoExistente.mlItemId) {
       if (nome !== undefined) dados.nome = nome
       if (preco !== undefined) dados.preco = preco
       if (precoPromo !== undefined) dados.precoPromo = precoPromo
@@ -86,7 +86,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 })
     }
 
-    if (produtoExistente.zettaProCod) {
+    if (produtoExistente.zettaProCod || produtoExistente.mlItemId) {
       await db.produto.update({
         where: { id },
         data: { ativo: false },

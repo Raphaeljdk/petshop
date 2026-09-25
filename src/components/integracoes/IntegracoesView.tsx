@@ -10,6 +10,10 @@ import {
   Info,
   ShieldCheck,
   AlertCircle,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Package,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -27,6 +31,7 @@ import type {
   ConfiguracaoPagamento,
   Integracao,
 } from '@/lib/types'
+import { toast } from 'sonner'
 
 type BridgeStatus = {
   reachable?: boolean
@@ -44,7 +49,19 @@ type EstadoIntegracoes = {
 }
 
 type MercadoLivreStatus = { configured: boolean; connected: boolean; databaseReady: boolean; sellerId: string | null; tokenExpired: boolean; error?: string }
-type MercadoLivreItem = { id: string; title: string; price: number | null; currency: string; quantity: number; status: string; permalink: string | null }
+type MercadoLivreItem = {
+  id: string
+  title: string
+  price: number | null
+  currency: string
+  quantity: number
+  status: string
+  permalink: string | null
+  thumbnail: string | null
+  imported: boolean
+  published: boolean
+  productId: string | null
+}
 type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
 
 export function IntegracoesView() {
@@ -60,6 +77,9 @@ export function IntegracoesView() {
   const [mlPage, setMlPage] = useState(1)
   const [mlLoading, setMlLoading] = useState(false)
   const [mlError, setMlError] = useState('')
+  const [mlSyncing, setMlSyncing] = useState(false)
+  const [mlRefresh, setMlRefresh] = useState(0)
+  const [mlPublishingId, setMlPublishingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!mercadoLivre?.connected) return
@@ -80,7 +100,7 @@ export function IntegracoesView() {
     }
     void loadItems()
     return () => controller.abort()
-  }, [mercadoLivre?.connected, mlPage])
+  }, [mercadoLivre?.connected, mlPage, mlRefresh])
 
   useEffect(() => {
     let cancelado = false
@@ -135,6 +155,76 @@ export function IntegracoesView() {
     }
   }, [])
 
+  const sincronizarMercadoLivre = async () => {
+    if (mlSyncing) return
+
+    setMlSyncing(true)
+    try {
+      const response = await fetch('/api/integracoes/mercado-livre/sincronizar', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Não foi possível sincronizar o catálogo.')
+      }
+
+      toast.success(
+        `Mercado Livre sincronizado: ${data.created || 0} novo(s) e ${data.updated || 0} atualizado(s).`
+      )
+      if (data.created) {
+        toast.info('Os novos produtos foram importados ocultos. Publique apenas os que quiser exibir.')
+      }
+      setMlRefresh((value) => value + 1)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível sincronizar o Mercado Livre.'
+      )
+    } finally {
+      setMlSyncing(false)
+    }
+  }
+
+  const alterarPublicacaoMercadoLivre = async (
+    item: MercadoLivreItem,
+    publicar: boolean
+  ) => {
+    if (!item.productId || mlPublishingId) return
+
+    setMlPublishingId(item.id)
+    try {
+      const response = await fetch(`/api/produtos/${item.productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ ativo: publicar }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'Não foi possível alterar a publicação.')
+      }
+
+      toast.success(
+        publicar
+          ? `${item.title} publicado na vitrine.`
+          : `${item.title} ocultado da vitrine.`
+      )
+      setMlRefresh((value) => value + 1)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível alterar a publicação.'
+      )
+    } finally {
+      setMlPublishingId(null)
+    }
+  }
+
   const pagamentoPronto =
     estado.pagamento?.checkoutPronto ??
     Boolean(
@@ -173,52 +263,252 @@ export function IntegracoesView() {
 
       <Card className={mercadoLivre?.connected ? 'border-green-300' : 'border-amber-300'}>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-base">Mercado Livre</CardTitle>
-              <CardDescription>Autorize a conta vendedora para integrar seus anúncios.</CardDescription>
+              <CardDescription>
+                Sincronize os anúncios, revise os produtos e escolha o que aparece para os clientes.
+              </CardDescription>
             </div>
-            <Badge variant={mercadoLivre?.connected ? 'default' : 'secondary'}>{mercadoLivre?.connected ? 'Conectado' : 'Pendente'}</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={mercadoLivre?.connected ? 'default' : 'secondary'}>
+                {mercadoLivre?.connected ? 'Conectado' : 'Pendente'}
+              </Badge>
+              {mercadoLivre?.connected && (
+                <Button
+                  size="sm"
+                  onClick={sincronizarMercadoLivre}
+                  disabled={mlSyncing}
+                >
+                  <RefreshCw className={`size-4 ${mlSyncing ? 'animate-spin' : ''}`} />
+                  {mlSyncing ? 'Sincronizando...' : 'Sincronizar catálogo'}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {mercadoLivre?.connected && <p>Conta vendedora: {mercadoLivre.sellerId}</p>}
-          {mercadoLivre?.tokenExpired && <p className="text-amber-700">O token de acesso expirou; a renovação será necessária antes de consultar anúncios.</p>}
-          {!mercadoLivre?.configured && <p className="text-amber-700">Configure as variáveis do Mercado Livre na Vercel para habilitar a conexão.</p>}
-          {mercadoLivre && !mercadoLivre.databaseReady && <p className="text-amber-700">{mercadoLivre.error || 'Banco da integração indisponível.'}</p>}
-          {!mercadoLivre && !loading && <p className="text-amber-700">Não foi possível consultar o status da integração.</p>}
-          {mercadoLivre?.configured && mercadoLivre.databaseReady && !mercadoLivre.connected && <p className="text-muted-foreground">Aplicação configurada. Falta autorizar a conta vendedora pelo botão abaixo.</p>}
-          {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ml') === 'error' && <p className="text-red-700">A autorização falhou. Tente conectar novamente.</p>}
+
+        <CardContent className="space-y-4 text-sm">
+          {mercadoLivre?.connected && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="font-medium">Conta vendedora: {mercadoLivre.sellerId}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Novos anúncios entram no catálogo como <strong>ocultos</strong>. Use “Publicar”
+                somente nos itens que devem aparecer na loja e na vitrine pública.
+              </p>
+            </div>
+          )}
+
+          {mercadoLivre?.tokenExpired && (
+            <p className="text-amber-700">
+              O token expirou. A integração tentará renovar automaticamente antes da próxima consulta.
+            </p>
+          )}
+          {!mercadoLivre?.configured && (
+            <p className="text-amber-700">
+              Configure as variáveis do Mercado Livre na Vercel para habilitar a conexão.
+            </p>
+          )}
+          {mercadoLivre && !mercadoLivre.databaseReady && (
+            <p className="text-amber-700">
+              {mercadoLivre.error || 'Banco da integração indisponível.'}
+            </p>
+          )}
+          {!mercadoLivre && !loading && (
+            <p className="text-amber-700">
+              Não foi possível consultar o status da integração.
+            </p>
+          )}
+          {mercadoLivre?.configured &&
+            mercadoLivre.databaseReady &&
+            !mercadoLivre.connected && (
+              <p className="text-muted-foreground">
+                Aplicação configurada. Falta autorizar a conta vendedora.
+              </p>
+            )}
+
+          {typeof window !== 'undefined' &&
+            new URLSearchParams(window.location.search).get('ml') === 'error' && (
+              <p className="text-red-700">
+                A autorização falhou. Tente conectar novamente.
+              </p>
+            )}
+
           {mercadoLivre?.configured && mercadoLivre.databaseReady ? (
-            <Button asChild><a href="/api/integracoes/mercado-livre/conectar">{mercadoLivre.connected ? 'Reconectar Mercado Livre' : 'Conectar Mercado Livre'}</a></Button>
+            <Button asChild variant={mercadoLivre.connected ? 'outline' : 'default'}>
+              <a href="/api/integracoes/mercado-livre/conectar">
+                {mercadoLivre.connected
+                  ? 'Reconectar Mercado Livre'
+                  : 'Conectar Mercado Livre'}
+              </a>
+            </Button>
           ) : (
             <Button disabled>Conectar Mercado Livre</Button>
           )}
+
           {mercadoLivre?.connected && (
             <div className="space-y-3 border-t pt-4">
-              <h3 className="font-semibold">Anúncios da conta ({mlItems?.total ?? '…'})</h3>
-              {mlLoading && <p className="text-muted-foreground">Carregando anúncios...</p>}
-              {mlError && <p role="alert" className="text-red-700">{mlError}</p>}
-              {!mlLoading && !mlError && mlItems?.items.length === 0 && <p className="text-muted-foreground">Nenhum anúncio encontrado nesta conta.</p>}
-              <div className="divide-y rounded-md border">
-                {mlItems?.items.map(item => (
-                  <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                    <div className="min-w-0">
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.id} · {item.status} · Estoque: {item.quantity}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-semibold">
+                    Anúncios da conta ({mlItems?.total ?? '…'})
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Imagem, preço e estoque vêm do Mercado Livre.
+                  </p>
+                </div>
+                {mlItems?.items.some((item) => item.imported) && (
+                  <div className="flex gap-2 text-xs">
+                    <Badge variant="outline">
+                      {mlItems.items.filter((item) => item.imported).length} importado(s)
+                    </Badge>
+                    <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                      {mlItems.items.filter((item) => item.published).length} publicado(s)
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {mlLoading && (
+                <p className="text-muted-foreground">Carregando anúncios...</p>
+              )}
+              {mlError && (
+                <p role="alert" className="text-red-700">
+                  {mlError}
+                </p>
+              )}
+              {!mlLoading && !mlError && mlItems?.items.length === 0 && (
+                <p className="text-muted-foreground">
+                  Nenhum anúncio encontrado nesta conta.
+                </p>
+              )}
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                {mlItems?.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex min-w-0 gap-3 rounded-xl border bg-background p-3"
+                  >
+                    <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                      {item.thumbnail ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.thumbnail}
+                          alt={item.title}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Package className="size-8 text-muted-foreground/35" />
+                      )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <strong>{item.price == null ? 'Preço indisponível' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: item.currency }).format(item.price)}</strong>
-                      {item.permalink && <a href={item.permalink} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Ver anúncio</a>}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 font-medium leading-snug">
+                            {item.title}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {item.id} · Estoque: {item.quantity}
+                          </p>
+                        </div>
+                        <strong className="shrink-0 text-sm">
+                          {item.price == null
+                            ? 'Preço indisponível'
+                            : new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: item.currency,
+                              }).format(item.price)}
+                        </strong>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {item.status}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            item.imported
+                              ? 'border-blue-200 bg-blue-50 text-blue-700'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {item.imported ? 'Importado' : 'Aguardando sync'}
+                        </Badge>
+                        {item.imported && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              item.published
+                                ? 'border-green-200 bg-green-50 text-green-700'
+                                : 'border-slate-200 bg-slate-50 text-slate-600'
+                            }
+                          >
+                            {item.published ? 'Publicado' : 'Oculto'}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.imported && item.productId && (
+                          <Button
+                            size="sm"
+                            variant={item.published ? 'outline' : 'default'}
+                            disabled={mlPublishingId === item.id}
+                            onClick={() =>
+                              alterarPublicacaoMercadoLivre(item, !item.published)
+                            }
+                          >
+                            {item.published ? (
+                              <EyeOff className="size-3.5" />
+                            ) : (
+                              <Eye className="size-3.5" />
+                            )}
+                            {item.published ? 'Ocultar' : 'Publicar'}
+                          </Button>
+                        )}
+
+                        {item.permalink && (
+                          <Button asChild size="sm" variant="ghost">
+                            <a
+                              href={item.permalink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Ver no Mercado Livre
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+
               {mlItems && mlItems.total > 20 && (
                 <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" disabled={mlPage === 1 || mlLoading} onClick={() => setMlPage(page => page - 1)}>Anterior</Button>
-                  <span>Página {mlPage} de {Math.ceil(mlItems.total / 20)}</span>
-                  <Button variant="outline" size="sm" disabled={mlPage >= Math.ceil(mlItems.total / 20) || mlLoading} onClick={() => setMlPage(page => page + 1)}>Próxima</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={mlPage === 1 || mlLoading}
+                    onClick={() => setMlPage((page) => page - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span>
+                    Página {mlPage} de {Math.ceil(mlItems.total / 20)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      mlPage >= Math.ceil(mlItems.total / 20) || mlLoading
+                    }
+                    onClick={() => setMlPage((page) => page + 1)}
+                  >
+                    Próxima
+                  </Button>
                 </div>
               )}
             </div>
