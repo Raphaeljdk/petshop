@@ -44,6 +44,8 @@ type EstadoIntegracoes = {
 }
 
 type MercadoLivreStatus = { configured: boolean; connected: boolean; sellerId: string | null; tokenExpired: boolean }
+type MercadoLivreItem = { id: string; title: string; price: number | null; currency: string; quantity: number; status: string; permalink: string | null }
+type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
 
 export function IntegracoesView() {
   const [estado, setEstado] = useState<EstadoIntegracoes>({
@@ -54,6 +56,31 @@ export function IntegracoesView() {
   })
   const [loading, setLoading] = useState(true)
   const [mercadoLivre, setMercadoLivre] = useState<MercadoLivreStatus | null>(null)
+  const [mlItems, setMlItems] = useState<MercadoLivreItems | null>(null)
+  const [mlPage, setMlPage] = useState(1)
+  const [mlLoading, setMlLoading] = useState(false)
+  const [mlError, setMlError] = useState('')
+
+  useEffect(() => {
+    if (!mercadoLivre?.connected) return
+    const controller = new AbortController()
+    async function loadItems() {
+      setMlLoading(true)
+      setMlError('')
+      try {
+        const response = await fetch(`/api/integracoes/mercado-livre/itens?page=${mlPage}`, { cache: 'no-store', signal: controller.signal })
+        if (!response.ok) throw new Error('Não foi possível buscar os anúncios. Reconecte a conta se o problema continuar.')
+        const data = await response.json() as MercadoLivreItems
+        setMlItems(data)
+      } catch {
+        if (!controller.signal.aborted) setMlError('Não foi possível buscar os anúncios. Reconecte a conta se o problema continuar.')
+      } finally {
+        if (!controller.signal.aborted) setMlLoading(false)
+      }
+    }
+    void loadItems()
+    return () => controller.abort()
+  }, [mercadoLivre?.connected, mlPage])
 
   useEffect(() => {
     let cancelado = false
@@ -164,6 +191,35 @@ export function IntegracoesView() {
             <Button asChild><a href="/api/integracoes/mercado-livre/conectar">{mercadoLivre.connected ? 'Reconectar Mercado Livre' : 'Conectar Mercado Livre'}</a></Button>
           ) : (
             <Button disabled>Conectar Mercado Livre</Button>
+          )}
+          {mercadoLivre?.connected && (
+            <div className="space-y-3 border-t pt-4">
+              <h3 className="font-semibold">Anúncios da conta ({mlItems?.total ?? '…'})</h3>
+              {mlLoading && <p className="text-muted-foreground">Carregando anúncios...</p>}
+              {mlError && <p role="alert" className="text-red-700">{mlError}</p>}
+              {!mlLoading && !mlError && mlItems?.items.length === 0 && <p className="text-muted-foreground">Nenhum anúncio encontrado nesta conta.</p>}
+              <div className="divide-y rounded-md border">
+                {mlItems?.items.map(item => (
+                  <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                    <div className="min-w-0">
+                      <p className="font-medium">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.id} · {item.status} · Estoque: {item.quantity}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <strong>{item.price == null ? 'Preço indisponível' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: item.currency }).format(item.price)}</strong>
+                      {item.permalink && <a href={item.permalink} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Ver anúncio</a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {mlItems && mlItems.total > 20 && (
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" size="sm" disabled={mlPage === 1 || mlLoading} onClick={() => setMlPage(page => page - 1)}>Anterior</Button>
+                  <span>Página {mlPage} de {Math.ceil(mlItems.total / 20)}</span>
+                  <Button variant="outline" size="sm" disabled={mlPage >= Math.ceil(mlItems.total / 20) || mlLoading} onClick={() => setMlPage(page => page + 1)}>Próxima</Button>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

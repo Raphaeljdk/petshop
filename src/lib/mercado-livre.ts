@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
+import { db } from '@/lib/db'
 
 export const ML_CALLBACK = 'https://www.matilhaprado.com.br/api/integracoes/mercado-livre/callback'
 export const ML_COOKIE = 'ml_oauth_pending'
@@ -31,4 +32,41 @@ export function decryptToken(value: string, key: Buffer) {
   const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'))
   decipher.setAuthTag(Buffer.from(tag, 'base64url'))
   return Buffer.concat([decipher.update(Buffer.from(data, 'base64url')), decipher.final()]).toString('utf8')
+}
+
+export async function mercadoLivreAccessToken() {
+  const config = mercadoLivreConfig()
+  const connection = await db.mercadoLivreConnection.findUnique({ where: { id: 'matilha-prado' } })
+  if (!connection) throw new Error('Conta Mercado Livre não conectada')
+  if (connection.accessTokenExpiresAt.getTime() > Date.now() + 60_000) {
+    return { token: decryptToken(connection.accessToken, config.key), sellerId: connection.sellerId }
+  }
+
+  const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+    method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: config.clientId,
+      client_secret: config.clientSecret, refresh_token: decryptToken(connection.refreshToken, config.key) }),
+  })
+  if (!response.ok) {
+    // A refresh token may have been consumed by a concurrent request.
+    const latest = await db.mercadoLivreConnection.findUnique({ where: { id: connection.id } })
+    if (latest && latest.refreshToken !== connection.refreshToken && latest.accessTokenExpiresAt > new Date(Date.now() + 60_000)) {
+      return { token: decryptToken(latest.accessToken, config.key), sellerId: latest.sellerId }
+    }
+    throw new Error(`Renovação do Mercado Livre falhou (${response.status}); reconecte a conta`)
+  }
+  const payload = await response.json() as { access_token?: string; refresh_token?: string; expires_in?: number }
+  if (!payload.access_token || !payload.refresh_token || !Number.isFinite(Number(payload.expires_in))) {
+    throw new Error('Resposta de renovação incompleta')
+  }
+  const updated = await db.mercadoLivreConnection.updateMany({
+    where: { id: connection.id, refreshToken: connection.refreshToken },
+    data: { accessToken: encryptToken(payload.access_token, config.key), refreshToken: encryptToken(payload.refresh_token, config.key),
+      accessTokenExpiresAt: new Date(Date.now() + Number(payload.expires_in) * 1000) },
+  })
+  if (!updated.count) {
+    const latest = await db.mercadoLivreConnection.findUniqueOrThrow({ where: { id: connection.id } })
+    return { token: decryptToken(latest.accessToken, config.key), sellerId: latest.sellerId }
+  }
+  return { token: payload.access_token, sellerId: connection.sellerId }
 }
