@@ -10,6 +10,7 @@ import {
   Package,
   Plus,
   ShoppingCart,
+  ExternalLink,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,8 @@ type ProductDetails = ProductPreview & {
   largura?: string | number | null
   comprimento?: string | number | null
   sku?: string | null
+  origem?: 'mercado_livre' | 'zetta' | 'hub'
+  marketplaceUrl?: string | null
 }
 
 type ProductDetailsDialogProps = {
@@ -221,6 +224,11 @@ export function ProductDetailsDialog({
           <div className="flex flex-col p-5 sm:p-7">
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">{current?.categoria || product.categoria}</Badge>
+              {current?.origem === 'mercado_livre' && (
+                <Badge className="border-yellow-200 bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                  Mercado Livre
+                </Badge>
+              )}
               {hasPromo && <Badge className="bg-orange-500 text-white hover:bg-orange-500">Oferta</Badge>}
             </div>
 
@@ -325,6 +333,19 @@ export function ProductDetailsDialog({
                 >
                   <ShoppingCart className="size-4" />
                   Entrar para comprar
+                </Button>
+              )}
+
+              {current?.marketplaceUrl && (
+                <Button asChild variant="outline" className="mt-3 h-11 w-full">
+                  <a
+                    href={current.marketplaceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink className="size-4" />
+                    Ver anúncio no Mercado Livre
+                  </a>
                 </Button>
               )}
 
