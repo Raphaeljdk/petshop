@@ -18,6 +18,8 @@ import {
   Trash2,
   TrendingUp,
   X,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
 import {
   format,
@@ -218,7 +220,7 @@ function ProdutoCard({
   const temPromo = produto.precoPromo && produto.precoPromo > 0
 
   return (
-    <Card className={cn('flex flex-col', !produto.ativo && 'opacity-60')}>
+    <Card className={cn('admin-product-card flex flex-col', !produto.ativo && 'opacity-60')}>
       <CardContent className="p-4 flex-1 space-y-3">
         {/* Header do card */}
         <div className="flex items-start gap-3">
@@ -364,6 +366,73 @@ function ProdutoCard({
             onClick={onExcluir}
           >
             <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/* --------------------------------------------------------------------- */
+/* ProdutoListRow                                                        */
+/* --------------------------------------------------------------------- */
+
+function ProdutoListRow({
+  produto,
+  onEditar,
+  onExcluir,
+  onToggleAtivo,
+}: {
+  produto: Produto
+  onEditar: () => void
+  onExcluir: () => void
+  onToggleAtivo: () => void
+}) {
+  const estoqueMeta = corEstoque(produto.estoque)
+  const preco = produto.precoPromo ?? produto.preco
+
+  return (
+    <Card className={cn('admin-product-list-row py-0', !produto.ativo && 'opacity-60')}>
+      <CardContent className="grid items-center gap-3 p-3 sm:grid-cols-[auto_minmax(0,1.6fr)_minmax(120px,.7fr)_minmax(120px,.6fr)_auto] sm:p-4">
+        <div className="size-14 overflow-hidden rounded-xl border bg-muted">
+          {produto.imageUrl ? (
+            <img src={produto.imageUrl} alt={produto.nome} className="size-full object-cover" />
+          ) : (
+            <div className="flex size-full items-center justify-center text-2xl" aria-hidden>
+              {emojiCategoria(produto.categoria)}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <p className="truncate font-semibold">{produto.nome}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <Badge variant="secondary" className="text-[10px]">{produto.categoria}</Badge>
+            {produto.zettaProCod && <Badge variant="outline" className="text-[9px]">Zetta</Badge>}
+            {produto.mlItemId && <Badge className="border-yellow-200 bg-yellow-100 text-[9px] text-yellow-700">Mercado Livre</Badge>}
+          </div>
+          {produto.sku && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">SKU {produto.sku}</p>}
+        </div>
+
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Preço</p>
+          <p className="font-bold tabular-nums text-primary">{fmtMoeda(preco)}</p>
+        </div>
+
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Estoque</p>
+          <Badge className={cn('mt-1 border text-[10px]', estoqueMeta.className)}>
+            {estoqueMeta.label}
+          </Badge>
+        </div>
+
+        <div className="flex items-center justify-end gap-1">
+          <Switch checked={produto.ativo} onCheckedChange={onToggleAtivo} aria-label="Ativar/desativar produto" />
+          <Button size="icon" variant="ghost" className="size-9" onClick={onEditar} aria-label={`Editar ${produto.nome}`}>
+            <Pencil className="size-4" />
+          </Button>
+          <Button size="icon" variant="ghost" className="size-9 text-destructive" onClick={onExcluir} aria-label={`Excluir ${produto.nome}`}>
+            <Trash2 className="size-4" />
           </Button>
         </div>
       </CardContent>
@@ -550,6 +619,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const [loadingVendas, setLoadingVendas] = useState(true)
   const [syncingZetta, setSyncingZetta] = useState(false)
   const [estoqueView, setEstoqueView] = useState<'hub' | 'zetta'>('hub')
+  const [produtoLayout, setProdutoLayout] = useState<'grade' | 'lista'>('grade')
 
   // Tab controlada — permite trocar para "vendas" automaticamente ao receber
   // uma nova venda via WebSocket ou via quick action do dashboard.
@@ -1228,7 +1298,29 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="inline-flex rounded-lg border bg-card p-1" aria-label="Modo de visualização dos produtos">
+              <Button
+                type="button"
+                size="icon"
+                variant={produtoLayout === 'grade' ? 'secondary' : 'ghost'}
+                className="size-8"
+                onClick={() => setProdutoLayout('grade')}
+                aria-label="Ver produtos em grade"
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant={produtoLayout === 'lista' ? 'secondary' : 'ghost'}
+                className="size-8"
+                onClick={() => setProdutoLayout('lista')}
+                aria-label="Ver produtos em lista"
+              >
+                <List className="size-4" />
+              </Button>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -1270,29 +1362,45 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                   <p className="text-sm">Nenhum produto encontrado.</p>
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {produtosFiltrados.map((p) => (
-                  <ProdutoCard
-                    key={p.id}
-                    produto={p}
-                    onEditar={() => abrirEdicaoProduto(p)}
-                    onExcluir={() =>
-                      setConfirmExcluir({
-                        tipo: 'produto',
-                        id: p.id,
-                        nome: p.nome,
-                      })
-                    }
-                    onToggleAtivo={() => toggleProdutoAtivo(p)}
-                    onQuickEditPreco={(novo) =>
-                      quickEditProduto(p, { preco: novo })
-                    }
-                    onQuickEditEstoque={(novo) =>
-                      quickEditProduto(p, { estoque: novo })
-                    }
-                  />
-                ))}
-              </div>
+              {produtoLayout === 'grade' ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                  {produtosFiltrados.map((p) => (
+                    <ProdutoCard
+                      key={p.id}
+                      produto={p}
+                      onEditar={() => abrirEdicaoProduto(p)}
+                      onExcluir={() =>
+                        setConfirmExcluir({
+                          tipo: 'produto',
+                          id: p.id,
+                          nome: p.nome,
+                        })
+                      }
+                      onToggleAtivo={() => toggleProdutoAtivo(p)}
+                      onQuickEditPreco={(novo) => quickEditProduto(p, { preco: novo })}
+                      onQuickEditEstoque={(novo) => quickEditProduto(p, { estoque: novo })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {produtosFiltrados.map((p) => (
+                    <ProdutoListRow
+                      key={p.id}
+                      produto={p}
+                      onEditar={() => abrirEdicaoProduto(p)}
+                      onExcluir={() =>
+                        setConfirmExcluir({
+                          tipo: 'produto',
+                          id: p.id,
+                          nome: p.nome,
+                        })
+                      }
+                      onToggleAtivo={() => toggleProdutoAtivo(p)}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           )}
       </div>
