@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -63,6 +63,7 @@ export function ProductDetailsDialog({
   const [loading, setLoading] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [quantity, setQuantity] = useState(1)
+  const touchStartX = useRef<number | null>(null)
 
   useEffect(() => {
     if (!open || !product) return
@@ -146,7 +147,21 @@ export function ProductDetailsDialog({
 
         <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
           <div className="border-b bg-muted/20 p-4 sm:p-6 lg:border-b-0 lg:border-r">
-            <div className="relative aspect-square overflow-hidden rounded-2xl bg-white">
+            <div
+              className="relative aspect-square overflow-hidden rounded-2xl bg-white"
+              onTouchStart={(event) => {
+                touchStartX.current = event.touches[0]?.clientX ?? null
+              }}
+              onTouchEnd={(event) => {
+                const startX = touchStartX.current
+                const endX = event.changedTouches[0]?.clientX
+                touchStartX.current = null
+                if (startX == null || endX == null) return
+                const delta = endX - startX
+                if (Math.abs(delta) < 45) return
+                changeImage(delta > 0 ? -1 : 1)
+              }}
+            >
               {currentImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -158,6 +173,12 @@ export function ProductDetailsDialog({
                 <div className="flex h-full items-center justify-center">
                   <Package className="size-20 text-muted-foreground/25" />
                 </div>
+              )}
+
+              {images.length > 1 && (
+                <Badge className="absolute right-3 top-3 z-10 bg-slate-950/70 text-white hover:bg-slate-950/70">
+                  {selectedImage + 1} / {images.length}
+                </Badge>
               )}
 
               {loading && (
