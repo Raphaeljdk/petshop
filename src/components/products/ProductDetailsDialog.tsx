@@ -26,6 +26,8 @@ export type ProductPreview = {
   precoPromo: number | null
   estoque: number
   imageUrl: string | null
+  origem?: 'mercado_livre' | 'zetta' | 'hub'
+  marketplaceUrl?: string | null
 }
 
 type ProductDetails = ProductPreview & {
@@ -37,8 +39,6 @@ type ProductDetails = ProductPreview & {
   largura?: string | number | null
   comprimento?: string | number | null
   sku?: string | null
-  origem?: 'mercado_livre' | 'zetta' | 'hub'
-  marketplaceUrl?: string | null
 }
 
 type ProductDetailsDialogProps = {
