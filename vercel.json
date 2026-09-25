@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run build"
+  "buildCommand": "bunx prisma db execute --file prisma/temporary_ensure_mercado_livre_connection.sql --schema prisma/schema.prisma && bun run build"
 }
