@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getZettaProduct, zettaProductBasePrice, zettaProductPromoPrice, zettaProductStock } from '@/lib/zetta-products'
+import {
+  getZettaProduct,
+  zettaProductBasePrice,
+  zettaProductPromoPrice,
+  zettaProductStock,
+} from '@/lib/zetta-products'
+import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
+import {
+  mercadoLivreCategoryNames,
+  mercadoLivreItemDetails,
+} from '@/lib/mercado-livre-items'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +33,37 @@ function cleanText(value?: string | null) {
   return withoutHtml || null
 }
 
+function localPayload(local: {
+  id: string
+  nome: string
+  descricao: string | null
+  categoria: string
+  preco: number
+  precoPromo: number | null
+  estoque: number
+  imageUrl: string | null
+  sku: string | null
+}) {
+  return {
+    id: local.id,
+    nome: local.nome,
+    descricao: cleanText(local.descricao),
+    categoria: local.categoria,
+    preco: local.preco,
+    precoPromo: local.precoPromo,
+    estoque: local.estoque,
+    imageUrl: local.imageUrl,
+    imagens: local.imageUrl ? [local.imageUrl] : [],
+    marca: null,
+    modelo: null,
+    peso: null,
+    altura: null,
+    largura: null,
+    comprimento: null,
+    sku: local.sku,
+  }
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -38,24 +79,60 @@ export async function GET(
       return NextResponse.json({ error: 'Produto não encontrado.' }, { status: 404 })
     }
 
+    if (local.mlItemId && !local.zettaProCod) {
+      try {
+        const { token } = await mercadoLivreAccessToken()
+        const official = await mercadoLivreItemDetails(local.mlItemId, token)
+        const categoryNames = await mercadoLivreCategoryNames(
+          [official.categoryId],
+          token
+        )
+        const images =
+          official.images.length > 0
+            ? official.images
+            : local.imageUrl
+              ? [local.imageUrl]
+              : []
+
+        return NextResponse.json({
+          id: local.id,
+          nome: official.title || local.nome,
+          descricao: cleanText(official.description) || cleanText(local.descricao),
+          categoria:
+            (official.categoryId && categoryNames.get(official.categoryId)) ||
+            local.categoria,
+          preco: official.price,
+          precoPromo: null,
+          estoque: official.status === 'active' ? official.quantity : 0,
+          imageUrl: images[0] || local.imageUrl,
+          imagens: images,
+          marca: null,
+          modelo: null,
+          peso: null,
+          altura: null,
+          largura: null,
+          comprimento: null,
+          sku: official.sku || local.sku,
+          origem: 'mercado_livre',
+          marketplaceUrl: official.permalink,
+        })
+      } catch (mercadoLivreError) {
+        console.error(
+          '[public/produtos/:id] Mercado Livre indisponível, usando cache local:',
+          mercadoLivreError
+        )
+
+        return NextResponse.json({
+          ...localPayload(local),
+          origem: 'mercado_livre',
+        })
+      }
+    }
+
     if (!local.zettaProCod) {
       return NextResponse.json({
-        id: local.id,
-        nome: local.nome,
-        descricao: cleanText(local.descricao),
-        categoria: local.categoria,
-        preco: local.preco,
-        precoPromo: local.precoPromo,
-        estoque: local.estoque,
-        imageUrl: local.imageUrl,
-        imagens: local.imageUrl ? [local.imageUrl] : [],
-        marca: null,
-        modelo: null,
-        peso: null,
-        altura: null,
-        largura: null,
-        comprimento: null,
-        sku: local.sku,
+        ...localPayload(local),
+        origem: 'hub',
       })
     }
 
@@ -91,27 +168,17 @@ export async function GET(
         largura: official.largura ?? null,
         comprimento: official.comprimento ?? null,
         sku: local.sku,
+        origem: 'zetta',
       })
     } catch (siggmaError) {
-      console.error('[public/produtos/:id] Siggma indisponível, usando cache local:', siggmaError)
+      console.error(
+        '[public/produtos/:id] Siggma indisponível, usando cache local:',
+        siggmaError
+      )
 
       return NextResponse.json({
-        id: local.id,
-        nome: local.nome,
-        descricao: cleanText(local.descricao),
-        categoria: local.categoria,
-        preco: local.preco,
-        precoPromo: local.precoPromo,
-        estoque: local.estoque,
-        imageUrl: local.imageUrl,
-        imagens: local.imageUrl ? [local.imageUrl] : [],
-        marca: null,
-        modelo: null,
-        peso: null,
-        altura: null,
-        largura: null,
-        comprimento: null,
-        sku: local.sku,
+        ...localPayload(local),
+        origem: 'zetta',
       })
     }
   } catch (error) {
