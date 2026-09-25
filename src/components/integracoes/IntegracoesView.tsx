@@ -43,7 +43,7 @@ type EstadoIntegracoes = {
   bridge: BridgeStatus | null
 }
 
-type MercadoLivreStatus = { configured: boolean; connected: boolean; sellerId: string | null; tokenExpired: boolean }
+type MercadoLivreStatus = { configured: boolean; connected: boolean; databaseReady: boolean; sellerId: string | null; tokenExpired: boolean; error?: string }
 type MercadoLivreItem = { id: string; title: string; price: number | null; currency: string; quantity: number; status: string; permalink: string | null }
 type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
 
@@ -106,7 +106,7 @@ export function IntegracoesView() {
           : []
         const bridgePayload = bridgeRes.ok ? await bridgeRes.json() : null
         const bridge: BridgeStatus | null = bridgePayload?.bridge || null
-        const mlStatus: MercadoLivreStatus | null = mlRes.ok ? await mlRes.json() : null
+        const mlStatus: MercadoLivreStatus | null = await mlRes.json().catch(() => null)
 
         if (!cancelado) {
           setEstado({
@@ -185,9 +185,11 @@ export function IntegracoesView() {
           {mercadoLivre?.connected && <p>Conta vendedora: {mercadoLivre.sellerId}</p>}
           {mercadoLivre?.tokenExpired && <p className="text-amber-700">O token de acesso expirou; a renovação será necessária antes de consultar anúncios.</p>}
           {!mercadoLivre?.configured && <p className="text-amber-700">Configure as variáveis do Mercado Livre na Vercel para habilitar a conexão.</p>}
-          {!mercadoLivre && !loading && <p className="text-amber-700">Status indisponível. Verifique a migração do banco.</p>}
+          {mercadoLivre && !mercadoLivre.databaseReady && <p className="text-amber-700">{mercadoLivre.error || 'Banco da integração indisponível.'}</p>}
+          {!mercadoLivre && !loading && <p className="text-amber-700">Não foi possível consultar o status da integração.</p>}
+          {mercadoLivre?.configured && mercadoLivre.databaseReady && !mercadoLivre.connected && <p className="text-muted-foreground">Aplicação configurada. Falta autorizar a conta vendedora pelo botão abaixo.</p>}
           {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ml') === 'error' && <p className="text-red-700">A autorização falhou. Tente conectar novamente.</p>}
-          {mercadoLivre?.configured ? (
+          {mercadoLivre?.configured && mercadoLivre.databaseReady ? (
             <Button asChild><a href="/api/integracoes/mercado-livre/conectar">{mercadoLivre.connected ? 'Reconectar Mercado Livre' : 'Conectar Mercado Livre'}</a></Button>
           ) : (
             <Button disabled>Conectar Mercado Livre</Button>
