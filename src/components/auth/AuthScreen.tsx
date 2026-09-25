@@ -349,6 +349,11 @@ export function AuthScreen() {
                     <Navigation className="size-4" /> Google
                   </a>
                 </Button>
+                <Button asChild size="sm" variant="outline" className="border-cyan-300/40 bg-cyan-400/10 text-white hover:bg-cyan-400/20 hover:text-white">
+                  <a href={MATILHA_CONTACT.waze} target="_blank" rel="noreferrer">
+                    <Navigation className="size-4" /> Waze
+                  </a>
+                </Button>
               </div>
             </div>
             <div>
