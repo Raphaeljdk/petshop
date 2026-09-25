@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { GoogleReviews } from '@/components/landing/GoogleReviews'
 import { PublicProducts } from '@/components/landing/PublicProducts'
+import { AtendimentoMenu } from '@/components/landing/AtendimentoMenu'
 
 export function AuthScreen() {
   const [scrolled, setScrolled] = useState(false)
@@ -83,6 +84,7 @@ export function AuthScreen() {
             <button onClick={() => scrollTo('nossa-historia')} className="text-sm font-medium hover:text-primary transition-colors">
               Nossa História
             </button>
+            <AtendimentoMenu />
             <a
               href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')}
               target="_blank"
@@ -127,6 +129,9 @@ export function AuthScreen() {
             {[{ id: 'produtos', label: 'Produtos' }, { id: 'como-funciona', label: 'Como funciona' }, { id: 'depoimentos', label: 'Depoimentos' }, { id: 'nossa-historia', label: 'Nossa história' }].map(item => (
               <button key={item.id} onClick={() => scrollTo(item.id)} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted">{item.label}</button>
             ))}
+            <div className="px-4 py-3">
+              <AtendimentoMenu />
+            </div>
           </nav>
           <Button asChild variant="outline">
             <a
