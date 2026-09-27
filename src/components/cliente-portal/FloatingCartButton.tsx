@@ -23,13 +23,13 @@ export function FloatingCartButton({
   if (itemCount <= 0) return null
 
   return (
-    <div className="fixed bottom-5 left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 sm:left-auto sm:right-6 sm:w-auto sm:max-w-none sm:translate-x-0">
+    <div className="floating-cart-dock">
       <Button
         ref={buttonRef}
         type="button"
         onClick={onClick}
         className="floating-cart-button h-auto min-h-14 w-full justify-between rounded-2xl px-4 py-3 sm:min-w-[270px]"
-        aria-label={`Abrir carrinho com ${itemCount} item${itemCount === 1 ? '' : 's'}`}
+        aria-label={`Abrir carrinho com ${itemCount} ${itemCount === 1 ? 'item' : 'itens'}, subtotal ${money(total)}`}
       >
         <span className="flex items-center gap-3">
           <span className="relative flex size-10 items-center justify-center rounded-xl bg-white/15">

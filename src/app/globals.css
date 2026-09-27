@@ -630,3 +630,16 @@
 @media (prefers-reduced-motion: reduce) {
   .store-promo-slide, .floating-cart-button, .admin-product-card, .admin-product-list-row { transition: none !important; }
 }
+
+/* Keep purchase and help actions clear of mobile navigation. */
+.floating-cart-dock { position: fixed; z-index: 40; right: 6rem; bottom: 1.25rem; }
+.store-promo-carousel:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+.store-promo-carousel, .product-gallery { touch-action: pan-y pinch-zoom; }
+#catalogo-loja { scroll-margin-top: 10rem; }
+@media (max-width: 767px) {
+  .floating-cart-dock { left: .75rem; right: 4.75rem; bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px)); }
+  .floating-cart-button { min-width: 0; padding-inline: .75rem; }
+  .client-portal .portal-help-button { right: .75rem; bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); width: 3rem; height: 3rem; }
+  .store-toolbar { top: 4.5rem; }
+  #catalogo-loja { scroll-margin-top: 5rem; }
+}

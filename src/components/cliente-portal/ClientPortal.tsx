@@ -140,7 +140,7 @@ export function ClientPortal() {
         target="_blank"
         rel="noreferrer"
         aria-label="Falar com a Matilha Prado no WhatsApp"
-        className="fixed bottom-5 right-5 z-40 flex size-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:size-14"
+        className="portal-help-button fixed bottom-5 right-5 z-40 flex size-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:size-14"
       >
         <MessageCircle className="size-5 sm:size-6" />
       </a>

@@ -30,8 +30,8 @@ export function StoreHero({
             quando você precisar de ajuda antes de finalizar.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button asChild className="h-11 bg-white text-slate-900 hover:bg-white/90">
-              <a href="#catalogo-loja">Explorar produtos</a>
+            <Button className="h-11 bg-white text-slate-900 hover:bg-white/90" onClick={() => document.getElementById('catalogo-loja')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>
+              Explorar produtos
             </Button>
             <Button asChild variant="outline" className="h-11 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
               <a href={whatsappUrl} target="_blank" rel="noreferrer">

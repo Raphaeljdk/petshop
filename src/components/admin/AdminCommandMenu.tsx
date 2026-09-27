@@ -13,6 +13,9 @@ import {
   Truck,
   UsersRound,
   Plug,
+  Bell,
+  TicketPercent,
+  ShieldCheck,
 } from 'lucide-react'
 import type { TabId } from '@/components/layout/Sidebar'
 import {
@@ -23,7 +26,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from '@/components/ui/command'
 
 export type AdminCommandAction = 'novo-produto' | 'novo-agendamento' | 'nova-venda'
@@ -49,6 +51,9 @@ const navigation: Array<{
   { id: 'entregas', label: 'Entregas', icon: Truck, keywords: 'frete pedidos envios' },
   { id: 'pagamentos', label: 'Pagamentos', icon: CreditCard, keywords: 'mercado pago pix cartão vendas' },
   { id: 'integracoes', label: 'Integrações', icon: Plug, keywords: 'zetta mercado livre api' },
+  { id: 'notificacoes', label: 'Notificações', icon: Bell, keywords: 'avisos alertas mensagens' },
+  { id: 'cupons', label: 'Cupons e parceiros', icon: TicketPercent, keywords: 'descontos influenciadores promocoes' },
+  { id: 'equipe', label: 'Equipe e convites', icon: ShieldCheck, keywords: 'usuarios administradores acesso' },
 ]
 
 export function AdminCommandMenu({
@@ -85,7 +90,7 @@ export function AdminCommandMenu({
         </CommandEmpty>
 
         <CommandGroup heading="Navegação">
-          {navigation.map((item, index) => {
+          {navigation.map((item) => {
             const Icon = item.icon
             return (
               <CommandItem
@@ -95,7 +100,6 @@ export function AdminCommandMenu({
               >
                 <Icon className="size-4" />
                 <span>{item.label}</span>
-                {index < 5 && <CommandShortcut>{index + 1}</CommandShortcut>}
               </CommandItem>
             )
           })}

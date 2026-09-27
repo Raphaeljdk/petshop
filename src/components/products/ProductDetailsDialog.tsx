@@ -63,7 +63,7 @@ export function ProductDetailsDialog({
   const [loading, setLoading] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [quantity, setQuantity] = useState(1)
-  const touchStartX = useRef<number | null>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!open || !product) return
@@ -148,17 +148,26 @@ export function ProductDetailsDialog({
         <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
           <div className="border-b bg-muted/20 p-4 sm:p-6 lg:border-b-0 lg:border-r">
             <div
-              className="relative aspect-square overflow-hidden rounded-2xl bg-white"
-              onTouchStart={(event) => {
-                touchStartX.current = event.touches[0]?.clientX ?? null
+              className="product-gallery relative aspect-square overflow-hidden rounded-2xl bg-white focus-visible:outline-2 focus-visible:outline-primary"
+              role="region"
+              aria-label="Fotos do produto. Use as setas para navegar."
+              tabIndex={images.length > 1 ? 0 : undefined}
+              onKeyDown={event => {
+                if (event.target !== event.currentTarget) return
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); changeImage(event.key === 'ArrowLeft' ? -1 : 1) }
               }}
+              onTouchStart={(event) => {
+                const touch = event.touches.length === 1 ? event.touches[0] : null
+                touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+              }}
+              onTouchCancel={() => { touchStart.current = null }}
               onTouchEnd={(event) => {
-                const startX = touchStartX.current
-                const endX = event.changedTouches[0]?.clientX
-                touchStartX.current = null
-                if (startX == null || endX == null) return
-                const delta = endX - startX
-                if (Math.abs(delta) < 45) return
+                const start = touchStart.current
+                const end = event.changedTouches[0]
+                touchStart.current = null
+                if (!start || !end) return
+                const delta = end.clientX - start.x
+                if (Math.abs(delta) < 45 || Math.abs(delta) <= Math.abs(end.clientY - start.y)) return
                 changeImage(delta > 0 ? -1 : 1)
               }}
             >
@@ -176,7 +185,7 @@ export function ProductDetailsDialog({
               )}
 
               {images.length > 1 && (
-                <Badge className="absolute right-3 top-3 z-10 bg-slate-950/70 text-white hover:bg-slate-950/70">
+                <Badge role="status" aria-label={`Foto ${selectedImage + 1} de ${images.length}`} className="absolute right-3 top-3 z-10 bg-slate-950/70 text-white hover:bg-slate-950/70">
                   {selectedImage + 1} / {images.length}
                 </Badge>
               )}
@@ -227,6 +236,7 @@ export function ProductDetailsDialog({
                         : 'border-border hover:border-primary/50',
                     ].join(' ')}
                     aria-label={`Ver foto ${index + 1}`}
+                    aria-pressed={selectedImage === index}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={image} alt="" className="h-full w-full object-contain" />

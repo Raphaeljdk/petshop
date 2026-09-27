@@ -1304,9 +1304,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 type="button"
                 size="icon"
                 variant={produtoLayout === 'grade' ? 'secondary' : 'ghost'}
-                className="size-8"
+                className="size-11"
                 onClick={() => setProdutoLayout('grade')}
                 aria-label="Ver produtos em grade"
+                aria-pressed={produtoLayout === 'grade'}
               >
                 <LayoutGrid className="size-4" />
               </Button>
@@ -1314,9 +1315,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 type="button"
                 size="icon"
                 variant={produtoLayout === 'lista' ? 'secondary' : 'ghost'}
-                className="size-8"
+                className="size-11"
                 onClick={() => setProdutoLayout('lista')}
                 aria-label="Ver produtos em lista"
+                aria-pressed={produtoLayout === 'lista'}
               >
                 <List className="size-4" />
               </Button>

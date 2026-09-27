@@ -61,6 +61,8 @@ interface CupomAplicado {
   influenciadorNome: string | null
 }
 
+const searchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
+
 export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const cartTrigger = useRef<HTMLButtonElement>(null)
   const cartRevision = useRef(0)
@@ -68,6 +70,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>([])
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [observacoes, setObservacoes] = useState('')
@@ -95,7 +98,10 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
           fetch('/api/cliente/produtos', { credentials: 'same-origin' }),
           fetch('/api/cliente/loja/status', { credentials: 'same-origin', cache: 'no-store' }),
         ])
-        if (res.ok && active) setProdutos(await res.json())
+        if (!res.ok) throw new Error('Não foi possível carregar os produtos.')
+        const catalog = await res.json()
+        if (!Array.isArray(catalog)) throw new Error('Catálogo indisponível.')
+        if (active) { setProdutos(catalog); setLoadError(false) }
         if (lojaStatus.ok && active) {
           const status = await lojaStatus.json()
           setSiggmaOrderWriteConfigured(Boolean(status?.siggmaOrderWriteConfigured))
@@ -108,6 +114,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
         }
       } catch (e) {
         console.error('store carregar erro:', e)
+        if (active) setLoadError(true)
       } finally {
         if (active) setLoading(false)
       }
@@ -122,15 +129,15 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   )
 
   const produtosFiltrados = useMemo(() => {
-    const termo = busca.trim().toLocaleLowerCase('pt-BR')
+    const termo = searchText(busca.trim())
     const filtrados = produtos.filter((produto) => {
       const bateCategoria =
         categoriaFiltro === 'todas' || produto.categoria === categoriaFiltro
       const bateBusca =
         !termo ||
-        produto.nome.toLocaleLowerCase('pt-BR').includes(termo) ||
-        produto.categoria.toLocaleLowerCase('pt-BR').includes(termo) ||
-        produto.descricao?.toLocaleLowerCase('pt-BR').includes(termo)
+        searchText(produto.nome).includes(termo) ||
+        searchText(produto.categoria).includes(termo) ||
+        searchText(produto.descricao || '').includes(termo)
 
       return bateCategoria && Boolean(bateBusca)
     })
@@ -328,7 +335,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   ].join('\n'))
 
   return (
-    <div className="space-y-5 pb-24 sm:space-y-7 sm:pb-8">
+    <div className="space-y-5 pb-28 sm:space-y-7">
       <StoreHero
         whatsappUrl={whatsappLoja}
         productsCount={produtos.length}
@@ -345,6 +352,14 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
       )}
 
       {loading && <SkeletonLoader type="cards" count={8} />}
+
+      {!loading && loadError && (
+        <Card role="alert"><CardContent className="space-y-3 p-6 text-center">
+          <p className="font-semibold">Não foi possível carregar a loja.</p>
+          <p className="text-sm text-muted-foreground">Tente novamente em instantes. Seu carrinho continua aqui.</p>
+          <Button variant="outline" onClick={() => { setLoading(true); setRefreshKey(value => value + 1) }}>Tentar novamente</Button>
+        </CardContent></Card>
+      )}
 
       {!loading && (
         <section id="catalogo-loja" className="store-toolbar rounded-2xl border bg-card p-3 sm:p-4">
@@ -378,11 +393,11 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
           </div>
           {categorias.length > 0 && (
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
-              <Button type="button" size="sm" variant={categoriaFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setCategoriaFiltro('todas')} className="shrink-0 rounded-full">
+              <Button type="button" size="sm" aria-pressed={categoriaFiltro === 'todas'} variant={categoriaFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setCategoriaFiltro('todas')} className="min-h-11 shrink-0 rounded-full">
                 Todas
               </Button>
               {categorias.map((categoria) => (
-                <Button key={categoria} type="button" size="sm" variant={categoriaFiltro === categoria ? 'default' : 'outline'} onClick={() => setCategoriaFiltro(categoria)} className="shrink-0 rounded-full">
+                <Button key={categoria} type="button" size="sm" aria-pressed={categoriaFiltro === categoria} variant={categoriaFiltro === categoria ? 'default' : 'outline'} onClick={() => setCategoriaFiltro(categoria)} className="min-h-11 shrink-0 rounded-full">
                   {categoria}
                 </Button>
               ))}
@@ -393,11 +408,11 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
       {!loading && produtos.length > 0 && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground" role="status">
             <strong className="text-foreground">{produtosFiltrados.length}</strong>{' '}
             {produtosFiltrados.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
           </p>
-          {busca && <Button variant="ghost" size="sm" onClick={() => setBusca('')}>Limpar busca</Button>}
+          {(busca || categoriaFiltro !== 'todas') && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setCategoriaFiltro('todas') }}>Limpar filtros</Button>}
         </div>
       )}
 
@@ -460,7 +475,16 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
         onClick={() => setCheckoutOpen(true)}
       />
 
-      {!loading && produtos.length === 0 && (
+      {!loading && !loadError && produtos.length > 0 && produtosFiltrados.length === 0 && (
+        <Card><CardContent className="space-y-3 p-8 text-center">
+          <Search className="mx-auto size-8 text-muted-foreground" />
+          <p className="font-semibold">Nenhum produto encontrado.</p>
+          <p className="text-sm text-muted-foreground">Tente outro nome ou escolha uma categoria diferente.</p>
+          <Button variant="outline" onClick={() => { setBusca(''); setCategoriaFiltro('todas') }}>Ver todos os produtos</Button>
+        </CardContent></Card>
+      )}
+
+      {!loading && !loadError && produtos.length === 0 && (
         <Card><CardContent className="p-8 sm:p-12 text-center"><Package className="size-12 text-muted-foreground/40 mx-auto mb-3" /><p className="text-muted-foreground">Nenhum produto disponível no momento.</p></CardContent></Card>
       )}
 
