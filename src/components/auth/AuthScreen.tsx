@@ -16,6 +16,7 @@ import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { GoogleReviews } from '@/components/landing/GoogleReviews'
 import { PublicProducts } from '@/components/landing/PublicProducts'
 import { AtendimentoMenu } from '@/components/landing/AtendimentoMenu'
+import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 
 export function AuthScreen() {
   const [scrolled, setScrolled] = useState(false)
@@ -35,7 +36,7 @@ export function AuthScreen() {
 
   useEffect(() => {
     if (!mobileNavOpen) return
-    const media = window.matchMedia('(min-width: 768px)')
+    const media = window.matchMedia('(min-width: 1280px)')
     const closeOnDesktop = () => { if (media.matches) setMobileNavOpen(false) }
     closeOnDesktop()
     media.addEventListener('change', closeOnDesktop)
@@ -71,7 +72,7 @@ export function AuthScreen() {
       >
         <div className="container mx-auto px-4 h-18 sm:h-20 flex items-center justify-between gap-2">
           <Logo size="sm" className="[&>div:last-child]:hidden sm:[&>div:last-child]:flex" />
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden xl:flex items-center gap-5">
             <button onClick={() => scrollTo('produtos')} className="text-sm font-medium hover:text-primary transition-colors">
               Produtos
             </button>
@@ -108,7 +109,7 @@ export function AuthScreen() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden size-10"
+              className="xl:hidden size-10"
               onClick={() => setMobileNavOpen(true)}
               id="landing-menu-trigger"
               aria-expanded={mobileNavOpen}
@@ -159,7 +160,7 @@ export function AuthScreen() {
             <p className="eyebrow text-cyan-200 flex items-center gap-2 mb-6"><PawPrint className="size-4" /> Matilha Prado · Pet shop</p>
             <h1 id="hero-title" className="hero-title">O melhor cuidado. <span>Para o seu melhor amigo.</span></h1>
             <p className="hero-description mt-6">Conheça os favoritos do seu pet, solicite atendimento e acompanhe os cuidados pela sua conta. Tudo em um só lugar, com o carinho da nossa família.</p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+            <div className="mt-8 flex flex-col sm:flex-row sm:flex-wrap gap-3">
               <Button size="lg" onClick={() => scrollTo('produtos')} className="bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Ver produtos <ChevronRight className="size-4" /></Button>
               <Button size="lg" variant="outline" onClick={abrirLogin} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Acessar minha conta</Button>
               <Button asChild size="lg" variant="outline" className="bg-green-500/10 text-white border-green-300/40 hover:bg-green-500/20 hover:text-white">
@@ -204,6 +205,10 @@ export function AuthScreen() {
           </div>
         </div>
       </section>
+
+      <div className="container mx-auto px-4 sm:px-6 mt-8">
+        <InstallAppCard />
+      </div>
 
       <PublicProducts onBuy={abrirLogin} />
 

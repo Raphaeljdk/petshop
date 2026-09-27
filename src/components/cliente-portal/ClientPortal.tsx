@@ -17,6 +17,7 @@ import { useTabHistory } from '@/hooks/use-tab-history'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 
 type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'vacinas' | 'compras'
 
@@ -117,6 +118,7 @@ export function ClientPortal() {
       {/* Conteúdo */}
       <main id="client-content" tabIndex={-1} className="flex-1 w-full min-w-0 max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8">
         <div className="tab-transition" key={tab}>
+          {tab === 'inicio' && <InstallAppCard compact className="mb-6" />}
           {tab === 'inicio' && (
             <ClientHome
               onIrParaLoja={() => setTab('loja')}

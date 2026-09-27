@@ -23,6 +23,7 @@ import { useAuth } from '@/components/providers/AuthProvider'
 import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import type { Notificacao } from '@/lib/types'
+import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 
 function AdminPanelImpl() {
   const { sessao, logout } = useAuth()
@@ -199,6 +200,7 @@ function AdminPanelImpl() {
         <Sidebar active={tab} onChange={setTab} counts={counts} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
         <main id="admin-content" tabIndex={-1} className="app-main flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
           <div className="tab-transition" key={tab}>
+            {tab === 'dashboard' && <InstallAppCard compact className="mb-6" />}
             {tab === 'dashboard' && (
               <DashboardView
                 onIrParaKanban={() => setTab('kanban')}
