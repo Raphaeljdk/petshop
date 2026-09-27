@@ -86,6 +86,20 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [category, setCategory] = useState('todas')
   const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
+  const resultsRef = useRef<HTMLHeadingElement>(null)
+
+  function selectCategory(nextCategory: string) {
+    setCategory(nextCategory)
+    window.requestAnimationFrame(() => {
+      const heading = resultsRef.current
+      if (!heading) return
+      heading.focus({ preventScroll: true })
+      heading.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'start',
+      })
+    })
+  }
 
   useEffect(() => {
     const section = sectionRef.current
@@ -194,7 +208,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
         ) : (
           <>
             <div className="boutique-categories mb-8" role="group" aria-label="Filtrar vitrine por categoria">
-                <button type="button" className="boutique-category boutique-category-all" aria-pressed={category === 'todas'} onClick={() => setCategory('todas')} style={{ '--category-order': 0 } as CSSProperties}>
+                <button type="button" className="boutique-category boutique-category-all" aria-pressed={category === 'todas'} aria-controls="boutique-results" onClick={() => selectCategory('todas')} style={{ '--category-order': 0 } as CSSProperties}>
                   <span className="boutique-category-art"><Grid2X2 className="size-9 sm:size-11" aria-hidden="true" /></span>
                   <span className="boutique-category-name">Toda a boutique</span>
                   <span className="boutique-category-hint">Explore a coleção <ArrowRight className="size-3.5" aria-hidden="true" /></span>
@@ -210,7 +224,8 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                       key={shortcut.id}
                       type="button"
                       aria-pressed={selected}
-                      onClick={() => setCategory(selected ? 'todas' : shortcut.id)}
+                      aria-controls="boutique-results"
+                      onClick={() => selectCategory(shortcut.id)}
                       className="group boutique-category"
                       style={{ '--category-order': index + 1 } as CSSProperties}
                     >
@@ -244,9 +259,9 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
 
             <div className="mb-6 flex items-center justify-between gap-3">
               <div role="status" aria-live="polite">
-                <p className="text-sm font-semibold">
+                <h3 ref={resultsRef} id="boutique-results" tabIndex={-1} className="scroll-mt-28 rounded-sm text-sm font-semibold">
                   {selectedShortcut ? selectedShortcut.label : 'Todos os produtos'}
-                </p>
+                </h3>
                 <p className="text-xs text-muted-foreground">
                   {selectedShortcut
                     ? 'Mostrando itens relacionados à categoria selecionada.'
@@ -258,7 +273,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => setCategory('todas')}
+                  onClick={() => selectCategory('todas')}
                 >
                   Ver todos
                 </Button>
@@ -276,7 +291,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                     Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setCategory('todas')}>
+                    <Button size="sm" variant="outline" onClick={() => selectCategory('todas')}>
                       Ver todos
                     </Button>
                     <Button asChild size="sm">
