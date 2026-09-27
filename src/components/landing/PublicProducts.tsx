@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Loader2, Package, ShoppingBag, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ArrowRight, Bath, Bone, Cat, Check, Dumbbell, Grid2X2, Loader2, Package, PawPrint, ShoppingBag, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,6 +19,7 @@ type ProductShortcut = {
   emoji: string
   keywords: string[]
   accent: string
+  icon: typeof Cat
 }
 
 const PRODUCT_SHORTCUTS: ProductShortcut[] = [
@@ -28,6 +29,7 @@ const PRODUCT_SHORTCUTS: ProductShortcut[] = [
     emoji: '🧴',
     keywords: ['banho', 'higiene', 'shampoo', 'condicionador', 'perfume', 'hydra', 'pet society', 'escova'],
     accent: 'bg-pink-100',
+    icon: Bath,
   },
   {
     id: 'gatos',
@@ -35,6 +37,7 @@ const PRODUCT_SHORTCUTS: ProductShortcut[] = [
     emoji: '🐱',
     keywords: ['gato', 'gatos', 'felino', 'felinos', 'cat'],
     accent: 'bg-emerald-100',
+    icon: Cat,
   },
   {
     id: 'acessorios',
@@ -42,6 +45,7 @@ const PRODUCT_SHORTCUTS: ProductShortcut[] = [
     emoji: '🦮',
     keywords: ['acessorio', 'acessorios', 'coleira', 'guia', 'peitoral', 'roupa', 'cama', 'comedouro', 'bebedouro'],
     accent: 'bg-lime-100',
+    icon: PawPrint,
   },
   {
     id: 'treino',
@@ -49,6 +53,7 @@ const PRODUCT_SHORTCUTS: ProductShortcut[] = [
     emoji: '🎾',
     keywords: ['treino', 'treinamento', 'adestramento', 'recompensa', 'clicker', 'training'],
     accent: 'bg-orange-100',
+    icon: Dumbbell,
   },
   {
     id: 'mordedores',
@@ -56,6 +61,7 @@ const PRODUCT_SHORTCUTS: ProductShortcut[] = [
     emoji: '🦴',
     keywords: ['mordedor', 'mordedores', 'brinquedo', 'brinquedos', 'kong', 'bola', 'osso'],
     accent: 'bg-rose-100',
+    icon: Bone,
   },
 ]
 
@@ -79,6 +85,20 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState('todas')
   const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        section.dataset.inView = 'true'
+        observer.disconnect()
+      }
+    }, { threshold: 0.08 })
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -135,19 +155,19 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   )
 
   return (
-    <section id="produtos" className="bg-background py-14 sm:py-18 lg:py-24">
-      <div className="container mx-auto px-4">
-        <div className="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
-          <Badge variant="secondary" className="mb-3">
+    <section ref={sectionRef} id="produtos" className="boutique-section py-14 sm:py-18 lg:py-24" aria-labelledby="boutique-title">
+      <div className="container relative mx-auto px-4">
+        <div className="boutique-heading mx-auto mb-8 max-w-3xl text-center sm:mb-10">
+          <Badge variant="secondary" className="boutique-eyebrow mb-5">
             <ShoppingBag className="size-3.5" />
             Boutique Matilha Prado
           </Badge>
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-            Encontre o que seu pet precisa
+          <h2 id="boutique-title" className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+            Pequenos mimos.<br /><span className="boutique-title-accent">Muito amor pelo seu pet.</span>
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Escolha uma categoria para filtrar a vitrine. Preços, promoções e disponibilidade
-            vêm do catálogo da Matilha Prado.
+            Do cuidado à diversão, encontre o próximo favorito da sua matilha.
+            Escolha uma categoria e explore a vitrine.
           </p>
         </div>
 
@@ -173,11 +193,17 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
           </Card>
         ) : (
           <>
-            <div className="mb-8 overflow-x-auto pb-2">
-              <div className="mx-auto flex min-w-max justify-center gap-3 sm:gap-5 lg:gap-7">
-                {PRODUCT_SHORTCUTS.map((shortcut) => {
+            <div className="boutique-categories mb-8" role="group" aria-label="Filtrar vitrine por categoria">
+                <button type="button" className="boutique-category boutique-category-all" aria-pressed={category === 'todas'} onClick={() => setCategory('todas')} style={{ '--category-order': 0 } as CSSProperties}>
+                  <span className="boutique-category-art"><Grid2X2 className="size-9 sm:size-11" aria-hidden="true" /></span>
+                  <span className="boutique-category-name">Toda a boutique</span>
+                  <span className="boutique-category-hint">Explore a coleção <ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                  {category === 'todas' && <Check className="boutique-category-check size-5" aria-hidden="true" />}
+                </button>
+                {PRODUCT_SHORTCUTS.map((shortcut, index) => {
                   const imageUrl = shortcutImages.get(shortcut.id)
                   const selected = category === shortcut.id
+                  const Icon = shortcut.icon
 
                   return (
                     <button
@@ -185,15 +211,13 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                       type="button"
                       aria-pressed={selected}
                       onClick={() => setCategory(selected ? 'todas' : shortcut.id)}
-                      className="group w-32 shrink-0 text-center sm:w-36"
+                      className="group boutique-category"
+                      style={{ '--category-order': index + 1 } as CSSProperties}
                     >
                       <span
                         className={[
-                          'mx-auto flex aspect-square w-24 items-center justify-center overflow-hidden rounded-[32%] border transition-all duration-300 sm:w-28',
+                          'boutique-category-art',
                           shortcut.accent,
-                          selected
-                            ? 'border-primary ring-2 ring-primary/25 shadow-lg -translate-y-1'
-                            : 'border-transparent group-hover:-translate-y-1 group-hover:shadow-md',
                         ].join(' ')}
                       >
                         {imageUrl ? (
@@ -205,25 +229,21 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                             className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
                           />
                         ) : (
-                          <span className="text-5xl" aria-hidden="true">{shortcut.emoji}</span>
+                          <Icon className="size-9 sm:size-11" strokeWidth={1.5} aria-hidden="true" />
                         )}
                       </span>
-                      <span
-                        className={[
-                          'mt-3 block text-xs font-semibold uppercase tracking-wide transition-colors sm:text-sm',
-                          selected ? 'text-primary' : 'text-foreground group-hover:text-primary',
-                        ].join(' ')}
-                      >
+                      <span className="boutique-category-name">
                         {shortcut.label}
                       </span>
+                      <span className="boutique-category-hint">Ver produtos <ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                      {selected && <Check className="boutique-category-check size-5" aria-hidden="true" />}
                     </button>
                   )
                 })}
-              </div>
             </div>
 
             <div className="mb-6 flex items-center justify-between gap-3">
-              <div>
+              <div role="status" aria-live="polite">
                 <p className="text-sm font-semibold">
                   {selectedShortcut ? selectedShortcut.label : 'Todos os produtos'}
                 </p>
@@ -274,7 +294,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                   const hasPromo = product.precoPromo != null && product.precoPromo < product.preco
 
                   return (
-                    <Card key={product.id} className="group overflow-hidden py-0 card-hover">
+                    <Card key={product.id} className="boutique-product group overflow-hidden py-0 card-hover">
                       <CardContent className="flex h-full flex-col p-3 sm:p-4">
                         <button
                           type="button"
