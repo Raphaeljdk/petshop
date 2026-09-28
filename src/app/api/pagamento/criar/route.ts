@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getClienteLogado } from '@/lib/auth-helpers'
+import { AuthError, readAuthBody } from '@/lib/auth-http'
 import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
 import {
   criarOrderMercadoPago,
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
+    const body = await readAuthBody(req)
     const {
       vendaId,
       metodo,
@@ -235,6 +236,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(resposta, { status: 200 })
   } catch (e: any) {
     console.error('[pagamento/criar] erro:', e)
+
+    if (e instanceof AuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status })
+    }
 
     return NextResponse.json(
       { error: e?.message || 'Erro ao criar pagamento' },
