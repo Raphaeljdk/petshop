@@ -3,6 +3,7 @@ name: Release build
 on:
   push:
     branches:
+      - main
       - feat/release-integracoes-siggma
   pull_request:
     branches:
@@ -26,4 +27,5 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bunx prisma generate --schema=prisma/schema.prisma
+      - run: bun run test:customer-experience
       - run: bun run build
