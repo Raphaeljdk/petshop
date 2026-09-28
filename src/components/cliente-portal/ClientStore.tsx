@@ -35,12 +35,16 @@ import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog
 import { FloatingCartButton } from '@/components/cliente-portal/FloatingCartButton'
 import { StoreHero } from '@/components/cliente-portal/StoreHero'
 import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
+import { useExperience } from './ExperienceProvider'
+import { ProductActions } from './ProductActions'
 
 interface ClientStoreProps {
   onCompraFinalizada?: () => void
+  repeatItems?: CarrinhoItem[] | null
+  onRepeatConsumed?: () => void
 }
 
-interface CarrinhoItem {
+export interface CarrinhoItem {
   produto: Produto
   quantidade: number
 }
@@ -63,7 +67,13 @@ interface CupomAplicado {
 
 const searchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
 
-export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
+export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed }: ClientStoreProps) {
+  const { preferences, ready } = useExperience()
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const consumed = useRef(false)
+  useEffect(() => {
+    if (repeatItems && !consumed.current) { consumed.current = true; onRepeatConsumed?.() }
+  }, [repeatItems, onRepeatConsumed])
   const cartTrigger = useRef<HTMLButtonElement>(null)
   const cartRevision = useRef(0)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -71,8 +81,8 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [carrinho, setCarrinho] = useState<CarrinhoItem[]>([])
-  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [carrinho, setCarrinho] = useState<CarrinhoItem[]>(() => repeatItems || [])
+  const [checkoutOpen, setCheckoutOpen] = useState(() => Boolean(repeatItems?.length))
   const [observacoes, setObservacoes] = useState('')
   const [finalizando, setFinalizando] = useState(false)
   const [cepCliente, setCepCliente] = useState<string | null>(null)
@@ -139,7 +149,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
         searchText(produto.categoria).includes(termo) ||
         searchText(produto.descricao || '').includes(termo)
 
-      return bateCategoria && Boolean(bateBusca)
+      return bateCategoria && Boolean(bateBusca) && (!favoritesOnly || preferences.some(row => row.produtoId === produto.id && row.favorite))
     })
 
     return [...filtrados].sort((a, b) => {
@@ -150,7 +160,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
       if (ordenacao === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR')
       return 0
     })
-  }, [produtos, categoriaFiltro, busca, ordenacao])
+  }, [produtos, categoriaFiltro, busca, ordenacao, favoritesOnly, preferences])
 
   const subtotal = useMemo(
     () => carrinho.reduce(
@@ -338,7 +348,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
     <div className="space-y-5 pb-28 sm:space-y-7">
       <StoreHero
         whatsappUrl={whatsappLoja}
-        productsCount={produtos.length}
+        productsCount={produtos.filter(produto => produto.estoque > 0).length}
         categoriesCount={categorias.length}
       />
       <StorePromoCarousel />
@@ -408,11 +418,12 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
 
       {!loading && produtos.length > 0 && (
         <div className="flex items-center justify-between gap-3">
+          {ready && <Button size="sm" variant={favoritesOnly ? 'default' : 'outline'} aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(value => !value)}>Meus favoritos</Button>}
           <p className="text-sm text-muted-foreground" role="status">
             <strong className="text-foreground">{produtosFiltrados.length}</strong>{' '}
             {produtosFiltrados.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
           </p>
-          {(busca || categoriaFiltro !== 'todas') && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setCategoriaFiltro('todas') }}>Limpar filtros</Button>}
+          {(busca || categoriaFiltro !== 'todas' || favoritesOnly) && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setCategoriaFiltro('todas'); setFavoritesOnly(false) }}>Limpar filtros</Button>}
         </div>
       )}
 
@@ -450,6 +461,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
               <Button size="sm" onClick={() => adicionarAoCarrinho(p)} disabled={p.estoque <= 0} className="btn-brand h-11">
                 <Plus className="size-3.5" /> Adicionar
               </Button>
+              <ProductActions product={p} />
             </CardContent>
           </Card>
         ))}
@@ -480,7 +492,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
           <Search className="mx-auto size-8 text-muted-foreground" />
           <p className="font-semibold">Nenhum produto encontrado.</p>
           <p className="text-sm text-muted-foreground">Tente outro nome ou escolha uma categoria diferente.</p>
-          <Button variant="outline" onClick={() => { setBusca(''); setCategoriaFiltro('todas') }}>Ver todos os produtos</Button>
+          <Button variant="outline" onClick={() => { setBusca(''); setCategoriaFiltro('todas'); setFavoritesOnly(false) }}>Ver todos os produtos</Button>
         </CardContent></Card>
       )}
 
@@ -581,6 +593,7 @@ export function ClientStore({ onCompraFinalizada }: ClientStoreProps) {
                   <div className="border-t border-border pt-3">
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Entrega</p>
                     <FreteCalculator cepInicial={cepCliente} onSelect={(info) => setFreteSelecionado(info)} onClear={() => setFreteSelecionado(null)} compact />
+                    {freteSelecionado && <div className="mt-3 rounded-xl border bg-primary/5 p-3 text-sm" role="status"><strong>{freteSelecionado.tipoEntrega === 'retirada' ? 'Retirada na loja' : 'Entrega no endereço informado'}</strong><p>{freteSelecionado.valorFrete === 0 ? 'Grátis' : fmtMoeda(freteSelecionado.valorFrete)} · {freteSelecionado.prazoEntrega}</p><p className="mt-1 text-xs text-muted-foreground">Preparação após confirmação do pagamento, dentro do horário de funcionamento.</p></div>}
                   </div>
 
                   {requiresEndereco && (

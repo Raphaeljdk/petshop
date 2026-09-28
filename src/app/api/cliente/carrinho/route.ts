@@ -91,8 +91,10 @@ export async function POST(req: NextRequest) {
     const tipo = (tipoEntrega || '').toString()
 
     if (tipo === 'retirada') {
+      const opcao = await getOpcaoFrete('', 'retirada')
+      if (!opcao?.disponivel) throw new CheckoutError('Retirada indisponível no momento.')
       valorFrete = 0
-      prazoEntrega = null
+      prazoEntrega = opcao.prazo
       cepFinal = null
       enderecoFinal = null
     } else if (tipo === 'entrega_propria' || tipo === 'sedex') {
@@ -194,6 +196,10 @@ export async function POST(req: NextRequest) {
 
     // ---------- Venda ----------
     const venda = await db.$transaction(async (tx) => {
+      // A personal loyalty benefit can be reserved by only one checkout at a time.
+      if (cupomCodigo?.trim().toUpperCase().startsWith('CLUBE-')) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${cliente.id}))`
+      }
       let subtotal = 0
       const itensData: Array<{
         produtoId: string
@@ -269,7 +275,7 @@ export async function POST(req: NextRequest) {
           enderecoEntrega: enderecoFinal,
           prazoEntrega,
           codigoRastreio: null,
-          statusEntrega: tipo === 'retirada' ? 'entregue' : 'pendente',
+          statusEntrega: 'pendente',
           itens: { create: itensData },
         },
         include: {

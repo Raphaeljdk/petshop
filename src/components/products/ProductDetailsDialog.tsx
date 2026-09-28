@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { ProductReviews } from './ProductReviews'
 
 export type ProductPreview = {
   id: string
@@ -389,6 +390,7 @@ export function ProductDetailsDialog({
             </div>
           </div>
         </div>
+        {product && <div className="px-4 pb-6 sm:px-6"><ProductReviews key={product.id} productId={product.id} /></div>}
       </DialogContent>
     </Dialog>
   )

@@ -39,6 +39,11 @@ model Cliente {
   vendas       Venda[]
   cuponsUsados CupomUso[]
   user         User?
+  preferences CustomerPreference[]
+  petProfiles CustomerPetProfile[]
+  reviews ProductReview[]
+  bookingRequests BookingRequest[]
+  redemptions LoyaltyRedemption[]
 }
 
 model Pet {
@@ -106,6 +111,8 @@ model Produto {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   itensVenda ItemVenda[]
+  preferences CustomerPreference[]
+  reviews ProductReview[]
 }
 
 model Venda {
@@ -141,6 +148,7 @@ model Venda {
   cupom   Cupom?    @relation(fields: [cupomId], references: [id], onDelete: SetNull)
   usoCupom CupomUso?
   itens   ItemVenda[]
+  reviews ProductReview[]
 
   @@index([cupomId])
 }
@@ -297,4 +305,89 @@ model ClientInvitation {
   providerId String?
 
   @@index([email])
+}
+
+// Portal additions are isolated from ERP records and existing checkout tables.
+model CustomerPreference {
+  id String @id @default(cuid())
+  clienteId String
+  produtoId String
+  favorite Boolean @default(false)
+  restock Boolean @default(false)
+  reminderAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  @@unique([clienteId, produtoId])
+  @@index([clienteId, reminderAt])
+}
+
+model CustomerPetProfile {
+  id String @id @default(cuid())
+  clienteId String
+  petKey String
+  photo String?
+  size String?
+  birthday String?
+  notes String?
+  updatedAt DateTime @updatedAt
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  @@unique([clienteId, petKey])
+}
+
+model ProductReview {
+  id String @id @default(cuid())
+  clienteId String
+  produtoId String
+  vendaId String
+  rating Int
+  comment String
+  hidden Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  venda Venda @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  @@unique([clienteId, produtoId])
+  @@index([produtoId, hidden])
+}
+
+model BookingRequest {
+  id String @id @default(cuid())
+  clienteId String
+  petKey String
+  petName String
+  service String
+  desiredAt DateTime
+  notes String?
+  status String @default("solicitado")
+  confirmedAt DateTime?
+  confirmationRef String?
+  reply String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  @@unique([clienteId, petKey, desiredAt])
+  @@index([status, desiredAt])
+}
+
+model LoyaltyConfig {
+  id String @id @default("default")
+  active Boolean @default(false)
+  startsAt DateTime @default(now())
+  spendCentsPerPoint Int @default(100)
+  rewardPoints Int @default(100)
+  rewardCents Int @default(1000)
+  updatedAt DateTime @updatedAt
+}
+
+model LoyaltyRedemption {
+  id String @id @default(cuid())
+  clienteId String
+  points Int
+  couponCode String @unique
+  createdAt DateTime @default(now())
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  @@index([clienteId])
 }

@@ -15,8 +15,7 @@ export async function GET() {
       const mercadoLivre = await db.produto.findMany({
         where: {
           ativo: true,
-          mlItemId: { not: null },
-          estoque: { gt: 0 },
+          OR: [{ mlItemId: { not: null } }, { estoque: { lte: 0 } }, { zettaProCod: null }],
         },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
@@ -31,7 +30,7 @@ export async function GET() {
       )
 
       const cached = await db.produto.findMany({
-        where: { ativo: true, estoque: { gt: 0 } },
+        where: { ativo: true },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 

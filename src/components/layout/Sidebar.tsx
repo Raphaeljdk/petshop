@@ -32,6 +32,7 @@ export type TabId =
   | 'pagamentos'
   | 'cupons'
   | 'equipe'
+  | 'relacionamento'
 
 interface SidebarCounts {
   novo?: number
@@ -70,6 +71,7 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
         { id: 'entregas', label: 'Entregas', icon: Truck },
         { id: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
         { id: 'cupons', label: 'Cupons e parceiros', icon: TicketPercent },
+        { id: 'relacionamento', label: 'Relacionamento', icon: UsersRound },
       ],
     },
     {

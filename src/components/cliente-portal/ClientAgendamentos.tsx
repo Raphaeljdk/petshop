@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import type { Agendamento } from '@/lib/types'
+import { BookingRequests } from './BookingRequests'
 
 const statusVariant = (status: string) => {
   if (status === 'concluido') return 'bg-green-100 text-green-700'
@@ -121,6 +122,7 @@ export function ClientAgendamentos() {
         </Button>
       </div>
 
+      <BookingRequests />
       <Card>
         <CardContent className="grid gap-6 p-4 sm:p-6 md:grid-cols-2">
           <div className="min-w-0">

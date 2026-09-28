@@ -18,6 +18,9 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
+import { ExperienceProvider, portalRequest } from './ExperienceProvider'
+import { CustomerClub } from './CustomerClub'
+import type { CarrinhoItem } from './ClientStore'
 
 type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'vacinas' | 'compras'
 
@@ -31,9 +34,29 @@ const TABS: { id: TabClient; label: string; icon: React.ComponentType<{ classNam
 ]
 
 export function ClientPortal() {
+  return <ExperienceProvider><ClientPortalContent /></ExperienceProvider>
+}
+
+function ClientPortalContent() {
   const { sessao, logout } = useAuth()
   const { tab, setTab } = useTabHistory<TabClient>('inicio')
   const [confettiTrigger, setConfettiTrigger] = useState(0)
+  const [repeatItems, setRepeatItems] = useState<CarrinhoItem[] | null>(null)
+  const [repeating, setRepeating] = useState(false)
+
+  async function repeatPurchase(id: string) {
+    if (repeating) return
+    setRepeating(true)
+    try {
+      const result = await portalRequest<{ items: CarrinhoItem[]; notices: string[] }>('/api/cliente/compras/repetir?id=' + encodeURIComponent(id))
+      if (!result.items.length) { toast.error('Nenhum item desta compra está disponível no momento.'); return }
+      setRepeatItems(result.items)
+      setTab('loja')
+      toast.success('Carrinho preparado com os preços atuais. Revise antes de pagar.')
+      if (result.notices.length) toast.info(result.notices.join(' '), { duration: 10000 })
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível repetir a compra.') }
+    finally { setRepeating(false) }
+  }
 
   const user = sessao.user
   const cliente = sessao.cliente
@@ -127,11 +150,12 @@ export function ClientPortal() {
               onIrParaCompras={() => setTab('compras')}
             />
           )}
-          {tab === 'loja' && <ClientStore onCompraFinalizada={onCompraFinalizada} />}
+          {tab === 'inicio' && <CustomerClub onShop={() => setTab('loja')} />}
+          {tab === 'loja' && <ClientStore onCompraFinalizada={onCompraFinalizada} repeatItems={repeatItems} onRepeatConsumed={() => setRepeatItems(null)} />}
           {tab === 'agendamentos' && <ClientAgendamentos />}
           {tab === 'pets' && <ClientMeusPets />}
           {tab === 'vacinas' && <ClientVacinas />}
-          {tab === 'compras' && <ClientMinhasCompras />}
+          {tab === 'compras' && <ClientMinhasCompras onRepeat={repeatPurchase} repeating={repeating} />}
         </div>
       </main>
 

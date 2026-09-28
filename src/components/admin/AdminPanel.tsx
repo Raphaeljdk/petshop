@@ -24,6 +24,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import type { Notificacao } from '@/lib/types'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
+import { CustomerExperienceAdmin } from './CustomerExperienceAdmin'
+import { SalesInsights } from '@/components/dashboard/SalesInsights'
 
 function AdminPanelImpl() {
   const { sessao, logout } = useAuth()
@@ -66,6 +68,7 @@ function AdminPanelImpl() {
     entregas: 'Entregas',
     pagamentos: 'Pagamentos',
     cupons: 'Cupons e parceiros',
+    relacionamento: 'Relacionamento',
     equipe: 'Equipe e convites',
   }
   const user = sessao.user
@@ -226,6 +229,8 @@ function AdminPanelImpl() {
             {tab === 'entregas' && <EntregasView refreshSignal={entregasRefreshSignal} />}
             {tab === 'pagamentos' && <PagamentosView refreshSignal={pagamentosRefreshSignal} />}
             {tab === 'cupons' && <CuponsView />}
+            {tab === 'dashboard' && <SalesInsights />}
+            {tab === 'relacionamento' && <CustomerExperienceAdmin />}
           </div>
         </main>
       </div>

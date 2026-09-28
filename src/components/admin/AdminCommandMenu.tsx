@@ -53,6 +53,7 @@ const navigation: Array<{
   { id: 'integracoes', label: 'Integrações', icon: Plug, keywords: 'zetta mercado livre api' },
   { id: 'notificacoes', label: 'Notificações', icon: Bell, keywords: 'avisos alertas mensagens' },
   { id: 'cupons', label: 'Cupons e parceiros', icon: TicketPercent, keywords: 'descontos influenciadores promocoes' },
+  { id: 'relacionamento', label: 'Relacionamento e fidelidade', icon: UsersRound, keywords: 'favoritos lembretes avaliacao agendamento clube pontos resgate' },
   { id: 'equipe', label: 'Equipe e convites', icon: ShieldCheck, keywords: 'usuarios administradores acesso' },
 ]
 

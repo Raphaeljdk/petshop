@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { Venda } from '@/lib/types'
+import { ReviewEditor } from './ReviewEditor'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -26,7 +27,7 @@ const statusVariant = (s: string) => {
   }
 }
 
-export function ClientMinhasCompras() {
+export function ClientMinhasCompras({ onRepeat, repeating }: { onRepeat?: (id: string) => void; repeating?: boolean }) {
   const [compras, setCompras] = useState<Venda[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -139,6 +140,7 @@ export function ClientMinhasCompras() {
                       </span>
                     </div>
                   ))}
+                  {v.status === 'concluida' && v.itens.map(it => <ReviewEditor key={it.id} productId={it.produtoId} name={it.produto?.nome || 'Produto'} />)}
                   {v.siggmaGuid && (
                     <div className="pt-2 mt-2 border-t border-border">
                       <p className="text-[10px] text-muted-foreground break-all">
@@ -155,6 +157,7 @@ export function ClientMinhasCompras() {
                   )}
                 </div>
               )}
+              <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={repeating} onClick={() => onRepeat?.(v.id)}>{repeating ? 'Consultando estoque...' : 'Comprar novamente'}</Button><span className="self-center text-xs text-muted-foreground">Preços e estoque atuais. Nenhuma cobrança automática.</span></div>
             </CardContent>
           </Card>
         ))}

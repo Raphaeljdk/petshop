@@ -1,6 +1,6 @@
 import type { Cupom, Prisma } from '@prisma/client'
 
-export type CupomDb = Pick<Prisma.TransactionClient, 'cupom' | 'cupomUso'>
+export type CupomDb = Pick<Prisma.TransactionClient, 'cupom' | 'cupomUso' | 'loyaltyRedemption'>
 
 export class CupomValidationError extends Error {
   constructor(message: string, public readonly status = 400) {
@@ -53,6 +53,12 @@ export async function validarCupom(
   const cupom = await client.cupom.findUnique({ where: { codigo: codigoNormalizado } })
   if (!cupom) throw new CupomValidationError('Cupom não encontrado.')
   if (!cupom.ativo) throw new CupomValidationError('Este cupom está inativo.')
+  if (codigoNormalizado.startsWith('CLUBE-')) {
+    const redemption = await client.loyaltyRedemption.findUnique({ where: { couponCode: codigoNormalizado } })
+    if (!redemption || redemption.clienteId !== clienteId) throw new CupomValidationError('Este benefício pertence a outro cliente.', 403)
+    const reserved = await client.cupomUso.count({ where: { cupomId: cupom.id, venda: { status: { in: ['pendente', 'concluida'] } } } })
+    if (reserved) throw new CupomValidationError('Este benefício já está em uso em outro pedido.')
+  }
 
   const agora = new Date()
   if (cupom.inicioEm && agora < cupom.inicioEm) {

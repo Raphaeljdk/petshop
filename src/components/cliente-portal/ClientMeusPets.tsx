@@ -1,4 +1,5 @@
 'use client'
+import { PetProfileEditor, type PetProfile } from './PetProfileEditor'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -227,6 +228,7 @@ export function ClientMeusPets() {
   const [processos, setProcessos] = useState<Processo[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [profiles, setProfiles] = useState<PetProfile[] | null>(null)
   const [editando, setEditando] = useState<Pet | null>(null)
   const [form, setForm] = useState<any>({})
   const [anamneseView, setAnamneseView] = useState<Processo | null>(null)
@@ -239,12 +241,14 @@ export function ClientMeusPets() {
 
   const carregar = useCallback(async () => {
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         fetch('/api/cliente/pets', { credentials: 'same-origin' }),
         fetch('/api/cliente/processos', { credentials: 'same-origin' }),
+        fetch('/api/cliente/perfil-pet', { credentials: 'same-origin' }),
       ])
       if (r1.ok) setPets(await r1.json())
       if (r2.ok) setProcessos(await r2.json())
+      if (r3.ok) setProfiles(await r3.json())
     } catch (e) {
       console.error('pets cliente erro:', e)
     } finally {
@@ -332,7 +336,7 @@ export function ClientMeusPets() {
         peso: form.peso || null,
       }
       const isEdit = !!editando
-      const url = isEdit ? `/api/pets/${editando!.id}` : '/api/cliente/pets'
+      const url = isEdit ? `/api/cliente/pets/${editando!.id}` : '/api/cliente/pets'
       const method = isEdit ? 'PUT' : 'POST'
       const res = await fetch(url, {
         method,
@@ -423,6 +427,7 @@ export function ClientMeusPets() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
+                {profiles && <PetProfileEditor petKey={p.id} name={p.nome} profile={profiles.find(row => row.petKey === p.id)} onSaved={carregar} />}
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {p.idade && (
                     <span className="px-2 py-1 bg-muted rounded">Idade: {p.idade}</span>
