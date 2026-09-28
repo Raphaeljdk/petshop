@@ -1,5 +1,7 @@
 import { siggmaRequest } from '@/lib/siggma/client'
 import type {
+  SiggmaAgendamentoCreateInput,
+  SiggmaAgendamentoCreateResult,
   SiggmaAnimal,
   SiggmaAtendimento,
   SiggmaCliente,
@@ -78,6 +80,18 @@ export const siggma = {
     },
     buscar(id: number) {
       return siggmaRequest<SiggmaAtendimento | null>(`/api/animais-historicos/${id}`)
+    },
+  },
+
+  agendamentos: {
+    agendar(expedienteId: number, data: SiggmaAgendamentoCreateInput) {
+      return siggmaRequest<SiggmaAgendamentoCreateResult>(
+        `/api/petshop-agendamentos/agendar${queryString({ expediente: expedienteId })}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      )
     },
   },
 

@@ -9,6 +9,7 @@ import {
   type CardOrderData,
 } from '@/lib/mercado-pago-orders'
 import type { MetodoPagamento, PagamentoCriarResposta } from '@/lib/types'
+import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +74,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
+    if (venda.status === 'cancelada') {
+      return NextResponse.json(
+        {
+          error:
+            'Esta compra foi cancelada. Volte ao carrinho e gere um novo pedido para reservar preço e estoque novamente.',
+        },
+        { status: 409 }
+      )
+    }
+
+    const cobrancaPendente =
+      venda.mercadoPagoId &&
+      !venda.mercadoPagoId.startsWith('SIM-') &&
+      ['pending', 'in_process', 'authorized'].includes(
+        String(venda.mercadoPagoStatus || '').toLowerCase()
+      )
+
+    if (cobrancaPendente) {
+      return NextResponse.json(
+        {
+          error:
+            'Já existe uma cobrança pendente para esta compra. Aguarde a confirmação antes de gerar outra.',
+        },
+        { status: 409 }
+      )
+    }
+
     if (venda.mercadoPagoStatus === 'approved' || venda.status === 'concluida') {
       return NextResponse.json(
         {
@@ -111,6 +139,7 @@ export async function POST(req: NextRequest) {
           cliente.email,
         card,
         boleto,
+        attemptKey: venda.mercadoPagoId || 'initial',
       },
       config
     )
@@ -134,19 +163,15 @@ export async function POST(req: NextRequest) {
       resultado.qrCode ||
       null
 
-    await db.venda.update({
-      where: { id: venda.id },
-      data: {
-        mercadoPagoId: resultado.orderId,
-        mercadoPagoStatus: statusMap.mercadoPagoStatus,
-        mercadoPagoPaymentUrl: paymentUrl,
-        mercadoPagoQrCode: qrPersistido,
-        mercadoPagoPixExpiresAt: resultado.pixExpiresAt
-          ? new Date(resultado.pixExpiresAt)
-          : null,
-        status: statusMap.vendaStatus,
-        updatedAt: new Date(),
-      },
+    await applyPaymentSaleState(venda.id, {
+      mercadoPagoId: resultado.orderId,
+      mercadoPagoStatus: statusMap.mercadoPagoStatus,
+      mercadoPagoPaymentUrl: paymentUrl,
+      mercadoPagoQrCode: qrPersistido,
+      mercadoPagoPixExpiresAt: resultado.pixExpiresAt
+        ? new Date(resultado.pixExpiresAt)
+        : null,
+      status: statusMap.vendaStatus,
     })
 
     // Mantém o modo simulado somente para desenvolvimento sem credenciais.
