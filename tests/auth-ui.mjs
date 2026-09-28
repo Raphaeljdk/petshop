@@ -122,7 +122,7 @@ try {
   passed('Admin gera e revoga convite pelo painel')
 
   await page.getByRole('button', { name: 'Sair da conta' }).click()
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click()
+  await page.goto(base + '/login')
   await page.getByLabel('E-mail', { exact: true }).fill(email)
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Entrar na minha conta', exact: true }).click()
