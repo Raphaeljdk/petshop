@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -70,6 +70,8 @@ export function ProductDetailsDialog({
     if (!open || !product) return
 
     let active = true
+    // Reset state for the product being opened; the effect also starts the remote detail fetch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setSelectedImage(0)
     setQuantity(1)
@@ -114,18 +116,18 @@ export function ProductDetailsDialog({
       current.precoPromo < current.preco
   )
 
-  const specs = useMemo(() => {
-    if (!current) return []
-
-    return [
-      current.marca ? ['Marca', current.marca] : null,
-      current.modelo ? ['Modelo', current.modelo] : null,
-      current.peso ? ['Peso', String(current.peso)] : null,
-      current.altura ? ['Altura', String(current.altura)] : null,
-      current.largura ? ['Largura', String(current.largura)] : null,
-      current.comprimento ? ['Comprimento', String(current.comprimento)] : null,
-    ].filter(Boolean) as Array<[string, string]>
-  }, [current])
+  const specs = !current
+    ? []
+    : ([
+        current.marca ? ['Marca', current.marca] : null,
+        current.modelo ? ['Modelo', current.modelo] : null,
+        current.peso ? ['Peso', String(current.peso)] : null,
+        current.altura ? ['Altura', String(current.altura)] : null,
+        current.largura ? ['Largura', String(current.largura)] : null,
+        current.comprimento
+          ? ['Comprimento', String(current.comprimento)]
+          : null,
+      ].filter(Boolean) as Array<[string, string]>)
 
   if (!product) return null
 
