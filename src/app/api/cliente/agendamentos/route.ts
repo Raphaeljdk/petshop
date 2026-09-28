@@ -112,11 +112,11 @@ export async function POST(req: NextRequest) {
     }
 
     const config = getSiggmaBookingConfig()
-    if (!config.expedienteId) {
+    if (!config.configured || !config.expedienteId) {
       return NextResponse.json(
         {
           error:
-            'A agenda direta está aguardando o ID do expediente oficial. A solicitação à equipe continua disponível.',
+            'O agendamento direto ainda não está liberado pela integração oficial. Use a solicitação à equipe.',
           code: 'SIGGMA_BOOKING_SETUP_REQUIRED',
         },
         { status: 503 }

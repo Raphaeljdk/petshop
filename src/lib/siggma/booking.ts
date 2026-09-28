@@ -24,6 +24,8 @@ function readServices(): SiggmaBookingService[] {
 }
 
 export function getSiggmaBookingConfig() {
+  const directEnabled =
+    process.env.SIGGMA_AGENDAMENTO_DIRETO_ENABLED?.trim().toLowerCase() === 'true'
   const parsedExpediente = Number(
     process.env.SIGGMA_AGENDAMENTO_EXPEDIENTE_ID?.trim() || ''
   )
@@ -34,14 +36,16 @@ export function getSiggmaBookingConfig() {
   const services = readServices()
   const missing: string[] = []
 
+  if (!directEnabled) missing.push('SIGGMA_AGENDAMENTO_DIRETO_ENABLED')
   if (!expedienteId) missing.push('SIGGMA_AGENDAMENTO_EXPEDIENTE_ID')
   if (!services.length) missing.push('SIGGMA_AGENDAMENTO_SERVICOS_JSON')
 
   return {
+    directEnabled,
     expedienteId,
     services,
-    writeConfigured: Boolean(expedienteId),
-    configured: Boolean(expedienteId && services.length),
+    writeConfigured: Boolean(directEnabled && expedienteId),
+    configured: Boolean(directEnabled && expedienteId && services.length),
     missing,
   }
 }

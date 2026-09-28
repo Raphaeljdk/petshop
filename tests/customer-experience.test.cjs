@@ -322,6 +322,20 @@ test('personal loyalty coupons cannot be shared or reused while a payment is pen
   )
 })
 
+test('direct Siggma booking requires an explicit release flag', () => {
+  const booking = fs.readFileSync(
+    path.join(root, 'src/lib/siggma/booking.ts'),
+    'utf8',
+  )
+  const route = fs.readFileSync(
+    path.join(root, 'src/app/api/cliente/agendamentos/route.ts'),
+    'utf8',
+  )
+  assert.match(booking, /SIGGMA_AGENDAMENTO_DIRETO_ENABLED/)
+  assert.match(booking, /directEnabled && expedienteId && services\.length/)
+  assert.match(route, /!config\.configured/)
+})
+
 test('booking confirmations require a future time and a real agenda reference', async () => {
   const h = harness()
   h.state.admin = true
