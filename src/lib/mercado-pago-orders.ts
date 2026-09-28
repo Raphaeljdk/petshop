@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import type { ConfiguracaoPagamento } from '@/lib/types'
 
 const MP_API_BASE = 'https://api.mercadopago.com'
@@ -42,6 +42,7 @@ export interface CriarOrderInput {
   payerEmail?: string | null
   card?: CardOrderData
   boleto?: BoletoOrderData
+  attemptKey?: string
 }
 
 export interface OrderPagamentoResultado {
@@ -169,6 +170,14 @@ function simulado(vendaId: string, metodo: CriarOrderInput['metodo']): OrderPaga
     statusDetail: 'simulation',
     simulado: true,
   }
+}
+
+function idempotencyKey(input: CriarOrderInput) {
+  return createHash('sha256')
+    .update(
+      ['matilha-prado', input.vendaId, input.metodo, input.attemptKey || 'initial'].join(':')
+    )
+    .digest('hex')
 }
 
 export async function criarOrderMercadoPago(
@@ -309,7 +318,7 @@ export async function criarOrderMercadoPago(
   const order = await chamarMercadoPago('/v1/orders', config, {
     method: 'POST',
     headers: {
-      'X-Idempotency-Key': randomUUID(),
+      'X-Idempotency-Key': idempotencyKey(input),
     },
     body: JSON.stringify(body),
   })

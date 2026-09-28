@@ -72,16 +72,17 @@ Somente solicitar credenciais adicionais se o cliente quiser automação de mens
 
 ## 5. Agendamentos Siggma
 
-Nenhum dado adicional precisa ser solicitado à Matilha Prado neste momento.
+O Hub já possui suporte ao endpoint oficial de criação:
 
-A Zettabrasil confirmou oficialmente que:
+- `POST /api/petshop-agendamentos/agendar?expediente={id}`;
+- autenticação Bearer pelo mesmo OAuth das demais rotas;
+- envio de `quando`, `servicoId`, `clienteId`, `petId` e observações opcionais;
+- validação no backend de que o pet pertence ao cliente autenticado;
+- fallback para solicitação à equipe enquanto a configuração direta não estiver completa.
 
-- `GET /api/animais-historicos` retorna a agenda consolidada da unidade;
-- `cliente` e `animal` são filtros opcionais;
-- o Hub pode consultar a agenda futura usando `dataInicial`;
-- registros com `excluido=true` devem ser ignorados;
-- nomes de animal e tutor são cruzados com `/api/animais` e `/api/clientes`;
-- não existe atualmente API oficial para criar agendamentos por sistema externo;
-- a solicitação de criação pelo Hub foi encaminhada pela Zetta para avaliação da equipe de produto.
+Para ativar o formulário direto em produção ainda é necessário configurar, sem expor no repositório:
 
-Portanto, até nova posição da Zetta, a agenda no Hub é somente leitura e os novos horários são registrados diretamente no Siggma/atendimento da Matilha Prado.
+- `SIGGMA_AGENDAMENTO_EXPEDIENTE_ID` com o expediente oficial da unidade;
+- `SIGGMA_AGENDAMENTO_SERVICOS_JSON` com os IDs e nomes dos serviços autorizados para o portal.
+
+Não há no material recebido um endpoint separado de grade de disponibilidade. O horário solicitado é validado pelo endpoint oficial de criação; uma rejeição do Siggma volta ao portal sem criar uma reserva local falsa.

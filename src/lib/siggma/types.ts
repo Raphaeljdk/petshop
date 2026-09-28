@@ -111,6 +111,24 @@ export type SiggmaAtendimento = {
   dadosEspecificos?: Record<string, unknown> | null
 }
 
+export type SiggmaAgendamentoCreateInput = {
+  quando: string
+  servicoId: number
+  clienteId?: number
+  clienteDocumento?: string
+  petId?: number
+  pet?: string
+  observacoes?: string
+}
+
+export type SiggmaAgendamentoCreateResult = {
+  type?: string
+  data?: unknown
+  msg?: string
+  message?: string
+  [key: string]: unknown
+}
+
 export type SiggmaProduto = {
   codigo_integracao?: number | null
   pro_cod: number

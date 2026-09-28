@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server'
+import { getSiggmaBookingConfig } from '@/lib/siggma/booking'
 
 export async function GET() {
+  const config = getSiggmaBookingConfig()
+
   return NextResponse.json(
     {
-      error: 'A consulta de serviços para criação de agendamentos ainda não faz parte da API oficial do Siggma.',
+      configured: config.configured,
+      writeConfigured: config.writeConfigured,
+      services: config.services,
+      missing: config.missing,
+      fallback: config.configured ? null : 'solicitacao-equipe',
     },
-    { status: 410 }
+    { headers: { 'Cache-Control': 'no-store' } }
   )
 }

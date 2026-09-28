@@ -9,6 +9,7 @@ import {
 } from '@/lib/mercado-pago-orders'
 import { emitWebSocket } from '@/lib/realtime'
 import { importarVendaNoSiggma } from '@/lib/siggma/orders'
+import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,23 +84,27 @@ export async function POST(req: NextRequest) {
 
     const statusMap = mapearOrderParaVenda(order.status, order.statusDetail)
 
-    const atualizado = await db.venda.update({
-      where: { id: venda.id },
-      data: {
-        mercadoPagoId: order.orderId,
-        mercadoPagoStatus: statusMap.mercadoPagoStatus,
-        mercadoPagoPaymentUrl:
-          order.ticketUrl ||
-          order.challengeUrl ||
-          venda.mercadoPagoPaymentUrl,
-        mercadoPagoQrCode:
-          order.qrCodeBase64 ||
-          order.qrCode ||
-          venda.mercadoPagoQrCode,
-        status: statusMap.vendaStatus,
-        updatedAt: new Date(),
-      },
+    const atualizado = await applyPaymentSaleState(venda.id, {
+      mercadoPagoId: order.orderId,
+      mercadoPagoStatus: statusMap.mercadoPagoStatus,
+      mercadoPagoPaymentUrl:
+        order.ticketUrl ||
+        order.challengeUrl ||
+        venda.mercadoPagoPaymentUrl,
+      mercadoPagoQrCode:
+        order.qrCodeBase64 ||
+        order.qrCode ||
+        venda.mercadoPagoQrCode,
+      status: statusMap.vendaStatus,
     })
+
+    if (!atualizado) {
+      return NextResponse.json({
+        ok: true,
+        vendaNotFound: true,
+        orderId: order.orderId,
+      })
+    }
 
     if (statusMap.aprovado) {
       await importarVendaNoSiggma(venda.id)

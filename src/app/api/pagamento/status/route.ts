@@ -7,6 +7,7 @@ import {
   mapearOrderParaVenda,
 } from '@/lib/mercado-pago-orders'
 import { importarVendaNoSiggma } from '@/lib/siggma/orders'
+import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,34 +77,24 @@ export async function GET(req: NextRequest) {
         const order = await consultarOrderMercadoPago(orderId, config)
         const statusMap = mapearOrderParaVenda(order.status, order.statusDetail)
 
-        venda = await db.venda.update({
-          where: { id: venda.id },
-          data: {
-            mercadoPagoStatus: statusMap.mercadoPagoStatus,
-            mercadoPagoPaymentUrl:
-              order.ticketUrl ||
-              order.challengeUrl ||
-              venda.mercadoPagoPaymentUrl,
-            mercadoPagoQrCode:
-              order.qrCodeBase64 ||
-              order.qrCode ||
-              venda.mercadoPagoQrCode,
-            status: statusMap.vendaStatus,
-            updatedAt: new Date(),
-          },
-          select: {
-            id: true,
-            clienteId: true,
-            status: true,
-            total: true,
-            mercadoPagoId: true,
-            mercadoPagoStatus: true,
-            mercadoPagoPaymentUrl: true,
-            mercadoPagoQrCode: true,
-            mercadoPagoPixExpiresAt: true,
-            updatedAt: true,
-          },
+        const atualizado = await applyPaymentSaleState(venda.id, {
+          mercadoPagoStatus: statusMap.mercadoPagoStatus,
+          mercadoPagoPaymentUrl:
+            order.ticketUrl ||
+            order.challengeUrl ||
+            venda.mercadoPagoPaymentUrl,
+          mercadoPagoQrCode:
+            order.qrCodeBase64 ||
+            order.qrCode ||
+            venda.mercadoPagoQrCode,
+          status: statusMap.vendaStatus,
         })
+
+        if (!atualizado) {
+          return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
+        }
+
+        venda = atualizado
 
         if (statusMap.aprovado) {
           try {
