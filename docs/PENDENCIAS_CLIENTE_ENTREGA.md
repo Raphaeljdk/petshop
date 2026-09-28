@@ -72,17 +72,17 @@ Somente solicitar credenciais adicionais se o cliente quiser automação de mens
 
 ## 5. Agendamentos Siggma
 
-O Hub já possui suporte ao endpoint oficial de criação:
+A última orientação formal da Zettabrasil informou que a criação direta de agendamento está fora do escopo atual da integração. Por isso:
 
-- `POST /api/petshop-agendamentos/agendar?expediente={id}`;
-- autenticação Bearer pelo mesmo OAuth das demais rotas;
-- envio de `quando`, `servicoId`, `clienteId`, `petId` e observações opcionais;
-- validação no backend de que o pet pertence ao cliente autenticado;
-- fallback para solicitação à equipe enquanto a configuração direta não estiver completa.
+- o cliente continua enviando uma solicitação de horário pelo Hub;
+- a equipe da Matilha Prado registra/confirma o atendimento no Siggma;
+- o Hub lê a agenda oficial por `GET /api/animais-historicos`;
+- o código da rota direta permanece preparado, mas fica bloqueado por `SIGGMA_AGENDAMENTO_DIRETO_ENABLED=false`.
 
-Para ativar o formulário direto em produção ainda é necessário configurar, sem expor no repositório:
+Somente ativar a rota direta no futuro após liberação formal da Zettabrasil e recebimento do ID real do expediente e dos IDs reais de serviços. Não usar `expediente=1` ou `servicoId=3` dos exemplos técnicos como valores de produção.
 
-- `SIGGMA_AGENDAMENTO_EXPEDIENTE_ID` com o expediente oficial da unidade;
-- `SIGGMA_AGENDAMENTO_SERVICOS_JSON` com os IDs e nomes dos serviços autorizados para o portal.
+## 6. Cadastros Siggma
 
-Não há no material recebido um endpoint separado de grade de disponibilidade. O horário solicitado é validado pelo endpoint oficial de criação; uma rejeição do Siggma volta ao portal sem criar uma reserva local falsa.
+**Clientes: concluído.** O OpenAPI oficial documenta `POST /api/clientes/importar` para criar ou atualizar clientes, e o cadastro do portal já utiliza esse fluxo quando o CPF/CNPJ ainda não existe no Siggma.
+
+**Pets: pendente da Zettabrasil.** O OpenAPI recebido expõe somente leitura para `/api/animais`, `/api/animais/all` e `/api/animais/{id}`. Não há rota oficial documentada para criar/alterar pets. Enquanto isso, contas vinculadas ao Siggma não gravam pets locais como se fossem oficiais; o cadastro/alteração deve ser feito pela equipe no ERP.
