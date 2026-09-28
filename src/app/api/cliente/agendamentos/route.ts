@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
+import { AuthError, readAuthBody } from '@/lib/auth-http'
 import { getZettaAnimalsByClient } from '@/lib/zetta-client'
 import { listOfficialAgenda } from '@/lib/siggma/agendamentos'
 import { getSiggmaBookingConfig } from '@/lib/siggma/booking'
@@ -63,6 +64,9 @@ export async function GET() {
     return NextResponse.json(agendamentos)
   } catch (error) {
     console.error('cliente/agendamentos GET erro:', error)
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     if (error instanceof SiggmaApiError) {
       return NextResponse.json(
         { error: error.message, details: error.details },
@@ -99,7 +103,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const parsed = createSchema.safeParse(await req.json())
+    const parsed = createSchema.safeParse(await readAuthBody(req))
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Confira pet, serviço, data e horário do agendamento.' },
