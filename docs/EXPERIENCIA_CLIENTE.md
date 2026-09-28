@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Comprar novamente | Cliente → Minhas Compras | Reconsulta preço/estoque do ERP, limita quantidades disponíveis, informa itens excluídos e abre carrinho para revisão. Não cria venda nem cobrança. |
 | Favoritos | Loja → coração / Meus favoritos | Salvos na conta no Hub; não dependem do aparelho. |
-| Agendamento fácil | Agenda → Agendar pelo portal | Quando expediente e catálogo de serviços estão configurados, cria diretamente pelo endpoint oficial do Siggma/Zetta. Enquanto essa configuração estiver incompleta, mantém a solicitação à equipe como fallback seguro. |
+| Agendamento fácil | Agenda → Solicitar pelo portal | Pela última orientação formal da Zettabrasil, a criação direta está fora do escopo atual. O cliente solicita data/horário e a equipe registra no Siggma; o Hub continua lendo a agenda oficial. O código da rota direta permanece preparado, mas desabilitado. |
 | Perfil do pet | Meus Pets → Personalizar perfil | Foto reduzida para até 640 px, porte, nascimento e cuidados. Complemento no Hub, sem sobrescrever dados do ERP. A edição de dados básicos de pets locais usa uma rota com verificação de proprietário. |
 | Retirada/entrega | Carrinho | Custo e prazo antes do pagamento. Retirada começa pendente, não entregue. Prazo armazenado no pedido. |
 | Reposição | Loja → Lembrar | Data futura; aviso dentro do portal e exportação .ics para o calendário do cliente. Não envia e-mail/push/WhatsApp automaticamente. |
@@ -48,7 +48,7 @@ Enquanto faltam tabelas, os endpoints novos retornam `503 SETUP_REQUIRED`; contr
 - Polling de preferências/solicitações a cada 60 segundos apenas com a página visível. Não há job em background nem promessa de aviso com o site fechado; o calendário é uma alternativa opcional do cliente.
 - Uma avaliação por cliente/produto, editável. Avaliações ocultadas não são republicadas só porque o cliente edita. Compras posteriormente estornadas deixam de qualificar a exibição pública.
 - Pedidos de agendamento confirmados exigem contato com a loja para alteração/cancelamento; cancelar a solicitação pendente pelo portal não cancela nada no ERP.
-- A integração direta com `/api/petshop-agendamentos/agendar?expediente={id}` já está implementada. Em produção, ela exige `SIGGMA_AGENDAMENTO_EXPEDIENTE_ID` e `SIGGMA_AGENDAMENTO_SERVICOS_JSON`; sem esses valores, o portal usa a solicitação à equipe como fallback. O endpoint oficial valida o horário solicitado e uma rejeição não cria reserva local falsa.
+- A integração direta com `/api/petshop-agendamentos/agendar?expediente={id}` permanece preparada no código, porém **não deve ser ativada no escopo atual**. A última orientação formal da Zettabrasil informou que o ID do expediente deixa de ser necessário por enquanto e que os agendamentos continuam sendo registrados pela equipe. O Hub usa a leitura oficial de `/api/animais-historicos`. Uma futura ativação exige liberação formal, `SIGGMA_AGENDAMENTO_DIRETO_ENABLED=true`, expediente real e catálogo real de serviços.
 
 ## Verificação
 
