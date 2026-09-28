@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { AuthError } from '@/lib/auth-http'
 import { emailSchema } from '@/lib/auth-validation'
-import { integrationBridgeRequest } from '@/lib/integration-bridge'
 
 export const hashInvitation = (token: string) => createHash('sha256').update(token).digest('hex')
 export function invitationMailConfig() {
@@ -20,6 +19,7 @@ export function invitationMailConfig() {
 }
 
 export async function officialInvitationClient(id: number) {
+  const { integrationBridgeRequest } = await import('@/lib/integration-bridge')
   const response = await integrationBridgeRequest<{ ok: boolean; data: { id: number; nome?: string; email?: string; telefone?: string; celular?: string; ativo?: boolean } }>(`/api/zetta/clientes/${id}`)
   const client = response.data
   const email = emailSchema.safeParse(client?.email)
