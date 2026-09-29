@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import {
   AmazonSpApiError,
+  amazonMarketplaceParticipations,
   amazonSellerListings,
   amazonSpApiConfigState,
 } from '@/lib/amazon-sp-api'
@@ -43,12 +44,14 @@ export async function GET() {
   }
 
   try {
+    const marketplaces = await amazonMarketplaceParticipations()
     await amazonSellerListings(1)
     return NextResponse.json(
       {
         ...state,
         connected: true,
         catalogAccess: true,
+        marketplaces,
         lastSync,
         error: null,
       },
