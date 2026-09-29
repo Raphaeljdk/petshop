@@ -64,6 +64,38 @@ type MercadoLivreItem = {
 }
 type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
 
+type AmazonStatus = {
+  configured: boolean
+  connected: boolean
+  catalogAccess: boolean
+  sellerId: string | null
+  marketplaceId: string
+  lastSync?: string | null
+  missing?: string[]
+  error?: string | null
+  errorCode?: string | null
+}
+type AmazonItem = {
+  sku: string
+  asin: string | null
+  title: string
+  price: number | null
+  currency: string
+  quantity: number
+  status: string[]
+  imageUrl: string | null
+  productType: string | null
+  imported: boolean
+  published: boolean
+  productId: string | null
+}
+type AmazonItems = {
+  items: AmazonItem[]
+  page: number
+  total: number
+  truncated?: boolean
+}
+
 function mercadoLivreOAuthErrorMessage(code: string | null) {
   const messages: Record<string, string> = {
     invalid_client: 'Client ID ou Client Secret inválido. Confirme que são da aplicação Mercado Livre, não da aplicação Mercado Pago.',
@@ -97,6 +129,16 @@ export function IntegracoesView() {
   const [mlPublishingId, setMlPublishingId] = useState<string | null>(null)
   const mlAutoSyncDone = useRef(false)
 
+  const [amazon, setAmazon] = useState<AmazonStatus | null>(null)
+  const [amazonItems, setAmazonItems] = useState<AmazonItems | null>(null)
+  const [amazonPage, setAmazonPage] = useState(1)
+  const [amazonLoading, setAmazonLoading] = useState(false)
+  const [amazonError, setAmazonError] = useState('')
+  const [amazonSyncing, setAmazonSyncing] = useState(false)
+  const [amazonRefresh, setAmazonRefresh] = useState(0)
+  const [amazonPublishingId, setAmazonPublishingId] = useState<string | null>(null)
+  const amazonAutoSyncDone = useRef(false)
+
   useEffect(() => {
     if (!mercadoLivre?.connected) return
     const controller = new AbortController()
@@ -119,16 +161,56 @@ export function IntegracoesView() {
   }, [mercadoLivre?.connected, mlPage, mlRefresh])
 
   useEffect(() => {
+    if (!amazon?.connected) return
+    const controller = new AbortController()
+
+    async function loadAmazonItems() {
+      setAmazonLoading(true)
+      setAmazonError('')
+      try {
+        const response = await fetch(
+          `/api/integracoes/amazon/itens?page=${amazonPage}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          }
+        )
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(
+            data?.error || 'Não foi possível buscar os anúncios da Amazon.'
+          )
+        }
+        setAmazonItems(data as AmazonItems)
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setAmazonError(
+            error instanceof Error
+              ? error.message
+              : 'Não foi possível buscar os anúncios da Amazon.'
+          )
+        }
+      } finally {
+        if (!controller.signal.aborted) setAmazonLoading(false)
+      }
+    }
+
+    void loadAmazonItems()
+    return () => controller.abort()
+  }, [amazon?.connected, amazonPage, amazonRefresh])
+
+  useEffect(() => {
     let cancelado = false
 
     async function carregar() {
       try {
-        const [pagamentoRes, freteRes, integracoesRes, bridgeRes, mlRes] = await Promise.all([
+        const [pagamentoRes, freteRes, integracoesRes, bridgeRes, mlRes, amazonRes] = await Promise.all([
           fetch('/api/pagamento/config', { credentials: 'same-origin' }),
           fetch('/api/frete/config', { credentials: 'same-origin' }),
           fetch('/api/integracoes', { credentials: 'same-origin' }),
           fetch('/api/admin/integration-bridge/status', { credentials: 'same-origin', cache: 'no-store' }),
           fetch('/api/integracoes/mercado-livre/status', { credentials: 'same-origin', cache: 'no-store' }),
+          fetch('/api/integracoes/amazon/status', { credentials: 'same-origin', cache: 'no-store' }),
         ])
 
         const pagamento = pagamentoRes.ok
@@ -143,6 +225,7 @@ export function IntegracoesView() {
         const bridgePayload = bridgeRes.ok ? await bridgeRes.json() : null
         const bridge: BridgeStatus | null = bridgePayload?.bridge || null
         const mlStatus: MercadoLivreStatus | null = await mlRes.json().catch(() => null)
+        const amazonStatus: AmazonStatus | null = await amazonRes.json().catch(() => null)
 
         if (!cancelado) {
           setEstado({
@@ -157,6 +240,44 @@ export function IntegracoesView() {
             bridge,
           })
           setMercadoLivre(mlStatus)
+          setAmazon(amazonStatus)
+
+          if (
+            amazonStatus?.connected &&
+            !amazonStatus.lastSync &&
+            !amazonAutoSyncDone.current
+          ) {
+            amazonAutoSyncDone.current = true
+            void fetch('/api/integracoes/amazon/sincronizar', {
+              method: 'POST',
+              credentials: 'same-origin',
+            })
+              .then(async (response) => {
+                const payload = await response.json().catch(() => ({}))
+                if (!response.ok) {
+                  throw new Error(
+                    payload?.error ||
+                      'Amazon conectada, mas não foi possível puxar o catálogo.'
+                  )
+                }
+                toast.success(
+                  `Amazon conectada: ${payload.synchronized || 0} anúncio(s) sincronizado(s).`
+                )
+                if (payload.created) {
+                  toast.info(
+                    'Os novos produtos da Amazon foram importados ocultos.'
+                  )
+                }
+                setAmazonRefresh((value) => value + 1)
+              })
+              .catch((error) => {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : 'A sincronização automática da Amazon falhou.'
+                )
+              })
+          }
 
           const oauthResult = new URLSearchParams(window.location.search).get('ml')
           if (
