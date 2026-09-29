@@ -31,6 +31,11 @@ function env(...names: string[]) {
 }
 
 export function amazonSpApiConfigState() {
+  const applicationId = env(
+    'AMAZON_SP_API_APPLICATION_ID',
+    'ID_do_aplicativo_API_SP_AMAZON',
+    'ID_do_Aplicativo_API_SP_AMAZON'
+  )
   const clientId = env(
     'AMAZON_SP_API_CLIENT_ID',
     'ID_do_cliente_API_SP_AMAZON',
@@ -60,9 +65,17 @@ export function amazonSpApiConfigState() {
     !sellerId && 'AMAZON_SP_API_SELLER_ID',
   ].filter(Boolean) as string[]
 
+  const applicationIdUsedAsClientId =
+    /^amzn1\.sp\.solution\./i.test(clientId)
+
   return {
-    configured: missing.length === 0 && ALLOWED_ENDPOINTS.has(endpoint),
+    configured:
+      missing.length === 0 &&
+      ALLOWED_ENDPOINTS.has(endpoint) &&
+      !applicationIdUsedAsClientId,
     missing,
+    applicationId: applicationId || null,
+    applicationIdUsedAsClientId,
     clientIdConfigured: Boolean(clientId),
     clientSecretConfigured: Boolean(clientSecret),
     refreshTokenConfigured: Boolean(refreshToken),
@@ -77,6 +90,14 @@ export function amazonSpApiConfigState() {
 export function amazonSpApiConfig() {
   const state = amazonSpApiConfigState()
   if (!state.configured) {
+    if (state.applicationIdUsedAsClientId) {
+      throw new AmazonSpApiError(
+        'application_id_as_client_id',
+        'O ID do aplicativo Amazon (amzn1.sp.solution...) foi colocado no campo de Client ID. Use o LWA Client ID exibido em LWA credentials.',
+        503
+      )
+    }
+
     throw new AmazonSpApiError(
       'configuration_incomplete',
       state.missing.length
@@ -116,7 +137,7 @@ function mapLwaError(code?: string) {
   if (code === 'invalid_client') {
     return new AmazonSpApiError(
       'invalid_client',
-      'Client ID ou Client Secret da Amazon inválido.',
+      'A Amazon rejeitou o LWA Client ID/Client Secret. Confirme em LWA credentials que os dois pertencem à mesma aplicação e ao mesmo ambiente (produção ou sandbox).',
       401
     )
   }
