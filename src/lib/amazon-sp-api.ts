@@ -210,7 +210,25 @@ function amazonDate() {
   return new Date().toISOString().replace(/[:-]|\.\d{3}/g, '')
 }
 
-function safeSpApiError(status: number) {
+function safeAmazonMessage(value: unknown) {
+  if (typeof value !== 'string') return ''
+  return value
+    .replace(/Atzr\|[A-Za-z0-9._~+\/-]+/gi, '[token oculto]')
+    .replace(/amzn1\.oa2-cs\.[A-Za-z0-9._~+\/-]+/gi, '[secret oculto]')
+    .slice(0, 500)
+}
+
+function safeSpApiError(
+  status: number,
+  payload?: {
+    errors?: Array<{ code?: string; message?: string; details?: string }>
+  } | null
+) {
+  const amazonError = payload?.errors?.[0]
+  const amazonCode = safeAmazonMessage(amazonError?.code)
+  const amazonMessage = safeAmazonMessage(amazonError?.message)
+  const detail = [amazonCode, amazonMessage].filter(Boolean).join(': ')
+
   if (status === 401) {
     return new AmazonSpApiError(
       'unauthorized',
@@ -232,9 +250,21 @@ function safeSpApiError(status: number) {
       429
     )
   }
+  if (status === 400) {
+    return new AmazonSpApiError(
+      'bad_request',
+      detail
+        ? `A Amazon recusou a consulta: ${detail}`
+        : 'A Amazon recusou a consulta (erro 400). Confira Seller ID/Merchant Token, Marketplace ID e os parâmetros da integração.',
+      400
+    )
+  }
+
   return new AmazonSpApiError(
     `amazon_http_${status}`,
-    `A Amazon SP-API respondeu com erro ${status}.`,
+    detail
+      ? `A Amazon SP-API respondeu com erro ${status}: ${detail}`
+      : `A Amazon SP-API respondeu com erro ${status}.`,
     502
   )
 }
@@ -261,8 +291,23 @@ async function amazonGet<T>(
     },
   })
 
-  if (!response.ok) throw safeSpApiError(response.status)
-  return (await response.json()) as T
+  const payload = (await response.json().catch(() => null)) as
+    | T
+    | {
+        errors?: Array<{ code?: string; message?: string; details?: string }>
+      }
+    | null
+
+  if (!response.ok) {
+    throw safeSpApiError(
+      response.status,
+      payload as {
+        errors?: Array<{ code?: string; message?: string; details?: string }>
+      } | null
+    )
+  }
+
+  return payload as T
 }
 
 type AmazonSummary = {
