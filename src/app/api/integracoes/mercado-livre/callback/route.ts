@@ -6,6 +6,24 @@ import { encryptToken, ML_COOKIE, mercadoLivreConfig } from '@/lib/mercado-livre
 
 export const runtime = 'nodejs'
 
+const KNOWN_ML_ERRORS = new Set([
+  'invalid_client',
+  'invalid_grant',
+  'invalid_request',
+  'invalid_scope',
+  'unsupported_grant_type',
+  'forbidden',
+  'unauthorized_client',
+  'unauthorized_application',
+  'invalid_operator_user_id',
+  'access_denied',
+])
+
+function safeMlError(value: unknown, fallback = 'oauth_failed') {
+  const normalized = String(value || '').trim().toLowerCase()
+  return KNOWN_ML_ERRORS.has(normalized) ? normalized : fallback
+}
+
 function equal(a: string, b: string) {
   const x = Buffer.from(a), y = Buffer.from(b)
   return x.length === y.length && timingSafeEqual(x, y)
@@ -15,8 +33,16 @@ export async function GET(req: NextRequest) {
   const pending = req.cookies.get(ML_COOKIE)?.value
   const code = req.nextUrl.searchParams.get('code')
   const state = req.nextUrl.searchParams.get('state')
+  const providerError = req.nextUrl.searchParams.get('error')
   const user = await getUsuarioLogado()
   const invalid = () => NextResponse.json({ error: 'Autorização inválida ou ausente. Inicie pelo painel de Integrações.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
+
+  if (providerError && user?.role === 'ADMIN') {
+    const url = new URL('/?ml=error', req.url)
+    url.searchParams.set('ml_code', safeMlError(providerError))
+    return NextResponse.redirect(url)
+  }
+
   if (!pending || !code || !state || !user || user.role !== 'ADMIN') return invalid()
 
   let flow: { state: string; verifier: string; userId: string }
@@ -32,12 +58,27 @@ export async function GET(req: NextRequest) {
 
   try {
     const config = mercadoLivreConfig()
-    const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, cache: 'no-store',
-      body: new URLSearchParams({ grant_type: 'authorization_code', client_id: config.clientId,
-        client_secret: config.clientSecret, code, redirect_uri: config.redirectUri, code_verifier: flow.verifier }),
+    const tokenBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      code,
+      redirect_uri: config.redirectUri,
     })
-    if (!tokenResponse.ok) throw new Error(`Troca do código falhou (${tokenResponse.status})`)
+    if (config.pkceEnabled) tokenBody.set('code_verifier', flow.verifier)
+
+    const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      cache: 'no-store',
+      body: tokenBody,
+    })
+
+    if (!tokenResponse.ok) {
+      const payload = await tokenResponse.json().catch(() => null) as { error?: string } | null
+      const code = safeMlError(payload?.error, `http_${tokenResponse.status}`)
+      throw new Error(code)
+    }
     const tokens = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; user_id?: number | string }
     if (!tokens.access_token || !tokens.refresh_token || !tokens.user_id || !Number.isFinite(Number(tokens.expires_in))) throw new Error('Resposta OAuth incompleta')
 
@@ -49,7 +90,10 @@ export async function GET(req: NextRequest) {
     })
     return clearCookie(NextResponse.redirect(new URL('/?ml=connected', req.url)))
   } catch (error) {
-    console.error('Mercado Livre OAuth:', error instanceof Error ? error.message : 'falha')
-    return clearCookie(NextResponse.redirect(new URL('/?ml=error', req.url)))
+    const code = safeMlError(error instanceof Error ? error.message : null)
+    console.error('Mercado Livre OAuth:', code)
+    const url = new URL('/?ml=error', req.url)
+    url.searchParams.set('ml_code', code)
+    return clearCookie(NextResponse.redirect(url))
   }
 }
