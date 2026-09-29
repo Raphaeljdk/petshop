@@ -64,6 +64,21 @@ type MercadoLivreItem = {
 }
 type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
 
+function mercadoLivreOAuthErrorMessage(code: string | null) {
+  const messages: Record<string, string> = {
+    invalid_client: 'Client ID ou Client Secret inválido. Confirme que são da aplicação Mercado Livre, não da aplicação Mercado Pago.',
+    invalid_grant: 'A autorização expirou, já foi usada ou não corresponde à Redirect URI configurada. Reconecte a conta.',
+    invalid_request: 'O Mercado Livre rejeitou os parâmetros do OAuth. Confira Redirect URI e a opção PKCE do aplicativo.',
+    invalid_scope: 'Os escopos/permissões do aplicativo Mercado Livre estão incompatíveis.',
+    forbidden: 'O Mercado Livre bloqueou o acesso. Confira a conta vendedora, permissões e situação do aplicativo.',
+    unauthorized_client: 'A aplicação não tem autorização para gerar token para esta conta.',
+    unauthorized_application: 'A aplicação Mercado Livre está bloqueada ou indisponível.',
+    invalid_operator_user_id: 'A autorização precisa ser feita pela conta principal/administradora do Mercado Livre, não por colaborador.',
+    access_denied: 'A autorização foi negada no Mercado Livre.',
+  }
+  return messages[code || ''] || 'A autorização do Mercado Livre falhou. Confira as credenciais do aplicativo e tente novamente.'
+}
+
 export function IntegracoesView() {
   const [estado, setEstado] = useState<EstadoIntegracoes>({
     pagamento: null,
@@ -330,7 +345,9 @@ export function IntegracoesView() {
           {typeof window !== 'undefined' &&
             new URLSearchParams(window.location.search).get('ml') === 'error' && (
               <p className="text-red-700">
-                A autorização falhou. Tente conectar novamente.
+                {mercadoLivreOAuthErrorMessage(
+                  new URLSearchParams(window.location.search).get('ml_code')
+                )}
               </p>
             )}
 
