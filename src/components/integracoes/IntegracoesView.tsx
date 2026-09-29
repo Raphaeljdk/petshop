@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Plug,
   CheckCircle2,
@@ -95,6 +95,7 @@ export function IntegracoesView() {
   const [mlSyncing, setMlSyncing] = useState(false)
   const [mlRefresh, setMlRefresh] = useState(0)
   const [mlPublishingId, setMlPublishingId] = useState<string | null>(null)
+  const mlAutoSyncDone = useRef(false)
 
   useEffect(() => {
     if (!mercadoLivre?.connected) return
@@ -156,6 +157,44 @@ export function IntegracoesView() {
             bridge,
           })
           setMercadoLivre(mlStatus)
+
+          const oauthResult = new URLSearchParams(window.location.search).get('ml')
+          if (
+            mlStatus?.connected &&
+            oauthResult === 'connected' &&
+            !mlAutoSyncDone.current
+          ) {
+            mlAutoSyncDone.current = true
+            void fetch('/api/integracoes/mercado-livre/sincronizar', {
+              method: 'POST',
+              credentials: 'same-origin',
+            })
+              .then(async (response) => {
+                const payload = await response.json().catch(() => ({}))
+                if (!response.ok) {
+                  throw new Error(
+                    payload?.error ||
+                      'Conta conectada, mas não foi possível puxar os anúncios.'
+                  )
+                }
+                toast.success(
+                  `Mercado Livre conectado: ${payload.synchronized || 0} anúncio(s) puxado(s) automaticamente.`
+                )
+                if (payload.created) {
+                  toast.info(
+                    'Os novos produtos foram importados ocultos. Publique somente os que quiser exibir.'
+                  )
+                }
+                setMlRefresh((value) => value + 1)
+              })
+              .catch((error) => {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : 'Conta conectada, mas a sincronização automática falhou.'
+                )
+              })
+          }
         }
       } catch (e) {
         console.error('integracoes erro:', e)
