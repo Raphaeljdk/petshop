@@ -462,22 +462,104 @@ function normalizeAmazonItem(
   }
 }
 
+
+type AmazonMarketplaceParticipationResponse = {
+  payload?: Array<{
+    marketplace?: {
+      id?: string
+      name?: string
+      countryCode?: string
+      domainName?: string
+      defaultCurrencyCode?: string
+      defaultLanguageCode?: string
+    }
+    participation?: {
+      isParticipating?: boolean
+      hasSuspendedListings?: boolean
+    }
+    storeName?: string
+  }>
+}
+
+export async function amazonMarketplaceParticipations() {
+  const payload = await amazonGet<AmazonMarketplaceParticipationResponse>(
+    '/sellers/v1/marketplaceParticipations',
+    {}
+  )
+
+  return (payload.payload || []).map((row) => ({
+    id: row.marketplace?.id?.trim() || '',
+    name: row.marketplace?.name?.trim() || '',
+    countryCode: row.marketplace?.countryCode?.trim() || '',
+    domainName: row.marketplace?.domainName?.trim() || '',
+    currency: row.marketplace?.defaultCurrencyCode?.trim() || '',
+    language: row.marketplace?.defaultLanguageCode?.trim() || '',
+    storeName: row.storeName?.trim() || '',
+    isParticipating: Boolean(row.participation?.isParticipating),
+    hasSuspendedListings: Boolean(row.participation?.hasSuspendedListings),
+  }))
+}
+
+export async function validateAmazonSellerContext() {
+  const config = amazonSpApiConfig()
+  const participations = await amazonMarketplaceParticipations()
+  const configuredMarketplace = participations.find(
+    (row) => row.id === config.marketplaceId
+  )
+
+  if (!configuredMarketplace) {
+    const available = participations
+      .filter((row) => row.id)
+      .map((row) => `${row.countryCode || row.name || row.id} (${row.id})`)
+      .join(', ')
+
+    throw new AmazonSpApiError(
+      'marketplace_not_authorized',
+      available
+        ? `O Marketplace ID configurado (${config.marketplaceId}) não pertence à conta Amazon autorizada. Marketplaces disponíveis: ${available}.`
+        : 'A Amazon autenticou a aplicação, mas não retornou marketplaces vinculados à conta autorizada.',
+      400
+    )
+  }
+
+  return {
+    marketplace: configuredMarketplace,
+    participations,
+  }
+}
+
 export async function amazonSellerListings(maximum = 500) {
   const config = amazonSpApiConfig()
+  await validateAmazonSellerContext()
   const collected: AmazonCatalogItem[] = []
   let nextToken = ''
 
   do {
-    const payload = await amazonGet<AmazonSearchResponse>(
-      `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
-      {
+    let payload: AmazonSearchResponse
+    try {
+      payload = await amazonGet<AmazonSearchResponse>(
+        `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
+        {
         marketplaceIds: config.marketplaceId,
         includedData:
           'summaries,attributes,offers,fulfillmentAvailability,productTypes',
         pageSize: '20',
-        ...(nextToken ? { pageToken: nextToken } : {}),
+          ...(nextToken ? { pageToken: nextToken } : {}),
+        }
+      )
+    } catch (error) {
+      if (
+        error instanceof AmazonSpApiError &&
+        error.code === 'bad_request'
+      ) {
+        throw new AmazonSpApiError(
+          'invalid_seller_or_listing_parameters',
+          'A autenticação e o Marketplace ID foram validados pela Amazon, mas a Listings API recusou a consulta. Confira se AMAZON_SP_API_SELLER_ID contém exatamente o Merchant Token/Seller ID da mesma conta que foi autoautorizada.',
+          400
+        )
       }
-    )
+      throw error
+    }
 
     for (const raw of payload.items || []) {
       const item = normalizeAmazonItem(raw, config.marketplaceId)
