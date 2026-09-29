@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import {
   AmazonSpApiError,
@@ -17,12 +18,21 @@ export async function GET() {
   }
 
   const state = amazonSpApiConfigState()
+  const integration = await db.integracao
+    .findUnique({
+      where: { id: 'amazon-sp-api' },
+      select: { ultimaSync: true },
+    })
+    .catch(() => null)
+  const lastSync = integration?.ultimaSync?.toISOString() || null
+
   if (!state.configured) {
     return NextResponse.json(
       {
         ...state,
         connected: false,
         catalogAccess: false,
+        lastSync,
         error:
           state.missing.length > 0
             ? `Faltam variáveis: ${state.missing.join(', ')}`
@@ -39,6 +49,7 @@ export async function GET() {
         ...state,
         connected: true,
         catalogAccess: true,
+        lastSync,
         error: null,
       },
       { headers: { 'Cache-Control': 'no-store' } }
@@ -58,6 +69,7 @@ export async function GET() {
         ...state,
         connected: false,
         catalogAccess: false,
+        lastSync,
         error: known.message,
         errorCode: known.code,
       },
