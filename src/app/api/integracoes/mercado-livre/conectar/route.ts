@@ -21,8 +21,10 @@ export async function GET(req: NextRequest) {
   url.searchParams.set('client_id', config.clientId)
   url.searchParams.set('redirect_uri', config.redirectUri)
   url.searchParams.set('state', state)
-  url.searchParams.set('code_challenge', pkceChallenge(verifier))
-  url.searchParams.set('code_challenge_method', 'S256')
+  if (config.pkceEnabled) {
+    url.searchParams.set('code_challenge', pkceChallenge(verifier))
+    url.searchParams.set('code_challenge_method', 'S256')
+  }
 
   const response = NextResponse.redirect(url)
   response.headers.set('Cache-Control', 'no-store')

@@ -9,6 +9,10 @@ export function mercadoLivreClientId() {
   return process.env.MERCADO_LIVRE_CLIENT_ID?.trim() || process.env.ID_DO_CLIENTE_MERCADO_LIVRE?.trim()
 }
 
+export function mercadoLivrePkceEnabled() {
+  return process.env.MERCADO_LIVRE_PKCE_ENABLED?.trim().toLowerCase() === 'true'
+}
+
 export function mercadoLivreConfig() {
   const clientId = mercadoLivreClientId()
   const clientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET?.trim()
@@ -17,7 +21,13 @@ export function mercadoLivreConfig() {
   if (!clientId || !clientSecret || redirectUri !== ML_CALLBACK || !key || !/^[a-f\d]{64}$/i.test(key)) {
     throw new Error('Configuração do Mercado Livre incompleta ou redirect URI divergente')
   }
-  return { clientId, clientSecret, redirectUri, key: Buffer.from(key, 'hex') }
+  return {
+    clientId,
+    clientSecret,
+    redirectUri,
+    key: Buffer.from(key, 'hex'),
+    pkceEnabled: mercadoLivrePkceEnabled(),
+  }
 }
 
 export function randomUrlSafe(bytes = 32) { return randomBytes(bytes).toString('base64url') }
