@@ -64,6 +64,38 @@ type MercadoLivreItem = {
 }
 type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
 
+type AmazonStatus = {
+  configured: boolean
+  connected: boolean
+  catalogAccess: boolean
+  sellerId: string | null
+  marketplaceId: string
+  lastSync?: string | null
+  missing?: string[]
+  error?: string | null
+  errorCode?: string | null
+}
+type AmazonItem = {
+  sku: string
+  asin: string | null
+  title: string
+  price: number | null
+  currency: string
+  quantity: number
+  status: string[]
+  imageUrl: string | null
+  productType: string | null
+  imported: boolean
+  published: boolean
+  productId: string | null
+}
+type AmazonItems = {
+  items: AmazonItem[]
+  page: number
+  total: number
+  truncated?: boolean
+}
+
 function mercadoLivreOAuthErrorMessage(code: string | null) {
   const messages: Record<string, string> = {
     invalid_client: 'Client ID ou Client Secret inválido. Confirme que são da aplicação Mercado Livre, não da aplicação Mercado Pago.',
@@ -97,6 +129,16 @@ export function IntegracoesView() {
   const [mlPublishingId, setMlPublishingId] = useState<string | null>(null)
   const mlAutoSyncDone = useRef(false)
 
+  const [amazon, setAmazon] = useState<AmazonStatus | null>(null)
+  const [amazonItems, setAmazonItems] = useState<AmazonItems | null>(null)
+  const [amazonPage, setAmazonPage] = useState(1)
+  const [amazonLoading, setAmazonLoading] = useState(false)
+  const [amazonError, setAmazonError] = useState('')
+  const [amazonSyncing, setAmazonSyncing] = useState(false)
+  const [amazonRefresh, setAmazonRefresh] = useState(0)
+  const [amazonPublishingId, setAmazonPublishingId] = useState<string | null>(null)
+  const amazonAutoSyncDone = useRef(false)
+
   useEffect(() => {
     if (!mercadoLivre?.connected) return
     const controller = new AbortController()
@@ -119,16 +161,56 @@ export function IntegracoesView() {
   }, [mercadoLivre?.connected, mlPage, mlRefresh])
 
   useEffect(() => {
+    if (!amazon?.connected) return
+    const controller = new AbortController()
+
+    async function loadAmazonItems() {
+      setAmazonLoading(true)
+      setAmazonError('')
+      try {
+        const response = await fetch(
+          `/api/integracoes/amazon/itens?page=${amazonPage}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          }
+        )
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(
+            data?.error || 'Não foi possível buscar os anúncios da Amazon.'
+          )
+        }
+        setAmazonItems(data as AmazonItems)
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setAmazonError(
+            error instanceof Error
+              ? error.message
+              : 'Não foi possível buscar os anúncios da Amazon.'
+          )
+        }
+      } finally {
+        if (!controller.signal.aborted) setAmazonLoading(false)
+      }
+    }
+
+    void loadAmazonItems()
+    return () => controller.abort()
+  }, [amazon?.connected, amazonPage, amazonRefresh])
+
+  useEffect(() => {
     let cancelado = false
 
     async function carregar() {
       try {
-        const [pagamentoRes, freteRes, integracoesRes, bridgeRes, mlRes] = await Promise.all([
+        const [pagamentoRes, freteRes, integracoesRes, bridgeRes, mlRes, amazonRes] = await Promise.all([
           fetch('/api/pagamento/config', { credentials: 'same-origin' }),
           fetch('/api/frete/config', { credentials: 'same-origin' }),
           fetch('/api/integracoes', { credentials: 'same-origin' }),
           fetch('/api/admin/integration-bridge/status', { credentials: 'same-origin', cache: 'no-store' }),
           fetch('/api/integracoes/mercado-livre/status', { credentials: 'same-origin', cache: 'no-store' }),
+          fetch('/api/integracoes/amazon/status', { credentials: 'same-origin', cache: 'no-store' }),
         ])
 
         const pagamento = pagamentoRes.ok
@@ -143,6 +225,7 @@ export function IntegracoesView() {
         const bridgePayload = bridgeRes.ok ? await bridgeRes.json() : null
         const bridge: BridgeStatus | null = bridgePayload?.bridge || null
         const mlStatus: MercadoLivreStatus | null = await mlRes.json().catch(() => null)
+        const amazonStatus: AmazonStatus | null = await amazonRes.json().catch(() => null)
 
         if (!cancelado) {
           setEstado({
@@ -157,6 +240,44 @@ export function IntegracoesView() {
             bridge,
           })
           setMercadoLivre(mlStatus)
+          setAmazon(amazonStatus)
+
+          if (
+            amazonStatus?.connected &&
+            !amazonStatus.lastSync &&
+            !amazonAutoSyncDone.current
+          ) {
+            amazonAutoSyncDone.current = true
+            void fetch('/api/integracoes/amazon/sincronizar', {
+              method: 'POST',
+              credentials: 'same-origin',
+            })
+              .then(async (response) => {
+                const payload = await response.json().catch(() => ({}))
+                if (!response.ok) {
+                  throw new Error(
+                    payload?.error ||
+                      'Amazon conectada, mas não foi possível puxar o catálogo.'
+                  )
+                }
+                toast.success(
+                  `Amazon conectada: ${payload.synchronized || 0} anúncio(s) sincronizado(s).`
+                )
+                if (payload.created) {
+                  toast.info(
+                    'Os novos produtos da Amazon foram importados ocultos.'
+                  )
+                }
+                setAmazonRefresh((value) => value + 1)
+              })
+              .catch((error) => {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : 'A sincronização automática da Amazon falhou.'
+                )
+              })
+          }
 
           const oauthResult = new URLSearchParams(window.location.search).get('ml')
           if (
@@ -276,6 +397,85 @@ export function IntegracoesView() {
       )
     } finally {
       setMlPublishingId(null)
+    }
+  }
+
+  const sincronizarAmazon = async () => {
+    if (amazonSyncing) return
+
+    setAmazonSyncing(true)
+    try {
+      const response = await fetch('/api/integracoes/amazon/sincronizar', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error || 'Não foi possível sincronizar o catálogo Amazon.'
+        )
+      }
+
+      toast.success(
+        `Amazon sincronizada: ${data.created || 0} novo(s) e ${data.updated || 0} atualizado(s).`
+      )
+      if (data.created) {
+        toast.info(
+          'Os novos produtos da Amazon foram importados ocultos. Publique apenas os que quiser exibir.'
+        )
+      }
+      setAmazonRefresh((value) => value + 1)
+      setAmazon((current) =>
+        current
+          ? { ...current, lastSync: new Date().toISOString() }
+          : current
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível sincronizar a Amazon.'
+      )
+    } finally {
+      setAmazonSyncing(false)
+    }
+  }
+
+  const alterarPublicacaoAmazon = async (
+    item: AmazonItem,
+    publicar: boolean
+  ) => {
+    if (!item.productId || amazonPublishingId) return
+
+    setAmazonPublishingId(item.sku)
+    try {
+      const response = await fetch(`/api/produtos/${item.productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ ativo: publicar }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'Não foi possível alterar a publicação.')
+      }
+
+      toast.success(
+        publicar
+          ? `${item.title} publicado na vitrine.`
+          : `${item.title} ocultado da vitrine.`
+      )
+      setAmazonRefresh((value) => value + 1)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível alterar a publicação.'
+      )
+    } finally {
+      setAmazonPublishingId(null)
     }
   }
 
@@ -566,6 +766,284 @@ export function IntegracoesView() {
                     Próxima
                   </Button>
                 </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className={amazon?.connected ? 'border-green-300' : 'border-amber-300'}>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Amazon</CardTitle>
+              <CardDescription>
+                Selling Partner API · Amazon Brasil
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={amazon?.connected ? 'default' : 'secondary'}>
+                {amazon?.connected ? 'Conectado' : 'Pendente'}
+              </Badge>
+              {amazon?.connected && (
+                <Button
+                  size="sm"
+                  onClick={sincronizarAmazon}
+                  disabled={amazonSyncing}
+                >
+                  <RefreshCw
+                    className={`size-4 ${amazonSyncing ? 'animate-spin' : ''}`}
+                  />
+                  {amazonSyncing ? 'Sincronizando...' : 'Sincronizar catálogo'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4 text-sm">
+          {amazon?.connected && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="font-medium">
+                Conta vendedora: {amazon.sellerId}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Marketplace Brasil: {amazon.marketplaceId}. Produtos novos entram
+                como <strong>ocultos</strong> até você publicar.
+              </p>
+              {amazon.lastSync && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Última sincronização:{' '}
+                  {format(parseISO(amazon.lastSync), "dd/MM/yyyy 'às' HH:mm", {
+                    locale: ptBR,
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+
+          {amazon && !amazon.configured && (
+            <p className="text-amber-700">
+              {amazon.error ||
+                'Configure as variáveis da Amazon SP-API na Vercel.'}
+            </p>
+          )}
+
+          {amazon?.configured && !amazon.connected && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
+              <p className="font-medium">Não foi possível validar a Amazon.</p>
+              <p className="mt-1 text-xs">
+                {amazon.error ||
+                  'Confira Client ID, Client Secret, Refresh Token, Seller ID e a função Product Listing.'}
+              </p>
+            </div>
+          )}
+
+          {!amazon && !loading && (
+            <p className="text-amber-700">
+              Não foi possível consultar o status da integração Amazon.
+            </p>
+          )}
+
+          {amazon?.connected && (
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-semibold">
+                    Anúncios Amazon ({amazonItems?.total ?? '…'})
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    SKU, ASIN, preço, estoque e imagem vêm da SP-API.
+                  </p>
+                </div>
+                {amazonItems?.items.some((item) => item.imported) && (
+                  <div className="flex gap-2 text-xs">
+                    <Badge variant="outline">
+                      {amazonItems.items.filter((item) => item.imported).length}{' '}
+                      importado(s)
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-green-200 bg-green-50 text-green-700"
+                    >
+                      {
+                        amazonItems.items.filter((item) => item.published)
+                          .length
+                      }{' '}
+                      publicado(s)
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {amazonLoading && (
+                <p className="text-muted-foreground">
+                  Carregando anúncios da Amazon...
+                </p>
+              )}
+
+              {amazonError && (
+                <p role="alert" className="text-red-700">
+                  {amazonError}
+                </p>
+              )}
+
+              {!amazonLoading &&
+                !amazonError &&
+                amazonItems?.items.length === 0 && (
+                  <p className="text-muted-foreground">
+                    Nenhum anúncio encontrado nesta conta Amazon.
+                  </p>
+                )}
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                {amazonItems?.items.map((item) => (
+                  <div
+                    key={`${item.asin || 'sem-asin'}-${item.sku}`}
+                    className="flex min-w-0 gap-3 rounded-xl border bg-background p-3"
+                  >
+                    <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Package className="size-8 text-muted-foreground/35" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 font-medium leading-snug">
+                            {item.title}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            SKU: {item.sku}
+                            {item.asin ? ` · ASIN: ${item.asin}` : ''}
+                            {' · '}Estoque: {item.quantity}
+                          </p>
+                        </div>
+                        <strong className="shrink-0 text-sm">
+                          {item.price == null
+                            ? 'Preço indisponível'
+                            : new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: item.currency || 'BRL',
+                              }).format(item.price)}
+                        </strong>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(item.status.length ? item.status : ['SEM STATUS']).map(
+                          (status) => (
+                            <Badge
+                              key={status}
+                              variant="secondary"
+                              className="text-[10px]"
+                            >
+                              {status}
+                            </Badge>
+                          )
+                        )}
+                        <Badge
+                          variant="outline"
+                          className={
+                            item.imported
+                              ? 'border-blue-200 bg-blue-50 text-blue-700'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {item.imported ? 'Importado' : 'Aguardando sync'}
+                        </Badge>
+                        {item.imported && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              item.published
+                                ? 'border-green-200 bg-green-50 text-green-700'
+                                : 'border-slate-200 bg-slate-50 text-slate-600'
+                            }
+                          >
+                            {item.published ? 'Publicado' : 'Oculto'}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.imported && item.productId && (
+                          <Button
+                            size="sm"
+                            variant={item.published ? 'outline' : 'default'}
+                            disabled={amazonPublishingId === item.sku}
+                            onClick={() =>
+                              alterarPublicacaoAmazon(item, !item.published)
+                            }
+                          >
+                            {item.published ? (
+                              <EyeOff className="size-3.5" />
+                            ) : (
+                              <Eye className="size-3.5" />
+                            )}
+                            {item.published ? 'Ocultar' : 'Publicar'}
+                          </Button>
+                        )}
+
+                        {item.asin && (
+                          <Button asChild size="sm" variant="ghost">
+                            <a
+                              href={`https://www.amazon.com.br/dp/${encodeURIComponent(
+                                item.asin
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Ver na Amazon
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {amazonItems && amazonItems.total > 20 && (
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={amazonPage === 1 || amazonLoading}
+                    onClick={() => setAmazonPage((page) => page - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span>
+                    Página {amazonPage} de{' '}
+                    {Math.ceil(amazonItems.total / 20)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      amazonPage >= Math.ceil(amazonItems.total / 20) ||
+                      amazonLoading
+                    }
+                    onClick={() => setAmazonPage((page) => page + 1)}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              )}
+
+              {amazonItems?.truncated && (
+                <p className="text-xs text-amber-700">
+                  Foram carregados os primeiros 500 anúncios. Catálogos maiores
+                  serão paginados em uma próxima evolução.
+                </p>
               )}
             </div>
           )}
