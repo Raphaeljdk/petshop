@@ -797,12 +797,29 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         0
       ),
       ilimitados: produtos.filter((p) => Boolean(p.estoqueIlimitado)).length,
-      zetta: produtos.filter((p) => Boolean(p.zettaProCod)).length,
-      hub: produtos.filter(
+      zettaProdutos: produtos.filter((p) => Boolean(p.zettaProCod)).length,
+      zettaUnidades: produtos.reduce(
+        (sum, produto) => sum + Math.max(0, Number(produto.estoqueZetta || 0)),
+        0
+      ),
+      hubProdutos: produtos.filter(
         (p) => !p.zettaProCod && !p.mlItemId && !p.amazonAsin
       ).length,
-      mercadoLivre: produtos.filter((p) => Boolean(p.mlItemId)).length,
-      amazon: produtos.filter((p) => Boolean(p.amazonAsin)).length,
+      hubUnidades: produtos.reduce(
+        (sum, produto) => sum + Math.max(0, Number(produto.estoqueHub || 0)),
+        0
+      ),
+      mercadoLivreProdutos: produtos.filter((p) => Boolean(p.mlItemId)).length,
+      mercadoLivreUnidades: produtos.reduce(
+        (sum, produto) =>
+          sum + Math.max(0, Number(produto.estoqueMercadoLivre || 0)),
+        0
+      ),
+      amazonProdutos: produtos.filter((p) => Boolean(p.amazonAsin)).length,
+      amazonUnidades: produtos.reduce(
+        (sum, produto) => sum + Math.max(0, Number(produto.estoqueAmazon || 0)),
+        0
+      ),
     }),
     [produtos]
   )
@@ -1207,10 +1224,18 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               {resumoEstoque.ilimitados} ilimitado(s)
             </Badge>
           )}
-          <Badge variant="outline">Zetta {resumoEstoque.zetta}</Badge>
-          <Badge variant="outline">Hub/local {resumoEstoque.hub}</Badge>
-          <Badge className="border-yellow-200 bg-yellow-100 text-yellow-700">Mercado Livre {resumoEstoque.mercadoLivre}</Badge>
-          <Badge className="border-sky-200 bg-sky-100 text-sky-700">Amazon {resumoEstoque.amazon}</Badge>
+          <Badge variant="outline">
+            Zetta {resumoEstoque.zettaUnidades} un. · {resumoEstoque.zettaProdutos} produtos
+          </Badge>
+          <Badge variant="outline">
+            Hub/local {resumoEstoque.hubUnidades} un. · {resumoEstoque.hubProdutos} produtos
+          </Badge>
+          <Badge className="border-yellow-200 bg-yellow-100 text-yellow-700">
+            Mercado Livre {resumoEstoque.mercadoLivreUnidades} un. · {resumoEstoque.mercadoLivreProdutos} produtos
+          </Badge>
+          <Badge className="border-sky-200 bg-sky-100 text-sky-700">
+            Amazon {resumoEstoque.amazonUnidades} un. · {resumoEstoque.amazonProdutos} produtos
+          </Badge>
         </div>
       </div>
 
