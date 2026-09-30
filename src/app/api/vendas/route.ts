@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { emitWebSocket } from '@/lib/realtime'
+import { officialStockFromSources } from '@/lib/product-stock'
+
+const STATUS_VALIDOS = new Set(['concluida', 'pendente', 'cancelada'])
+const CANAIS_VALIDOS = new Set(['loja', 'site', 'mercado_livre', 'amazon'])
 
 export async function GET() {
   try {
@@ -54,39 +58,82 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // valida estoque
-    for (const item of itens) {
-      const produto = await db.produto.findUnique({ where: { id: item.produtoId } })
-      if (!produto) {
-        return NextResponse.json(
-          { error: `Produto ${item.produtoId} não encontrado` },
-          { status: 404 }
-        )
-      }
-      if (produto.zettaProCod) {
-        return NextResponse.json(
-          {
-            error:
-              'Produtos vinculados ao Zetta devem ser vendidos pelo ERP enquanto o endpoint oficial de escrita não estiver integrado.',
-          },
-          { status: 409 }
-        )
-      }
-      if (!produto.estoqueIlimitado && produto.estoque < item.quantidade) {
-        return NextResponse.json(
-          { error: `Estoque insuficiente para ${produto.nome}` },
-          { status: 400 }
-        )
+    if (
+      itens.some(
+        (item) =>
+          !item.produtoId ||
+          !Number.isInteger(item.quantidade) ||
+          item.quantidade <= 0
+      )
+    ) {
+      return NextResponse.json(
+        { error: 'Há itens inválidos na venda.' },
+        { status: 400 }
+      )
+    }
+
+    const statusFinal = status || 'concluida'
+    if (!STATUS_VALIDOS.has(statusFinal)) {
+      return NextResponse.json({ error: 'Status da venda inválido' }, { status: 400 })
+    }
+
+    const canalFinal = canal || 'loja'
+    if (!CANAIS_VALIDOS.has(canalFinal)) {
+      return NextResponse.json({ error: 'Canal da venda inválido' }, { status: 400 })
+    }
+
+    // O estoque é reservado em vendas pendentes/concluídas. Venda criada já
+    // cancelada não deve alterar saldo.
+    if (statusFinal !== 'cancelada') {
+      for (const item of itens) {
+        const produto = await db.produto.findUnique({ where: { id: item.produtoId } })
+        if (!produto) {
+          return NextResponse.json(
+            { error: `Produto ${item.produtoId} não encontrado` },
+            { status: 404 }
+          )
+        }
+
+        if (produto.zettaProCod) {
+          return NextResponse.json(
+            {
+              error:
+                'Produtos vinculados ao Zetta devem ser vendidos pelo ERP enquanto o endpoint oficial de escrita não estiver integrado.',
+            },
+            { status: 409 }
+          )
+        }
+
+        const estoqueDisponivel = officialStockFromSources(produto)
+        if (!produto.estoqueIlimitado && estoqueDisponivel < item.quantidade) {
+          return NextResponse.json(
+            {
+              error: `Estoque insuficiente para ${produto.nome}. Disponível: ${estoqueDisponivel}.`,
+            },
+            { status: 400 }
+          )
+        }
       }
     }
 
     const venda = await db.$transaction(async (tx) => {
       let total = 0
-      const itensData: Array<{ produtoId: string; quantidade: number; precoUnit: number }> = []
+      const itensData: Array<{
+        produtoId: string
+        quantidade: number
+        precoUnit: number
+      }> = []
 
       for (const item of itens) {
         const produto = await tx.produto.findUnique({ where: { id: item.produtoId } })
         if (!produto) throw new Error('Produto não encontrado')
+
+        if (produto.zettaProCod && statusFinal !== 'cancelada') {
+          throw new Error(
+            'Produto vinculado ao Zetta não pode ter o estoque alterado por esta rota.'
+          )
+        }
+
         const precoUnit = item.precoUnit ?? produto.precoPromo ?? produto.preco
         total += precoUnit * item.quantidade
         itensData.push({
@@ -95,25 +142,34 @@ export async function POST(req: NextRequest) {
           precoUnit,
         })
 
-        if (!produto.estoqueIlimitado) {
+        if (statusFinal !== 'cancelada' && !produto.estoqueIlimitado) {
+          const estoqueDisponivel = officialStockFromSources(produto)
+          if (estoqueDisponivel < item.quantidade) {
+            throw new Error(`Estoque insuficiente para ${produto.nome}`)
+          }
+
+          const usaHubComoFonte = produto.estoqueHub > 0
+
           await tx.produto.update({
             where: { id: item.produtoId },
             data: {
-              estoque: { decrement: item.quantidade },
-              ...(produto.estoqueHub > 0
-                ? { estoqueHub: { decrement: Math.min(produto.estoqueHub, item.quantidade) } }
+              estoque: estoqueDisponivel - item.quantidade,
+              ...(usaHubComoFonte
+                ? { estoqueHub: produto.estoqueHub - item.quantidade }
                 : {}),
             },
           })
         }
       }
 
-      const novaVenda = await tx.venda.create({
+      return tx.venda.create({
         data: {
           clienteId: clienteId || null,
           total,
-          canal: canal || 'loja',
-          status: status || 'concluida',
+          subtotalProdutos: total,
+          descontoCupom: 0,
+          canal: canalFinal,
+          status: statusFinal,
           observacoes: observacoes || null,
           itens: {
             create: itensData,
@@ -124,8 +180,6 @@ export async function POST(req: NextRequest) {
           itens: { include: { produto: true } },
         },
       })
-
-      return novaVenda
     })
 
     await emitWebSocket('venda:nova', {
@@ -137,6 +191,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(venda, { status: 201 })
   } catch (e) {
     console.error('vendas POST erro:', e)
-    return NextResponse.json({ error: 'Erro ao criar venda' }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: e instanceof Error ? e.message : 'Erro ao criar venda',
+      },
+      { status: 500 }
+    )
   }
 }
