@@ -323,6 +323,12 @@ export function PagamentoCheckout({
   }
 
   if (config && (!config.mercadoPagoAtivo || config.gatewayDisponivel === false)) {
+    const credencialInvalida = [
+      'PA_UNAUTHORIZED_RESULT_FROM_POLICIES',
+      'invalid_credentials',
+      'forbidden',
+    ].includes(config.gatewayCodigo || '')
+
     return (
       <div className="space-y-4">
         <Card className="border-amber-200 bg-amber-50">
@@ -333,12 +339,14 @@ export function PagamentoCheckout({
               </div>
               <div className="min-w-0">
                 <h3 className="font-semibold text-amber-950">
-                  Pagamento online temporariamente indisponível
+                  {credencialInvalida
+                    ? 'Pagamento aguardando atualização das credenciais'
+                    : 'Pagamento online temporariamente indisponível'}
                 </h3>
                 <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
-                  O gateway de pagamento está em manutenção. Nenhuma cobrança foi
-                  realizada. Tente novamente mais tarde ou fale com a loja para
-                  concluir a compra.
+                  {credencialInvalida
+                    ? 'A conta do Mercado Pago já pode estar liberada, mas a integração ainda não aceitou as credenciais configuradas. Nenhuma cobrança foi realizada.'
+                    : 'Não foi possível validar o gateway de pagamento agora. Nenhuma cobrança foi realizada. Tente novamente mais tarde.'}
                 </p>
               </div>
             </div>
