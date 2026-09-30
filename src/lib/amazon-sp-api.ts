@@ -532,18 +532,57 @@ export async function amazonSellerListings(maximum = 500) {
   const config = amazonSpApiConfig()
   const collected: AmazonCatalogItem[] = []
   let nextToken = ''
+  let includedData =
+    'summaries,attributes,offers,fulfillmentAvailability,productTypes'
 
   do {
-    const payload = await amazonGet<AmazonSearchResponse>(
-      `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
-      {
-        marketplaceIds: config.marketplaceId,
-        includedData:
-          'summaries,attributes,offers,fulfillmentAvailability,productTypes',
-        pageSize: '20',
-        ...(nextToken ? { pageToken: nextToken } : {}),
+    const params = {
+      marketplaceIds: config.marketplaceId,
+      includedData,
+      pageSize: '20',
+      ...(nextToken ? { pageToken: nextToken } : {}),
+    }
+
+    let payload: AmazonSearchResponse
+
+    try {
+      payload = await amazonGet<AmazonSearchResponse>(
+        `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
+        params
+      )
+    } catch (error) {
+      if (
+        error instanceof AmazonSpApiError &&
+        error.code === 'bad_request' &&
+        !nextToken
+      ) {
+        try {
+          includedData = 'summaries'
+          payload = await amazonGet<AmazonSearchResponse>(
+            `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
+            {
+              marketplaceIds: config.marketplaceId,
+              includedData,
+              pageSize: '10',
+            }
+          )
+        } catch (minimalError) {
+          if (
+            minimalError instanceof AmazonSpApiError &&
+            minimalError.code === 'bad_request'
+          ) {
+            throw new AmazonSpApiError(
+              'invalid_seller_or_marketplace',
+              'A autenticação Amazon está válida, mas até a consulta mínima de listagens foi recusada. Confira se AMAZON_SP_API_SELLER_ID contém exatamente o Merchant Token/Seller ID da mesma conta autoautorizada e se essa conta vende na Amazon Brasil.',
+              400
+            )
+          }
+          throw minimalError
+        }
+      } else {
+        throw error
       }
-    )
+    }
 
     for (const raw of payload.items || []) {
       const item = normalizeAmazonItem(raw, config.marketplaceId)
@@ -560,5 +599,7 @@ export async function amazonSellerListings(maximum = 500) {
     truncated: Boolean(nextToken),
     sellerId: config.sellerId,
     marketplaceId: config.marketplaceId,
+    dataProfile:
+      includedData === 'summaries' ? 'summaries' : 'full',
   }
 }
