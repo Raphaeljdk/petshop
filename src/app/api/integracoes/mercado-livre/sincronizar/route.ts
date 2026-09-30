@@ -81,7 +81,7 @@ export async function POST() {
       } else {
         await db.produto.create({
           data: {
-            ...data,
+            ...marketplaceData,
             descricao: null,
             precoPromo: null,
             amazonAsin: null,
