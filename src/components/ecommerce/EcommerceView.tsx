@@ -73,7 +73,6 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
-import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -410,6 +409,7 @@ function ProdutoListRow({
             <Badge variant="secondary" className="text-[10px]">{produto.categoria}</Badge>
             {produto.zettaProCod && <Badge variant="outline" className="text-[9px]">Zetta</Badge>}
             {produto.mlItemId && <Badge className="border-yellow-200 bg-yellow-100 text-[9px] text-yellow-700">Mercado Livre</Badge>}
+            {produto.amazonAsin && <Badge className="border-sky-200 bg-sky-100 text-[9px] text-sky-700">Amazon</Badge>}
           </div>
           {produto.sku && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">SKU {produto.sku}</p>}
         </div>
@@ -618,7 +618,6 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const [loadingProdutos, setLoadingProdutos] = useState(true)
   const [loadingVendas, setLoadingVendas] = useState(true)
   const [syncingZetta, setSyncingZetta] = useState(false)
-  const [estoqueView, setEstoqueView] = useState<'hub' | 'zetta'>('hub')
   const [produtoLayout, setProdutoLayout] = useState<'grade' | 'lista'>('grade')
 
   // Tab controlada — permite trocar para "vendas" automaticamente ao receber
@@ -762,6 +761,17 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
     })
     return Array.from(set).sort()
   }, [produtos])
+
+  const resumoEstoque = useMemo(
+    () => ({
+      total: produtos.length,
+      zetta: produtos.filter((p) => Boolean(p.zettaProCod)).length,
+      hub: produtos.filter((p) => !p.zettaProCod).length,
+      mercadoLivre: produtos.filter((p) => Boolean(p.mlItemId)).length,
+      amazon: produtos.filter((p) => Boolean(p.amazonAsin)).length,
+    }),
+    [produtos]
+  )
 
   const produtosFiltrados = useMemo(() => {
     const termo = buscaProduto.trim().toLowerCase()
@@ -933,7 +943,11 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       if (!res.ok || !data?.success) {
         throw new Error(data?.error || 'Não foi possível sincronizar o catálogo do ERP.')
       }
-      toast.success(`${data.sincronizados} produto(s) sincronizado(s) com o Zetta.`)
+      toast.success(
+        data.vinculados
+          ? `${data.sincronizados} produto(s) Zetta sincronizado(s); ${data.vinculados} vínculo(s) unificado(s) por SKU.`
+          : `${data.sincronizados} produto(s) sincronizado(s) com o Zetta.`
+      )
       await carregar()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar produtos.')
@@ -1144,57 +1158,21 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   /* ---------------------- render ---------------------- */
 
-  const estoqueTabs = (
-    <div className="inline-flex flex-wrap gap-2 rounded-xl border bg-card p-1">
-      <Button type="button" size="sm" variant={estoqueView === 'hub' ? 'default' : 'ghost'} onClick={() => setEstoqueView('hub')}>
-        Estoque do Hub
-      </Button>
-      <Button type="button" size="sm" variant={estoqueView === 'zetta' ? 'default' : 'ghost'} onClick={() => setEstoqueView('zetta')}>
-        Produtos Zetta
-      </Button>
-    </div>
-  )
-
-  if (estoqueView === 'zetta') {
-    return (
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Produtos separados entre o cadastro operacional do Hub e a fonte oficial do ERP.
-          </p>
-        </div>
-        {estoqueTabs}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void sincronizarProdutosZetta()}
-            disabled={syncingZetta}
-          >
-            <RefreshCw className={`size-4 ${syncingZetta ? 'animate-spin' : ''}`} />
-            {syncingZetta ? 'Sincronizando...' : 'Sincronizar Zetta com o Hub'}
-          </Button>
-        </div>
-        <ZettaResourceTable
-          resource="produtos"
-          title="Produtos do ERP Zetta"
-          description="Preço e estoque oficiais do ERP. Estoque negativo é tratado como zero na loja."
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque unificado</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Gerencie produtos, preços e quantidades em estoque
+          Hub e ERP Zetta no mesmo catálogo. Itens vinculados ao Zetta usam o ERP como fonte oficial de preço e estoque; Amazon e Mercado Livre aparecem como canais do mesmo produto.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge variant="secondary">{resumoEstoque.total} produtos</Badge>
+          <Badge variant="outline">Zetta {resumoEstoque.zetta}</Badge>
+          <Badge variant="outline">Hub/local {resumoEstoque.hub}</Badge>
+          <Badge className="border-yellow-200 bg-yellow-100 text-yellow-700">Mercado Livre {resumoEstoque.mercadoLivre}</Badge>
+          <Badge className="border-sky-200 bg-sky-100 text-sky-700">Amazon {resumoEstoque.amazon}</Badge>
+        </div>
       </div>
-
-      {estoqueTabs}
 
       {/* Apenas estoque - vendas são gerenciadas pelo cliente no portal */}
       {/* ================= PRODUTOS / ESTOQUE ================= */}
