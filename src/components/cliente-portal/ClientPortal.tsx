@@ -106,7 +106,7 @@ function ClientPortalContent() {
                 aria-label={`Abrir carrinho com ${cartUi.itemCount} item(ns)`}
                 className="relative size-10 shrink-0 rounded-full border-border bg-background p-0 shadow-sm"
               >
-                <ShoppingCart className="size-4.5" />
+                <ShoppingCart className="size-4" />
                 <span
                   aria-hidden="true"
                   className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm"
