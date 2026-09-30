@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
+import { diagnosticarMercadoPago } from '@/lib/mercado-pago-orders'
 import type { ConfiguracaoPagamento } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,7 @@ export async function GET() {
     }
 
     const config = await getOuCriarConfigPagamento()
+    const gateway = await diagnosticarMercadoPago(config)
 
     const tokenEnvConfigurado = Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim())
     const mercadoPagoAtivoEfetivo = config.mercadoPagoAtivo
@@ -37,7 +39,8 @@ export async function GET() {
     const checkoutPronto =
       mercadoPagoAtivoEfetivo &&
       accessTokenConfigurado &&
-      publicKeyConfigurada
+      publicKeyConfigurada &&
+      gateway.disponivel
     const webhookSecretConfigurado = Boolean(
       process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim()
     )
@@ -56,6 +59,9 @@ export async function GET() {
         publicKeyConfigurada,
         checkoutPronto,
         webhookSecretConfigurado,
+        gatewayDisponivel: gateway.disponivel,
+        gatewayCodigo: gateway.codigo,
+        gatewayMensagem: gateway.mensagem,
       }
       return NextResponse.json(resposta)
     }
@@ -71,6 +77,8 @@ export async function GET() {
       boletoAtivo: config.boletoAtivo,
       simulado: ehSimulado,
       publicKey: publicKeyEfetiva,
+      gatewayDisponivel: gateway.disponivel,
+      gatewayCodigo: gateway.codigo,
     })
   } catch (e) {
     console.error('[pagamento/config GET] erro:', e)
