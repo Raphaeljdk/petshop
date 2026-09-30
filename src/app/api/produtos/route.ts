@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct } from '@/lib/product-stock'
+import { isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
 
 export async function GET() {
   try {
@@ -18,7 +18,14 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       })
 
-      return NextResponse.json(produtos)
+      return NextResponse.json(
+        produtos.map((produto) => ({
+          ...produto,
+          estoque: produto.estoqueIlimitado
+            ? produto.estoque
+            : officialStockFromSources(produto),
+        }))
+      )
     } catch (prismaError) {
       console.warn(
         '[produtos GET] usando compatibilidade com schema anterior:',
