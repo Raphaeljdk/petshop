@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 import { legacyProducts } from '@/lib/product-compat'
+import { officialStockFromSources } from '@/lib/product-stock'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,16 +15,20 @@ export async function GET() {
     try {
       const official = await syncZettaProductsToLocal()
       const complementares = await db.produto.findMany({
-        where: {
-          ativo: true,
-          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
-        },
+        where: { ativo: true },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 
-      return NextResponse.json(
-        uniqueProducts([...official.products, ...complementares])
-      )
+      const produtos = uniqueProducts([...official.products, ...complementares])
+        .map((produto) => ({
+          ...produto,
+          estoque: produto.estoqueIlimitado
+            ? produto.estoque
+            : officialStockFromSources(produto),
+        }))
+        .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
+
+      return NextResponse.json(produtos)
     } catch (siggmaError) {
       console.error(
         '[cliente/produtos] API Siggma indisponível, usando cache local:',
@@ -35,7 +40,16 @@ export async function GET() {
           where: { ativo: true },
           orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
         })
-        return NextResponse.json(cached)
+        return NextResponse.json(
+          cached
+            .map((produto) => ({
+              ...produto,
+              estoque: produto.estoqueIlimitado
+                ? produto.estoque
+                : officialStockFromSources(produto),
+            }))
+            .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
+        )
       } catch (schemaError) {
         console.warn(
           '[cliente/produtos] schema novo ainda não aplicado; usando leitura compatível:',
