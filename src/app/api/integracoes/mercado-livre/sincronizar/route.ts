@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import {
   mercadoLivreCategoryNames,
@@ -51,13 +52,32 @@ export async function POST() {
         }
       }
 
+      const sourceStock = item.status === 'active' ? item.quantity : 0
+      const estoqueIlimitado = isUnlimitedBathProduct({
+        nome: item.title,
+        categoria: item.categoryId ? categories.get(item.categoryId) || 'Mercado Livre' : 'Mercado Livre',
+      })
+      const estoqueConsolidado = totalStockFromSources({
+        estoqueHub: existing?.estoqueHub,
+        estoqueZetta: existing?.estoqueZetta,
+        estoqueMercadoLivre: sourceStock,
+        estoqueAmazon: existing?.estoqueAmazon,
+      })
+      const estoqueOperacional = existing?.zettaProCod
+        ? existing.estoque
+        : existing?.estoqueHub && existing.estoqueHub > 0
+          ? existing.estoqueHub
+          : estoqueConsolidado
+
       const marketplaceData = {
         nome: item.title,
         categoria: item.categoryId
           ? categories.get(item.categoryId) || 'Mercado Livre'
           : 'Mercado Livre',
         preco: item.price,
-        estoque: item.status === 'active' ? item.quantity : 0,
+        estoque: estoqueOperacional,
+        estoqueMercadoLivre: sourceStock,
+        estoqueIlimitado,
         sku: item.sku || item.id,
         mlItemId: item.id,
         imageUrl: item.thumbnail,
@@ -70,6 +90,9 @@ export async function POST() {
           data: preserveMaster
             ? {
                 mlItemId: item.id,
+                estoqueMercadoLivre: sourceStock,
+                estoqueIlimitado,
+                estoque: estoqueOperacional,
                 ...(!existing.imageUrl && item.thumbnail
                   ? { imageUrl: item.thumbnail }
                   : {}),
@@ -84,6 +107,11 @@ export async function POST() {
             ...marketplaceData,
             descricao: null,
             precoPromo: null,
+            estoqueHub: 0,
+            estoqueZetta: 0,
+            estoqueMercadoLivre: sourceStock,
+            estoqueAmazon: 0,
+            estoqueIlimitado,
             amazonAsin: null,
             ativo: false,
           },
