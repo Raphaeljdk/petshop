@@ -139,7 +139,10 @@ export async function GET() {
     const totalGasto = todasVendas.reduce((acc, venda) => acc + venda.total, 0)
 
     const produtosDestaque = await db.produto.findMany({
-      where: { ativo: true, estoque: { gt: 0 } },
+      where: {
+        ativo: true,
+        OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
+      },
       take: 4,
       orderBy: { createdAt: 'desc' },
       select: {

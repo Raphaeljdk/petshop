@@ -88,6 +88,35 @@ const STATUS_PROCESSO: Record<string, { label: string; cor: string }> = {
   finalizado: { label: 'Pronto!', cor: 'bg-green-100 text-green-700' },
 }
 
+function ProductThumb({
+  src,
+  alt,
+  className,
+  iconClassName = 'size-5',
+}: {
+  src?: string | null
+  alt: string
+  className: string
+  iconClassName?: string
+}) {
+  const [failed, setFailed] = useState(false)
+
+  if (!src || failed) {
+    return <Package className={`${iconClassName} text-muted-foreground/40`} aria-hidden />
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 interface ClientHomeProps {
   onIrParaLoja: () => void
   onIrParaAgendamentos: () => void
@@ -372,7 +401,11 @@ export function ClientHome({
               data.ultimasCompras.map((compra) => (
                 <div key={compra.id} className="flex items-center gap-3 p-3 rounded-lg border">
                   <div className="size-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-lg">
-                    {compra.itens[0]?.imageUrl || '📦'}
+                    <ProductThumb
+                      src={compra.itens[0]?.imageUrl}
+                      alt={compra.itens[0]?.nome || 'Produto'}
+                      className="size-10 rounded-lg object-cover"
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold">
@@ -424,8 +457,13 @@ export function ClientHome({
                   onClick={onIrParaLoja}
                   className="flex flex-col gap-1 p-2 rounded-lg border text-left hover:border-primary/40 hover:shadow-md transition-all"
                 >
-                  <div className="aspect-square bg-muted rounded-md flex items-center justify-center text-3xl">
-                    {p.imageUrl || '📦'}
+                  <div className="aspect-square overflow-hidden rounded-md bg-muted flex items-center justify-center">
+                    <ProductThumb
+                      src={p.imageUrl}
+                      alt={p.nome}
+                      className="h-full w-full object-cover"
+                      iconClassName="size-10"
+                    />
                   </div>
                   <p className="text-xs font-medium line-clamp-1">{p.nome}</p>
                   <div className="flex items-baseline gap-1">
