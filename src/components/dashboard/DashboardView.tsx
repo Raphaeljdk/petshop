@@ -93,7 +93,7 @@ export function DashboardView({
           <AlertTriangle className="mx-auto size-8 text-primary" />
           <h1 className="text-xl font-semibold">Não foi possível consultar o painel</h1>
           <p className="text-sm text-muted-foreground">
-            Verifique a bridge Oracle e tente novamente.
+            O painel não conseguiu carregar os dados do Hub. Tente novamente; a falha pode estar na bridge Zetta ou no banco interno.
           </p>
           <Button
             onClick={() => {

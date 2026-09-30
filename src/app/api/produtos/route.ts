@@ -13,11 +13,62 @@ export async function GET() {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const produtos = await db.produto.findMany({
-      orderBy: { createdAt: 'desc' },
-    })
+    try {
+      const produtos = await db.produto.findMany({
+        orderBy: { createdAt: 'desc' },
+      })
 
-    return NextResponse.json(produtos)
+      return NextResponse.json(produtos)
+    } catch (prismaError) {
+      console.warn(
+        '[produtos GET] usando compatibilidade com schema anterior:',
+        prismaError instanceof Error ? prismaError.message : prismaError
+      )
+
+      const legacy = await db.$queryRawUnsafe<Array<{
+        id: string
+        nome: string
+        descricao: string | null
+        categoria: string
+        preco: number
+        precoPromo: number | null
+        estoque: number
+        sku: string | null
+        zettaProCod: number | null
+        mlItemId: string | null
+        amazonAsin: string | null
+        imageUrl: string | null
+        ativo: boolean
+        createdAt: Date
+        updatedAt: Date
+      }>>(
+        'SELECT "id","nome","descricao","categoria","preco","precoPromo","estoque","sku","zettaProCod","mlItemId","amazonAsin","imageUrl","ativo","createdAt","updatedAt" FROM "Produto" ORDER BY "createdAt" DESC'
+      )
+
+      return NextResponse.json(
+        legacy.map((produto) => {
+          const estoqueBase = Math.max(0, Number(produto.estoque || 0))
+          const estoqueIlimitado = isUnlimitedBathProduct(produto)
+
+          return {
+            ...produto,
+            estoqueHub:
+              !produto.zettaProCod && !produto.mlItemId && !produto.amazonAsin
+                ? estoqueBase
+                : 0,
+            estoqueZetta: produto.zettaProCod ? estoqueBase : 0,
+            estoqueMercadoLivre:
+              produto.mlItemId && !produto.zettaProCod ? estoqueBase : 0,
+            estoqueAmazon:
+              produto.amazonAsin && !produto.zettaProCod && !produto.mlItemId
+                ? estoqueBase
+                : 0,
+            estoqueIlimitado,
+            schemaCompatibilidade: true,
+          }
+        })
+      )
+    }
   } catch (e) {
     console.error('produtos GET erro:', e)
     return NextResponse.json({ error: 'Erro ao listar produtos' }, { status: 500 })
