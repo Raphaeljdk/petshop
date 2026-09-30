@@ -145,7 +145,11 @@ export async function GET(
     if (!local.zettaProCod) {
       return NextResponse.json({
         ...localPayload(local),
-        origem: 'hub',
+        origem: local.amazonAsin
+          ? 'amazon'
+          : local.mlItemId
+            ? 'mercado_livre'
+            : 'hub',
       })
     }
 
