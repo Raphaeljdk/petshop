@@ -792,6 +792,12 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const resumoEstoque = useMemo(
     () => ({
       total: produtos.length,
+      unidades: produtos.reduce(
+        (sum, produto) =>
+          produto.estoqueIlimitado ? sum : sum + estoqueConsolidado(produto),
+        0
+      ),
+      ilimitados: produtos.filter((p) => Boolean(p.estoqueIlimitado)).length,
       zetta: produtos.filter((p) => Boolean(p.zettaProCod)).length,
       hub: produtos.filter((p) => !p.zettaProCod).length,
       mercadoLivre: produtos.filter((p) => Boolean(p.mlItemId)).length,
@@ -1194,6 +1200,12 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge variant="secondary">{resumoEstoque.total} produtos</Badge>
+          <Badge variant="secondary">{resumoEstoque.unidades} un. consolidadas</Badge>
+          {resumoEstoque.ilimitados > 0 && (
+            <Badge className="border-emerald-200 bg-emerald-100 text-emerald-700">
+              {resumoEstoque.ilimitados} ilimitado(s)
+            </Badge>
+          )}
           <Badge variant="outline">Zetta {resumoEstoque.zetta}</Badge>
           <Badge variant="outline">Hub/local {resumoEstoque.hub}</Badge>
           <Badge className="border-yellow-200 bg-yellow-100 text-yellow-700">Mercado Livre {resumoEstoque.mercadoLivre}</Badge>
