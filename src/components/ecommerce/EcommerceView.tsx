@@ -845,10 +845,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         ordenados.sort((a, b) => (b.precoPromo ?? b.preco) - (a.precoPromo ?? a.preco))
         break
       case 'estoque_asc':
-        ordenados.sort((a, b) => estoqueConsolidado(a) - estoqueConsolidado(b))
+        ordenados.sort((a, b) => estoqueOficial(a) - estoqueOficial(b))
         break
       case 'estoque_desc':
-        ordenados.sort((a, b) => estoqueConsolidado(b) - estoqueConsolidado(a))
+        ordenados.sort((a, b) => estoqueOficial(b) - estoqueOficial(a))
         break
       case 'recente':
       default:
