@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { isUnlimitedBathProduct } from '@/lib/product-stock'
 
 export async function PUT(
   req: NextRequest,
@@ -44,12 +45,23 @@ export async function PUT(
       if (nome !== undefined) dados.nome = nome
       if (preco !== undefined) dados.preco = preco
       if (precoPromo !== undefined) dados.precoPromo = precoPromo
-      if (estoque !== undefined) dados.estoque = estoque
+      if (estoque !== undefined) {
+        dados.estoque = estoque
+        dados.estoqueHub = estoque
+      }
       if (sku !== undefined) dados.sku = sku
     }
 
     if (descricao !== undefined) dados.descricao = descricao
     if (categoria !== undefined) dados.categoria = categoria
+
+    const nomeFinal = nome !== undefined ? String(nome) : produtoExistente.nome
+    const categoriaFinal =
+      categoria !== undefined ? String(categoria) : produtoExistente.categoria
+    dados.estoqueIlimitado = isUnlimitedBathProduct({
+      nome: nomeFinal,
+      categoria: categoriaFinal,
+    })
     if (mlItemId !== undefined) dados.mlItemId = mlItemId
     if (amazonAsin !== undefined) dados.amazonAsin = amazonAsin
     if (imageUrl !== undefined) dados.imageUrl = imageUrl
