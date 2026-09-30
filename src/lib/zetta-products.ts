@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { siggma } from '@/lib/siggma/service'
 import type { SiggmaCategoria, SiggmaProduto } from '@/lib/siggma/types'
-import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
+import { isUnlimitedBathProduct } from '@/lib/product-stock'
 
 export type ZettaProduct = {
   id: number
@@ -286,13 +286,10 @@ export async function syncZettaProductsToLocal() {
         db.produto.update({
           where: { id: row.id },
           data: {
+            // Enquanto o vínculo com o Zetta existir, o ERP continua sendo a
+            // fonte oficial. Se o item sumir/inativar no ERP, o saldo físico é 0.
             estoqueZetta: 0,
-            estoque: totalStockFromSources({
-              estoqueHub: row.estoqueHub,
-              estoqueZetta: 0,
-              estoqueMercadoLivre: row.estoqueMercadoLivre,
-              estoqueAmazon: row.estoqueAmazon,
-            }),
+            estoque: 0,
             ativo: row.mlItemId || row.amazonAsin ? row.ativo : false,
           },
         })
