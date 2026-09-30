@@ -185,7 +185,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
     const quantidadeFinal = quantidadeAtual + quantidadeAdicionar
 
     if (quantidadeAdicionar <= 0) return
-    if (quantidadeFinal > produto.estoque) {
+    if (!produto.estoqueIlimitado && quantidadeFinal > produto.estoque) {
       return toast.error('Estoque máximo atingido')
     }
 
@@ -224,7 +224,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
         if (i.produto.id !== produtoId) return i
         const novaQ = i.quantidade + delta
         if (novaQ <= 0) return null
-        if (novaQ > i.produto.estoque) {
+        if (!i.produto.estoqueIlimitado && novaQ > i.produto.estoque) {
           return i
         }
         return { ...i, quantidade: novaQ }
@@ -350,7 +350,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
     <div className="space-y-5 pb-28 sm:space-y-7">
       <StoreHero
         whatsappUrl={whatsappLoja}
-        productsCount={produtos.filter(produto => produto.estoque > 0).length}
+        productsCount={produtos.filter(produto => produto.estoqueIlimitado || produto.estoque > 0).length}
         categoriesCount={categorias.length}
       />
       <StorePromoCarousel />
@@ -513,9 +513,11 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
                     <div><span className="text-xs line-through text-muted-foreground">{fmtMoeda(p.preco)}</span><p className="font-bold text-primary text-sm sm:text-base">{fmtMoeda(p.precoPromo)}</p></div>
                   ) : <p className="font-bold text-sm sm:text-base">{fmtMoeda(p.preco)}</p>}
                 </div>
-                <Badge variant="secondary" className="text-[10px] shrink-0">Est: {p.estoque}</Badge>
+                <Badge variant="secondary" className="text-[10px] shrink-0">
+                  {p.estoqueIlimitado ? 'Estoque ilimitado' : `Est: ${p.estoque}`}
+                </Badge>
               </div>
-              <Button size="sm" onClick={() => adicionarAoCarrinho(p)} disabled={p.estoque <= 0} className="btn-brand h-11">
+              <Button size="sm" onClick={() => adicionarAoCarrinho(p)} disabled={!p.estoqueIlimitado && p.estoque <= 0} className="btn-brand h-11">
                 <Plus className="size-3.5" /> Adicionar
               </Button>
               <ProductActions product={p} />
@@ -611,7 +613,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
                           <div className="flex items-center rounded-lg border bg-background">
                             <Button size="icon" variant="ghost" className="size-11 rounded-r-none" aria-label={`Diminuir quantidade de ${i.produto.nome}`} disabled={i.quantidade <= 1 || finalizando} onClick={() => alterarQtd(i.produto.id, -1)}><Minus className="size-4" /></Button>
                             <span aria-live="polite" className="w-8 text-center text-sm font-semibold tabular-nums">{i.quantidade}</span>
-                            <Button size="icon" variant="ghost" className="size-11 rounded-l-none" aria-label={`Aumentar quantidade de ${i.produto.nome}`} disabled={i.quantidade >= i.produto.estoque || finalizando} onClick={() => alterarQtd(i.produto.id, 1)}><Plus className="size-4" /></Button>
+                            <Button size="icon" variant="ghost" className="size-11 rounded-l-none" aria-label={`Aumentar quantidade de ${i.produto.nome}`} disabled={(!i.produto.estoqueIlimitado && i.quantidade >= i.produto.estoque) || finalizando} onClick={() => alterarQtd(i.produto.id, 1)}><Plus className="size-4" /></Button>
                           </div>
                           <p className="text-sm font-bold">{fmtMoeda((i.produto.precoPromo ?? i.produto.preco) * i.quantidade)}</p>
                         </div>
