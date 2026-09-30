@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
 import { AmazonSpApiError, amazonSellerListings } from '@/lib/amazon-sp-api'
 
 export const runtime = 'nodejs'
@@ -46,11 +47,30 @@ export async function POST() {
         }
       }
 
+      const sourceStock = item.quantity
+      const estoqueIlimitado = isUnlimitedBathProduct({
+        nome: item.title,
+        categoria: item.productType || 'Amazon',
+      })
+      const estoqueConsolidado = totalStockFromSources({
+        estoqueHub: existing?.estoqueHub,
+        estoqueZetta: existing?.estoqueZetta,
+        estoqueMercadoLivre: existing?.estoqueMercadoLivre,
+        estoqueAmazon: sourceStock,
+      })
+      const estoqueOperacional = existing?.zettaProCod
+        ? existing.estoque
+        : existing?.estoqueHub && existing.estoqueHub > 0
+          ? existing.estoqueHub
+          : estoqueConsolidado
+
       const marketplaceData = {
         nome: item.title,
         categoria: item.productType || 'Amazon',
         preco: item.price ?? existing?.preco ?? 0,
-        estoque: item.quantity,
+        estoque: estoqueOperacional,
+        estoqueAmazon: sourceStock,
+        estoqueIlimitado,
         sku: item.sku,
         amazonAsin: item.asin,
         imageUrl: item.imageUrl || existing?.imageUrl || null,
@@ -63,6 +83,9 @@ export async function POST() {
           data: preserveMaster
             ? {
                 amazonAsin: item.asin,
+                estoqueAmazon: sourceStock,
+                estoqueIlimitado,
+                estoque: estoqueOperacional,
                 ...(!existing.imageUrl && item.imageUrl
                   ? { imageUrl: item.imageUrl }
                   : {}),
@@ -77,6 +100,11 @@ export async function POST() {
             ...marketplaceData,
             descricao: null,
             precoPromo: null,
+            estoqueHub: 0,
+            estoqueZetta: 0,
+            estoqueMercadoLivre: 0,
+            estoqueAmazon: sourceStock,
+            estoqueIlimitado,
             mlItemId: null,
             zettaProCod: null,
             ativo: false,
