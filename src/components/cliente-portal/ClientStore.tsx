@@ -78,7 +78,6 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
   const cartRevision = useRef(0)
   const [refreshKey, setRefreshKey] = useState(0)
   const [produtos, setProdutos] = useState<Produto[]>([])
-  const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>(() => repeatItems || [])
@@ -143,15 +142,13 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
   const produtosFiltrados = useMemo(() => {
     const termo = searchText(busca.trim())
     const filtrados = produtos.filter((produto) => {
-      const bateCategoria =
-        categoriaFiltro === 'todas' || produto.categoria === categoriaFiltro
       const bateBusca =
         !termo ||
         searchText(produto.nome).includes(termo) ||
         searchText(produto.categoria).includes(termo) ||
         searchText(produto.descricao || '').includes(termo)
 
-      return bateCategoria && Boolean(bateBusca) && (!favoritesOnly || preferences.some(row => row.produtoId === produto.id && row.favorite))
+      return Boolean(bateBusca) && (!favoritesOnly || preferences.some(row => row.produtoId === produto.id && row.favorite))
     })
 
     return [...filtrados].sort((a, b) => {
@@ -162,7 +159,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
       if (ordenacao === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR')
       return 0
     })
-  }, [produtos, categoriaFiltro, busca, ordenacao, favoritesOnly, preferences])
+  }, [produtos, busca, ordenacao, favoritesOnly, preferences])
 
   const subtotal = useMemo(
     () => carrinho.reduce(
@@ -458,18 +455,6 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
               </select>
             </div>
           </div>
-          {categorias.length > 0 && (
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
-              <Button type="button" size="sm" aria-pressed={categoriaFiltro === 'todas'} variant={categoriaFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setCategoriaFiltro('todas')} className="min-h-11 shrink-0 rounded-full">
-                Todas
-              </Button>
-              {categorias.map((categoria) => (
-                <Button key={categoria} type="button" size="sm" aria-pressed={categoriaFiltro === categoria} variant={categoriaFiltro === categoria ? 'default' : 'outline'} onClick={() => setCategoriaFiltro(categoria)} className="min-h-11 shrink-0 rounded-full">
-                  {categoria}
-                </Button>
-              ))}
-            </div>
-          )}
         </section>
       )}
 
@@ -480,7 +465,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
             <strong className="text-foreground">{produtosFiltrados.length}</strong>{' '}
             {produtosFiltrados.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
           </p>
-          {(busca || categoriaFiltro !== 'todas' || favoritesOnly) && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setCategoriaFiltro('todas'); setFavoritesOnly(false) }}>Limpar filtros</Button>}
+          {(busca || favoritesOnly) && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setFavoritesOnly(false) }}>Limpar filtros</Button>}
         </div>
       )}
 
@@ -550,8 +535,8 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
         <Card><CardContent className="space-y-3 p-8 text-center">
           <Search className="mx-auto size-8 text-muted-foreground" />
           <p className="font-semibold">Nenhum produto encontrado.</p>
-          <p className="text-sm text-muted-foreground">Tente outro nome ou escolha uma categoria diferente.</p>
-          <Button variant="outline" onClick={() => { setBusca(''); setCategoriaFiltro('todas'); setFavoritesOnly(false) }}>Ver todos os produtos</Button>
+          <p className="text-sm text-muted-foreground">Tente outro nome ou limpe os filtros.</p>
+          <Button variant="outline" onClick={() => { setBusca(''); setFavoritesOnly(false) }}>Ver todos os produtos</Button>
         </CardContent></Card>
       )}
 
