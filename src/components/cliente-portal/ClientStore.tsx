@@ -32,16 +32,21 @@ import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
-import { FloatingCartButton } from '@/components/cliente-portal/FloatingCartButton'
 import { StoreHero } from '@/components/cliente-portal/StoreHero'
 import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
 import { useExperience } from './ExperienceProvider'
 import { ProductActions } from './ProductActions'
 
+export interface ClientCartUiState {
+  itemCount: number
+  open: () => void
+}
+
 interface ClientStoreProps {
   onCompraFinalizada?: () => void
   repeatItems?: CarrinhoItem[] | null
   onRepeatConsumed?: () => void
+  onCartUiChange?: (state: ClientCartUiState | null) => void
 }
 
 export interface CarrinhoItem {
@@ -67,14 +72,18 @@ interface CupomAplicado {
 
 const searchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
 
-export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed }: ClientStoreProps) {
+export function ClientStore({
+  onCompraFinalizada,
+  repeatItems,
+  onRepeatConsumed,
+  onCartUiChange,
+}: ClientStoreProps) {
   const { preferences, ready } = useExperience()
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const consumed = useRef(false)
   useEffect(() => {
     if (repeatItems && !consumed.current) { consumed.current = true; onRepeatConsumed?.() }
   }, [repeatItems, onRepeatConsumed])
-  const cartTrigger = useRef<HTMLButtonElement>(null)
   const cartRevision = useRef(0)
   const [refreshKey, setRefreshKey] = useState(0)
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -175,6 +184,17 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
   const total = Math.max(0, subtotal - descontoCupom) + valorFrete
   const cartItemCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0)
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  useEffect(() => {
+    onCartUiChange?.({
+      itemCount: cartItemCount,
+      open: () => setCheckoutOpen(true),
+    })
+  }, [cartItemCount, onCartUiChange])
+
+  useEffect(() => {
+    return () => onCartUiChange?.(null)
+  }, [onCartUiChange])
 
   const adicionarQuantidadeAoCarrinho = (produto: Produto, quantidadeAdicionar = 1) => {
     const quantidadeAtual =
@@ -344,7 +364,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
   ].join('\n'))
 
   return (
-    <div className="space-y-5 pb-28 sm:space-y-7">
+    <div className="space-y-5 pb-8 sm:space-y-7">
       <StoreHero
         whatsappUrl={whatsappLoja}
         productsCount={produtos.filter(produto => produto.estoqueIlimitado || produto.estoque > 0).length}
@@ -524,13 +544,6 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
         }}
       />
 
-      <FloatingCartButton
-        buttonRef={cartTrigger}
-        itemCount={cartItemCount}
-        total={subtotal}
-        onClick={() => setCheckoutOpen(true)}
-      />
-
       {!loading && !loadError && produtos.length > 0 && produtosFiltrados.length === 0 && (
         <Card><CardContent className="space-y-3 p-8 text-center">
           <Search className="mx-auto size-8 text-muted-foreground" />
@@ -552,7 +565,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
             <SheetContent
               className="cart-sheet w-full sm:max-w-lg gap-0 overflow-hidden [&>button]:size-11 [&>button]:top-3 [&>button]:right-3 [&>button]:flex [&>button]:items-center [&>button]:justify-center"
               onInteractOutside={(event) => { if (vendaEmPagamento || finalizando) event.preventDefault() }}
-              onCloseAutoFocus={(event) => { event.preventDefault(); cartTrigger.current?.focus() }}
+              onCloseAutoFocus={(event) => { event.preventDefault() }}
             >
               <CardHeader className="shrink-0 border-b bg-muted/30 p-5 pr-16">
                 <div className="flex items-center justify-between gap-3">
