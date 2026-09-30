@@ -18,6 +18,7 @@ export async function POST() {
     const catalog = await amazonSellerListings(500)
     let created = 0
     let updated = 0
+    let linked = 0
     let skipped = 0
 
     for (const item of catalog.items) {
@@ -26,14 +27,26 @@ export async function POST() {
         continue
       }
 
-      const existing = await db.produto.findFirst({
-        where: {
-          amazonAsin: item.asin,
-          sku: item.sku,
-        },
+      let existing = await db.produto.findFirst({
+        where: { amazonAsin: item.asin },
       })
+      let matchedBySku = false
 
-      const data = {
+      if (!existing && item.sku) {
+        const skuMatches = await db.produto.findMany({
+          where: { sku: item.sku },
+          take: 2,
+        })
+        const compatible = skuMatches.filter(
+          (row) => !row.amazonAsin || row.amazonAsin === item.asin
+        )
+        if (compatible.length === 1) {
+          existing = compatible[0]
+          matchedBySku = true
+        }
+      }
+
+      const marketplaceData = {
         nome: item.title,
         categoria: item.productType || 'Amazon',
         preco: item.price ?? existing?.preco ?? 0,
@@ -44,10 +57,19 @@ export async function POST() {
       }
 
       if (existing) {
+        const preserveMaster = Boolean(existing.zettaProCod) || matchedBySku
         await db.produto.update({
           where: { id: existing.id },
-          data,
+          data: preserveMaster
+            ? {
+                amazonAsin: item.asin,
+                ...(!existing.imageUrl && item.imageUrl
+                  ? { imageUrl: item.imageUrl }
+                  : {}),
+              }
+            : marketplaceData,
         })
+        if (matchedBySku) linked += 1
         updated += 1
       } else {
         await db.produto.create({
@@ -89,6 +111,7 @@ export async function POST() {
       synchronized: catalog.items.length,
       created,
       updated,
+      linked,
       skipped,
       newProductsHidden: created,
       truncated: catalog.truncated,
