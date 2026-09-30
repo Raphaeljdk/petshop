@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
+import { legacyProducts } from '@/lib/product-compat'
 import {
   getZettaAnimalsByClient,
   getZettaHistoriesByClient,
@@ -138,22 +139,44 @@ export async function GET() {
     })
     const totalGasto = todasVendas.reduce((acc, venda) => acc + venda.total, 0)
 
-    const produtosDestaque = await db.produto.findMany({
-      where: {
-        ativo: true,
-        OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
-      },
-      take: 4,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        nome: true,
-        preco: true,
-        precoPromo: true,
-        imageUrl: true,
-        categoria: true,
-      },
-    })
+    let produtosDestaque
+    try {
+      produtosDestaque = await db.produto.findMany({
+        where: {
+          ativo: true,
+          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
+        },
+        take: 4,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          nome: true,
+          preco: true,
+          precoPromo: true,
+          imageUrl: true,
+          categoria: true,
+        },
+      })
+    } catch (schemaError) {
+      console.warn(
+        '[cliente/dashboard] schema novo ainda não aplicado; usando destaques compatíveis:',
+        schemaError instanceof Error ? schemaError.message : schemaError
+      )
+      produtosDestaque = (await legacyProducts({
+        onlyActive: true,
+        onlyAvailable: true,
+      }))
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, 4)
+        .map(({ id, nome, preco, precoPromo, imageUrl, categoria }) => ({
+          id,
+          nome,
+          preco,
+          precoPromo,
+          imageUrl,
+          categoria,
+        }))
+    }
 
     return NextResponse.json({
       cliente: {
