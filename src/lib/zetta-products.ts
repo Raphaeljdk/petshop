@@ -224,12 +224,7 @@ export async function syncZettaProductsToLocal() {
       claimedExistingIds.add(existing.id)
       if (!direct && existing.zettaProCod == null) linkedExisting += 1
 
-      const estoque = totalStockFromSources({
-        estoqueHub: existing.estoqueHub,
-        estoqueZetta,
-        estoqueMercadoLivre: existing.estoqueMercadoLivre,
-        estoqueAmazon: existing.estoqueAmazon,
-      })
+      const estoque = estoqueZetta
 
       return db.produto.update({
         where: { id: existing.id },
