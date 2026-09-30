@@ -101,7 +101,7 @@ model Produto {
   categoria   String
   preco       Float
   precoPromo  Float?
-  estoque     Int      @default(0) // total agregado das origens
+  estoque     Int      @default(0) // saldo operacional usado no checkout
   estoqueHub  Int      @default(0)
   estoqueZetta Int     @default(0)
   estoqueMercadoLivre Int @default(0)
