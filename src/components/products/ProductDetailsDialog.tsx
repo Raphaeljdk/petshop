@@ -28,7 +28,7 @@ export type ProductPreview = {
   estoque: number
   estoqueIlimitado?: boolean
   imageUrl: string | null
-  origem?: 'mercado_livre' | 'zetta' | 'hub'
+  origem?: 'mercado_livre' | 'amazon' | 'zetta' | 'hub'
   marketplaceUrl?: string | null
 }
 
@@ -262,6 +262,11 @@ export function ProductDetailsDialog({
               {current?.origem === 'mercado_livre' && (
                 <Badge className="border-yellow-200 bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
                   Mercado Livre
+                </Badge>
+              )}
+              {current?.origem === 'amazon' && (
+                <Badge className="border-sky-200 bg-sky-100 text-sky-800 hover:bg-sky-100">
+                  Amazon
                 </Badge>
               )}
               {hasPromo && <Badge className="bg-orange-500 text-white hover:bg-orange-500">Oferta</Badge>}
