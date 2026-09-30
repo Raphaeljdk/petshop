@@ -28,23 +28,6 @@ export async function getOuCriarConfigPagamento(): Promise<ConfiguracaoPagamento
         boletoAtivo: true,
       },
     })
-  } else if (
-    !config.mercadoPagoAtivo ||
-    config.mercadoPagoSandbox ||
-    !config.pixAtivo ||
-    !config.cartaoAtivo ||
-    !config.boletoAtivo
-  ) {
-    config = await db.configuracaoPagamento.update({
-      where: { id: config.id },
-      data: {
-        mercadoPagoAtivo: true,
-        mercadoPagoSandbox: false,
-        pixAtivo: true,
-        cartaoAtivo: true,
-        boletoAtivo: true,
-      },
-    })
   }
   return {
     ...config,
