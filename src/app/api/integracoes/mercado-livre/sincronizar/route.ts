@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
+import { isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import {
   mercadoLivreCategoryNames,
@@ -57,17 +57,15 @@ export async function POST() {
         nome: item.title,
         categoria: item.categoryId ? categories.get(item.categoryId) || 'Mercado Livre' : 'Mercado Livre',
       })
-      const estoqueConsolidado = totalStockFromSources({
+      const estoqueOperacional = officialStockFromSources({
+        zettaProCod: existing?.zettaProCod,
+        mlItemId: item.id,
+        amazonAsin: existing?.amazonAsin,
         estoqueHub: existing?.estoqueHub,
         estoqueZetta: existing?.estoqueZetta,
         estoqueMercadoLivre: sourceStock,
         estoqueAmazon: existing?.estoqueAmazon,
       })
-      const estoqueOperacional = existing?.zettaProCod
-        ? existing.estoque
-        : existing?.estoqueHub && existing.estoqueHub > 0
-          ? existing.estoqueHub
-          : estoqueConsolidado
 
       const marketplaceData = {
         nome: item.title,
