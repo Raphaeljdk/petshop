@@ -239,7 +239,7 @@ function safeSpApiError(
   if (status === 403) {
     return new AmazonSpApiError(
       'forbidden',
-      'A aplicação Amazon não tem acesso ao catálogo. Verifique a função Product Listing, a autoautorização e o Seller ID.',
+      'A Amazon recusou esta operação. Para consultar listagens, a aplicação precisa de Inventário e rastreamento de pedidos ou Product Listing e deve ser autoautorizada novamente após qualquer alteração de função.',
       403
     )
   }
@@ -530,36 +530,20 @@ export async function validateAmazonSellerContext() {
 
 export async function amazonSellerListings(maximum = 500) {
   const config = amazonSpApiConfig()
-  await validateAmazonSellerContext()
   const collected: AmazonCatalogItem[] = []
   let nextToken = ''
 
   do {
-    let payload: AmazonSearchResponse
-    try {
-      payload = await amazonGet<AmazonSearchResponse>(
-        `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
-        {
+    const payload = await amazonGet<AmazonSearchResponse>(
+      `/listings/2021-08-01/items/${encodeURIComponent(config.sellerId)}`,
+      {
         marketplaceIds: config.marketplaceId,
         includedData:
           'summaries,attributes,offers,fulfillmentAvailability,productTypes',
         pageSize: '20',
-          ...(nextToken ? { pageToken: nextToken } : {}),
-        }
-      )
-    } catch (error) {
-      if (
-        error instanceof AmazonSpApiError &&
-        error.code === 'bad_request'
-      ) {
-        throw new AmazonSpApiError(
-          'invalid_seller_or_listing_parameters',
-          'A autenticação e o Marketplace ID foram validados pela Amazon, mas a Listings API recusou a consulta. Confira se AMAZON_SP_API_SELLER_ID contém exatamente o Merchant Token/Seller ID da mesma conta que foi autoautorizada.',
-          400
-        )
+        ...(nextToken ? { pageToken: nextToken } : {}),
       }
-      throw error
-    }
+    )
 
     for (const raw of payload.items || []) {
       const item = normalizeAmazonItem(raw, config.marketplaceId)
