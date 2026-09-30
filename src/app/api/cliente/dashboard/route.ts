@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { legacyProducts } from '@/lib/product-compat'
+import { officialStockFromSources } from '@/lib/product-stock'
 import {
   getZettaAnimalsByClient,
   getZettaHistoriesByClient,
@@ -141,22 +142,29 @@ export async function GET() {
 
     let produtosDestaque
     try {
-      produtosDestaque = await db.produto.findMany({
-        where: {
-          ativo: true,
-          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
-        },
-        take: 4,
+      const candidatos = await db.produto.findMany({
+        where: { ativo: true },
+        take: 20,
         orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          nome: true,
-          preco: true,
-          precoPromo: true,
-          imageUrl: true,
-          categoria: true,
-        },
       })
+
+      produtosDestaque = candidatos
+        .map((produto) => ({
+          ...produto,
+          estoque: produto.estoqueIlimitado
+            ? produto.estoque
+            : officialStockFromSources(produto),
+        }))
+        .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
+        .slice(0, 4)
+        .map(({ id, nome, preco, precoPromo, imageUrl, categoria }) => ({
+          id,
+          nome,
+          preco,
+          precoPromo,
+          imageUrl,
+          categoria,
+        }))
     } catch (schemaError) {
       console.warn(
         '[cliente/dashboard] schema novo ainda não aplicado; usando destaques compatíveis:',
