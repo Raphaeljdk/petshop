@@ -23,7 +23,15 @@ export async function applyPaymentSaleState(
         include: {
           itens: {
             include: {
-              produto: { select: { id: true, zettaProCod: true } },
+              produto: {
+                select: {
+                  id: true,
+                  zettaProCod: true,
+                  mlItemId: true,
+                  amazonAsin: true,
+                  estoqueHub: true,
+                },
+              },
             },
           },
         },
@@ -39,9 +47,18 @@ export async function applyPaymentSaleState(
       if (firstPendingCancellation) {
         for (const item of current.itens) {
           if (!item.produto.zettaProCod) {
+            const restaurarHub =
+              item.produto.estoqueHub > 0 ||
+              (!item.produto.mlItemId && !item.produto.amazonAsin)
+
             await tx.produto.update({
               where: { id: item.produtoId },
-              data: { estoque: { increment: item.quantidade } },
+              data: {
+                estoque: { increment: item.quantidade },
+                ...(restaurarHub
+                  ? { estoqueHub: { increment: item.quantidade } }
+                  : {}),
+              },
             })
           }
         }
