@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { isUnlimitedBathProduct } from '@/lib/product-stock'
 
 export async function GET() {
   try {
@@ -63,6 +64,11 @@ export async function POST(req: NextRequest) {
         preco,
         precoPromo: typeof precoPromo === 'number' ? precoPromo : null,
         estoque: typeof estoque === 'number' ? estoque : 0,
+        estoqueHub: typeof estoque === 'number' ? estoque : 0,
+        estoqueZetta: 0,
+        estoqueMercadoLivre: 0,
+        estoqueAmazon: 0,
+        estoqueIlimitado: isUnlimitedBathProduct({ nome, categoria }),
         sku: sku || null,
         mlItemId: mlItemId || null,
         amazonAsin: amazonAsin || null,
