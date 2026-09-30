@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { siggma } from '@/lib/siggma/service'
 import type { SiggmaCategoria, SiggmaProduto } from '@/lib/siggma/types'
+import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
 
 export type ZettaProduct = {
   id: number
@@ -169,6 +170,15 @@ export async function syncZettaProductsToLocal() {
       id: true,
       sku: true,
       zettaProCod: true,
+      mlItemId: true,
+      amazonAsin: true,
+      imageUrl: true,
+      ativo: true,
+      estoqueHub: true,
+      estoqueZetta: true,
+      estoqueMercadoLivre: true,
+      estoqueAmazon: true,
+      estoqueIlimitado: true,
     },
   })
 
@@ -204,33 +214,59 @@ export async function syncZettaProductsToLocal() {
         (row.zettaProCod == null || row.zettaProCod === product.id)
     )
     const existing = direct || (skuMatches.length === 1 ? skuMatches[0] : null)
-
-    const data = {
+    const estoqueZetta = zettaProductStock(product)
+    const estoqueIlimitado = isUnlimitedBathProduct({
       nome: product.nome,
-      descricao: product.modelo || product.marca || null,
       categoria,
-      preco: precoBase,
-      precoPromo,
-      estoque: zettaProductStock(product),
-      sku,
-      zettaProCod: product.id,
-      ...(imageUrl ? { imageUrl } : {}),
-      ativo: true,
-    }
+    })
 
     if (existing) {
       claimedExistingIds.add(existing.id)
       if (!direct && existing.zettaProCod == null) linkedExisting += 1
+
+      const estoque = totalStockFromSources({
+        estoqueHub: existing.estoqueHub,
+        estoqueZetta,
+        estoqueMercadoLivre: existing.estoqueMercadoLivre,
+        estoqueAmazon: existing.estoqueAmazon,
+      })
+
       return db.produto.update({
         where: { id: existing.id },
-        data,
+        data: {
+          nome: product.nome,
+          descricao: product.modelo || product.marca || null,
+          categoria,
+          preco: precoBase,
+          precoPromo,
+          estoque,
+          estoqueZetta,
+          estoqueIlimitado,
+          sku,
+          zettaProCod: product.id,
+          ...(imageUrl ? { imageUrl } : {}),
+          ativo: true,
+        },
       })
     }
 
     return db.produto.create({
       data: {
-        ...data,
+        nome: product.nome,
+        descricao: product.modelo || product.marca || null,
+        categoria,
+        preco: precoBase,
+        precoPromo,
+        estoque: estoqueZetta,
+        estoqueHub: 0,
+        estoqueZetta,
+        estoqueMercadoLivre: 0,
+        estoqueAmazon: 0,
+        estoqueIlimitado,
+        sku,
+        zettaProCod: product.id,
         imageUrl,
+        ativo: true,
       },
     })
   })
@@ -240,22 +276,45 @@ export async function syncZettaProductsToLocal() {
   }
 
   const zettaIds = valid.map((product) => product.id)
-  await db.produto.updateMany({
+  const staleZetta = await db.produto.findMany({
     where: {
       zettaProCod: {
         not: null,
         ...(zettaIds.length > 0 ? { notIn: zettaIds } : {}),
       },
     },
-    data: { ativo: false, estoque: 0 },
   })
+
+  if (staleZetta.length > 0) {
+    await db.$transaction(
+      staleZetta.map((row) =>
+        db.produto.update({
+          where: { id: row.id },
+          data: {
+            estoqueZetta: 0,
+            estoque: totalStockFromSources({
+              estoqueHub: row.estoqueHub,
+              estoqueZetta: 0,
+              estoqueMercadoLivre: row.estoqueMercadoLivre,
+              estoqueAmazon: row.estoqueAmazon,
+            }),
+            ativo: row.mlItemId || row.amazonAsin ? row.ativo : false,
+          },
+        })
+      )
+    )
+  }
 
   return {
     total: valid.length,
     categories: categories.length,
     linkedExisting,
     products: await db.produto.findMany({
-      where: { ativo: true, zettaProCod: { not: null }, estoque: { gt: 0 } },
+      where: {
+        ativo: true,
+        zettaProCod: { not: null },
+        OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
+      },
       orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
     }),
   }
