@@ -73,7 +73,6 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
-import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -82,7 +81,22 @@ const fmtMoeda = (v: number) =>
 /* Helpers de cores                                                      */
 /* --------------------------------------------------------------------- */
 
-function corEstoque(qtd: number): { label: string; className: string } {
+function estoqueConsolidado(produto: Produto) {
+  return (
+    Math.max(0, produto.estoqueHub || 0) +
+    Math.max(0, produto.estoqueZetta || 0) +
+    Math.max(0, produto.estoqueMercadoLivre || 0) +
+    Math.max(0, produto.estoqueAmazon || 0)
+  )
+}
+
+function corEstoque(qtd: number, ilimitado = false): { label: string; className: string } {
+  if (ilimitado) {
+    return {
+      label: 'Estoque ilimitado',
+      className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    }
+  }
   if (qtd >= 10) {
     return {
       label: `${qtd} em estoque`,
@@ -216,7 +230,8 @@ function ProdutoCard({
   onQuickEditPreco,
   onQuickEditEstoque,
 }: ProdutoCardProps) {
-  const estoqueMeta = corEstoque(produto.estoque)
+  const estoqueTotal = estoqueConsolidado(produto)
+  const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const temPromo = produto.precoPromo && produto.precoPromo > 0
 
   return (
@@ -293,10 +308,20 @@ function ProdutoCard({
         </div>
 
         {/* Estoque */}
-        <div className="flex items-center justify-between gap-2">
-          <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
-            {estoqueMeta.label}
-          </Badge>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
+              {estoqueMeta.label}
+            </Badge>
+          </div>
+          {!produto.estoqueIlimitado && (
+            <div className="flex flex-wrap gap-1 text-[9px] text-muted-foreground">
+              {(produto.estoqueHub || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Hub {produto.estoqueHub}</span>}
+              {(produto.estoqueZetta || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Zetta {produto.estoqueZetta}</span>}
+              {(produto.estoqueMercadoLivre || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">ML {produto.estoqueMercadoLivre}</span>}
+              {(produto.estoqueAmazon || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Amazon {produto.estoqueAmazon}</span>}
+            </div>
+          )}
         </div>
 
         {/* Quick edit: preço + estoque inline */}
@@ -388,7 +413,8 @@ function ProdutoListRow({
   onExcluir: () => void
   onToggleAtivo: () => void
 }) {
-  const estoqueMeta = corEstoque(produto.estoque)
+  const estoqueTotal = estoqueConsolidado(produto)
+  const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const preco = produto.precoPromo ?? produto.preco
 
   return (
@@ -410,6 +436,7 @@ function ProdutoListRow({
             <Badge variant="secondary" className="text-[10px]">{produto.categoria}</Badge>
             {produto.zettaProCod && <Badge variant="outline" className="text-[9px]">Zetta</Badge>}
             {produto.mlItemId && <Badge className="border-yellow-200 bg-yellow-100 text-[9px] text-yellow-700">Mercado Livre</Badge>}
+            {produto.amazonAsin && <Badge className="border-sky-200 bg-sky-100 text-[9px] text-sky-700">Amazon</Badge>}
           </div>
           {produto.sku && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">SKU {produto.sku}</p>}
         </div>
@@ -618,7 +645,6 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const [loadingProdutos, setLoadingProdutos] = useState(true)
   const [loadingVendas, setLoadingVendas] = useState(true)
   const [syncingZetta, setSyncingZetta] = useState(false)
-  const [estoqueView, setEstoqueView] = useState<'hub' | 'zetta'>('hub')
   const [produtoLayout, setProdutoLayout] = useState<'grade' | 'lista'>('grade')
 
   // Tab controlada — permite trocar para "vendas" automaticamente ao receber
@@ -763,6 +789,23 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
     return Array.from(set).sort()
   }, [produtos])
 
+  const resumoEstoque = useMemo(
+    () => ({
+      total: produtos.length,
+      unidades: produtos.reduce(
+        (sum, produto) =>
+          produto.estoqueIlimitado ? sum : sum + estoqueConsolidado(produto),
+        0
+      ),
+      ilimitados: produtos.filter((p) => Boolean(p.estoqueIlimitado)).length,
+      zetta: produtos.filter((p) => Boolean(p.zettaProCod)).length,
+      hub: produtos.filter((p) => !p.zettaProCod).length,
+      mercadoLivre: produtos.filter((p) => Boolean(p.mlItemId)).length,
+      amazon: produtos.filter((p) => Boolean(p.amazonAsin)).length,
+    }),
+    [produtos]
+  )
+
   const produtosFiltrados = useMemo(() => {
     const termo = buscaProduto.trim().toLowerCase()
     const filtrados = produtos.filter((p) => {
@@ -782,7 +825,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         if (p.categoria !== filtroCategoria) return false
       }
       if (estoqueBaixo) {
-        if (p.estoque >= 5) return false
+        if (p.estoqueIlimitado || estoqueConsolidado(p) >= 5) return false
       }
       const preco = p.precoPromo ?? p.preco
       if (preco < faixaPreco[0] || preco > faixaPreco[1]) return false
@@ -801,10 +844,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         ordenados.sort((a, b) => (b.precoPromo ?? b.preco) - (a.precoPromo ?? a.preco))
         break
       case 'estoque_asc':
-        ordenados.sort((a, b) => a.estoque - b.estoque)
+        ordenados.sort((a, b) => estoqueConsolidado(a) - estoqueConsolidado(b))
         break
       case 'estoque_desc':
-        ordenados.sort((a, b) => b.estoque - a.estoque)
+        ordenados.sort((a, b) => estoqueConsolidado(b) - estoqueConsolidado(a))
         break
       case 'recente':
       default:
@@ -933,7 +976,11 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       if (!res.ok || !data?.success) {
         throw new Error(data?.error || 'Não foi possível sincronizar o catálogo do ERP.')
       }
-      toast.success(`${data.sincronizados} produto(s) sincronizado(s) com o Zetta.`)
+      toast.success(
+        data.vinculados
+          ? `${data.sincronizados} produto(s) Zetta sincronizado(s); ${data.vinculados} vínculo(s) unificado(s) por SKU.`
+          : `${data.sincronizados} produto(s) sincronizado(s) com o Zetta.`
+      )
       await carregar()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar produtos.')
@@ -1144,57 +1191,27 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   /* ---------------------- render ---------------------- */
 
-  const estoqueTabs = (
-    <div className="inline-flex flex-wrap gap-2 rounded-xl border bg-card p-1">
-      <Button type="button" size="sm" variant={estoqueView === 'hub' ? 'default' : 'ghost'} onClick={() => setEstoqueView('hub')}>
-        Estoque do Hub
-      </Button>
-      <Button type="button" size="sm" variant={estoqueView === 'zetta' ? 'default' : 'ghost'} onClick={() => setEstoqueView('zetta')}>
-        Produtos Zetta
-      </Button>
-    </div>
-  )
-
-  if (estoqueView === 'zetta') {
-    return (
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Produtos separados entre o cadastro operacional do Hub e a fonte oficial do ERP.
-          </p>
-        </div>
-        {estoqueTabs}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void sincronizarProdutosZetta()}
-            disabled={syncingZetta}
-          >
-            <RefreshCw className={`size-4 ${syncingZetta ? 'animate-spin' : ''}`} />
-            {syncingZetta ? 'Sincronizando...' : 'Sincronizar Zetta com o Hub'}
-          </Button>
-        </div>
-        <ZettaResourceTable
-          resource="produtos"
-          title="Produtos do ERP Zetta"
-          description="Preço e estoque oficiais do ERP. Estoque negativo é tratado como zero na loja."
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque unificado</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Gerencie produtos, preços e quantidades em estoque
+          Hub e ERP Zetta no mesmo catálogo. Itens vinculados ao Zetta usam o ERP como fonte oficial de preço e estoque; Amazon e Mercado Livre aparecem como canais do mesmo produto.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge variant="secondary">{resumoEstoque.total} produtos</Badge>
+          <Badge variant="secondary">{resumoEstoque.unidades} un. consolidadas</Badge>
+          {resumoEstoque.ilimitados > 0 && (
+            <Badge className="border-emerald-200 bg-emerald-100 text-emerald-700">
+              {resumoEstoque.ilimitados} ilimitado(s)
+            </Badge>
+          )}
+          <Badge variant="outline">Zetta {resumoEstoque.zetta}</Badge>
+          <Badge variant="outline">Hub/local {resumoEstoque.hub}</Badge>
+          <Badge className="border-yellow-200 bg-yellow-100 text-yellow-700">Mercado Livre {resumoEstoque.mercadoLivre}</Badge>
+          <Badge className="border-sky-200 bg-sky-100 text-sky-700">Amazon {resumoEstoque.amazon}</Badge>
+        </div>
       </div>
-
-      {estoqueTabs}
 
       {/* Apenas estoque - vendas são gerenciadas pelo cliente no portal */}
       {/* ================= PRODUTOS / ESTOQUE ================= */}
@@ -1415,9 +1432,11 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               {editProduto ? 'Editar produto' : 'Novo produto'}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              {editProduto?.zettaProCod
-                ? 'Produto vinculado ao ERP: nome, SKU, preço e estoque são controlados pelo Zetta.'
-                : 'Dados do produto da loja'}
+              {editProduto?.estoqueIlimitado
+                ? 'Serviço de banho: estoque ilimitado.'
+                : editProduto?.zettaProCod
+                  ? 'Produto vinculado ao ERP: nome, SKU, preço e estoque operacional são controlados pelo Zetta.'
+                  : 'Dados do produto da loja'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

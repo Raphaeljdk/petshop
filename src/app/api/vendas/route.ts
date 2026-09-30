@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         )
       }
-      if (produto.estoque < item.quantidade) {
+      if (!produto.estoqueIlimitado && produto.estoque < item.quantidade) {
         return NextResponse.json(
           { error: `Estoque insuficiente para ${produto.nome}` },
           { status: 400 }
@@ -95,10 +95,17 @@ export async function POST(req: NextRequest) {
           precoUnit,
         })
 
-        await tx.produto.update({
-          where: { id: item.produtoId },
-          data: { estoque: { decrement: item.quantidade } },
-        })
+        if (!produto.estoqueIlimitado) {
+          await tx.produto.update({
+            where: { id: item.produtoId },
+            data: {
+              estoque: { decrement: item.quantidade },
+              ...(produto.estoqueHub > 0
+                ? { estoqueHub: { decrement: Math.min(produto.estoqueHub, item.quantidade) } }
+                : {}),
+            },
+          })
+        }
       }
 
       const novaVenda = await tx.venda.create({

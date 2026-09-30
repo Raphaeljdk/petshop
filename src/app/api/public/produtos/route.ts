@@ -15,7 +15,7 @@ const getPublicProducts = unstable_cache(
         where: {
           ativo: true,
           mlItemId: { not: null },
-          estoque: { gt: 0 },
+          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
         },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
@@ -28,7 +28,10 @@ const getPublicProducts = unstable_cache(
       )
 
       return db.produto.findMany({
-        where: { ativo: true, estoque: { gt: 0 } },
+        where: {
+          ativo: true,
+          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
+        },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
     }
@@ -50,6 +53,7 @@ export async function GET() {
         preco: product.preco,
         precoPromo: product.precoPromo,
         estoque: product.estoque,
+        estoqueIlimitado: product.estoqueIlimitado,
         imageUrl: product.imageUrl,
         origem: product.mlItemId ? 'mercado_livre' : product.zettaProCod ? 'zetta' : 'hub',
       })),

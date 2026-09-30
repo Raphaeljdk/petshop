@@ -84,12 +84,36 @@ function valor(valor: number): string {
 }
 
 function extrairMensagemErro(payload: any, status: number): string {
-  const message =
-    payload?.message ||
+  const code = String(
+    payload?.code ||
     payload?.error ||
+    payload?.errors?.[0]?.code ||
+    payload?.cause?.[0]?.code ||
+    ''
+  )
+  const message = String(
+    payload?.message ||
     payload?.errors?.[0]?.message ||
     payload?.cause?.[0]?.description ||
-    payload?.cause?.[0]?.code
+    ''
+  )
+
+  const policyUnauthorized =
+    code === 'PA_UNAUTHORIZED_RESULT_FROM_POLICIES' ||
+    message.toLowerCase().includes('policy returned unauthorized') ||
+    message.toLowerCase().includes('policy agent returned an unauthorized')
+
+  if (policyUnauthorized) {
+    return 'O Mercado Pago bloqueou as credenciais desta conta por uma política de segurança. O pagamento não pode ser processado até a conta/chaves serem liberadas pelo suporte do Mercado Pago.'
+  }
+
+  if (status === 401 || code === 'invalid_credentials') {
+    return 'As credenciais do Mercado Pago não foram aceitas. Confira o Access Token de produção configurado no servidor.'
+  }
+
+  if (status === 403 || code === 'forbidden') {
+    return 'O Mercado Pago recusou esta operação para a aplicação atual. Verifique as permissões e o status da conta no painel do Mercado Pago.'
+  }
 
   return message
     ? `Mercado Pago: ${message}`

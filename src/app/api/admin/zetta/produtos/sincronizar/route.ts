@@ -22,6 +22,7 @@ export async function POST() {
       totalZetta: result.total,
       categorias: result.categories,
       sincronizados: result.products.length,
+      vinculados: result.linkedExisting,
     })
   } catch (error) {
     return authFailure(error)

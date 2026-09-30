@@ -26,6 +26,7 @@ export type ProductPreview = {
   preco: number
   precoPromo: number | null
   estoque: number
+  estoqueIlimitado?: boolean
   imageUrl: string | null
   origem?: 'mercado_livre' | 'zetta' | 'hub'
   marketplaceUrl?: string | null
@@ -281,14 +282,16 @@ export function ProductDetailsDialog({
               <Badge
                 variant="outline"
                 className={
-                  (current?.estoque || 0) > 0
+                  current?.estoqueIlimitado || (current?.estoque || 0) > 0
                     ? 'border-green-200 bg-green-50 text-green-700'
                     : 'border-red-200 bg-red-50 text-red-700'
                 }
               >
-                {(current?.estoque || 0) > 0
-                  ? `${current?.estoque} unidade(s) disponível(is)`
-                  : 'Produto indisponível'}
+                {current?.estoqueIlimitado
+                  ? 'Estoque ilimitado'
+                  : (current?.estoque || 0) > 0
+                    ? `${current?.estoque} unidade(s) disponível(is)`
+                    : 'Produto indisponível'}
               </Badge>
             </div>
 
@@ -334,9 +337,17 @@ export function ProductDetailsDialog({
                       variant="ghost"
                       className="size-11 rounded-l-none"
                       onClick={() =>
-                        setQuantity((value) => Math.min(current?.estoque || 1, value + 1))
+                        setQuantity((value) =>
+                          current?.estoqueIlimitado
+                            ? Math.min(99, value + 1)
+                            : Math.min(current?.estoque || 1, value + 1)
+                        )
                       }
-                      disabled={quantity >= (current?.estoque || 0)}
+                      disabled={
+                        current?.estoqueIlimitado
+                          ? quantity >= 99
+                          : quantity >= (current?.estoque || 0)
+                      }
                       aria-label="Aumentar quantidade"
                     >
                       <Plus className="size-4" />
@@ -345,7 +356,7 @@ export function ProductDetailsDialog({
 
                   <Button
                     className="btn-brand h-12 flex-1"
-                    disabled={(current?.estoque || 0) <= 0}
+                    disabled={!current?.estoqueIlimitado && (current?.estoque || 0) <= 0}
                     onClick={() => {
                       if (!current) return
                       onAddToCart(current, quantity)
@@ -359,7 +370,7 @@ export function ProductDetailsDialog({
               ) : (
                 <Button
                   className="btn-brand h-12 w-full"
-                  disabled={(current?.estoque || 0) <= 0}
+                  disabled={!current?.estoqueIlimitado && (current?.estoque || 0) <= 0}
                   onClick={() => {
                     onOpenChange(false)
                     onLoginToBuy?.()

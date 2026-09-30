@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
             )
           }
 
-          if (estoque < item.quantidade) {
+          if (!produto.estoqueIlimitado && estoque < item.quantidade) {
             throw new CheckoutError(
               `Estoque insuficiente para ${official.nome || produto.nome}. Disponível: ${estoque}.`
             )
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (produto.estoque < item.quantidade) {
+        if (!produto.estoqueIlimitado && produto.estoque < item.quantidade) {
           throw new CheckoutError(`Estoque insuficiente para ${produto.nome}`)
         }
 
@@ -218,14 +218,21 @@ export async function POST(req: NextRequest) {
 
         // Produto local continua usando controle transacional no Neon.
         if (!item.zettaProCod) {
-          if (produto.estoque < item.quantidade) {
-            throw new CheckoutError(`Estoque insuficiente para ${produto.nome}`)
-          }
+          if (!produto.estoqueIlimitado) {
+            if (produto.estoque < item.quantidade) {
+              throw new CheckoutError(`Estoque insuficiente para ${produto.nome}`)
+            }
 
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: { estoque: { decrement: item.quantidade } },
-          })
+            await tx.produto.update({
+              where: { id: item.produtoId },
+              data: {
+                estoque: { decrement: item.quantidade },
+                ...(produto.estoqueHub > 0
+                  ? { estoqueHub: { decrement: Math.min(produto.estoqueHub, item.quantidade) } }
+                  : {}),
+              },
+            })
+          }
         } else {
           // Mantém o cache local alinhado ao que acabou de ser lido do ERP.
           await tx.produto.update({

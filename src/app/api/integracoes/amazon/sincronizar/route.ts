@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
 import { AmazonSpApiError, amazonSellerListings } from '@/lib/amazon-sp-api'
 
 export const runtime = 'nodejs'
@@ -18,6 +19,7 @@ export async function POST() {
     const catalog = await amazonSellerListings(500)
     let created = 0
     let updated = 0
+    let linked = 0
     let skipped = 0
 
     for (const item of catalog.items) {
@@ -26,35 +28,83 @@ export async function POST() {
         continue
       }
 
-      const existing = await db.produto.findFirst({
-        where: {
-          amazonAsin: item.asin,
-          sku: item.sku,
-        },
+      let existing = await db.produto.findFirst({
+        where: { amazonAsin: item.asin },
       })
+      let matchedBySku = false
 
-      const data = {
+      if (!existing && item.sku) {
+        const skuMatches = await db.produto.findMany({
+          where: { sku: item.sku },
+          take: 2,
+        })
+        const compatible = skuMatches.filter(
+          (row) => !row.amazonAsin || row.amazonAsin === item.asin
+        )
+        if (compatible.length === 1) {
+          existing = compatible[0]
+          matchedBySku = true
+        }
+      }
+
+      const sourceStock = item.quantity
+      const estoqueIlimitado = isUnlimitedBathProduct({
+        nome: item.title,
+        categoria: item.productType || 'Amazon',
+      })
+      const estoqueConsolidado = totalStockFromSources({
+        estoqueHub: existing?.estoqueHub,
+        estoqueZetta: existing?.estoqueZetta,
+        estoqueMercadoLivre: existing?.estoqueMercadoLivre,
+        estoqueAmazon: sourceStock,
+      })
+      const estoqueOperacional = existing?.zettaProCod
+        ? existing.estoque
+        : existing?.estoqueHub && existing.estoqueHub > 0
+          ? existing.estoqueHub
+          : estoqueConsolidado
+
+      const marketplaceData = {
         nome: item.title,
         categoria: item.productType || 'Amazon',
         preco: item.price ?? existing?.preco ?? 0,
-        estoque: item.quantity,
+        estoque: estoqueOperacional,
+        estoqueAmazon: sourceStock,
+        estoqueIlimitado,
         sku: item.sku,
         amazonAsin: item.asin,
         imageUrl: item.imageUrl || existing?.imageUrl || null,
       }
 
       if (existing) {
+        const preserveMaster = Boolean(existing.zettaProCod) || matchedBySku
         await db.produto.update({
           where: { id: existing.id },
-          data,
+          data: preserveMaster
+            ? {
+                amazonAsin: item.asin,
+                estoqueAmazon: sourceStock,
+                estoqueIlimitado,
+                estoque: estoqueOperacional,
+                ...(!existing.imageUrl && item.imageUrl
+                  ? { imageUrl: item.imageUrl }
+                  : {}),
+              }
+            : marketplaceData,
         })
+        if (matchedBySku) linked += 1
         updated += 1
       } else {
         await db.produto.create({
           data: {
-            ...data,
+            ...marketplaceData,
             descricao: null,
             precoPromo: null,
+            estoqueHub: 0,
+            estoqueZetta: 0,
+            estoqueMercadoLivre: 0,
+            estoqueAmazon: sourceStock,
+            estoqueIlimitado,
             mlItemId: null,
             zettaProCod: null,
             ativo: false,
@@ -89,6 +139,7 @@ export async function POST() {
       synchronized: catalog.items.length,
       created,
       updated,
+      linked,
       skipped,
       newProductsHidden: created,
       truncated: catalog.truncated,

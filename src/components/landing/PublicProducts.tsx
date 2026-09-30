@@ -356,14 +356,18 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                           )}
                           <p className="text-base font-bold text-primary">{money(currentPrice)}</p>
                           <p className="mt-1 text-[10px] text-muted-foreground">
-                            {product.estoque > 0 ? 'Disponível' : 'Indisponível'}
+                            {product.estoqueIlimitado
+                              ? 'Disponível sem limite de estoque'
+                              : product.estoque > 0
+                                ? 'Disponível'
+                                : 'Indisponível'}
                           </p>
                         </div>
 
                         <Button
                           size="sm"
                           onClick={onBuy}
-                          disabled={product.estoque <= 0}
+                          disabled={!product.estoqueIlimitado && product.estoque <= 0}
                           className="mt-3 h-9 w-full"
                         >
                           Comprar

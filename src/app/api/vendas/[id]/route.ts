@@ -58,7 +58,7 @@ export async function DELETE(
     const { id } = await params
     const vendaExistente = await db.venda.findUnique({
       where: { id },
-      include: { itens: true },
+      include: { itens: { include: { produto: true } } },
     })
     if (!vendaExistente) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
@@ -67,9 +67,15 @@ export async function DELETE(
     // Restaura estoque
     await db.$transaction(async (tx) => {
       for (const item of vendaExistente.itens) {
+        if (item.produto?.estoqueIlimitado) continue
         await tx.produto.update({
           where: { id: item.produtoId },
-          data: { estoque: { increment: item.quantidade } },
+          data: {
+            estoque: { increment: item.quantidade },
+            ...(item.produto?.estoqueHub != null
+              ? { estoqueHub: { increment: item.quantidade } }
+              : {}),
+          },
         })
       }
       await tx.venda.delete({ where: { id } })

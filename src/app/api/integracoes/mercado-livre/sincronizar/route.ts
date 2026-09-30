@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import {
   mercadoLivreCategoryNames,
@@ -29,36 +30,88 @@ export async function POST() {
 
     let created = 0
     let updated = 0
+    let linked = 0
 
     for (const item of items) {
-      const existing = await db.produto.findFirst({
+      let existing = await db.produto.findFirst({
         where: { mlItemId: item.id },
       })
+      let matchedBySku = false
 
-      const data = {
+      if (!existing && item.sku && item.sku !== item.id) {
+        const skuMatches = await db.produto.findMany({
+          where: { sku: item.sku },
+          take: 2,
+        })
+        const compatible = skuMatches.filter(
+          (row) => !row.mlItemId || row.mlItemId === item.id
+        )
+        if (compatible.length === 1) {
+          existing = compatible[0]
+          matchedBySku = true
+        }
+      }
+
+      const sourceStock = item.status === 'active' ? item.quantity : 0
+      const estoqueIlimitado = isUnlimitedBathProduct({
+        nome: item.title,
+        categoria: item.categoryId ? categories.get(item.categoryId) || 'Mercado Livre' : 'Mercado Livre',
+      })
+      const estoqueConsolidado = totalStockFromSources({
+        estoqueHub: existing?.estoqueHub,
+        estoqueZetta: existing?.estoqueZetta,
+        estoqueMercadoLivre: sourceStock,
+        estoqueAmazon: existing?.estoqueAmazon,
+      })
+      const estoqueOperacional = existing?.zettaProCod
+        ? existing.estoque
+        : existing?.estoqueHub && existing.estoqueHub > 0
+          ? existing.estoqueHub
+          : estoqueConsolidado
+
+      const marketplaceData = {
         nome: item.title,
         categoria: item.categoryId
           ? categories.get(item.categoryId) || 'Mercado Livre'
           : 'Mercado Livre',
         preco: item.price,
-        estoque: item.status === 'active' ? item.quantity : 0,
+        estoque: estoqueOperacional,
+        estoqueMercadoLivre: sourceStock,
+        estoqueIlimitado,
         sku: item.sku || item.id,
         mlItemId: item.id,
         imageUrl: item.thumbnail,
       }
 
       if (existing) {
+        const preserveMaster = Boolean(existing.zettaProCod) || matchedBySku
         await db.produto.update({
           where: { id: existing.id },
-          data,
+          data: preserveMaster
+            ? {
+                mlItemId: item.id,
+                estoqueMercadoLivre: sourceStock,
+                estoqueIlimitado,
+                estoque: estoqueOperacional,
+                ...(!existing.imageUrl && item.thumbnail
+                  ? { imageUrl: item.thumbnail }
+                  : {}),
+              }
+            : marketplaceData,
         })
+        if (matchedBySku) linked += 1
         updated += 1
       } else {
         await db.produto.create({
           data: {
-            ...data,
+            ...marketplaceData,
             descricao: null,
             precoPromo: null,
+            estoqueHub: 0,
+            estoqueZetta: 0,
+            estoqueMercadoLivre: sourceStock,
+            estoqueAmazon: 0,
+            estoqueIlimitado,
             amazonAsin: null,
             ativo: false,
           },
@@ -74,6 +127,7 @@ export async function POST() {
       synchronized: items.length,
       created,
       updated,
+      linked,
       newProductsHidden: created,
       truncated: search.truncated,
     })

@@ -41,6 +41,7 @@ function localPayload(local: {
   preco: number
   precoPromo: number | null
   estoque: number
+  estoqueIlimitado: boolean
   imageUrl: string | null
   sku: string | null
 }) {
@@ -52,6 +53,7 @@ function localPayload(local: {
     preco: local.preco,
     precoPromo: local.precoPromo,
     estoque: local.estoque,
+    estoqueIlimitado: local.estoqueIlimitado,
     imageUrl: local.imageUrl,
     imagens: local.imageUrl ? [local.imageUrl] : [],
     marca: null,
@@ -104,6 +106,7 @@ export async function GET(
           preco: official.price,
           precoPromo: null,
           estoque: official.status === 'active' ? official.quantity : 0,
+          estoqueIlimitado: local.estoqueIlimitado,
           imageUrl: images[0] || local.imageUrl,
           imagens: images,
           marca: null,
@@ -154,6 +157,7 @@ export async function GET(
         preco: zettaProductBasePrice(official),
         precoPromo: zettaProductPromoPrice(official),
         estoque: zettaProductStock(official),
+        estoqueIlimitado: local.estoqueIlimitado,
         imageUrl: official.galeria?.[0] || local.imageUrl,
         imagens:
           official.galeria && official.galeria.length > 0
