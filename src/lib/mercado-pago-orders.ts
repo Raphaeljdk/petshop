@@ -3,6 +3,35 @@ import type { ConfiguracaoPagamento } from '@/lib/types'
 
 const MP_API_BASE = 'https://api.mercadopago.com'
 
+export class MercadoPagoGatewayError extends Error {
+  code: string
+  status: number
+  blocked: boolean
+
+  constructor(message: string, options: { code: string; status: number; blocked?: boolean }) {
+    super(message)
+    this.name = 'MercadoPagoGatewayError'
+    this.code = options.code
+    this.status = options.status
+    this.blocked = Boolean(options.blocked)
+  }
+}
+
+export interface MercadoPagoGatewayHealth {
+  disponivel: boolean
+  codigo: string | null
+  mensagem: string | null
+  status: number | null
+}
+
+let gatewayHealthCache:
+  | {
+      tokenHash: string
+      expiresAt: number
+      value: MercadoPagoGatewayHealth
+    }
+  | null = null
+
 export interface CardOrderData {
   token: string
   paymentMethodId: string
@@ -83,15 +112,18 @@ function valor(valor: number): string {
   return Number(valor).toFixed(2)
 }
 
-function extrairMensagemErro(payload: any, status: number): string {
+function extrairErroMercadoPago(
+  payload: any,
+  status: number
+): { code: string; message: string; blocked: boolean } {
   const code = String(
     payload?.code ||
     payload?.error ||
     payload?.errors?.[0]?.code ||
     payload?.cause?.[0]?.code ||
-    ''
+    'mercado_pago_error'
   )
-  const message = String(
+  const rawMessage = String(
     payload?.message ||
     payload?.errors?.[0]?.message ||
     payload?.cause?.[0]?.description ||
@@ -100,24 +132,43 @@ function extrairMensagemErro(payload: any, status: number): string {
 
   const policyUnauthorized =
     code === 'PA_UNAUTHORIZED_RESULT_FROM_POLICIES' ||
-    message.toLowerCase().includes('policy returned unauthorized') ||
-    message.toLowerCase().includes('policy agent returned an unauthorized')
+    rawMessage.toLowerCase().includes('policy returned unauthorized') ||
+    rawMessage.toLowerCase().includes('policy agent returned an unauthorized')
 
   if (policyUnauthorized) {
-    return 'O Mercado Pago bloqueou as credenciais desta conta por uma política de segurança. O pagamento não pode ser processado até a conta/chaves serem liberadas pelo suporte do Mercado Pago.'
+    return {
+      code: 'PA_UNAUTHORIZED_RESULT_FROM_POLICIES',
+      blocked: true,
+      message:
+        'A conta do Mercado Pago está bloqueada e as chaves de API foram revogadas. É necessário liberar a conta ou substituir as credenciais antes de processar pagamentos.',
+    }
   }
 
   if (status === 401 || code === 'invalid_credentials') {
-    return 'As credenciais do Mercado Pago não foram aceitas. Confira o Access Token de produção configurado no servidor.'
+    return {
+      code: code || 'invalid_credentials',
+      blocked: true,
+      message:
+        'As credenciais do Mercado Pago não foram aceitas. Confira o Access Token de produção configurado no servidor.',
+    }
   }
 
   if (status === 403 || code === 'forbidden') {
-    return 'O Mercado Pago recusou esta operação para a aplicação atual. Verifique as permissões e o status da conta no painel do Mercado Pago.'
+    return {
+      code: code || 'forbidden',
+      blocked: true,
+      message:
+        'O Mercado Pago recusou esta operação para a aplicação atual. Verifique as permissões e o status da conta.',
+    }
   }
 
-  return message
-    ? `Mercado Pago: ${message}`
-    : `Mercado Pago retornou HTTP ${status}`
+  return {
+    code,
+    blocked: false,
+    message: rawMessage
+      ? `Mercado Pago: ${rawMessage}`
+      : `Mercado Pago retornou HTTP ${status}`,
+  }
 }
 
 async function chamarMercadoPago(
@@ -144,10 +195,85 @@ async function chamarMercadoPago(
   const payload = await response.json().catch(() => null)
 
   if (!response.ok) {
-    throw new Error(extrairMensagemErro(payload, response.status))
+    const erro = extrairErroMercadoPago(payload, response.status)
+    throw new MercadoPagoGatewayError(erro.message, {
+      code: erro.code,
+      status: response.status,
+      blocked: erro.blocked,
+    })
   }
 
   return payload
+}
+
+export async function diagnosticarMercadoPago(
+  config: ConfiguracaoPagamento
+): Promise<MercadoPagoGatewayHealth> {
+  if (!mercadoPagoAtivo(config)) {
+    return {
+      disponivel: false,
+      codigo: 'gateway_desativado',
+      mensagem: 'Mercado Pago desativado.',
+      status: null,
+    }
+  }
+
+  const token = tokenEfetivo(config)
+  if (!token) {
+    return {
+      disponivel: false,
+      codigo: 'missing_access_token',
+      mensagem: 'Access Token do Mercado Pago não configurado.',
+      status: null,
+    }
+  }
+
+  const tokenHash = createHash('sha256').update(token).digest('hex')
+  if (
+    gatewayHealthCache &&
+    gatewayHealthCache.tokenHash === tokenHash &&
+    gatewayHealthCache.expiresAt > Date.now()
+  ) {
+    return gatewayHealthCache.value
+  }
+
+  let value: MercadoPagoGatewayHealth
+  try {
+    await chamarMercadoPago('/v1/payment_methods', config, { method: 'GET' })
+    value = {
+      disponivel: true,
+      codigo: null,
+      mensagem: null,
+      status: 200,
+    }
+  } catch (error) {
+    if (error instanceof MercadoPagoGatewayError) {
+      value = {
+        disponivel: false,
+        codigo: error.code,
+        mensagem: error.message,
+        status: error.status,
+      }
+    } else {
+      value = {
+        disponivel: false,
+        codigo: 'gateway_unavailable',
+        mensagem:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível validar o Mercado Pago.',
+        status: null,
+      }
+    }
+  }
+
+  gatewayHealthCache = {
+    tokenHash,
+    expiresAt: Date.now() + 60_000,
+    value,
+  }
+
+  return value
 }
 
 function pagamentoDaOrder(order: any): any {
