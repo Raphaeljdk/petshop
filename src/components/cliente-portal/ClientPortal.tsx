@@ -20,7 +20,7 @@ import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 import { ExperienceProvider, portalRequest } from './ExperienceProvider'
 import { CustomerClub } from './CustomerClub'
-import type { CarrinhoItem } from './ClientStore'
+import type { CarrinhoItem, ClientCartUiState } from './ClientStore'
 
 type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'vacinas' | 'compras'
 
@@ -43,6 +43,7 @@ function ClientPortalContent() {
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const [repeatItems, setRepeatItems] = useState<CarrinhoItem[] | null>(null)
   const [repeating, setRepeating] = useState(false)
+  const [cartUi, setCartUi] = useState<ClientCartUiState | null>(null)
 
   async function repeatPurchase(id: string) {
     if (repeating) return
@@ -96,6 +97,24 @@ function ClientPortalContent() {
             <span className="hidden sm:inline text-sm font-medium truncate">
               Olá, <strong className="text-primary">{nome.split(' ')[0]}</strong>
             </span>
+            {tab === 'loja' && cartUi && cartUi.itemCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={cartUi.open}
+                aria-label={`Abrir carrinho com ${cartUi.itemCount} item(ns)`}
+                className="relative size-10 shrink-0 rounded-full border-border bg-background p-0 shadow-sm"
+              >
+                <ShoppingCart className="size-4.5" />
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm"
+                >
+                  {cartUi.itemCount > 99 ? '99+' : cartUi.itemCount}
+                </span>
+              </Button>
+            )}
             <Avatar className="size-9 sm:size-10">
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
                 {iniciais || 'CL'}
@@ -151,7 +170,14 @@ function ClientPortalContent() {
             />
           )}
           {tab === 'inicio' && <CustomerClub onShop={() => setTab('loja')} />}
-          {tab === 'loja' && <ClientStore onCompraFinalizada={onCompraFinalizada} repeatItems={repeatItems} onRepeatConsumed={() => setRepeatItems(null)} />}
+          {tab === 'loja' && (
+            <ClientStore
+              onCompraFinalizada={onCompraFinalizada}
+              repeatItems={repeatItems}
+              onRepeatConsumed={() => setRepeatItems(null)}
+              onCartUiChange={setCartUi}
+            />
+          )}
           {tab === 'agendamentos' && <ClientAgendamentos />}
           {tab === 'pets' && <ClientMeusPets />}
           {tab === 'vacinas' && <ClientVacinas />}
