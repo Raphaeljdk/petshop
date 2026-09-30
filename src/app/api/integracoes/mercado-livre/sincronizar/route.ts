@@ -29,13 +29,29 @@ export async function POST() {
 
     let created = 0
     let updated = 0
+    let linked = 0
 
     for (const item of items) {
-      const existing = await db.produto.findFirst({
+      let existing = await db.produto.findFirst({
         where: { mlItemId: item.id },
       })
+      let matchedBySku = false
 
-      const data = {
+      if (!existing && item.sku && item.sku !== item.id) {
+        const skuMatches = await db.produto.findMany({
+          where: { sku: item.sku },
+          take: 2,
+        })
+        const compatible = skuMatches.filter(
+          (row) => !row.mlItemId || row.mlItemId === item.id
+        )
+        if (compatible.length === 1) {
+          existing = compatible[0]
+          matchedBySku = true
+        }
+      }
+
+      const marketplaceData = {
         nome: item.title,
         categoria: item.categoryId
           ? categories.get(item.categoryId) || 'Mercado Livre'
@@ -48,10 +64,19 @@ export async function POST() {
       }
 
       if (existing) {
+        const preserveMaster = Boolean(existing.zettaProCod) || matchedBySku
         await db.produto.update({
           where: { id: existing.id },
-          data,
+          data: preserveMaster
+            ? {
+                mlItemId: item.id,
+                ...(!existing.imageUrl && item.thumbnail
+                  ? { imageUrl: item.thumbnail }
+                  : {}),
+              }
+            : marketplaceData,
         })
+        if (matchedBySku) linked += 1
         updated += 1
       } else {
         await db.produto.create({
@@ -74,6 +99,7 @@ export async function POST() {
       synchronized: items.length,
       created,
       updated,
+      linked,
       newProductsHidden: created,
       truncated: search.truncated,
     })
