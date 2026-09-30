@@ -41,7 +41,11 @@ export async function PUT(
 
     // Produtos vinculados a fontes externas recebem nome, preço, estoque e SKU
     // da integração. O painel local edita apenas metadados e publicação.
-    if (!produtoExistente.zettaProCod && !produtoExistente.mlItemId) {
+    if (
+      !produtoExistente.zettaProCod &&
+      !produtoExistente.mlItemId &&
+      !produtoExistente.amazonAsin
+    ) {
       if (nome !== undefined) dados.nome = nome
       if (preco !== undefined) dados.preco = preco
       if (precoPromo !== undefined) dados.precoPromo = precoPromo
@@ -98,7 +102,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 })
     }
 
-    if (produtoExistente.zettaProCod || produtoExistente.mlItemId) {
+    if (
+      produtoExistente.zettaProCod ||
+      produtoExistente.mlItemId ||
+      produtoExistente.amazonAsin
+    ) {
       await db.produto.update({
         where: { id },
         data: { ativo: false },
