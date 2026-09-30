@@ -164,6 +164,31 @@ export async function syncZettaProductsToLocal() {
       !product.inativo
   )
 
+  const existingProducts = await db.produto.findMany({
+    select: {
+      id: true,
+      sku: true,
+      zettaProCod: true,
+    },
+  })
+
+  const byZettaId = new Map(
+    existingProducts
+      .filter((row) => row.zettaProCod != null)
+      .map((row) => [Number(row.zettaProCod), row])
+  )
+  const bySku = new Map<string, typeof existingProducts>()
+  for (const row of existingProducts) {
+    const key = row.sku?.trim().toLowerCase()
+    if (!key) continue
+    const rows = bySku.get(key) || []
+    rows.push(row)
+    bySku.set(key, rows)
+  }
+
+  const claimedExistingIds = new Set<string>()
+  let linkedExisting = 0
+
   const operations = valid.map((product) => {
     const categoryId = product.categorias?.[0]
     const categoria =
@@ -171,31 +196,41 @@ export async function syncZettaProductsToLocal() {
     const precoBase = zettaProductBasePrice(product)
     const precoPromo = zettaProductPromoPrice(product)
     const imageUrl = product.galeria?.[0] || null
+    const sku = zettaProductSku(product)
+    const direct = byZettaId.get(product.id)
+    const skuMatches = (bySku.get(sku.trim().toLowerCase()) || []).filter(
+      (row) =>
+        !claimedExistingIds.has(row.id) &&
+        (row.zettaProCod == null || row.zettaProCod === product.id)
+    )
+    const existing = direct || (skuMatches.length === 1 ? skuMatches[0] : null)
 
-    return db.produto.upsert({
-      where: { zettaProCod: product.id },
-      create: {
-        nome: product.nome,
-        descricao: product.modelo || product.marca || null,
-        categoria,
-        preco: precoBase,
-        precoPromo,
-        estoque: zettaProductStock(product),
-        sku: zettaProductSku(product),
-        zettaProCod: product.id,
+    const data = {
+      nome: product.nome,
+      descricao: product.modelo || product.marca || null,
+      categoria,
+      preco: precoBase,
+      precoPromo,
+      estoque: zettaProductStock(product),
+      sku,
+      zettaProCod: product.id,
+      ...(imageUrl ? { imageUrl } : {}),
+      ativo: true,
+    }
+
+    if (existing) {
+      claimedExistingIds.add(existing.id)
+      if (!direct && existing.zettaProCod == null) linkedExisting += 1
+      return db.produto.update({
+        where: { id: existing.id },
+        data,
+      })
+    }
+
+    return db.produto.create({
+      data: {
+        ...data,
         imageUrl,
-        ativo: true,
-      },
-      update: {
-        nome: product.nome,
-        descricao: product.modelo || product.marca || null,
-        categoria,
-        preco: precoBase,
-        precoPromo,
-        estoque: zettaProductStock(product),
-        sku: zettaProductSku(product),
-        ...(imageUrl ? { imageUrl } : {}),
-        ativo: true,
       },
     })
   })
@@ -218,6 +253,7 @@ export async function syncZettaProductsToLocal() {
   return {
     total: valid.length,
     categories: categories.length,
+    linkedExisting,
     products: await db.produto.findMany({
       where: { ativo: true, zettaProCod: { not: null }, estoque: { gt: 0 } },
       orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
