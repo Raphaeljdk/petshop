@@ -42,6 +42,8 @@ interface ConfigPublica {
   boletoAtivo: boolean
   simulado: boolean
   publicKey: string | null
+  gatewayDisponivel?: boolean
+  gatewayCodigo?: string | null
 }
 
 interface StatusResponse {
@@ -71,7 +73,7 @@ const METODOS: {
   {
     id: 'pix',
     label: 'PIX',
-    descricao: 'Aprovação imediata · 5% de desconto às vezes',
+    descricao: 'Aprovação imediata',
     icon: QrCodeIcon,
   },
   {
@@ -316,6 +318,42 @@ export function PagamentoCheckout({
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
+      </div>
+    )
+  }
+
+  if (config && (!config.mercadoPagoAtivo || config.gatewayDisponivel === false)) {
+    return (
+      <div className="space-y-4">
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <AlertCircle className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-amber-950">
+                  Pagamento online temporariamente indisponível
+                </h3>
+                <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
+                  O gateway de pagamento está em manutenção. Nenhuma cobrança foi
+                  realizada. Tente novamente mais tarde ou fale com a loja para
+                  concluir a compra.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {onCancelar && (
+          <Button
+            variant="outline"
+            className="w-full h-10"
+            onClick={onCancelar}
+          >
+            Voltar ao carrinho
+          </Button>
+        )}
       </div>
     )
   }
