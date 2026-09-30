@@ -28,9 +28,9 @@ SET
 
 UPDATE "Produto"
 SET "estoqueIlimitado" = true
-WHERE lower(unaccent(coalesce("nome", ''))) ~ '(^| )banho( |$)'
+WHERE lower(coalesce("nome", '')) ~ '(^| )banho( |$)'
   AND (
-    lower(unaccent(coalesce("nome", ''))) IN ('banho', 'banho e tosa')
-    OR lower(unaccent(coalesce("nome", ''))) LIKE 'banho e tosa%'
-    OR lower(unaccent(coalesce("categoria", ''))) LIKE '%servic%'
+    lower(coalesce("nome", '')) IN ('banho', 'banho e tosa')
+    OR lower(coalesce("nome", '')) LIKE 'banho e tosa%'
+    OR lower(coalesce("categoria", '')) LIKE '%servic%'
   );
