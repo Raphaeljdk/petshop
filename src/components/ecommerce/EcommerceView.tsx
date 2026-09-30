@@ -81,7 +81,22 @@ const fmtMoeda = (v: number) =>
 /* Helpers de cores                                                      */
 /* --------------------------------------------------------------------- */
 
-function corEstoque(qtd: number): { label: string; className: string } {
+function estoqueConsolidado(produto: Produto) {
+  return (
+    Math.max(0, produto.estoqueHub || 0) +
+    Math.max(0, produto.estoqueZetta || 0) +
+    Math.max(0, produto.estoqueMercadoLivre || 0) +
+    Math.max(0, produto.estoqueAmazon || 0)
+  )
+}
+
+function corEstoque(qtd: number, ilimitado = false): { label: string; className: string } {
+  if (ilimitado) {
+    return {
+      label: 'Estoque ilimitado',
+      className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    }
+  }
   if (qtd >= 10) {
     return {
       label: `${qtd} em estoque`,
@@ -215,7 +230,8 @@ function ProdutoCard({
   onQuickEditPreco,
   onQuickEditEstoque,
 }: ProdutoCardProps) {
-  const estoqueMeta = corEstoque(produto.estoque)
+  const estoqueTotal = estoqueConsolidado(produto)
+  const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const temPromo = produto.precoPromo && produto.precoPromo > 0
 
   return (
@@ -292,10 +308,20 @@ function ProdutoCard({
         </div>
 
         {/* Estoque */}
-        <div className="flex items-center justify-between gap-2">
-          <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
-            {estoqueMeta.label}
-          </Badge>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
+              {estoqueMeta.label}
+            </Badge>
+          </div>
+          {!produto.estoqueIlimitado && (
+            <div className="flex flex-wrap gap-1 text-[9px] text-muted-foreground">
+              {(produto.estoqueHub || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Hub {produto.estoqueHub}</span>}
+              {(produto.estoqueZetta || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Zetta {produto.estoqueZetta}</span>}
+              {(produto.estoqueMercadoLivre || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">ML {produto.estoqueMercadoLivre}</span>}
+              {(produto.estoqueAmazon || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Amazon {produto.estoqueAmazon}</span>}
+            </div>
+          )}
         </div>
 
         {/* Quick edit: preço + estoque inline */}
@@ -387,7 +413,8 @@ function ProdutoListRow({
   onExcluir: () => void
   onToggleAtivo: () => void
 }) {
-  const estoqueMeta = corEstoque(produto.estoque)
+  const estoqueTotal = estoqueConsolidado(produto)
+  const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const preco = produto.precoPromo ?? produto.preco
 
   return (
@@ -792,7 +819,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         if (p.categoria !== filtroCategoria) return false
       }
       if (estoqueBaixo) {
-        if (p.estoque >= 5) return false
+        if (p.estoqueIlimitado || estoqueConsolidado(p) >= 5) return false
       }
       const preco = p.precoPromo ?? p.preco
       if (preco < faixaPreco[0] || preco > faixaPreco[1]) return false
@@ -811,10 +838,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         ordenados.sort((a, b) => (b.precoPromo ?? b.preco) - (a.precoPromo ?? a.preco))
         break
       case 'estoque_asc':
-        ordenados.sort((a, b) => a.estoque - b.estoque)
+        ordenados.sort((a, b) => estoqueConsolidado(a) - estoqueConsolidado(b))
         break
       case 'estoque_desc':
-        ordenados.sort((a, b) => b.estoque - a.estoque)
+        ordenados.sort((a, b) => estoqueConsolidado(b) - estoqueConsolidado(a))
         break
       case 'recente':
       default:
@@ -1393,9 +1420,11 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
               {editProduto ? 'Editar produto' : 'Novo produto'}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              {editProduto?.zettaProCod
-                ? 'Produto vinculado ao ERP: nome, SKU, preço e estoque são controlados pelo Zetta.'
-                : 'Dados do produto da loja'}
+              {editProduto?.estoqueIlimitado
+                ? 'Serviço de banho: estoque ilimitado.'
+                : editProduto?.zettaProCod
+                  ? 'Produto vinculado ao ERP: nome, SKU, preço e estoque operacional são controlados pelo Zetta.'
+                  : 'Dados do produto da loja'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
