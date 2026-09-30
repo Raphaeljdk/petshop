@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { integrationBridgeRequest } from '@/lib/integration-bridge'
 import type { DashboardStats } from '@/lib/types'
+import { officialStockFromSources } from '@/lib/product-stock'
 
 const NOMES_MESES_PT = [
   'Jan',
@@ -120,7 +121,7 @@ export async function GET() {
       vendasHoje,
       vendasMes,
       agendamentosHoje,
-      produtosEstoqueBaixo,
+      produtosParaEstoqueBaixo,
       ultimosProcessos,
       ultimasVendas,
       proximosAgendamentos,
@@ -149,11 +150,19 @@ export async function GET() {
       db.agendamento.count({
         where: { dataHora: { gte: inicioHoje } },
       }),
-      db.produto.count({
+      db.produto.findMany({
         where: {
-          estoque: { lt: 5 },
           estoqueIlimitado: false,
           ativo: true,
+        },
+        select: {
+          zettaProCod: true,
+          mlItemId: true,
+          amazonAsin: true,
+          estoqueHub: true,
+          estoqueZetta: true,
+          estoqueMercadoLivre: true,
+          estoqueAmazon: true,
         },
       }),
       db.processo.findMany({
@@ -301,6 +310,10 @@ export async function GET() {
       .map(([servico, quantidade]) => ({ servico, quantidade }))
       .sort((a, b) => b.quantidade - a.quantidade)
       .slice(0, 6)
+
+    const produtosEstoqueBaixo = produtosParaEstoqueBaixo.filter(
+      (produto) => officialStockFromSources(produto) < 5
+    ).length
 
     const stats: DashboardStats = {
       zetta: {
