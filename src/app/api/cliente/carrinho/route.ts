@@ -249,6 +249,7 @@ export async function POST(req: NextRequest) {
             data: {
               preco: item.precoUnit,
               estoque: item.estoqueConfirmado,
+              estoqueZetta: item.estoqueConfirmado,
               precoPromo: null,
             },
           })
