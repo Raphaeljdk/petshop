@@ -13,16 +13,16 @@ export async function GET() {
   try {
     try {
       const official = await syncZettaProductsToLocal()
-      const mercadoLivre = await db.produto.findMany({
+      const complementares = await db.produto.findMany({
         where: {
           ativo: true,
-          OR: [{ mlItemId: { not: null } }, { estoque: { lte: 0 } }, { zettaProCod: null }],
+          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
         },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 
       return NextResponse.json(
-        uniqueProducts([...official.products, ...mercadoLivre])
+        uniqueProducts([...official.products, ...complementares])
       )
     } catch (siggmaError) {
       console.error(
