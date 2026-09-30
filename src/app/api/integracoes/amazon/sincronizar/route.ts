@@ -75,20 +75,32 @@ export async function POST() {
       }
 
       if (existing) {
-        const preserveMaster = Boolean(existing.zettaProCod) || matchedBySku
+        const zettaMaster = Boolean(existing.zettaProCod)
+        const preserveMaster = zettaMaster || matchedBySku
+
         await db.produto.update({
           where: { id: existing.id },
-          data: preserveMaster
+          data: zettaMaster
             ? {
+                // Amazon é apenas um canal deste produto. Nunca altera o
+                // estoque físico/oficial controlado pelo Zetta.
                 amazonAsin: item.asin,
                 estoqueAmazon: sourceStock,
-                estoqueIlimitado,
-                estoque: estoqueOperacional,
                 ...(!existing.imageUrl && item.imageUrl
                   ? { imageUrl: item.imageUrl }
                   : {}),
               }
-            : marketplaceData,
+            : preserveMaster
+              ? {
+                  amazonAsin: item.asin,
+                  estoqueAmazon: sourceStock,
+                  estoqueIlimitado,
+                  estoque: estoqueOperacional,
+                  ...(!existing.imageUrl && item.imageUrl
+                    ? { imageUrl: item.imageUrl }
+                    : {}),
+                }
+              : marketplaceData,
         })
         if (matchedBySku) linked += 1
         updated += 1
