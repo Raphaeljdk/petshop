@@ -81,13 +81,8 @@ const fmtMoeda = (v: number) =>
 /* Helpers de cores                                                      */
 /* --------------------------------------------------------------------- */
 
-function estoqueConsolidado(produto: Produto) {
-  return (
-    Math.max(0, produto.estoqueHub || 0) +
-    Math.max(0, produto.estoqueZetta || 0) +
-    Math.max(0, produto.estoqueMercadoLivre || 0) +
-    Math.max(0, produto.estoqueAmazon || 0)
-  )
+function estoqueOficial(produto: Produto) {
+  return Math.max(0, Number(produto.estoque || 0))
 }
 
 function corEstoque(qtd: number, ilimitado = false): { label: string; className: string } {
@@ -230,7 +225,7 @@ function ProdutoCard({
   onQuickEditPreco,
   onQuickEditEstoque,
 }: ProdutoCardProps) {
-  const estoqueTotal = estoqueConsolidado(produto)
+  const estoqueTotal = estoqueOficial(produto)
   const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const temPromo = produto.precoPromo && produto.precoPromo > 0
 
@@ -325,11 +320,15 @@ function ProdutoCard({
         </div>
 
         {/* Quick edit: preço + estoque inline */}
-        {produto.zettaProCod || produto.mlItemId ? (
+        {produto.zettaProCod || produto.mlItemId || produto.amazonAsin ? (
           <div className="rounded-md border border-primary/15 bg-primary/5 p-2 text-[11px] text-muted-foreground">
-            {produto.mlItemId
-              ? 'Preço e estoque são atualizados pela sincronização do Mercado Livre.'
-              : 'Preço e estoque são atualizados pelo ERP Zetta.'}
+            {produto.zettaProCod
+              ? 'Preço e estoque físico são controlados pelo ERP Zetta. Mercado Livre e Amazon são saldos de canal.'
+              : produto.mlItemId && produto.amazonAsin
+                ? 'Produto sem vínculo Zetta: Mercado Livre e Amazon são acompanhados separadamente e não têm seus saldos somados.'
+                : produto.mlItemId
+                  ? 'Saldo do canal é atualizado pela sincronização do Mercado Livre.'
+                  : 'Saldo do canal é atualizado pela sincronização da Amazon.'}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
@@ -413,7 +412,7 @@ function ProdutoListRow({
   onExcluir: () => void
   onToggleAtivo: () => void
 }) {
-  const estoqueTotal = estoqueConsolidado(produto)
+  const estoqueTotal = estoqueOficial(produto)
   const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const preco = produto.precoPromo ?? produto.preco
 
@@ -794,12 +793,14 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       total: produtos.length,
       unidades: produtos.reduce(
         (sum, produto) =>
-          produto.estoqueIlimitado ? sum : sum + estoqueConsolidado(produto),
+          produto.estoqueIlimitado ? sum : sum + estoqueOficial(produto),
         0
       ),
       ilimitados: produtos.filter((p) => Boolean(p.estoqueIlimitado)).length,
       zetta: produtos.filter((p) => Boolean(p.zettaProCod)).length,
-      hub: produtos.filter((p) => !p.zettaProCod).length,
+      hub: produtos.filter(
+        (p) => !p.zettaProCod && !p.mlItemId && !p.amazonAsin
+      ).length,
       mercadoLivre: produtos.filter((p) => Boolean(p.mlItemId)).length,
       amazon: produtos.filter((p) => Boolean(p.amazonAsin)).length,
     }),
@@ -825,7 +826,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         if (p.categoria !== filtroCategoria) return false
       }
       if (estoqueBaixo) {
-        if (p.estoqueIlimitado || estoqueConsolidado(p) >= 5) return false
+        if (p.estoqueIlimitado || estoqueOficial(p) >= 5) return false
       }
       const preco = p.precoPromo ?? p.preco
       if (preco < faixaPreco[0] || preco > faixaPreco[1]) return false
@@ -1196,11 +1197,11 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque unificado</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Hub e ERP Zetta no mesmo catálogo. Itens vinculados ao Zetta usam o ERP como fonte oficial de preço e estoque; Amazon e Mercado Livre aparecem como canais do mesmo produto.
+          Zetta é a fonte oficial do estoque físico quando houver vínculo. Mercado Livre e Amazon ficam registrados como saldos por canal, sem inflar o estoque disponível.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge variant="secondary">{resumoEstoque.total} produtos</Badge>
-          <Badge variant="secondary">{resumoEstoque.unidades} un. consolidadas</Badge>
+          <Badge variant="secondary">{resumoEstoque.unidades} un. de estoque oficial</Badge>
           {resumoEstoque.ilimitados > 0 && (
             <Badge className="border-emerald-200 bg-emerald-100 text-emerald-700">
               {resumoEstoque.ilimitados} ilimitado(s)
