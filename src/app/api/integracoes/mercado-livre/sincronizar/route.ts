@@ -82,20 +82,32 @@ export async function POST() {
       }
 
       if (existing) {
-        const preserveMaster = Boolean(existing.zettaProCod) || matchedBySku
+        const zettaMaster = Boolean(existing.zettaProCod)
+        const preserveMaster = zettaMaster || matchedBySku
+
         await db.produto.update({
           where: { id: existing.id },
-          data: preserveMaster
+          data: zettaMaster
             ? {
+                // Mercado Livre é apenas um canal deste produto. Nunca altera
+                // o estoque físico/oficial controlado pelo Zetta.
                 mlItemId: item.id,
                 estoqueMercadoLivre: sourceStock,
-                estoqueIlimitado,
-                estoque: estoqueOperacional,
                 ...(!existing.imageUrl && item.thumbnail
                   ? { imageUrl: item.thumbnail }
                   : {}),
               }
-            : marketplaceData,
+            : preserveMaster
+              ? {
+                  mlItemId: item.id,
+                  estoqueMercadoLivre: sourceStock,
+                  estoqueIlimitado,
+                  estoque: estoqueOperacional,
+                  ...(!existing.imageUrl && item.thumbnail
+                    ? { imageUrl: item.thumbnail }
+                    : {}),
+                }
+              : marketplaceData,
         })
         if (matchedBySku) linked += 1
         updated += 1
