@@ -7,6 +7,7 @@ import {
   zettaProductPrice,
   zettaProductStock,
 } from '@/lib/zetta-products'
+import { officialStockFromSources } from '@/lib/product-stock'
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,7 +56,14 @@ export async function GET(req: NextRequest) {
             }
           }
         }
-        const qty = Math.min(quantidade, current.estoque)
+        const estoqueDisponivel = current.estoqueIlimitado
+          ? quantidade
+          : produto.zettaProCod
+            ? current.estoque
+            : officialStockFromSources(current)
+        const qty = current.estoqueIlimitado
+          ? quantidade
+          : Math.min(quantidade, estoqueDisponivel)
         if (qty <= 0 || (current.precoPromo ?? current.preco) <= 0)
           return { skipped: `${produto.nome}: indisponível.` }
         return {
