@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 export function ProductActions({
   product,
 }: {
-  product: { id: string; nome: string; estoque: number }
+  product: { id: string; nome: string; estoque: number; estoqueIlimitado?: boolean }
 }) {
   const { preferences, ready, busy, update } = useExperience()
   const preference = preferences.find((row) => row.produtoId === product.id)
@@ -57,7 +57,7 @@ export function ProductActions({
           />
           <span>Favorito</span>
         </Button>
-        {product.estoque <= 0 ? (
+        {!product.estoqueIlimitado && product.estoque <= 0 ? (
           <Button
             size="sm"
             variant="ghost"
