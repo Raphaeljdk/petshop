@@ -67,12 +67,20 @@ export async function DELETE(
     // Restaura estoque
     await db.$transaction(async (tx) => {
       for (const item of vendaExistente.itens) {
-        if (item.produto?.estoqueIlimitado) continue
+        const produto = item.produto
+        if (!produto || produto.estoqueIlimitado) continue
+
+        // Vendas Zetta não reduzem o estoque local; portanto não há nada
+        // para devolver ao Neon ao excluir a venda.
+        if (produto.zettaProCod) continue
+
+        const produtoSomenteHub = !produto.mlItemId && !produto.amazonAsin
+
         await tx.produto.update({
           where: { id: item.produtoId },
           data: {
             estoque: { increment: item.quantidade },
-            ...(item.produto?.estoqueHub != null
+            ...(produtoSomenteHub
               ? { estoqueHub: { increment: item.quantidade } }
               : {}),
           },

@@ -149,7 +149,13 @@ export async function GET() {
       db.agendamento.count({
         where: { dataHora: { gte: inicioHoje } },
       }),
-      db.produto.count({ where: { estoque: { lt: 5 }, ativo: true } }),
+      db.produto.count({
+        where: {
+          estoque: { lt: 5 },
+          estoqueIlimitado: false,
+          ativo: true,
+        },
+      }),
       db.processo.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },

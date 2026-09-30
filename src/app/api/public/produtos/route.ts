@@ -12,16 +12,15 @@ const getPublicProducts = unstable_cache(
   async () => {
     try {
       const synced = await syncZettaProductsToLocal()
-      const mercadoLivre = await db.produto.findMany({
+      const complementares = await db.produto.findMany({
         where: {
           ativo: true,
-          mlItemId: { not: null },
           OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
         },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 
-      return uniqueProducts([...synced.products, ...mercadoLivre])
+      return uniqueProducts([...synced.products, ...complementares])
     } catch (error) {
       console.error(
         '[public/produtos] Siggma indisponível, usando cache local:',
@@ -64,7 +63,21 @@ export async function GET() {
         estoque: product.estoque,
         estoqueIlimitado: product.estoqueIlimitado,
         imageUrl: product.imageUrl,
-        origem: product.mlItemId ? 'mercado_livre' : product.zettaProCod ? 'zetta' : 'hub',
+        origem: product.zettaProCod
+          ? 'zetta'
+          : product.mlItemId
+            ? 'mercado_livre'
+            : product.amazonAsin
+              ? 'amazon'
+              : 'hub',
+        origens: [
+          product.zettaProCod ? 'zetta' : null,
+          product.mlItemId ? 'mercado_livre' : null,
+          product.amazonAsin ? 'amazon' : null,
+          !product.zettaProCod && !product.mlItemId && !product.amazonAsin
+            ? 'hub'
+            : null,
+        ].filter(Boolean),
       })),
       {
         headers: {
