@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 import { legacyProducts } from '@/lib/product-compat'
+import { officialStockFromSources } from '@/lib/product-stock'
 
 function uniqueProducts<T extends { id: string }>(products: T[]) {
   return [...new Map(products.map((product) => [product.id, product])).values()]
@@ -13,14 +14,18 @@ const getPublicProducts = unstable_cache(
     try {
       const synced = await syncZettaProductsToLocal()
       const complementares = await db.produto.findMany({
-        where: {
-          ativo: true,
-          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
-        },
+        where: { ativo: true },
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 
       return uniqueProducts([...synced.products, ...complementares])
+        .map((produto) => ({
+          ...produto,
+          estoque: produto.estoqueIlimitado
+            ? produto.estoque
+            : officialStockFromSources(produto),
+        }))
+        .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
     } catch (error) {
       console.error(
         '[public/produtos] Siggma indisponível, usando cache local:',
@@ -28,13 +33,18 @@ const getPublicProducts = unstable_cache(
       )
 
       try {
-        return await db.produto.findMany({
-          where: {
-            ativo: true,
-            OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
-          },
+        const cached = await db.produto.findMany({
+          where: { ativo: true },
           orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
         })
+        return cached
+          .map((produto) => ({
+            ...produto,
+            estoque: produto.estoqueIlimitado
+              ? produto.estoque
+              : officialStockFromSources(produto),
+          }))
+          .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
       } catch (schemaError) {
         console.warn(
           '[public/produtos] schema novo ainda não aplicado; usando leitura compatível:',
@@ -44,7 +54,7 @@ const getPublicProducts = unstable_cache(
       }
     }
   },
-  ['public-products-v3'],
+  ['public-products-v4'],
   { revalidate: 300 }
 )
 
