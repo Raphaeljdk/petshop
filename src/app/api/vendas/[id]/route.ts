@@ -108,7 +108,7 @@ export async function PATCH(
         }
       }
 
-      const dados: Record<string, unknown> = {}
+      const dados: any = {}
       if (status !== undefined) dados.status = status
       if (observacoes !== undefined) dados.observacoes = observacoes
       if (canal !== undefined) dados.canal = canal
