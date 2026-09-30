@@ -9,6 +9,7 @@ import {
   CupomValidationError,
   validarCupom,
 } from '@/lib/cupons'
+import { officialStockFromSources } from '@/lib/product-stock'
 
 class CheckoutError extends Error {
   constructor(
@@ -170,15 +171,18 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (!produto.estoqueIlimitado && produto.estoque < item.quantidade) {
-          throw new CheckoutError(`Estoque insuficiente para ${produto.nome}`)
+        const estoqueDisponivel = officialStockFromSources(produto)
+        if (!produto.estoqueIlimitado && estoqueDisponivel < item.quantidade) {
+          throw new CheckoutError(
+            `Estoque insuficiente para ${produto.nome}. Disponível: ${estoqueDisponivel}.`
+          )
         }
 
         return {
           produtoId: produto.id,
           quantidade: item.quantidade,
           precoUnit: produto.precoPromo ?? produto.preco,
-          estoqueConfirmado: produto.estoque,
+          estoqueConfirmado: estoqueDisponivel,
           zettaProCod: null,
         }
       })
@@ -219,16 +223,21 @@ export async function POST(req: NextRequest) {
         // Produto local continua usando controle transacional no Neon.
         if (!item.zettaProCod) {
           if (!produto.estoqueIlimitado) {
-            if (produto.estoque < item.quantidade) {
-              throw new CheckoutError(`Estoque insuficiente para ${produto.nome}`)
+            const estoqueDisponivel = officialStockFromSources(produto)
+            if (estoqueDisponivel < item.quantidade) {
+              throw new CheckoutError(
+                `Estoque insuficiente para ${produto.nome}. Disponível: ${estoqueDisponivel}.`
+              )
             }
+
+            const usaHubComoFonte = produto.estoqueHub > 0
 
             await tx.produto.update({
               where: { id: item.produtoId },
               data: {
-                estoque: { decrement: item.quantidade },
-                ...(produto.estoqueHub > 0
-                  ? { estoqueHub: { decrement: Math.min(produto.estoqueHub, item.quantidade) } }
+                estoque: estoqueDisponivel - item.quantidade,
+                ...(usaHubComoFonte
+                  ? { estoqueHub: produto.estoqueHub - item.quantidade }
                   : {}),
               },
             })
