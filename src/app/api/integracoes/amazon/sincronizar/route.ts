@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
+import { isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
 import { AmazonSpApiError, amazonSellerListings } from '@/lib/amazon-sp-api'
 
 export const runtime = 'nodejs'
@@ -52,17 +52,15 @@ export async function POST() {
         nome: item.title,
         categoria: item.productType || 'Amazon',
       })
-      const estoqueConsolidado = totalStockFromSources({
+      const estoqueOperacional = officialStockFromSources({
+        zettaProCod: existing?.zettaProCod,
+        mlItemId: existing?.mlItemId,
+        amazonAsin: item.asin,
         estoqueHub: existing?.estoqueHub,
         estoqueZetta: existing?.estoqueZetta,
         estoqueMercadoLivre: existing?.estoqueMercadoLivre,
         estoqueAmazon: sourceStock,
       })
-      const estoqueOperacional = existing?.zettaProCod
-        ? existing.estoque
-        : existing?.estoqueHub && existing.estoqueHub > 0
-          ? existing.estoqueHub
-          : estoqueConsolidado
 
       const marketplaceData = {
         nome: item.title,
