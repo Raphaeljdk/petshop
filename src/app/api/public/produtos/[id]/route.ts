@@ -11,6 +11,7 @@ import {
   mercadoLivreCategoryNames,
   mercadoLivreItemDetails,
 } from '@/lib/mercado-livre-items'
+import { legacyProductById } from '@/lib/product-compat'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,9 +74,18 @@ export async function GET(
   try {
     const { id } = await params
 
-    const local = await db.produto.findUnique({
-      where: { id },
-    })
+    let local
+    try {
+      local = await db.produto.findUnique({
+        where: { id },
+      })
+    } catch (schemaError) {
+      console.warn(
+        '[public/produtos/:id] schema novo ainda não aplicado; usando leitura compatível:',
+        schemaError instanceof Error ? schemaError.message : schemaError
+      )
+      local = await legacyProductById(id)
+    }
 
     if (!local || !local.ativo) {
       return NextResponse.json({ error: 'Produto não encontrado.' }, { status: 404 })

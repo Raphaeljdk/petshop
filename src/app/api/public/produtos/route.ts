@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
+import { legacyProducts } from '@/lib/product-compat'
 
 function uniqueProducts<T extends { id: string }>(products: T[]) {
   return [...new Map(products.map((product) => [product.id, product])).values()]
@@ -27,16 +28,24 @@ const getPublicProducts = unstable_cache(
         error
       )
 
-      return db.produto.findMany({
-        where: {
-          ativo: true,
-          OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
-        },
-        orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
-      })
+      try {
+        return await db.produto.findMany({
+          where: {
+            ativo: true,
+            OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
+          },
+          orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
+        })
+      } catch (schemaError) {
+        console.warn(
+          '[public/produtos] schema novo ainda não aplicado; usando leitura compatível:',
+          schemaError instanceof Error ? schemaError.message : schemaError
+        )
+        return legacyProducts({ onlyActive: true, onlyAvailable: true })
+      }
     }
   },
-  ['public-products-v2'],
+  ['public-products-v3'],
   { revalidate: 300 }
 )
 

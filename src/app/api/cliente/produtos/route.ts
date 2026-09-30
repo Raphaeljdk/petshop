@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
+import { legacyProducts } from '@/lib/product-compat'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,12 +30,21 @@ export async function GET() {
         siggmaError
       )
 
-      const cached = await db.produto.findMany({
-        where: { ativo: true },
-        orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
-      })
-
-      return NextResponse.json(cached)
+      try {
+        const cached = await db.produto.findMany({
+          where: { ativo: true },
+          orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
+        })
+        return NextResponse.json(cached)
+      } catch (schemaError) {
+        console.warn(
+          '[cliente/produtos] schema novo ainda não aplicado; usando leitura compatível:',
+          schemaError instanceof Error ? schemaError.message : schemaError
+        )
+        return NextResponse.json(
+          await legacyProducts({ onlyActive: true })
+        )
+      }
     }
   } catch (error) {
     console.error('cliente/produtos GET erro:', error)
