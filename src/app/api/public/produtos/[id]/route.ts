@@ -12,6 +12,7 @@ import {
   mercadoLivreItemDetails,
 } from '@/lib/mercado-livre-items'
 import { legacyProductById } from '@/lib/product-compat'
+import { officialStockFromSources } from '@/lib/product-stock'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,14 @@ function localPayload(local: {
   preco: number
   precoPromo: number | null
   estoque: number
+  estoqueHub?: number | null
+  estoqueZetta?: number | null
+  estoqueMercadoLivre?: number | null
+  estoqueAmazon?: number | null
   estoqueIlimitado: boolean
+  zettaProCod?: number | null
+  mlItemId?: string | null
+  amazonAsin?: string | null
   imageUrl: string | null
   sku: string | null
 }) {
@@ -53,7 +61,9 @@ function localPayload(local: {
     categoria: local.categoria,
     preco: local.preco,
     precoPromo: local.precoPromo,
-    estoque: local.estoque,
+    estoque: local.estoqueIlimitado
+      ? local.estoque
+      : officialStockFromSources(local),
     estoqueIlimitado: local.estoqueIlimitado,
     imageUrl: local.imageUrl,
     imagens: local.imageUrl ? [local.imageUrl] : [],
