@@ -372,7 +372,19 @@ export function ClientHome({
               data.ultimasCompras.map((compra) => (
                 <div key={compra.id} className="flex items-center gap-3 p-3 rounded-lg border">
                   <div className="size-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-lg">
-                    {compra.itens[0]?.imageUrl || '📦'}
+                    {compra.itens[0]?.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={compra.itens[0].imageUrl}
+                        alt={compra.itens[0]?.nome || 'Produto'}
+                        className="size-10 rounded-lg object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    ) : (
+                      <Package className="size-5 text-muted-foreground/50" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold">
@@ -424,8 +436,21 @@ export function ClientHome({
                   onClick={onIrParaLoja}
                   className="flex flex-col gap-1 p-2 rounded-lg border text-left hover:border-primary/40 hover:shadow-md transition-all"
                 >
-                  <div className="aspect-square bg-muted rounded-md flex items-center justify-center text-3xl">
-                    {p.imageUrl || '📦'}
+                  <div className="aspect-square overflow-hidden rounded-md bg-muted flex items-center justify-center">
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.imageUrl}
+                        alt={p.nome}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    ) : (
+                      <Package className="size-10 text-muted-foreground/35" />
+                    )}
                   </div>
                   <p className="text-xs font-medium line-clamp-1">{p.nome}</p>
                   <div className="flex items-baseline gap-1">
