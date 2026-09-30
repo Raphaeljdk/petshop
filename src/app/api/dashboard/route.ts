@@ -399,6 +399,7 @@ export async function GET() {
         warning:
           'O painel está em modo reduzido porque o banco interno não respondeu completamente.',
       })
+    }
   } catch (e) {
     console.error('dashboard erro:', e)
     return NextResponse.json({ error: 'Erro ao carregar dashboard' }, { status: 500 })
