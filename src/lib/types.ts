@@ -204,6 +204,9 @@ export interface ConfiguracaoPagamento {
   publicKeyConfigurada?: boolean
   checkoutPronto?: boolean
   webhookSecretConfigurado?: boolean
+  gatewayDisponivel?: boolean
+  gatewayCodigo?: string | null
+  gatewayMensagem?: string | null
 }
 
 export interface PagamentoCriarResposta {
