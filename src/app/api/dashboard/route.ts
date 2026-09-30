@@ -86,6 +86,7 @@ export async function GET() {
       console.error('[dashboard] Zetta indisponível:', bridgeError)
     }
 
+    try {
     const [contasPortal, contasVinculadas] = await Promise.all([
       db.user.count({ where: { role: 'CLIENTE' } }),
       db.user.count({
@@ -338,6 +339,66 @@ export async function GET() {
     }
 
     return NextResponse.json(stats)
+
+    } catch (dbError) {
+      console.error('[dashboard] Banco interno indisponível:', dbError)
+
+      const fallbackStats: DashboardStats = {
+        zetta: {
+          online: Boolean(zettaStatus),
+          clientes: zettaStatus?.clientes ?? 0,
+          pets: zettaStatus?.animais ?? 0,
+          produtos: zettaStatus?.produtos ?? 0,
+          atendimentos: zettaStatus?.atendimentos ?? 0,
+          contasPortal: 0,
+          contasVinculadas: 0,
+          ultimosAtendimentos: zettaAtendimentos.map((item) => ({
+            id: (item.id as number | string) ?? '',
+            clienteId: (item.clienteId as number | string | null | undefined) ?? null,
+            datahora: (item.datahora as string | null | undefined) ?? null,
+            status: (item.status as string | null | undefined) ?? null,
+            total: (item.total as number | string | null | undefined) ?? null,
+            totalItens: (item.totalItens as number | string | null | undefined) ?? null,
+            filial: (item.filial as number | string | null | undefined) ?? null,
+          })),
+        },
+        totalClientes: zettaStatus?.clientes ?? 0,
+        totalPets: zettaStatus?.animais ?? 0,
+        totalProdutos: zettaStatus?.produtos ?? 0,
+        totalVendas: 0,
+        totalAgendamentos: 0,
+        totalProcessos: 0,
+        totalProcessosAndamento: 0,
+        faturamentoHoje: 0,
+        faturamentoMes: 0,
+        vendasHoje: 0,
+        agendamentosHoje: 0,
+        estoqueBaixo: 0,
+        ultimosProcessos: [],
+        ultimasVendas: [],
+        proximosAgendamentos: [],
+        vendasPorMes: [],
+        vendasPorCanal: [
+          { canal: 'loja', total: 0, quantidade: 0 },
+          { canal: 'mercadolivre', total: 0, quantidade: 0 },
+          { canal: 'amazon', total: 0, quantidade: 0 },
+        ],
+        topProdutos: [],
+        petsPorEspecie: [],
+        processosPorStatus: [
+          { status: 'novo', quantidade: 0 },
+          { status: 'andamento', quantidade: 0 },
+          { status: 'finalizado', quantidade: 0 },
+        ],
+        agendamentosPorServico: [],
+      }
+
+      return NextResponse.json({
+        ...fallbackStats,
+        degraded: true,
+        warning:
+          'O painel está em modo reduzido porque o banco interno não respondeu completamente.',
+      })
   } catch (e) {
     console.error('dashboard erro:', e)
     return NextResponse.json({ error: 'Erro ao carregar dashboard' }, { status: 500 })
