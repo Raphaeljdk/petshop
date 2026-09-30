@@ -6,6 +6,7 @@ import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
 import {
   criarOrderMercadoPago,
   mapearOrderParaVenda,
+  MercadoPagoGatewayError,
   type BoletoOrderData,
   type CardOrderData,
 } from '@/lib/mercado-pago-orders'
@@ -241,8 +242,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: e.message }, { status: e.status })
     }
 
+    if (e instanceof MercadoPagoGatewayError) {
+      return NextResponse.json(
+        {
+          error:
+            'O pagamento online está temporariamente indisponível. Nenhuma cobrança foi realizada. Tente novamente mais tarde.',
+          code: e.code,
+        },
+        { status: e.blocked ? 503 : 502 }
+      )
+    }
+
     return NextResponse.json(
-      { error: e?.message || 'Erro ao criar pagamento' },
+      {
+        error:
+          'Não foi possível iniciar o pagamento agora. Nenhuma cobrança foi realizada. Tente novamente.',
+      },
       { status: 500 }
     )
   }
