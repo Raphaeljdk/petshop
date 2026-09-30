@@ -96,6 +96,8 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
   const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Produto | null>(null)
   const [busca, setBusca] = useState('')
+  const [buscaAberta, setBuscaAberta] = useState(false)
+  const buscaInputRef = useRef<HTMLInputElement>(null)
   const [ordenacao, setOrdenacao] = useState<
     'relevancia' | 'menor-preco' | 'maior-preco' | 'nome'
   >('relevancia')
@@ -372,27 +374,82 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
       )}
 
       {!loading && (
-        <section id="catalogo-loja" className="store-toolbar rounded-2xl border bg-card p-3 sm:p-4">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={busca}
-                onChange={(event) => setBusca(event.target.value)}
-                placeholder="Buscar produto ou categoria..."
-                className="h-11 pl-10"
-                aria-label="Buscar produtos"
-              />
+        <section
+          id="catalogo-loja"
+          className="store-toolbar sticky top-2 z-30 rounded-2xl border bg-background/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:p-3"
+        >
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="icon"
+              variant={buscaAberta || busca ? 'default' : 'outline'}
+              className="size-11 shrink-0 rounded-full shadow-sm"
+              aria-label={buscaAberta ? 'Fechar busca' : 'Pesquisar produtos'}
+              aria-expanded={buscaAberta}
+              onClick={() => {
+                setBuscaAberta((aberta) => {
+                  const next = !aberta
+                  if (!aberta) {
+                    window.setTimeout(() => buscaInputRef.current?.focus(), 60)
+                  }
+                  return next
+                })
+              }}
+            >
+              <Search className="size-4" />
+            </Button>
+
+            <div
+              className={`grid min-w-0 flex-1 transition-all duration-200 ${
+                buscaAberta ? 'grid-cols-[1fr] opacity-100' : 'grid-cols-[0fr] opacity-0'
+              }`}
+            >
+              <div className="min-w-0 overflow-hidden">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    ref={buscaInputRef}
+                    value={busca}
+                    onChange={(event) => setBusca(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        setBuscaAberta(false)
+                        buscaInputRef.current?.blur()
+                      }
+                    }}
+                    placeholder="Buscar produto ou categoria..."
+                    className="h-11 rounded-full bg-card pl-10 pr-10 shadow-inner"
+                    aria-label="Buscar produtos"
+                  />
+                  {busca && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="absolute right-1 top-1/2 size-9 -translate-y-1/2 rounded-full"
+                      onClick={() => {
+                        setBusca('')
+                        buscaInputRef.current?.focus()
+                      }}
+                      aria-label="Limpar busca"
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="relative">
+
+            <div className="relative shrink-0">
               <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <select
                 value={ordenacao}
                 onChange={(event) =>
                   setOrdenacao(event.target.value as 'relevancia' | 'menor-preco' | 'maior-preco' | 'nome')
                 }
-                className="h-11 min-w-52 rounded-md border border-input bg-background pl-10 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                className="h-11 w-11 cursor-pointer rounded-full border border-input bg-background pl-10 pr-0 text-transparent outline-none focus:ring-2 focus:ring-ring/40 sm:w-auto sm:min-w-40 sm:pr-8 sm:text-foreground"
                 aria-label="Ordenar produtos"
+                title="Ordenar produtos"
               >
                 <option value="relevancia">Relevância</option>
                 <option value="menor-preco">Menor preço</option>
@@ -402,7 +459,7 @@ export function ClientStore({ onCompraFinalizada, repeatItems, onRepeatConsumed 
             </div>
           </div>
           {categorias.length > 0 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 custom-scrollbar" aria-label="Categorias de produtos">
               <Button type="button" size="sm" aria-pressed={categoriaFiltro === 'todas'} variant={categoriaFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setCategoriaFiltro('todas')} className="min-h-11 shrink-0 rounded-full">
                 Todas
               </Button>
