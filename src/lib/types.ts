@@ -104,6 +104,11 @@ export interface Produto {
   preco: number
   precoPromo: number | null
   estoque: number
+  estoqueHub?: number
+  estoqueZetta?: number
+  estoqueMercadoLivre?: number
+  estoqueAmazon?: number
+  estoqueIlimitado?: boolean
   sku: string | null
   zettaProCod?: number | null
   mlItemId: string | null
