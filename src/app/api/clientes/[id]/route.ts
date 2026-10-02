@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import {
+  normalizeCpfCnpj,
+  syncSiggmaClient,
+  validCpfCnpj,
+} from '@/lib/siggma/customer'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +13,8 @@ export const dynamic = 'force-dynamic'
  * PUT /api/clientes/[id]
  *
  * Atualiza um cliente existente. Acesso exclusivo de ADMIN.
- * Campos aceitos: nome, telefone, email, endereco, cep.
+ * Campos aceitos: nome, telefone, cpfCnpj, email, endereco, cep.
+ * Quando há CPF/CNPJ, a atualização também é enviada ao cadastro oficial Siggma.
  */
 export async function PUT(
   req: NextRequest,
@@ -25,14 +31,13 @@ export async function PUT(
 
     const { id } = await params
     const body = await req.json()
-    const { nome, telefone, email, endereco, cep } = body
+    const { nome, telefone, cpfCnpj, email, endereco, cep } = body
 
     const clienteExistente = await db.cliente.findUnique({ where: { id } })
     if (!clienteExistente) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
     }
 
-    // Validação de e-mail único (se estiver sendo alterado)
     if (email && email !== clienteExistente.email) {
       const conflito = await db.cliente.findUnique({
         where: { email: String(email) },
@@ -45,29 +50,93 @@ export async function PUT(
       }
     }
 
+    const documento =
+      cpfCnpj !== undefined
+        ? normalizeCpfCnpj(String(cpfCnpj || '')) || null
+        : clienteExistente.cpfCnpj
+
+    if (documento && !validCpfCnpj(documento)) {
+      return NextResponse.json({ error: 'CPF/CNPJ inválido' }, { status: 400 })
+    }
+
+    if (documento && documento !== clienteExistente.cpfCnpj) {
+      const conflitoDocumento = await db.cliente.findUnique({
+        where: { cpfCnpj: documento },
+      })
+      if (conflitoDocumento && conflitoDocumento.id !== id) {
+        return NextResponse.json(
+          { error: 'CPF/CNPJ já cadastrado para outro cliente' },
+          { status: 409 }
+        )
+      }
+    }
+
+    const dadosFinais = {
+      nome: nome !== undefined ? String(nome) : clienteExistente.nome,
+      telefone:
+        telefone !== undefined ? String(telefone) : clienteExistente.telefone,
+      email:
+        email !== undefined
+          ? email
+            ? String(email)
+            : null
+          : clienteExistente.email,
+      endereco:
+        endereco !== undefined
+          ? endereco
+            ? String(endereco)
+            : null
+          : clienteExistente.endereco,
+      cep:
+        cep !== undefined
+          ? cep
+            ? String(cep)
+            : null
+          : clienteExistente.cep,
+    }
+
+    const siggmaCliCod = documento
+      ? await syncSiggmaClient({
+          cpfCnpj: documento,
+          ...dadosFinais,
+        })
+      : null
+
     const cliente = await db.cliente.update({
       where: { id },
       data: {
-        ...(nome !== undefined ? { nome: String(nome) } : {}),
-        ...(telefone !== undefined ? { telefone: String(telefone) } : {}),
-        ...(email !== undefined ? { email: email || null } : {}),
-        ...(endereco !== undefined ? { endereco: endereco || null } : {}),
-        ...(cep !== undefined ? { cep: cep || null } : {}),
+        ...dadosFinais,
+        cpfCnpj: documento,
       },
       include: { pets: true },
     })
 
-    return NextResponse.json(cliente)
+    if (siggmaCliCod) {
+      await db.user.updateMany({
+        where: { clienteId: id },
+        data: { siggmaCliCod },
+      })
+    }
+
+    return NextResponse.json({
+      ...cliente,
+      siggmaCliCod,
+      siggmaSync: siggmaCliCod ? 'synced' : 'skipped-no-document',
+    })
   } catch (e) {
     console.error('clientes PUT erro:', e)
-    return NextResponse.json({ error: 'Erro ao atualizar cliente' }, { status: 500 })
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Erro ao atualizar cliente' },
+      { status: 500 }
+    )
   }
 }
 
 /**
  * DELETE /api/clientes/[id]
  *
- * Exclui um cliente. Acesso exclusivo de ADMIN.
+ * Exclui um cliente local. A API oficial recebida da Zetta não documenta
+ * exclusão de cliente, portanto esta operação não apaga o cadastro no Siggma.
  */
 export async function DELETE(
   _req: NextRequest,
