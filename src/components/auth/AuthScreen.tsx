@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Reveal } from '@/components/motion/Reveal'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { ShieldCheck, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu, MessageCircle, Instagram, Navigation } from 'lucide-react'
+import { ShieldCheck, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu, MessageCircle, Instagram, Navigation, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -219,19 +219,19 @@ export function AuthScreen() {
               {
                 num: '1',
                 title: 'Crie sua conta',
-                desc: 'Faça seu cadastro em segundos e adicione os dados do seu pet.',
+                desc: 'Cadastre-se em poucos segundos e adicione seu pet.',
                 icon: UserIcon,
               },
               {
                 num: '2',
-                title: 'Conheça e compre',
-                desc: 'Veja a boutique sem login e entre na sua conta somente quando quiser comprar.',
-                icon: CalendarClock,
+                title: 'Escolha o que precisa',
+                desc: 'Explore a boutique e encontre tudo para o dia a dia do seu pet.',
+                icon: ShoppingBag,
               },
               {
                 num: '3',
-                title: 'Acompanhe em tempo real',
-                desc: 'Receba notificações e acompanhe o status do seu pet pelo Kanban.',
+                title: 'Acompanhe tudo',
+                desc: 'Veja pedidos, cuidados e novidades do seu pet em um só lugar.',
                 icon: Bell,
               },
             ].map((p) => {
