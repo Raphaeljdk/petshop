@@ -160,18 +160,18 @@ export function AuthScreen() {
             <p className="eyebrow text-cyan-200 flex items-center gap-2 mb-6"><PawPrint className="size-4" /> Matilha Prado · Pet shop</p>
             <h1 id="hero-title" className="hero-title">O melhor cuidado. <span>Para o seu melhor amigo.</span></h1>
             <p className="hero-description mt-6">Conheça os favoritos do seu pet, solicite atendimento e acompanhe os cuidados pela sua conta. Tudo em um só lugar, com o carinho da nossa família.</p>
-            <div className="mt-8 flex flex-col sm:flex-row sm:flex-wrap gap-3">
-              <Button size="lg" onClick={() => scrollTo('produtos')} className="bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Ver produtos <ChevronRight className="size-4" /></Button>
-              <Button size="lg" variant="outline" onClick={abrirLogin} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Acessar minha conta</Button>
+            <div className="hero-actions mt-6 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3">
+              <Button size="lg" onClick={() => scrollTo('produtos')} className="col-span-2 sm:col-span-1 bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Ver produtos <ChevronRight className="size-4" /></Button>
+              <Button size="lg" variant="outline" onClick={abrirLogin} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Minha conta</Button>
               <Button asChild size="lg" variant="outline" className="bg-green-500/10 text-white border-green-300/40 hover:bg-green-500/20 hover:text-white">
                 <a href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')} target="_blank" rel="noreferrer">
                   <MessageCircle className="size-4" /> WhatsApp
                 </a>
               </Button>
             </div>
-            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-white/75">
-              <span className="flex items-center gap-2"><CalendarClock className="size-4 text-orange-300" /> Atendimento pelo WhatsApp</span>
-              <span className="flex items-center gap-2"><Heart className="size-4 text-cyan-200" /> Cuidado de verdade</span>
+            <div className="hero-trust mt-5 grid grid-cols-2 gap-2.5 text-xs text-white/75 sm:flex sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-3 sm:text-sm">
+              <span className="flex items-center gap-2"><CalendarClock className="size-4 shrink-0 text-orange-300" /> Atendimento rápido</span>
+              <span className="flex items-center gap-2"><Heart className="size-4 shrink-0 text-cyan-200" /> Cuidado de verdade</span>
             </div>
           </div>
           <div className="hero-brand">
@@ -206,69 +206,15 @@ export function AuthScreen() {
         </div>
       </section>
 
-      <div className="container mx-auto px-4 sm:px-6 mt-8">
-        <InstallAppCard />
-      </div>
-
-      <PublicProducts onBuy={abrirLogin} />
-
-      <section id="nossa-historia" className="story-section py-16 lg:py-24 mt-12">
-        <div className="container mx-auto px-6 story-grid">
-          <div className="story-heading">
-            <p className="eyebrow text-primary mb-5">Nossa história</p>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">Onde o amor pelos cães <span className="text-primary">virou propósito.</span></h2>
-            <p className="mt-6 text-muted-foreground leading-relaxed">Conheça a família por trás da Matilha Prado.</p>
-            <div className="mt-8 pt-6 border-t border-border flex gap-3 text-sm text-muted-foreground"><MapPin className="size-5 text-primary shrink-0" /><span>Av. Água Fria, 1647<br />Santana, São Paulo/SP</span></div>
-          </div>
-          <Reveal className="story-copy">
-              <p>
-                A <strong >Matilha Prado</strong> nasceu de um sonho construído em família e, literalmente, com as próprias mãos.
-              </p>
-              <p>
-                <em>&ldquo;Matilha&rdquo;</em> representa aquilo que somos: uma família grande, unida e apaixonada por animais. Somos <strong >Aleksander e Karine</strong>, nossos filhos <strong >Sophia e Nicolas</strong>, e nossos três companheiros de quatro patas: <strong >Ragnar</strong>, nosso Husky Siberiano; <strong >Gyda</strong>, nossa Husky Siberiana; e <strong >Kira</strong>, nossa Pit Bull.
-              </p>
-              <p>
-                E <em>&ldquo;Prado&rdquo;</em> é o nosso sobrenome, nossa família e a identidade que carregamos em tudo o que fazemos.
-              </p>
-              <p>
-                A Matilha Prado foi idealizada, construída e cuidada em cada detalhe por mim e pela minha esposa. Colocamos a mão na massa, escolhemos cada cantinho, cada detalhe e cada produto pensando em uma coisa: proporcionar aos cães uma experiência de cuidado, conforto e muito amor.
-              </p>
-              <p>
-                Abrimos nossas portas no dia <strong >21 de outubro de 2024</strong>, trazendo para <strong >Santana</strong> um espaço criado por quem realmente entende que nossos cães não são apenas animais de estimação — eles são parte da família.
-              </p>
-              <p>
-                Aqui, cada serviço e cada produto é escolhido com muito carinho e responsabilidade.
-              </p>
-              <p>
-                Oferecemos <strong >Spa Pet</strong>, banho com produtos <strong >Hydra</strong>, da <strong >Pet Society</strong>, além de uma boutique recheada com grandes marcas do mercado pet. Temos brinquedos <strong >KONG</strong> e <strong >Jambo</strong>, roupas <strong >Bonito pra Cachorro</strong>, petiscos <strong >Alecrim Pet</strong> e <strong >CarneLove</strong> e produtos para higiene bucal <strong >Arm &amp; Hammer</strong>.
-              </p>
-              <p>
-                Tudo isso em um só lugar, pensado para cuidar, mimar e celebrar aqueles que tornam nossas vidas mais felizes.
-              </p>
-              <p>
-                Na Matilha Prado, acreditamos que cada cão tem sua personalidade, suas necessidades e seu jeitinho especial. Por isso, nosso propósito vai muito além de oferecer produtos e serviços.
-              </p>
-              <p>
-                Queremos que cada pet que entre pela nossa porta seja tratado como parte da nossa própria matilha.
-              </p>
-              <p>
-                Seja muito bem-vindo à Matilha Prado.
-              </p>
-              <p className="story-signature">
-                Uma família cuidando da sua família. 🐾❤️
-              </p>
-          </Reveal>
-        </div>
-      </section>
-
       {/* Como Funciona */}
       <section id="como-funciona" className="py-12 sm:py-16 lg:py-20 bg-navy-gradient text-white">
         <div className="container mx-auto px-4">
-          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
-            <Badge className="bg-white/10 text-white border-white/20 mb-3">Simples e rápido</Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Como Funciona</h2>
+          <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-10">
+            <Badge className="bg-white/10 text-white border-white/20 mb-3">3 passos, sem complicação</Badge>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Como funciona</h2>
+            <p className="mt-2 text-sm text-white/65">Entre, escolha o que precisa e acompanhe tudo pela sua conta.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+          <div className="how-steps-grid grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-6 max-w-5xl mx-auto">
             {[
               {
                 num: '1',
@@ -318,6 +264,61 @@ export function AuthScreen() {
           <div className="max-w-5xl mx-auto">
             <GoogleReviews />
           </div>
+        </div>
+      </section>
+
+      <PublicProducts onBuy={abrirLogin} />
+
+      <div className="container mx-auto px-4 sm:px-6 mt-8">
+        <InstallAppCard />
+      </div>
+
+      <section id="nossa-historia" className="story-section py-16 lg:py-24 mt-12">
+        <div className="container mx-auto px-6 story-grid">
+          <div className="story-heading">
+            <p className="eyebrow text-primary mb-5">Nossa história</p>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">Onde o amor pelos cães <span className="text-primary">virou propósito.</span></h2>
+            <p className="mt-6 text-muted-foreground leading-relaxed">Conheça a família por trás da Matilha Prado.</p>
+            <div className="mt-8 pt-6 border-t border-border flex gap-3 text-sm text-muted-foreground"><MapPin className="size-5 text-primary shrink-0" /><span>Av. Água Fria, 1647<br />Santana, São Paulo/SP</span></div>
+          </div>
+          <Reveal className="story-copy">
+              <p>
+                A <strong >Matilha Prado</strong> nasceu de um sonho construído em família e, literalmente, com as próprias mãos.
+              </p>
+              <p>
+                <em>&ldquo;Matilha&rdquo;</em> representa aquilo que somos: uma família grande, unida e apaixonada por animais. Somos <strong >Aleksander e Karine</strong>, nossos filhos <strong >Sophia e Nicolas</strong>, e nossos três companheiros de quatro patas: <strong >Ragnar</strong>, nosso Husky Siberiano; <strong >Gyda</strong>, nossa Husky Siberiana; e <strong >Kira</strong>, nossa Pit Bull.
+              </p>
+              <p>
+                E <em>&ldquo;Prado&rdquo;</em> é o nosso sobrenome, nossa família e a identidade que carregamos em tudo o que fazemos.
+              </p>
+              <p>
+                A Matilha Prado foi idealizada, construída e cuidada em cada detalhe por mim e pela minha esposa. Colocamos a mão na massa, escolhemos cada cantinho, cada detalhe e cada produto pensando em uma coisa: proporcionar aos cães uma experiência de cuidado, conforto e muito amor.
+              </p>
+              <p>
+                Abrimos nossas portas no dia <strong >21 de outubro de 2024</strong>, trazendo para <strong >Santana</strong> um espaço criado por quem realmente entende que nossos cães não são apenas animais de estimação — eles são parte da família.
+              </p>
+              <p>
+                Aqui, cada serviço e cada produto é escolhido com muito carinho e responsabilidade.
+              </p>
+              <p>
+                Oferecemos <strong >Spa Pet</strong>, banho com produtos <strong >Hydra</strong>, da <strong >Pet Society</strong>, além de uma boutique recheada com grandes marcas do mercado pet. Temos brinquedos <strong >KONG</strong> e <strong >Jambo</strong>, roupas <strong >Bonito pra Cachorro</strong>, petiscos <strong >Alecrim Pet</strong> e <strong >CarneLove</strong> e produtos para higiene bucal <strong >Arm &amp; Hammer</strong>.
+              </p>
+              <p>
+                Tudo isso em um só lugar, pensado para cuidar, mimar e celebrar aqueles que tornam nossas vidas mais felizes.
+              </p>
+              <p>
+                Na Matilha Prado, acreditamos que cada cão tem sua personalidade, suas necessidades e seu jeitinho especial. Por isso, nosso propósito vai muito além de oferecer produtos e serviços.
+              </p>
+              <p>
+                Queremos que cada pet que entre pela nossa porta seja tratado como parte da nossa própria matilha.
+              </p>
+              <p>
+                Seja muito bem-vindo à Matilha Prado.
+              </p>
+              <p className="story-signature">
+                Uma família cuidando da sua família. 🐾❤️
+              </p>
+          </Reveal>
         </div>
       </section>
 
