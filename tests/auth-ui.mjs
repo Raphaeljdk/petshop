@@ -59,6 +59,11 @@ try {
     for (const route of ['/login', '/cadastro', '/cadastro/administrador']) {
       await page.goto(base + route)
       await page.getByLabel('E-mail', { exact: true }).waitFor()
+      await page.locator('.account-page-card').waitFor()
+      await page.waitForFunction(() => {
+        const card = document.querySelector('.account-page-card')
+        return card && getComputedStyle(card).opacity === '1' && getComputedStyle(card).transform === 'none'
+      })
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Sem overflow em ' + route + ' / ' + width)
       assert.ok(await page.getByRole('button', { name: 'Sou administrador' }).isVisible())
       await page.screenshot({ path: 'test-results/auth/' + route.slice(1).replaceAll('/', '-') + '-' + width + '.png', fullPage: true })
