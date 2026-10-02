@@ -120,6 +120,72 @@ export async function syncSiggmaClient(input: SiggmaClientSyncInput) {
   return cliCod
 }
 
+export async function syncSiggmaClientByCode(
+  cliCod: number,
+  input: Partial<SiggmaClientSyncInput> & { cpfCnpj?: string | null }
+) {
+  if (!Number.isInteger(cliCod) || cliCod <= 0) {
+    throw new Error('Código do cliente Siggma inválido.')
+  }
+
+  const existing = await siggma.clientes.buscar(cliCod)
+  if (!existing?.cliCod) throw new Error('Cliente não encontrado no Siggma.')
+
+  const cpfCnpj = normalizeCpfCnpj(
+    input.cpfCnpj ?? existing.cliDoc ?? existing.pessoa?.cpfcnpj
+  )
+  if (!validCpfCnpj(cpfCnpj)) {
+    throw new Error('O cliente precisa ter um CPF/CNPJ válido para ser atualizado.')
+  }
+
+  const pessoa = existing.pessoa || {}
+  const telefone =
+    input.telefone !== undefined
+      ? normalizeCpfCnpj(input.telefone) || undefined
+      : pessoa.telefone
+  const celular =
+    input.telefone !== undefined
+      ? normalizeCpfCnpj(input.telefone) || undefined
+      : pessoa.celular
+
+  const imported = await siggma.clientes.importar([
+    {
+      cliCod,
+      cliDoc: cpfCnpj,
+      dataAtualizacao: siggmaUpdateTimestamp(),
+      cliObs: 'Cliente atualizado pelo Hub Matilha Prado',
+      pessoa: {
+        ...pessoa,
+        tipo: cpfCnpj.length === 11 ? 'F' : 'J',
+        nome: input.nome !== undefined ? input.nome : pessoa.nome,
+        email: input.email !== undefined ? input.email || undefined : pessoa.email,
+        telefone,
+        celular,
+        endereco:
+          input.endereco !== undefined
+            ? input.endereco || undefined
+            : pessoa.endereco,
+        cep:
+          input.cep !== undefined
+            ? normalizeCpfCnpj(input.cep) || undefined
+            : pessoa.cep,
+      },
+    },
+  ])
+
+  const item = imported.data?.[0]
+  if (item?.erro) throw new Error(item.erro)
+  if (imported.type === 'error') {
+    throw new Error(
+      imported.msg ||
+        imported.message ||
+        'O Siggma recusou a atualização do cliente.'
+    )
+  }
+
+  return item?.cliente || cliCod
+}
+
 export async function findOrImportSiggmaClient(input: SiggmaClientSyncInput) {
   const cpfCnpj = normalizeCpfCnpj(input.cpfCnpj)
   if (!validCpfCnpj(cpfCnpj)) throw new Error('CPF/CNPJ inválido.')
