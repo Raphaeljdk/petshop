@@ -50,7 +50,7 @@ export function ClientMinhasCompras({ onRepeat, repeating }: { onRepeat?: (id: s
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Minhas Compras</h1>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Minhas Compras</h1>
         <p className="text-sm text-muted-foreground">
           Histórico de pedidos realizados
         </p>
@@ -75,7 +75,7 @@ export function ClientMinhasCompras({ onRepeat, repeating }: { onRepeat?: (id: s
         {compras.map((v) => (
           <Card key={v.id} className="card-hover">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                     <Package className="size-5" />
@@ -91,7 +91,7 @@ export function ClientMinhasCompras({ onRepeat, repeating }: { onRepeat?: (id: s
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:shrink-0 sm:justify-end">
                   <div className="text-right">
                     <p className="font-bold text-primary">{fmtMoeda(v.total)}</p>
                     <Badge className={`text-[10px] ${statusVariant(v.status)}`}>
@@ -127,13 +127,13 @@ export function ClientMinhasCompras({ onRepeat, repeating }: { onRepeat?: (id: s
                   {v.itens.map((it) => (
                     <div
                       key={it.id}
-                      className="flex items-center justify-between text-sm py-1"
+                      className="flex flex-col gap-1.5 py-1 text-sm sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         <Badge variant="outline" className="text-[10px]">
                           {it.quantidade}x
                         </Badge>
-                        <span>{it.produto?.nome || `Produto ${it.produtoId.slice(-6)}`}</span>
+                        <span className="min-w-0 break-words">{it.produto?.nome || `Produto ${it.produtoId.slice(-6)}`}</span>
                       </div>
                       <span className="font-medium">
                         {fmtMoeda(it.precoUnit * it.quantidade)}
@@ -157,7 +157,12 @@ export function ClientMinhasCompras({ onRepeat, repeating }: { onRepeat?: (id: s
                   )}
                 </div>
               )}
-              <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={repeating} onClick={() => onRepeat?.(v.id)}>{repeating ? 'Consultando estoque...' : 'Comprar novamente'}</Button><span className="self-center text-xs text-muted-foreground">Preços e estoque atuais. Nenhuma cobrança automática.</span></div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button className="w-full sm:w-auto" variant="outline" size="sm" disabled={repeating} onClick={() => onRepeat?.(v.id)}>
+                  {repeating ? 'Consultando estoque...' : 'Comprar novamente'}
+                </Button>
+                <span className="text-xs text-muted-foreground">Preços e estoque atuais. Nenhuma cobrança automática.</span>
+              </div>
             </CardContent>
           </Card>
         ))}
