@@ -90,13 +90,16 @@ export async function syncSiggmaClient(input: SiggmaClientSyncInput) {
   if (!validCpfCnpj(cpfCnpj)) throw new Error('CPF/CNPJ inválido.')
 
   const match = await findSiggmaClient(cpfCnpj)
+  if (match?.cliCod) {
+    return syncSiggmaClientByCode(match.cliCod, input)
+  }
+
   const imported = await siggma.clientes.importar([
     {
-      ...(match?.cliCod ? { cliCod: match.cliCod } : {}),
       cliDoc: cpfCnpj,
       dataAtualizacao: siggmaUpdateTimestamp(),
-      ...(!match?.cliCod ? { consumidorFinal: true } : {}),
-      cliObs: 'Cliente sincronizado pelo Hub Matilha Prado',
+      consumidorFinal: true,
+      cliObs: 'Cliente criado pelo Hub Matilha Prado',
       pessoa: {
         tipo: cpfCnpj.length === 11 ? 'F' : 'J',
         nome: input.nome,
@@ -115,8 +118,8 @@ export async function syncSiggmaClient(input: SiggmaClientSyncInput) {
     throw new Error(imported.msg || imported.message || 'O Siggma recusou a sincronização do cliente.')
   }
 
-  const cliCod = item?.cliente || match?.cliCod
-  if (!cliCod) throw new Error('O Siggma não retornou o código do cliente sincronizado.')
+  const cliCod = item?.cliente
+  if (!cliCod) throw new Error('O Siggma não retornou o código do cliente criado.')
   return cliCod
 }
 
