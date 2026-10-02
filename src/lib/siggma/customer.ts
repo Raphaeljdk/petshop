@@ -38,35 +38,65 @@ export function validCpfCnpj(value: string | null | undefined) {
   return normalized.length === 11 ? validCpf(normalized) : validCnpj(normalized)
 }
 
-export async function findOrImportSiggmaClient(input: {
+function siggmaUpdateTimestamp(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || ''
+
+  return `${value('day')}/${value('month')}/${value('year')} ${value('hour')}:${value('minute')}:${value('second')}`
+}
+
+type SiggmaClientSyncInput = {
   cpfCnpj: string
   nome: string
   email?: string | null
   telefone?: string | null
   endereco?: string | null
   cep?: string | null
-}) {
-  const cpfCnpj = normalizeCpfCnpj(input.cpfCnpj)
-  if (!validCpfCnpj(cpfCnpj)) throw new Error('CPF/CNPJ inválido.')
+}
 
+async function findSiggmaClient(cpfCnpj: string) {
   const existing = await siggma.clientes.listar({
     pagina: 1,
     limit: 20,
     cpfcnpj: cpfCnpj,
   })
 
-  const match = (existing.data || []).find((client) => {
+  return (existing.data || []).find((client) => {
     const document = normalizeCpfCnpj(client.cliDoc || client.pessoa?.cpfcnpj)
     return document === cpfCnpj
   })
+}
 
-  if (match?.cliCod) return match.cliCod
+/**
+ * Cria ou atualiza o cadastro oficial no Siggma.
+ *
+ * A API oficial exige dataAtualizacao mais recente para aplicar alterações em
+ * clientes já existentes. Por isso esta função é diferente de
+ * findOrImportSiggmaClient, usada durante o vínculo inicial do portal.
+ */
+export async function syncSiggmaClient(input: SiggmaClientSyncInput) {
+  const cpfCnpj = normalizeCpfCnpj(input.cpfCnpj)
+  if (!validCpfCnpj(cpfCnpj)) throw new Error('CPF/CNPJ inválido.')
 
+  const match = await findSiggmaClient(cpfCnpj)
   const imported = await siggma.clientes.importar([
     {
+      ...(match?.cliCod ? { cliCod: match.cliCod } : {}),
       cliDoc: cpfCnpj,
-      consumidorFinal: true,
-      cliObs: 'Cliente criado pelo Hub Matilha Prado',
+      dataAtualizacao: siggmaUpdateTimestamp(),
+      ...(!match?.cliCod ? { consumidorFinal: true } : {}),
+      cliObs: 'Cliente sincronizado pelo Hub Matilha Prado',
       pessoa: {
         tipo: cpfCnpj.length === 11 ? 'F' : 'J',
         nome: input.nome,
@@ -81,8 +111,23 @@ export async function findOrImportSiggmaClient(input: {
 
   const item = imported.data?.[0]
   if (item?.erro) throw new Error(item.erro)
-  if (!item?.cliente) throw new Error('O Siggma não retornou o código do cliente criado.')
-  return item.cliente
+  if (imported.type === 'error') {
+    throw new Error(imported.msg || imported.message || 'O Siggma recusou a sincronização do cliente.')
+  }
+
+  const cliCod = item?.cliente || match?.cliCod
+  if (!cliCod) throw new Error('O Siggma não retornou o código do cliente sincronizado.')
+  return cliCod
+}
+
+export async function findOrImportSiggmaClient(input: SiggmaClientSyncInput) {
+  const cpfCnpj = normalizeCpfCnpj(input.cpfCnpj)
+  if (!validCpfCnpj(cpfCnpj)) throw new Error('CPF/CNPJ inválido.')
+
+  const match = await findSiggmaClient(cpfCnpj)
+  if (match?.cliCod) return match.cliCod
+
+  return syncSiggmaClient(input)
 }
 
 export async function ensurePortalUserSiggmaLink(userId: string) {
