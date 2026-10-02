@@ -130,6 +130,45 @@ export async function POST() {
       }
     }
 
+    let staleReset = 0
+    if (!search.truncated) {
+      const seenIds = new Set(search.ids)
+      const linkedProducts = await db.produto.findMany({
+        where: { mlItemId: { not: null } },
+        select: {
+          id: true,
+          mlItemId: true,
+          zettaProCod: true,
+          amazonAsin: true,
+          estoqueHub: true,
+          estoqueZetta: true,
+          estoqueMercadoLivre: true,
+          estoqueAmazon: true,
+          estoqueIlimitado: true,
+        },
+      })
+
+      for (const product of linkedProducts) {
+        if (!product.mlItemId || seenIds.has(product.mlItemId)) continue
+
+        const estoqueOperacional = officialStockFromSources({
+          ...product,
+          estoqueMercadoLivre: 0,
+        })
+
+        await db.produto.update({
+          where: { id: product.id },
+          data: {
+            estoqueMercadoLivre: 0,
+            ...(product.estoqueIlimitado
+              ? {}
+              : { estoque: estoqueOperacional }),
+          },
+        })
+        staleReset += 1
+      }
+    }
+
     return NextResponse.json({
       success: true,
       sellerId,
@@ -139,6 +178,7 @@ export async function POST() {
       updated,
       linked,
       newProductsHidden: created,
+      staleReset,
       truncated: search.truncated,
     })
   } catch (error) {
