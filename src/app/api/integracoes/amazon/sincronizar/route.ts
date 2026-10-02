@@ -124,6 +124,49 @@ export async function POST() {
       }
     }
 
+    let staleReset = 0
+    if (!catalog.truncated && skipped === 0) {
+      const seenAsins = new Set(
+        catalog.items
+          .map((item) => item.asin)
+          .filter((value): value is string => Boolean(value))
+      )
+      const linkedProducts = await db.produto.findMany({
+        where: { amazonAsin: { not: null } },
+        select: {
+          id: true,
+          amazonAsin: true,
+          zettaProCod: true,
+          mlItemId: true,
+          estoqueHub: true,
+          estoqueZetta: true,
+          estoqueMercadoLivre: true,
+          estoqueAmazon: true,
+          estoqueIlimitado: true,
+        },
+      })
+
+      for (const product of linkedProducts) {
+        if (!product.amazonAsin || seenAsins.has(product.amazonAsin)) continue
+
+        const estoqueOperacional = officialStockFromSources({
+          ...product,
+          estoqueAmazon: 0,
+        })
+
+        await db.produto.update({
+          where: { id: product.id },
+          data: {
+            estoqueAmazon: 0,
+            ...(product.estoqueIlimitado
+              ? {}
+              : { estoque: estoqueOperacional }),
+          },
+        })
+        staleReset += 1
+      }
+    }
+
     await db.integracao.upsert({
       where: { id: 'amazon-sp-api' },
       create: {
@@ -152,6 +195,7 @@ export async function POST() {
       linked,
       skipped,
       newProductsHidden: created,
+      staleReset,
       truncated: catalog.truncated,
     })
   } catch (error) {
