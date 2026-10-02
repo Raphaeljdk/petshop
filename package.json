@@ -15,7 +15,7 @@
     "test:auth": "bun test tests/auth.integration.test.ts",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate --schema=prisma/schema.prisma",
-    "test:customer-experience": "node --test tests/customer-experience.test.cjs",
+    "test:customer-experience": "node --test tests/customer-experience.test.cjs && bun test tests/product-stock.test.ts",
     "db:deploy:production": "if [ \"$VERCEL_ENV\" = \"production\" ]; then export PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1; bun run db:baseline:production && attempt=1; while [ \"$attempt\" -le 3 ]; do echo \"Aplicando migrations de produção (tentativa $attempt/3)...\"; if bunx prisma migrate deploy --schema=prisma/schema.prisma; then exit 0; fi; if [ \"$attempt\" -lt 3 ]; then sleep $((attempt * 4)); fi; attempt=$((attempt + 1)); done; echo \"Falha ao aplicar migrations após 3 tentativas.\"; exit 1; else echo \"Skipping production migration (VERCEL_ENV=$VERCEL_ENV)\"; fi",
     "db:baseline:production": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node scripts/prisma-baseline-production.mjs; else echo \"Baseline ignorado (VERCEL_ENV=$VERCEL_ENV)\"; fi"
   },
