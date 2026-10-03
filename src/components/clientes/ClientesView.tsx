@@ -29,6 +29,7 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { ZettaClientLinks } from '@/components/admin/ZettaClientLinks'
 import { ClientInviteButton } from '@/components/admin/ClientInviteButton'
 import { ClientInvitationHistory } from '@/components/admin/ClientInvitationHistory'
+import { ZettaClientEditor } from '@/components/clientes/ZettaClientEditor'
 import { toast } from 'sonner'
 
 type PortalAccount = {
@@ -159,15 +160,18 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
             O Zetta é a fonte oficial. O Hub Matilha Prado organiza, consulta e vincula esses dados ao portal do cliente.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={loading}
-          onClick={() => setRefresh((value) => value + 1)}
-        >
-          <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar Zetta
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ZettaClientEditor onSaved={() => setRefresh((value) => value + 1)} />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={loading}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar Zetta
+          </Button>
+        </div>
       </div>
 
       <Card className="border-primary/20 bg-primary/5">
@@ -177,7 +181,7 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
             <div className="space-y-1">
               <p className="text-sm font-semibold">Uma única base de clientes</p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Clientes e pets exibidos nesta tela vêm do Siggma/Zetta. As contas do Hub não duplicam o cadastro do ERP: elas servem apenas para autenticação e são ligadas ao cliente correto pelo <strong>cliCod</strong>. Alterações no cadastro oficial dependerão da API de escrita do Zetta.
+                Clientes e pets exibidos nesta tela vêm do Siggma/Zetta. As contas do Hub não duplicam o cadastro do ERP: elas servem apenas para autenticação e são ligadas ao cliente correto pelo <strong>cliCod</strong>. Criação e edição de clientes usam a API oficial de escrita do Zetta; pets permanecem somente leitura.
               </p>
             </div>
           </div>
@@ -286,7 +290,20 @@ export function ClientesView({ onCountsChange }: ClientesViewProps) {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {!cliente.portal && <ClientInviteButton id={cliente.id} nome={cliente.nome || `Cliente #${cliente.id}`} email={cliente.email || ''} disabled={cliente.ativo === false} />}
+                <div className="flex flex-wrap gap-2">
+                  <ZettaClientEditor
+                    cliCod={cliente.id}
+                    onSaved={() => setRefresh((value) => value + 1)}
+                  />
+                  {!cliente.portal && (
+                    <ClientInviteButton
+                      id={cliente.id}
+                      nome={cliente.nome || `Cliente #${cliente.id}`}
+                      email={cliente.email || ''}
+                      disabled={cliente.ativo === false}
+                    />
+                  )}
+                </div>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   {(cliente.celular || cliente.telefone) && (
                     <p className="flex items-center gap-1.5">

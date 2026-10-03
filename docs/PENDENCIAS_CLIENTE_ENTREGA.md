@@ -83,6 +83,45 @@ Somente ativar a rota direta no futuro após liberação formal da Zettabrasil e
 
 ## 6. Cadastros Siggma
 
-**Clientes: concluído.** O OpenAPI oficial documenta `POST /api/clientes/importar` para criar ou atualizar clientes, e o cadastro do portal já utiliza esse fluxo quando o CPF/CNPJ ainda não existe no Siggma.
+**Clientes: concluído.** O OpenAPI oficial documenta `POST /api/clientes/importar` para criar ou atualizar clientes. O painel administrativo agora permite criar e editar clientes diretamente no Siggma/Zetta, enviando `dataAtualizacao` no formato exigido e preservando os campos existentes do ERP.
 
 **Pets: pendente da Zettabrasil.** O OpenAPI recebido expõe somente leitura para `/api/animais`, `/api/animais/all` e `/api/animais/{id}`. Não há rota oficial documentada para criar/alterar pets. Enquanto isso, contas vinculadas ao Siggma não gravam pets locais como se fossem oficiais; o cadastro/alteração deve ser feito pela equipe no ERP.
+
+
+## 7. Convites por e-mail / Resend
+
+O fluxo de convite, ativação e primeiro login está coberto pelos testes automatizados do projeto.
+
+Na verificação de produção de 02/10/2026, o domínio `matilhaprado.com.br` ainda estava em validação no Resend. Antes do teste real de recebimento, confirmar que os registros DKIM/SPF exibidos pelo Resend estão com status **verified**.
+
+Não considerar o teste de convite concluído apenas porque o código passou no CI: o teste final precisa enviar um convite para uma conta controlada, abrir o link, definir a senha e realizar o primeiro login.
+
+## 8. Validação final de produção / Vercel
+
+O código pode ser validado pelo GitHub Actions, mas a validação de variáveis, logs e deployment de produção depende de acesso ao projeto correto na Vercel.
+
+Checar antes da entrega:
+
+- migrations de produção concluídas no build;
+- `INTEGRATION_BRIDGE_URL` e `INTEGRATION_BRIDGE_SECRET`;
+- credenciais Siggma/Zetta;
+- credenciais Mercado Livre e Amazon;
+- credenciais de pagamento quando o gateway for reativado;
+- `RESEND_API_KEY`, `INVITATION_EMAIL_FROM` e `APP_URL`;
+- domínio `www.matilhaprado.com.br` apontando para o deployment final;
+- ausência de erros 5xx relevantes nos logs após o deploy.
+
+## 9. Compra controlada de ponta a ponta
+
+O teste final de uma compra deve usar um produto real vinculado ao Zetta e uma forma de pagamento real/controlada. O modo de pagamento simulado valida o Hub, mas não serve para provar a gravação final no ERP.
+
+Checklist:
+
+1. registrar preço e estoque do item no Zetta antes do checkout;
+2. criar o carrinho no portal;
+3. confirmar que checkout usa preço/estoque revalidados no ERP;
+4. aprovar o pagamento controlado;
+5. confirmar `siggmaImportStatus=imported` no Hub;
+6. confirmar o pedido em `ecommerce_vendas` no Siggma;
+7. sincronizar novamente produtos;
+8. confirmar a nova quantidade oficial do Zetta no Hub.
