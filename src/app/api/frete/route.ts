@@ -5,18 +5,24 @@ import {
   HORARIO_FUNCIONAMENTO_LABEL,
   validarCep,
 } from '@/lib/frete'
+import { cotarMelhorEnvio, melhorEnvioConfigurado } from '@/lib/melhor-envio'
 
 export const dynamic = 'force-dynamic'
 
+function numeroPositivo(valor: string | null, fallback: number) {
+  const n = Number(valor)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 /**
- * GET /api/frete?cep=XXXXX-XXX
+ * GET /api/frete?cep=XXXXX-XXX&weight=1&width=20&height=10&length=30&insuranceValue=100
  *
- * Retorna as opções de entrega atualmente habilitadas para o CEP informado:
+ * Sempre preserva:
  *  - Retirada na loja
  *  - Motoboy Matilha Prado na faixa configurada da Zona Norte de São Paulo
  *
- * Correios/Sedex permanece desativado até a contratação e configuração
- * das credenciais oficiais do cliente.
+ * Quando MELHOR_ENVIO_ACCESS_TOKEN + MELHOR_ENVIO_ORIGIN_CEP estiverem configurados,
+ * acrescenta as cotações reais retornadas pelo Melhor Envio.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -25,17 +31,44 @@ export async function GET(req: NextRequest) {
     const valido = validarCep(cepParam)
 
     const { opcoes, dentroSP, config } = await calcularOpcoesFrete(cepParam)
+    const configurado = melhorEnvioConfigurado()
+
+    let melhorEnvioOpcoes = [] as Awaited<ReturnType<typeof cotarMelhorEnvio>>
+
+    if (valido && configurado) {
+      melhorEnvioOpcoes = await cotarMelhorEnvio(cepParam, {
+        weight: numeroPositivo(
+          req.nextUrl.searchParams.get('weight'),
+          numeroPositivo(process.env.MELHOR_ENVIO_DEFAULT_WEIGHT || null, 1)
+        ),
+        width: numeroPositivo(
+          req.nextUrl.searchParams.get('width'),
+          numeroPositivo(process.env.MELHOR_ENVIO_DEFAULT_WIDTH || null, 20)
+        ),
+        height: numeroPositivo(
+          req.nextUrl.searchParams.get('height'),
+          numeroPositivo(process.env.MELHOR_ENVIO_DEFAULT_HEIGHT || null, 10)
+        ),
+        length: numeroPositivo(
+          req.nextUrl.searchParams.get('length'),
+          numeroPositivo(process.env.MELHOR_ENVIO_DEFAULT_LENGTH || null, 30)
+        ),
+        insuranceValue: numeroPositivo(req.nextUrl.searchParams.get('insuranceValue'), 0),
+      })
+    }
 
     return NextResponse.json({
       cep: cepFormatado,
       valido,
       dentroSP,
-      opcoes,
+      opcoes: [...opcoes, ...melhorEnvioOpcoes],
       retiradaEndereco: config.retiradaEndereco,
       horarioFuncionamento: HORARIO_FUNCIONAMENTO_LABEL,
-      correiosDisponivel: false,
-      correiosMensagem:
-        'Correios temporariamente indisponível. PAC/SEDEX permanecem desativados até nova liberação.',
+      melhorEnvio: {
+        configurado,
+        ambiente: process.env.MELHOR_ENVIO_SANDBOX === 'true' ? 'sandbox' : 'producao',
+        quantidadeOpcoes: melhorEnvioOpcoes.length,
+      },
     })
   } catch (e) {
     console.error('frete GET erro:', e)
