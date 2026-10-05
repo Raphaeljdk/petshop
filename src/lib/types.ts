@@ -17,13 +17,13 @@ export type StatusVenda = 'concluida' | 'pendente' | 'cancelada'
 
 export type StatusEntrega = 'pendente' | 'enviada' | 'entregue' | 'cancelada'
 
-export type TipoEntrega = 'retirada' | 'entrega_propria' | 'sedex'
+export type TipoEntrega = 'retirada' | 'entrega_propria' | 'sedex' | 'melhor_envio'
 
 export type CanalVenda = 'loja' | 'site' | 'mercado_livre' | 'amazon'
 
 export type TipoNotificacao = 'sms' | 'email' | 'whatsapp' | 'push'
 
-export type PlataformaIntegracao = 'mercado_livre' | 'amazon' | 'mercado_pago' | 'correios'
+export type PlataformaIntegracao = 'mercado_livre' | 'amazon' | 'mercado_pago' | 'correios' | 'melhor_envio'
 
 export interface Cliente {
   id: string
@@ -237,6 +237,7 @@ export interface OpcaoFrete {
   descricao?: string
   enderecoRetirada?: string
   disponivel: boolean
+  melhorEnvioServiceId?: string
 }
 
 export interface ConfiguracaoFrete {

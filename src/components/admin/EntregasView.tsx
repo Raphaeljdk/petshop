@@ -80,6 +80,7 @@ const TIPO_META: Record<TipoEntrega, { label: string; icon: React.ComponentType<
   retirada: { label: 'Retirada na loja', icon: PackageCheck },
   entrega_propria: { label: 'Motoboy', icon: Truck },
   sedex: { label: 'Sedex (legado)', icon: Package },
+  melhor_envio: { label: 'Melhor Envio', icon: Package },
 }
 
 const FLUXO_STATUS: StatusEntrega[] = ['pendente', 'enviada', 'entregue']

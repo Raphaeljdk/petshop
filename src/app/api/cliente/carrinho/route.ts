@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getClienteLogado } from '@/lib/auth-helpers'
 import { getOpcaoFrete, normalizarCep, validarCep } from '@/lib/frete'
+import {
+  cotarMelhorEnvio,
+  melhorEnvioConfigurado,
+  melhorEnvioDefaultPackage,
+} from '@/lib/melhor-envio'
 import { emitWebSocket } from '@/lib/realtime'
 import { getZettaProduct, zettaProductPrice, zettaProductStock } from '@/lib/zetta-products'
 import {
@@ -37,13 +42,15 @@ export async function POST(req: NextRequest) {
       tipoEntrega,
       cepEntrega,
       enderecoEntrega,
+      melhorEnvioServiceId,
       cupomCodigo,
     } = body as {
       itens: Array<{ produtoId: string; quantidade: number }>
       observacoes?: string
-      tipoEntrega?: 'retirada' | 'entrega_propria' | 'sedex' | null
+      tipoEntrega?: 'retirada' | 'entrega_propria' | 'sedex' | 'melhor_envio' | null
       cepEntrega?: string
       enderecoEntrega?: string
+      melhorEnvioServiceId?: string | null
       cupomCodigo?: string | null
     }
 
@@ -118,8 +125,40 @@ export async function POST(req: NextRequest) {
       prazoEntrega = opcao.prazo
       cepFinal = cepNormalizado
       enderecoFinal = enderecoEntrega?.trim() || cliente.endereco || null
+    } else if (tipo === 'melhor_envio') {
+      if (!melhorEnvioConfigurado()) {
+        throw new CheckoutError('Melhor Envio ainda não está configurado.')
+      }
+      if (!cepEntrega || !validarCep(cepEntrega)) {
+        throw new CheckoutError('CEP de entrega inválido')
+      }
+      if (!melhorEnvioServiceId) {
+        throw new CheckoutError('Selecione uma opção de entrega do Melhor Envio.')
+      }
+
+      const cepNormalizado = normalizarCep(cepEntrega)
+      const cotacoes = await cotarMelhorEnvio(
+        cepNormalizado,
+        melhorEnvioDefaultPackage()
+      )
+      const opcao = cotacoes.find(
+        (item) => item.melhorEnvioServiceId === String(melhorEnvioServiceId)
+      )
+
+      if (!opcao?.disponivel) {
+        throw new CheckoutError('Opção do Melhor Envio indisponível no momento.')
+      }
+
+      valorFrete = opcao.valor
+      prazoEntrega = opcao.prazo
+      cepFinal = cepNormalizado
+      enderecoFinal = enderecoEntrega?.trim() || cliente.endereco || null
     } else {
       throw new CheckoutError('Tipo de entrega inválido')
+    }
+
+    if (tipo !== 'retirada' && !enderecoFinal) {
+      throw new CheckoutError('Informe o endereço de entrega')
     }
 
     // ---------- Validação final de preço e estoque ----------

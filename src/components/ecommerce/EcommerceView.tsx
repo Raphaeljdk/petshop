@@ -1007,7 +1007,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
     }
   }
 
-  const abrirNovoProduto = () => {
+  function abrirNovoProduto() {
     setEditProduto(null)
     setForm({
       nome: '',
@@ -1130,7 +1130,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   /* ---------------------- ações vendas ---------------------- */
 
-  const abrirNovaVenda = () => {
+  function abrirNovaVenda() {
     setFormVenda({ itens: [], observacoes: '' })
     setDialogVenda(true)
   }

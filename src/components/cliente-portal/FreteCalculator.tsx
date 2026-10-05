@@ -32,6 +32,11 @@ interface FreteResponse {
   horarioFuncionamento?: string
   correiosDisponivel?: boolean
   correiosMensagem?: string
+  melhorEnvio?: {
+    configurado: boolean
+    ambiente: 'sandbox' | 'producao'
+    quantidadeOpcoes: number
+  }
 }
 
 interface FreteCalculatorProps {
@@ -43,6 +48,7 @@ interface FreteCalculatorProps {
     valorFrete: number
     prazoEntrega: string
     cepEntrega: string
+    melhorEnvioServiceId?: string
   }) => void
   /** Callback ao limpar a seleção */
   onClear?: () => void
@@ -57,6 +63,7 @@ const ICONS: Record<TipoEntrega, React.ComponentType<{ className?: string }>> = 
   retirada: Store,
   entrega_propria: Truck,
   sedex: PackageCheck,
+  melhor_envio: PackageCheck,
 }
 
 export function FreteCalculator({
@@ -112,6 +119,7 @@ export function FreteCalculator({
           valorFrete: primeira.valor,
           prazoEntrega: primeira.prazo,
           cepEntrega: data.cep,
+          melhorEnvioServiceId: primeira.melhorEnvioServiceId,
         })
       }
     } catch {
@@ -129,6 +137,7 @@ export function FreteCalculator({
       valorFrete: opcao.valor,
       prazoEntrega: opcao.prazo,
       cepEntrega: dados?.cep || cep,
+      melhorEnvioServiceId: opcao.melhorEnvioServiceId,
     })
   }
 

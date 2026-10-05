@@ -59,6 +59,7 @@ interface SelecaoFrete {
   valorFrete: number
   prazoEntrega: string
   cepEntrega: string
+  melhorEnvioServiceId?: string
 }
 
 interface CupomAplicado {
@@ -301,7 +302,9 @@ export function ClientStore({
     }
     if (!freteSelecionado) return toast.error('Selecione uma opção de entrega')
     if (
-      (freteSelecionado.tipoEntrega === 'entrega_propria' || freteSelecionado.tipoEntrega === 'sedex') &&
+      (freteSelecionado.tipoEntrega === 'entrega_propria' ||
+        freteSelecionado.tipoEntrega === 'sedex' ||
+        freteSelecionado.tipoEntrega === 'melhor_envio') &&
       !enderecoEntrega.trim()
     ) return toast.error('Informe o endereço de entrega')
 
@@ -317,6 +320,7 @@ export function ClientStore({
           tipoEntrega: freteSelecionado.tipoEntrega,
           cepEntrega: freteSelecionado.cepEntrega,
           enderecoEntrega: freteSelecionado.tipoEntrega === 'retirada' ? null : enderecoEntrega.trim(),
+          melhorEnvioServiceId: freteSelecionado.melhorEnvioServiceId || null,
           cupomCodigo: cupomAplicado?.codigo || null,
         }),
       })
@@ -354,7 +358,10 @@ export function ClientStore({
     toast.info('Checkout cancelado — sua venda ficou como pendente.')
   }
 
-  const requiresEndereco = freteSelecionado?.tipoEntrega === 'entrega_propria' || freteSelecionado?.tipoEntrega === 'sedex'
+  const requiresEndereco =
+    freteSelecionado?.tipoEntrega === 'entrega_propria' ||
+    freteSelecionado?.tipoEntrega === 'sedex' ||
+    freteSelecionado?.tipoEntrega === 'melhor_envio'
   const whatsappLoja = matilhaWhatsAppUrl('Olá! Preciso de ajuda com uma compra na loja da Matilha Prado.')
   const whatsappPedido = matilhaWhatsAppUrl([
     'Olá! Gostaria de consultar a disponibilidade destes produtos:',
