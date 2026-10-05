@@ -17,13 +17,13 @@ export type StatusVenda = 'concluida' | 'pendente' | 'cancelada'
 
 export type StatusEntrega = 'pendente' | 'enviada' | 'entregue' | 'cancelada'
 
-export type TipoEntrega = 'retirada' | 'entrega_propria' | 'sedex'
+export type TipoEntrega = 'retirada' | 'entrega_propria' | 'sedex' | 'melhor_envio'
 
 export type CanalVenda = 'loja' | 'site' | 'mercado_livre' | 'amazon'
 
 export type TipoNotificacao = 'sms' | 'email' | 'whatsapp' | 'push'
 
-export type PlataformaIntegracao = 'mercado_livre' | 'amazon' | 'mercado_pago' | 'correios'
+export type PlataformaIntegracao = 'mercado_livre' | 'amazon' | 'mercado_pago' | 'correios' | 'melhor_envio'
 
 export interface Cliente {
   id: string
@@ -149,7 +149,6 @@ export interface Venda {
   canal: CanalVenda
   status: StatusVenda
   observacoes: string | null
-  // Campos de entrega
   tipoEntrega: TipoEntrega | null
   valorFrete: number | null
   cepEntrega: string | null
@@ -157,7 +156,6 @@ export interface Venda {
   prazoEntrega: string | null
   codigoRastreio: string | null
   statusEntrega: StatusEntrega | null
-  // Mercado Pago
   mercadoPagoId: string | null
   mercadoPagoStatus: StatusMercadoPago | null
   mercadoPagoPaymentUrl: string | null
@@ -197,7 +195,6 @@ export interface ConfiguracaoPagamento {
   boletoAtivo: boolean
   createdAt: string
   updatedAt: string
-  /** Campos calculados pelo servidor para diagnóstico do Checkout Transparente. */
   publicKey?: string | null
   ambienteConfigurado?: boolean
   accessTokenConfigurado?: boolean
@@ -210,9 +207,7 @@ export interface ConfiguracaoPagamento {
 }
 
 export interface PagamentoCriarResposta {
-  /** Compatibilidade: no Checkout Transparente este campo contém o orderId. */
   preferenceId: string
-  /** URL auxiliar (ticket Pix/Boleto). Cartão não redireciona para Checkout Pro. */
   initPoint: string
   orderId?: string
   orderStatus?: string
@@ -237,6 +232,7 @@ export interface OpcaoFrete {
   descricao?: string
   enderecoRetirada?: string
   disponivel: boolean
+  melhorEnvioServiceId?: string
 }
 
 export interface ConfiguracaoFrete {
