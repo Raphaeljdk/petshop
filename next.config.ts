@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   output: "standalone",
   experimental: {
     useTypeScriptCli: false,
@@ -10,6 +10,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
-};
+} as NextConfig;
 
 export default nextConfig;
