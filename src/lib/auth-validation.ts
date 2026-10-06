@@ -29,7 +29,6 @@ export const clientRegistrationSchema = z.object({
   ...common,
   role: z.literal('CLIENTE').optional(),
   telefone: phoneSchema,
-  petNome: z.string().trim().min(1, 'Informe o nome do pet.').max(100, 'Nome do pet inválido.'),
   cpfCnpj: z.string().max(18).transform(value => value.replace(/\D/g, ''))
     .refine(value => value.length === 11 || value.length === 14, 'Informe CPF ou CNPJ válido.'),
   endereco: z.string().trim().max(240, 'Use até 240 caracteres.').optional(),
@@ -46,7 +45,11 @@ export const adminRegistrationSchema = z.object({
 export const loginSchema = z.discriminatedUnion('role', [
   z.object({
     role: z.literal('CLIENTE'),
-    telefone: phoneSchema,
+    identificador: z.string().trim().toLowerCase().min(3, 'Informe seu e-mail ou telefone.').max(254, 'Acesso inválido.')
+      .refine(value => {
+        if (value.includes('@')) return emailSchema.safeParse(value).success
+        return /^[1-9]{2}\d{8,9}$/.test(value.replace(/\D/g, ''))
+      }, 'Informe um e-mail válido ou telefone com DDD.'),
     senha: z.string().min(1, 'Informe sua senha.').max(256, 'Senha inválida.'),
     lembrar: z.boolean().optional().default(false),
   }).strict(),
