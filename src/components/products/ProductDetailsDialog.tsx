@@ -244,7 +244,6 @@ export function ProductDetailsDialog({
                     aria-label={`Ver foto ${index + 1}`}
                     aria-pressed={selectedImage === index}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={image} alt="" className="h-full w-full object-contain" />
                   </button>
                 ))}
