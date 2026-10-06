@@ -242,7 +242,6 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                         ].join(' ')}
                       >
                         {imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={imageUrl}
                             alt=""
@@ -325,7 +324,6 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                         >
                           <div className="relative mb-4 aspect-square overflow-hidden rounded-2xl border border-border/50 bg-white">
                             {product.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={product.imageUrl}
                                 alt={product.nome}
