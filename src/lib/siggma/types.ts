@@ -187,6 +187,7 @@ export type SiggmaClienteImportResult = {
 
 export type SiggmaPedidoImportInput = {
   id: number
+  ecommerceId?: number
   dataCriacao: string
   guid: string
   status?: string
