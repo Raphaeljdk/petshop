@@ -94,9 +94,7 @@ export async function POST() {
                 // o estoque físico/oficial controlado pelo Zetta.
                 mlItemId: item.id,
                 estoqueMercadoLivre: sourceStock,
-                ...(!existing.imageUrl && item.thumbnail
-                  ? { imageUrl: item.thumbnail }
-                  : {}),
+                ...(item.thumbnail ? { imageUrl: item.thumbnail } : {}),
               }
             : preserveMaster
               ? {
