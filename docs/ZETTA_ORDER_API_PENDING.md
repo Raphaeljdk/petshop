@@ -1,35 +1,60 @@
-# Pendência externa — gravação de pedidos Siggma/Zetta
+# Contrato confirmado — pedidos e estoque Zetta
 
-A leitura do ERP está concluída pela bridge Oracle e o Hub já conhece clientes, pets,
-históricos, produtos, preços e estoque. O banco PostgreSQL fornecido pela Zetta é somente
-leitura; portanto nenhuma venda do site deve ser gravada diretamente nas tabelas do ERP.
+Em 06/10/2026 a Zettabrasil confirmou o contrato usado pelo Hub da Matilha Prado.
 
-## Informação necessária da ZettaBrasil
+## Pedidos de e-commerce
 
-Confirmar o endpoint oficial de escrita para registrar uma venda/pedido originado no
-e-commerce. Precisamos do contrato de uma operação equivalente a:
+- Escrita: `POST /api/pedidos-integracao/importar`.
+- A reserva de estoque acontece na importação; a baixa física acontece no faturamento.
+- Se o pedido for cancelado no Zetta antes do faturamento, a reserva é desfeita.
+- O Zetta não bloqueia reenvio do mesmo ID externo. A idempotência precisa ser garantida pelo Hub.
+- A resposta informa sucesso/erro e não devolve o ID interno criado.
+- O lote é atômico: se um pedido tiver erro, nenhum pedido do lote é gravado.
+- Cada canal deve informar seu `ecommerceId`.
+- Mercado Livre pode ser importado sem CPF/CNPJ.
+- Amazon e demais canais exigem CPF/CNPJ válido.
 
-- criar pedido de saída / venda de e-commerce;
-- identificar o cliente pelo `CLIENTES.cli_cod`;
-- identificar cada item por `PRODUTOS.pro_cod`;
-- informar quantidade, preço, desconto, frete e total;
-- informar filial/estoque quando obrigatório;
-- enviar uma referência externa idempotente (ID da `Venda` do Hub);
-- receber o identificador do pedido criado no Siggma;
-- consultar o pedido depois pela referência/ID;
-- confirmar em qual etapa o estoque é movimentado (criação, faturamento ou finalização);
-- confirmar como cancelamento/estorno deve ser enviado.
+## Vínculo dos itens
 
-Também precisamos saber se a operação usa `PEDIDO_SAIDAS`, `ecommerce_vendas` ou outro
-recurso da API e quais status devem ser usados para pedido pago pelo Mercado Pago.
+O Zetta não possui um campo SKU separado para essa integração. O SKU enviado pelo
+marketplace deve ser exatamente o valor do campo `codigo` retornado por
+`GET /api/itens-integracao`.
 
-## Segurança aplicada no Hub
+Se esse código não for encontrado, o Zetta pode gravar o item sem reservar estoque e
+sem retornar erro. Por isso o Hub valida a igualdade do SKU antes de enviar o pedido.
 
-Enquanto `SIGGMA_ORDER_CREATE_PATH` não estiver configurado, o Hub:
+## Idempotência aplicada no Hub
 
-1. exibe catálogo, preço e estoque reais do Zetta;
-2. revalida preço e estoque no ERP no checkout;
-3. **não cria a venda/cobrança de itens Zetta**;
-4. informa ao usuário que a integração de pedidos ainda aguarda a API de escrita.
+O Hub protege a integração em duas camadas:
 
-Isso evita pagamento sem baixa/registro no ERP e evita divergência de estoque.
+1. `Venda.marketplaceOrderId` é único por `canal:id-do-marketplace`;
+2. `Venda.siggmaGuid` também é único e a importação usa um claim de processamento antes do POST.
+
+Assim, uma repetição do webhook/polling do marketplace não pode criar uma nova venda no
+Hub nem deve reservar estoque novamente no Zetta.
+
+## Estoque
+
+O saldo autoritativo é `GET /api/itens-integracao`. Como o Zetta confirmou que a
+reserva atualiza o saldo imediatamente, depois de importar vendas o Hub relê o Zetta e
+propaga esse saldo para Mercado Livre e Amazon. Nunca somamos os saldos dos marketplaces.
+
+## Notas e faturamento
+
+- `GET /api/notas-saidas/notas-simplificado` e `GET /api/notas-saidas`: notas faturadas, paginadas, com `since`.
+- `GET /api/notas-saidas/get-faturamento`: faturamento diário ou mensal.
+- `POST /api/notas-saidas/status-notas`: consulta pelo GUID.
+- Antes de existir nota, o GUID pode retornar `EXCLUIDO`; isso não significa que a importação do pedido falhou.
+- Cancelar, devolver ou reembolsar não é suportado pela API e deve ser feito no Zetta.
+
+## Configuração pendente por ambiente
+
+Preencher na Vercel os IDs reais cadastrados no Zetta:
+
+```env
+SIGGMA_ECOMMERCE_ID_SITE=
+SIGGMA_ECOMMERCE_ID_MERCADO_LIVRE=
+SIGGMA_ECOMMERCE_ID_AMAZON=
+```
+
+Não inventar esses IDs. Eles precisam vir do cadastro de e-commerce do Zetta.
