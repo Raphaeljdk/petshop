@@ -33,7 +33,7 @@ export interface TokenPayload {
   userId: string
   email: string
   nome: string
-  role: 'ADMIN' | 'CLIENTE'
+  role: 'ADMIN' | 'CLIENTE' | 'KANBAN'
   clienteId?: string | null
 }
 
@@ -41,7 +41,7 @@ export interface UsuarioLogado {
   id: string
   nome: string
   email: string
-  role: 'ADMIN' | 'CLIENTE'
+  role: 'ADMIN' | 'CLIENTE' | 'KANBAN'
   clienteId: string | null
   siggmaCliCod: number | null
   cliente: {
@@ -67,7 +67,7 @@ export async function criarToken(user: {
     userId: user.id,
     email: user.email,
     nome: user.nome,
-    role: user.role as 'ADMIN' | 'CLIENTE',
+    role: user.role as 'ADMIN' | 'CLIENTE' | 'KANBAN',
     clienteId: user.clienteId ?? null,
   }
   return jwt.sign(payload, getSecret(), { expiresIn: lembrar ? '7d' : '12h', algorithm: 'HS256' })
@@ -127,13 +127,13 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
       },
     })
 
-    if (!user || !user.ativo || !['ADMIN', 'CLIENTE'].includes(user.role)) return null
+    if (!user || !user.ativo || !['ADMIN', 'CLIENTE', 'KANBAN'].includes(user.role)) return null
 
     return {
       id: user.id,
       nome: user.nome,
       email: user.email,
-      role: user.role as 'ADMIN' | 'CLIENTE',
+      role: user.role as 'ADMIN' | 'CLIENTE' | 'KANBAN',
       clienteId: user.clienteId,
       siggmaCliCod: user.siggmaCliCod,
       cliente: user.cliente
