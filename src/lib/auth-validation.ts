@@ -13,6 +13,9 @@ export const passwordSchema = z.string()
   .refine(value => new TextEncoder().encode(value).length <= 72, 'A senha deve ter no máximo 72 bytes.')
   .refine(value => /[a-zA-ZÀ-ÿ]/.test(value) && /\d/.test(value), 'Inclua uma letra e um número.')
 
+const phoneSchema = z.string().max(25).transform(value => value.replace(/\D/g, ''))
+  .refine(value => /^[1-9]{2}\d{8,9}$/.test(value), 'Informe o telefone com DDD (10 ou 11 números).')
+
 const common = {
   nome: z.string().trim().min(3, 'Informe seu nome.').max(100, 'Use até 100 caracteres.'),
   email: emailSchema,
@@ -25,8 +28,7 @@ const confirmationError = { message: 'As senhas não coincidem.', path: ['confir
 export const clientRegistrationSchema = z.object({
   ...common,
   role: z.literal('CLIENTE').optional(),
-  telefone: z.string().max(25).transform(value => value.replace(/\D/g, ''))
-    .refine(value => /^[1-9]{2}\d{8,9}$/.test(value), 'Informe o telefone com DDD (10 ou 11 números).'),
+  telefone: phoneSchema,
   cpfCnpj: z.string().max(18).transform(value => value.replace(/\D/g, ''))
     .refine(value => value.length === 11 || value.length === 14, 'Informe CPF ou CNPJ válido.'),
   endereco: z.string().trim().max(240, 'Use até 240 caracteres.').optional(),
@@ -40,11 +42,21 @@ export const adminRegistrationSchema = z.object({
   convite: z.string().trim().regex(/^[a-f0-9]{64}$/, 'Cole o código de convite completo.'),
 }).strict().refine(passwordsMatch, confirmationError)
 
-export const loginSchema = z.object({
-  email: emailSchema,
-  senha: z.string().min(1, 'Informe sua senha.').max(256, 'Senha inválida.'),
-  lembrar: z.boolean().optional().default(false),
-}).strict()
+export const loginSchema = z.discriminatedUnion('role', [
+  z.object({
+    role: z.literal('CLIENTE'),
+    telefone: phoneSchema,
+    petNome: z.string().trim().min(1, 'Informe o nome do pet.').max(100, 'Nome do pet inválido.'),
+    senha: z.string().min(1, 'Informe sua senha.').max(256, 'Senha inválida.'),
+    lembrar: z.boolean().optional().default(false),
+  }).strict(),
+  z.object({
+    role: z.literal('ADMIN'),
+    email: z.string().trim().toLowerCase().min(3, 'Informe seu e-mail ou usuário.').max(254, 'Acesso inválido.'),
+    senha: z.string().min(1, 'Informe sua senha.').max(256, 'Senha inválida.'),
+    lembrar: z.boolean().optional().default(false),
+  }).strict(),
+])
 
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const result: Record<string, string> = {}
