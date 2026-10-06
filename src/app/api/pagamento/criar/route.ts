@@ -12,6 +12,7 @@ import {
 } from '@/lib/mercado-pago-orders'
 import type { MetodoPagamento, PagamentoCriarResposta } from '@/lib/types'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
+import { cancelExpiredPendingSale } from '@/lib/pending-sales'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,16 @@ export async function POST(req: NextRequest) {
 
     if (venda.clienteId && venda.clienteId !== cliente.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
+    if (await cancelExpiredPendingSale(venda.id)) {
+      return NextResponse.json(
+        {
+          error:
+            'Esta compra ficou pendente por mais de 4 horas e foi cancelada. Volte ao carrinho para gerar um novo pedido.',
+        },
+        { status: 409 }
+      )
     }
 
     if (venda.status === 'cancelada') {
