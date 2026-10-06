@@ -766,7 +766,6 @@ export function IntegracoesView() {
                   >
                     <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
                       {item.thumbnail ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.thumbnail}
                           alt={item.title}
@@ -1023,7 +1022,6 @@ export function IntegracoesView() {
                   >
                     <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
                       {item.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.imageUrl}
                           alt={item.title}

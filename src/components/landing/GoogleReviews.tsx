@@ -171,7 +171,6 @@ export function GoogleReviews() {
 
                     <div className="mt-5 flex items-center gap-3 border-t pt-4">
                       {review.profilePhotoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={review.profilePhotoUrl}
                           alt=""
