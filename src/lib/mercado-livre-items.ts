@@ -76,10 +76,23 @@ function sellerSku(body: MercadoLivreItemBody) {
 
 function normalizeBulkItem(result: MercadoLivreBulkResult): MercadoLivreCatalogItem | null {
   const body = result.body
-  const statusCode = result.status_code ?? result.code
+  const rawStatusCode = result.status_code ?? result.code
+  const statusCode =
+    rawStatusCode == null || String(rawStatusCode).trim() === ''
+      ? null
+      : Number(rawStatusCode)
   const itemId = body?.id || result.id
 
-  if (statusCode !== 200 || !body || !itemId) return null
+  // The new /items/bulk endpoint can omit verbose metadata when the response
+  // is filtered with attributes=body.*. A valid body + item id is enough.
+  // Only reject when Mercado Livre explicitly reports a non-2xx item status.
+  if (
+    !body ||
+    !itemId ||
+    (statusCode != null && Number.isFinite(statusCode) && (statusCode < 200 || statusCode >= 300))
+  ) {
+    return null
+  }
 
   // /items/bulk returns the item id at the root of each verbose result.
   // Keep body.id as a fallback for the legacy multiget response while both
@@ -196,11 +209,49 @@ export async function mercadoLivreItemsByIds(ids: string[], token: string) {
       throw new Error(`Detalhes dos anúncios falharam (${response.status})`)
     }
 
-    const payload = (await response.json()) as MercadoLivreBulkResult[]
+    const payload = (await response.json()) as unknown
+    const bulkResults = Array.isArray(payload)
+      ? (payload as MercadoLivreBulkResult[])
+      : []
+
+    const normalized = bulkResults
+      .map(normalizeBulkItem)
+      .filter((item): item is MercadoLivreCatalogItem => item !== null)
+
+    if (normalized.length) {
+      items.push(...normalized)
+      continue
+    }
+
+    // Temporary compatibility fallback while Mercado Livre transitions from
+    // the legacy multiget to /items/bulk. The single-item endpoint remains
+    // supported and prevents a valid seller catalog from rendering as empty
+    // when the verbose bulk envelope changes.
+    const fallbackItems = await Promise.all(
+      group.map(async (itemId) => {
+        const itemResponse = await fetch(
+          `https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          }
+        )
+
+        if (!itemResponse.ok) return null
+
+        const body = (await itemResponse.json()) as MercadoLivreItemBody
+        return normalizeBulkItem({
+          id: itemId,
+          status_code: itemResponse.status,
+          body,
+        })
+      })
+    )
+
     items.push(
-      ...payload
-        .map(normalizeBulkItem)
-        .filter((item): item is MercadoLivreCatalogItem => item !== null)
+      ...fallbackItems.filter(
+        (item): item is MercadoLivreCatalogItem => item !== null
+      )
     )
   }
 
