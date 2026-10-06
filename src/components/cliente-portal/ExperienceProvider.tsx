@@ -68,10 +68,17 @@ export function ExperienceProvider({
           const previous = previousAvailability.current
           for (const row of rows) {
             const before = previous.get(row.produtoId)
-            if (row.restock && row.available === true && before === false) {
+            if (row.restock && row.available === true && before !== true) {
               toast.success(`${row.product.nome} voltou ao estoque!`, {
                 description: 'O item que você pediu para acompanhar já está disponível.',
               })
+              void portalRequest('/api/cliente/preferencias', {
+                method: 'PUT',
+                body: JSON.stringify({
+                  produtoId: row.produtoId,
+                  restock: false,
+                }),
+              }).catch(() => undefined)
             }
           }
           previousAvailability.current = new Map(
