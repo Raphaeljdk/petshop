@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const parsed = clientRegistrationSchema.safeParse(await readAuthBody(req))
     if (!parsed.success) return authJson({ success: false, error: 'Revise os campos indicados.', fields: fieldErrors(parsed.error) }, 400)
     authReady()
-    const { nome, email, senha, telefone, cpfCnpj, endereco, cep } = parsed.data
+    const { nome, email, senha, telefone, petNome, cpfCnpj, endereco, cep } = parsed.data
     if (!validCpfCnpj(cpfCnpj)) {
       return authJson({ success: false, error: 'Revise os campos indicados.', fields: { cpfCnpj: 'CPF ou CNPJ inválido.' } }, 400)
     }
@@ -26,7 +26,22 @@ export async function POST(req: NextRequest) {
       return tx.user.create({
         data: {
           nome, email, senha: senhaHash, role: 'CLIENTE',
-          cliente: { create: { nome, email, telefone, cpfCnpj: normalizeCpfCnpj(cpfCnpj), endereco: endereco || null, cep: cep || null } },
+          cliente: {
+            create: {
+              nome,
+              email,
+              telefone,
+              cpfCnpj: normalizeCpfCnpj(cpfCnpj),
+              endereco: endereco || null,
+              cep: cep || null,
+              pets: {
+                create: {
+                  nome: petNome,
+                  especie: 'Não informado',
+                },
+              },
+            },
+          },
         },
         select: { id: true, nome: true, email: true, role: true, clienteId: true },
       })
