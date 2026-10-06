@@ -105,7 +105,10 @@ type AmazonItems = {
   truncated?: boolean
 }
 
-function mercadoLivreOAuthErrorMessage(code: string | null) {
+function mercadoLivreOAuthErrorMessage(
+  code: string | null,
+  detail?: string | null
+) {
   const messages: Record<string, string> = {
     invalid_client: 'Client ID ou Client Secret inválido. Confirme que são da aplicação Mercado Livre, não da aplicação Mercado Pago.',
     invalid_grant: 'A autorização expirou, já foi usada ou não corresponde à Redirect URI configurada. Reconecte a conta.',
@@ -117,7 +120,10 @@ function mercadoLivreOAuthErrorMessage(code: string | null) {
     invalid_operator_user_id: 'A autorização precisa ser feita pela conta principal/administradora do Mercado Livre, não por colaborador.',
     access_denied: 'A autorização foi negada no Mercado Livre.',
   }
-  return messages[code || ''] || 'A autorização do Mercado Livre falhou. Confira as credenciais do aplicativo e tente novamente.'
+  const message =
+    messages[code || ''] ||
+    'A autorização do Mercado Livre falhou. Confira as credenciais do aplicativo e tente novamente.'
+  return detail ? `${message} Detalhe do Mercado Livre: ${detail}` : message
 }
 
 export function IntegracoesView() {
@@ -633,7 +639,8 @@ export function IntegracoesView() {
             new URLSearchParams(window.location.search).get('ml') === 'error' && (
               <p className="text-red-700">
                 {mercadoLivreOAuthErrorMessage(
-                  new URLSearchParams(window.location.search).get('ml_code')
+                  new URLSearchParams(window.location.search).get('ml_code'),
+                  new URLSearchParams(window.location.search).get('ml_detail')
                 )}
               </p>
             )}
