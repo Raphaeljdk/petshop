@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { request as httpsRequest } from 'node:https'
 import type { OpcaoFrete } from '@/lib/types'
 
 const PROD_URL = 'https://melhorenvio.com.br'
@@ -112,6 +113,66 @@ export function numeroPositivo(valor: string | number | null | undefined, fallba
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
+type MelhorEnvioHttpResponse = {
+  status: number
+  body: string
+  contentType: string
+}
+
+function requestMelhorEnvioHttps(
+  url: string,
+  token: string,
+  body: string
+): Promise<MelhorEnvioHttpResponse> {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url)
+    const req = httpsRequest(
+      {
+        protocol: target.protocol,
+        hostname: target.hostname,
+        port: target.port || 443,
+        path: `${target.pathname}${target.search}`,
+        method: 'POST',
+        family: 4,
+        servername: target.hostname,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'User-Agent':
+            process.env.MELHOR_ENVIO_USER_AGENT?.trim() || DEFAULT_USER_AGENT,
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+
+        res.on('data', (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        })
+
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode || 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+            contentType: String(res.headers['content-type'] || 'desconhecido'),
+          })
+        })
+      }
+    )
+
+    req.setTimeout(15000, () => {
+      const error = new Error('Melhor Envio HTTPS timeout')
+      error.name = 'HTTPS_TIMEOUT'
+      req.destroy(error)
+    })
+
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
 export async function cotarMelhorEnvioComDiagnostico(
   cepDestino: string,
   pacote: MelhorEnvioPackage
@@ -149,48 +210,41 @@ export async function cotarMelhorEnvioComDiagnostico(
       ? [SANDBOX_URL]
       : [PROD_URL, 'https://www.melhorenvio.com.br']
 
-    let response: Response | null = null
+    let response: MelhorEnvioHttpResponse | null = null
     let ultimoErroTransporte: unknown = null
 
     for (const baseUrl of baseUrls) {
       try {
-        response = await fetch(`${baseUrl}/api/v2/me/shipment/calculate`, {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            'User-Agent':
-              process.env.MELHOR_ENVIO_USER_AGENT?.trim() || DEFAULT_USER_AGENT,
-          },
-          body: requestBody,
-          cache: 'no-store',
-          redirect: 'follow',
-          signal: AbortSignal.timeout(15000),
-        })
+        response = await requestMelhorEnvioHttps(
+          `${baseUrl}/api/v2/me/shipment/calculate`,
+          token,
+          requestBody
+        )
         break
       } catch (error) {
         ultimoErroTransporte = error
-        console.error('Melhor Envio transporte:', baseUrl, error)
+        console.error('Melhor Envio transporte HTTPS:', baseUrl, error)
       }
     }
 
     if (!response) {
-      const nome =
+      const causa =
         ultimoErroTransporte instanceof Error
-          ? ultimoErroTransporte.name
+          ? [ultimoErroTransporte.name, ultimoErroTransporte.message]
+              .filter(Boolean)
+              .join(': ')
           : 'erro_desconhecido'
       return {
         opcoes: [],
         status: 'erro',
         mensagem:
-          `Falha de conexão do servidor com o Melhor Envio (${nome}). A chamada não chegou a uma resposta HTTP válida.`,
+          `Falha de conexão HTTPS do servidor com o Melhor Envio (${causa.slice(0, 120)}).`,
       }
     }
 
-    const rawBody = await response.text()
+    const rawBody = response.body
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       console.error(
         'Melhor Envio cotacao:',
         response.status,
@@ -229,7 +283,7 @@ export async function cotarMelhorEnvioComDiagnostico(
     try {
       payload = JSON.parse(rawBody)
     } catch {
-      const contentType = response.headers.get('content-type') || 'desconhecido'
+      const contentType = response.contentType || 'desconhecido'
       console.error(
         'Melhor Envio resposta não JSON:',
         response.status,
