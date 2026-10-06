@@ -106,7 +106,10 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
     throw new Error(`Pedido ${input.orderId} não possui itens para importar.`)
   }
 
-  const resolved = []
+  const resolved: Array<{
+    item: MarketplaceSaleItem
+    product: NonNullable<Awaited<ReturnType<typeof resolveProduct>>>
+  }> = []
   for (const item of input.items) {
     const product = await resolveProduct(input.channel, item)
     if (!product) {
