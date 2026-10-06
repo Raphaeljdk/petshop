@@ -1,7 +1,155 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
+import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
+
+
+type ConsolidatableProduct = {
+  id: string
+  nome: string
+  descricao: string | null
+  categoria: string
+  preco: number
+  precoPromo: number | null
+  estoque: number
+  estoqueHub?: number | null
+  estoqueZetta?: number | null
+  estoqueMercadoLivre?: number | null
+  estoqueAmazon?: number | null
+  estoqueIlimitado?: boolean | null
+  sku: string | null
+  zettaProCod?: number | null
+  mlItemId?: string | null
+  amazonAsin?: string | null
+  imageUrl: string | null
+  ativo: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+function normalizeProductMatch(value?: string | null) {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function compactProductMatch(value?: string | null) {
+  return normalizeProductMatch(value).replace(/\s+/g, '')
+}
+
+function productMatchKeys(product: ConsolidatableProduct) {
+  const keys: string[] = []
+
+  if (product.zettaProCod != null) keys.push(`zetta:${product.zettaProCod}`)
+  if (product.mlItemId) keys.push(`ml:${compactProductMatch(product.mlItemId)}`)
+  if (product.amazonAsin) keys.push(`amazon:${compactProductMatch(product.amazonAsin)}`)
+
+  const sku = compactProductMatch(product.sku)
+  const marketplaceFallbackSku = /^ml[a-z]?\d+$/.test(sku)
+  if (sku.length >= 3 && !marketplaceFallbackSku) {
+    keys.push(`sku:${sku}`)
+  }
+
+  const nome = normalizeProductMatch(product.nome)
+  if (nome.length >= 5 && nome !== 'produto sem titulo') {
+    keys.push(`nome:${nome}`)
+  }
+
+  return keys
+}
+
+function consolidateAdminProducts<T extends ConsolidatableProduct>(products: T[]): T[] {
+  if (products.length <= 1) {
+    return products.map((product) => ({
+      ...product,
+      estoque: product.estoqueIlimitado
+        ? product.estoque
+        : totalStockFromSources(product),
+    }))
+  }
+
+  const parent = products.map((_, index) => index)
+  const find = (index: number): number => {
+    if (parent[index] !== index) parent[index] = find(parent[index])
+    return parent[index]
+  }
+  const union = (left: number, right: number) => {
+    const leftRoot = find(left)
+    const rightRoot = find(right)
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot
+  }
+
+  const ownerByKey = new Map<string, number>()
+  products.forEach((product, index) => {
+    for (const key of productMatchKeys(product)) {
+      const owner = ownerByKey.get(key)
+      if (owner == null) ownerByKey.set(key, index)
+      else union(index, owner)
+    }
+  })
+
+  const grouped = new Map<number, T[]>()
+  products.forEach((product, index) => {
+    const root = find(index)
+    const current = grouped.get(root) || []
+    current.push(product)
+    grouped.set(root, current)
+  })
+
+  const score = (product: T) =>
+    (product.zettaProCod != null ? 16 : 0) +
+    (product.mlItemId ? 8 : 0) +
+    (product.amazonAsin ? 4 : 0) +
+    (product.sku ? 2 : 0) +
+    (product.ativo ? 1 : 0)
+
+  return Array.from(grouped.values()).map((rows) => {
+    const primary = [...rows].sort((a, b) => score(b) - score(a))[0]
+
+    const estoqueHub = rows.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.estoqueHub || 0)),
+      0
+    )
+    const estoqueZetta = rows.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.estoqueZetta || 0)),
+      0
+    )
+    const estoqueMercadoLivre = rows.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.estoqueMercadoLivre || 0)),
+      0
+    )
+    const estoqueAmazon = rows.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.estoqueAmazon || 0)),
+      0
+    )
+    const estoqueIlimitado = rows.some((row) => Boolean(row.estoqueIlimitado))
+
+    const merged = {
+      ...primary,
+      estoqueHub,
+      estoqueZetta,
+      estoqueMercadoLivre,
+      estoqueAmazon,
+      estoqueIlimitado,
+      zettaProCod:
+        primary.zettaProCod ?? rows.find((row) => row.zettaProCod != null)?.zettaProCod ?? null,
+      mlItemId: primary.mlItemId ?? rows.find((row) => row.mlItemId)?.mlItemId ?? null,
+      amazonAsin:
+        primary.amazonAsin ?? rows.find((row) => row.amazonAsin)?.amazonAsin ?? null,
+      sku: primary.sku ?? rows.find((row) => row.sku)?.sku ?? null,
+      imageUrl: primary.imageUrl ?? rows.find((row) => row.imageUrl)?.imageUrl ?? null,
+      ativo: rows.some((row) => row.ativo),
+    }
+
+    return {
+      ...merged,
+      estoque: estoqueIlimitado ? primary.estoque : totalStockFromSources(merged),
+    } as T
+  })
+}
 
 export async function GET() {
   try {
@@ -18,14 +166,7 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       })
 
-      return NextResponse.json(
-        produtos.map((produto) => ({
-          ...produto,
-          estoque: produto.estoqueIlimitado
-            ? produto.estoque
-            : officialStockFromSources(produto),
-        }))
-      )
+      return NextResponse.json(consolidateAdminProducts(produtos))
     } catch (prismaError) {
       console.warn(
         '[produtos GET] usando compatibilidade com schema anterior:',
@@ -52,29 +193,29 @@ export async function GET() {
         'SELECT "id","nome","descricao","categoria","preco","precoPromo","estoque","sku","zettaProCod","mlItemId","amazonAsin","imageUrl","ativo","createdAt","updatedAt" FROM "Produto" ORDER BY "createdAt" DESC'
       )
 
-      return NextResponse.json(
-        legacy.map((produto) => {
-          const estoqueBase = Math.max(0, Number(produto.estoque || 0))
-          const estoqueIlimitado = isUnlimitedBathProduct(produto)
+      const enriched = legacy.map((produto) => {
+        const estoqueBase = Math.max(0, Number(produto.estoque || 0))
+        const estoqueIlimitado = isUnlimitedBathProduct(produto)
 
-          return {
-            ...produto,
-            estoqueHub:
-              !produto.zettaProCod && !produto.mlItemId && !produto.amazonAsin
-                ? estoqueBase
-                : 0,
-            estoqueZetta: produto.zettaProCod ? estoqueBase : 0,
-            estoqueMercadoLivre:
-              produto.mlItemId && !produto.zettaProCod ? estoqueBase : 0,
-            estoqueAmazon:
-              produto.amazonAsin && !produto.zettaProCod && !produto.mlItemId
-                ? estoqueBase
-                : 0,
-            estoqueIlimitado,
-            schemaCompatibilidade: true,
-          }
-        })
-      )
+        return {
+          ...produto,
+          estoqueHub:
+            !produto.zettaProCod && !produto.mlItemId && !produto.amazonAsin
+              ? estoqueBase
+              : 0,
+          estoqueZetta: produto.zettaProCod ? estoqueBase : 0,
+          estoqueMercadoLivre:
+            produto.mlItemId && !produto.zettaProCod ? estoqueBase : 0,
+          estoqueAmazon:
+            produto.amazonAsin && !produto.zettaProCod && !produto.mlItemId
+              ? estoqueBase
+              : 0,
+          estoqueIlimitado,
+          schemaCompatibilidade: true,
+        }
+      })
+
+      return NextResponse.json(consolidateAdminProducts(enriched))
     }
   } catch (e) {
     console.error('produtos GET erro:', e)
