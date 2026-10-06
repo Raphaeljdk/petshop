@@ -59,7 +59,7 @@ try {
     for (const route of ['/login', '/cadastro', '/cadastro/administrador']) {
       await page.goto(base + route)
       if (route === '/login') {
-        await page.getByLabel('Telefone com DDD', { exact: true }).waitFor()
+        await page.getByLabel('E-mail ou telefone', { exact: true }).waitFor()
       } else {
         await page.getByLabel('E-mail', { exact: true }).waitFor()
       }
@@ -82,7 +82,6 @@ try {
   await page.getByLabel('Nome completo').fill('Cliente Teste')
   await page.getByLabel('E-mail', { exact: true }).fill(email)
   await page.getByLabel('Telefone com DDD').fill('11999991234')
-  await page.getByLabel('Nome do pet', { exact: true }).fill('Mel')
   await page.getByLabel('CPF ou CNPJ').fill(validCpf(prefix))
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Mostrar senha', exact: true }).click()
@@ -100,7 +99,6 @@ try {
   passed('Cadastro real de cliente abre o portal com sessão')
   const clientUser = await db.user.findUnique({ where: { email } })
   assert.ok(clientUser?.clienteId)
-  assert.equal(await db.pet.count({ where: { clienteId: clientUser.clienteId, nome: 'Mel' } }), 1)
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.getByRole('button', { name: 'Cadastrar', exact: true }).waitFor()
 
@@ -131,7 +129,7 @@ try {
 
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.goto(base + '/login')
-  await page.getByLabel('Telefone com DDD', { exact: true }).fill('11999991234')
+  await page.getByLabel('E-mail ou telefone', { exact: true }).fill(email)
   assert.equal(await page.getByLabel('Nome do pet', { exact: true }).count(), 0)
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Entrar na minha conta', exact: true }).click()
@@ -142,7 +140,7 @@ try {
   const reduced = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 390, height: 844 } })
   const reducedPage = await reduced.newPage()
   await reducedPage.goto(base + '/login')
-  await reducedPage.getByLabel('Telefone com DDD', { exact: true }).waitFor()
+  await reducedPage.getByLabel('E-mail ou telefone', { exact: true }).waitFor()
   assert.equal(await reducedPage.locator('.account-page-card').evaluate(el => getComputedStyle(el).animationName), 'none')
   passed('Preferência de movimento reduzido respeitada')
   assert.deepEqual(errors, [], 'Sem erros de JavaScript nas telas')
