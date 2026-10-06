@@ -52,6 +52,10 @@ export function melhorEnvioBaseUrl() {
   return process.env.MELHOR_ENVIO_SANDBOX === 'true' ? SANDBOX_URL : PROD_URL
 }
 
+export function melhorEnvioUsaSandbox() {
+  return melhorEnvioBaseUrl() === SANDBOX_URL
+}
+
 export function melhorEnvioOAuthConfig() {
   const clientId =
     process.env.MELHOR_ENVIO_CLIENT_ID?.trim() ||
