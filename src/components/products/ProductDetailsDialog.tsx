@@ -143,16 +143,16 @@ export function ProductDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-5xl">
+      <DialogContent className="max-h-[94vh] w-[96vw] max-w-[1280px] overflow-y-auto overflow-x-hidden p-0 sm:max-w-[1280px]">
         <DialogTitle className="sr-only">Detalhes do produto</DialogTitle>
         <DialogDescription className="sr-only">
           Fotos, descrição, preço, estoque e informações do produto selecionado.
         </DialogDescription>
 
-        <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="border-b bg-muted/20 p-4 sm:p-6 lg:border-b-0 lg:border-r">
+        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.18fr)_minmax(380px,0.82fr)]">
+          <div className="min-w-0 border-b bg-muted/15 p-4 sm:p-6 lg:border-b-0 lg:border-r lg:p-7">
             <div
-              className="product-gallery relative aspect-square overflow-hidden rounded-2xl bg-white focus-visible:outline-2 focus-visible:outline-primary"
+              className="product-gallery relative aspect-[4/3] overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm focus-visible:outline-2 focus-visible:outline-primary lg:aspect-square"
               role="region"
               aria-label="Fotos do produto. Use as setas para navegar."
               tabIndex={images.length > 1 ? 0 : undefined}
@@ -180,7 +180,7 @@ export function ProductDetailsDialog({
                 <img
                   src={currentImage}
                   alt={current?.nome || product.nome}
-                  className="h-full w-full object-contain p-3 sm:p-5"
+                  className="h-full w-full object-contain p-2 sm:p-4 lg:p-5"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">
@@ -256,7 +256,7 @@ export function ProductDetailsDialog({
             )}
           </div>
 
-          <div className="flex flex-col p-5 sm:p-7">
+          <div className="flex min-w-0 flex-col bg-background p-5 sm:p-7 lg:p-8">
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">{current?.categoria || product.categoria}</Badge>
               {current?.origem === 'mercado_livre' && (
@@ -272,7 +272,7 @@ export function ProductDetailsDialog({
               {hasPromo && <Badge className="bg-orange-500 text-white hover:bg-orange-500">Oferta</Badge>}
             </div>
 
-            <h2 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl">
+            <h2 className="mt-4 break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-[2rem]">
               {current?.nome || product.nome}
             </h2>
 
@@ -280,7 +280,7 @@ export function ProductDetailsDialog({
               {hasPromo && current && (
                 <p className="text-sm text-muted-foreground line-through">{money(current.preco)}</p>
               )}
-              <p className="text-2xl font-bold text-primary">{money(currentPrice)}</p>
+              <p className="text-3xl font-extrabold tracking-tight text-primary sm:text-4xl">{money(currentPrice)}</p>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
@@ -300,11 +300,11 @@ export function ProductDetailsDialog({
               </Badge>
             </div>
 
-            <div className="mt-6 border-t pt-5">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="mt-6 rounded-2xl border border-border/70 bg-muted/10 p-4 sm:p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 Descrição
               </h3>
-              <p className="mt-2 whitespace-pre-line text-sm leading-7 text-foreground/80">
+              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-foreground/85 sm:text-[15px]">
                 {current?.descricao?.trim() || 'Este produto não possui descrição adicional cadastrada no catálogo.'}
               </p>
             </div>
@@ -320,7 +320,7 @@ export function ProductDetailsDialog({
               </div>
             )}
 
-            <div className="mt-auto pt-7">
+            <div className="mt-7 rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
               {onAddToCart ? (
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <div className="flex h-12 items-center rounded-xl border bg-background">
@@ -360,7 +360,7 @@ export function ProductDetailsDialog({
                   </div>
 
                   <Button
-                    className="btn-brand h-12 flex-1"
+                    className="btn-brand h-12 flex-1 text-base font-semibold shadow-sm"
                     disabled={!current?.estoqueIlimitado && (current?.estoque || 0) <= 0}
                     onClick={() => {
                       if (!current) return
@@ -374,7 +374,7 @@ export function ProductDetailsDialog({
                 </div>
               ) : (
                 <Button
-                  className="btn-brand h-12 w-full"
+                  className="btn-brand h-12 w-full text-base font-semibold shadow-sm"
                   disabled={!current?.estoqueIlimitado && (current?.estoque || 0) <= 0}
                   onClick={() => {
                     onOpenChange(false)
@@ -387,7 +387,7 @@ export function ProductDetailsDialog({
               )}
 
               {current?.marketplaceUrl && (
-                <Button asChild variant="outline" className="mt-3 h-11 w-full">
+                <Button asChild variant="outline" className="mt-3 h-11 w-full justify-center font-medium">
                   <a
                     href={current.marketplaceUrl}
                     target="_blank"
