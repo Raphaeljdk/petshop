@@ -6,7 +6,7 @@ export interface UserLogado {
   id: string
   nome: string
   email: string
-  role: 'ADMIN' | 'CLIENTE'
+  role: 'ADMIN' | 'CLIENTE' | 'KANBAN'
   clienteId?: string | null
   siggmaCliCod?: number | null
 }
@@ -40,11 +40,15 @@ export interface CadastroDados {
 export class AuthRequestError extends Error {
   constructor(message: string, public fields: Record<string, string> = {}) { super(message) }
 }
+export type LoginDados =
+  | { role: 'CLIENTE'; telefone: string; petNome: string; senha: string; lembrar?: boolean }
+  | { role: 'ADMIN'; email: string; senha: string; lembrar?: boolean }
+
 interface AuthContextValue {
   sessao: SessaoUser
   loading: boolean
   refresh: () => Promise<SessaoUser>
-  login: (email: string, senha: string, lembrar?: boolean) => Promise<boolean>
+  login: (dados: LoginDados) => Promise<boolean>
   cadastrar: (dados: CadastroDados) => Promise<boolean>
   logout: () => Promise<void>
 }
@@ -55,7 +59,7 @@ async function readSession(signal?: AbortSignal): Promise<SessaoUser> {
   const data = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store', signal })
     .then(res => res.ok ? res.json() : null)
     .catch(() => null)
-  if (!data?.autenticado || !data.user || !['ADMIN', 'CLIENTE'].includes(data.user.role)) return SESSAO_INICIAL
+  if (!data?.autenticado || !data.user || !['ADMIN', 'CLIENTE', 'KANBAN'].includes(data.user.role)) return SESSAO_INICIAL
   return {
     autenticado: true,
     user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null, siggmaCliCod: data.user.siggmaCliCod ?? null },
@@ -94,8 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true
   }, [refresh])
 
-  const login = useCallback((email: string, senha: string, lembrar = false) =>
-    authenticate('/api/auth/login', { email, senha, lembrar }), [authenticate])
+  const login = useCallback((dados: LoginDados) =>
+    authenticate('/api/auth/login', dados), [authenticate])
   const cadastrar = useCallback((dados: CadastroDados) =>
     authenticate(dados.role === 'ADMIN' ? '/api/auth/register/admin' : '/api/auth/register', dados, true), [authenticate])
 
