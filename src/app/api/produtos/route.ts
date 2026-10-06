@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
+import { isServiceProduct, isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
 
 
 type ConsolidatableProduct = {
@@ -166,7 +166,9 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       })
 
-      return NextResponse.json(consolidateAdminProducts(produtos))
+      return NextResponse.json(
+        consolidateAdminProducts(produtos).filter((produto) => !isServiceProduct(produto))
+      )
     } catch (prismaError) {
       console.warn(
         '[produtos GET] usando compatibilidade com schema anterior:',
@@ -215,7 +217,9 @@ export async function GET() {
         }
       })
 
-      return NextResponse.json(consolidateAdminProducts(enriched))
+      return NextResponse.json(
+        consolidateAdminProducts(enriched).filter((produto) => !isServiceProduct(produto))
+      )
     }
   } catch (e) {
     console.error('produtos GET erro:', e)
