@@ -50,6 +50,15 @@ export function randomUrlSafe(bytes = 32) {
   return randomBytes(bytes).toString('base64url')
 }
 
+function limparTokenMelhorEnvio(value: string | undefined | null) {
+  const semEspacosOcultos = String(value || '').replace(
+    /[\s\u2028\u2029\u0085]+/g,
+    ''
+  )
+
+  return semEspacosOcultos.replace(/^['"]+|['"]+$/g, '')
+}
+
 export function melhorEnvioOriginCep() {
   const envCep = (process.env.MELHOR_ENVIO_ORIGIN_CEP || '').replace(/\D/g, '')
   return envCep.length === 8 ? envCep : MATILHA_PRADO_ORIGIN_CEP
@@ -57,7 +66,7 @@ export function melhorEnvioOriginCep() {
 
 export function melhorEnvioConfigurado() {
   return Boolean(
-    process.env.MELHOR_ENVIO_ACCESS_TOKEN?.trim() &&
+    limparTokenMelhorEnvio(process.env.MELHOR_ENVIO_ACCESS_TOKEN) &&
       melhorEnvioOriginCep().length === 8
   )
 }
@@ -177,7 +186,7 @@ export async function cotarMelhorEnvioComDiagnostico(
   cepDestino: string,
   pacote: MelhorEnvioPackage
 ): Promise<MelhorEnvioCotacaoResultado> {
-  const token = process.env.MELHOR_ENVIO_ACCESS_TOKEN?.trim()
+  const token = limparTokenMelhorEnvio(process.env.MELHOR_ENVIO_ACCESS_TOKEN)
   const cepOrigem = melhorEnvioOriginCep()
   const destino = cepDestino.replace(/\D/g, '')
 
