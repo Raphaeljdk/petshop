@@ -51,12 +51,51 @@ export function randomUrlSafe(bytes = 32) {
 }
 
 function limparTokenMelhorEnvio(value: string | undefined | null) {
-  const semEspacosOcultos = String(value || '').replace(
-    /[\s\u2028\u2029\u0085]+/g,
-    ''
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  // Aceita tanto o JWT puro quanto uma linha/bloco copiado da tela OAuth:
+  // MELHOR_ENVIO_ACCESS_TOKEN="eyJ..."
+  const quotedAssignment = raw.match(
+    /MELHOR_ENVIO_ACCESS_TOKEN\s*=\s*["']([^"'\r\n]+)["']/i
+  )
+  const plainAssignment = raw.match(
+    /MELHOR_ENVIO_ACCESS_TOKEN\s*=\s*([^\r\n]+)/i
   )
 
-  return semEspacosOcultos.replace(/^['"]+|['"]+$/g, '')
+  let token = quotedAssignment?.[1] || plainAssignment?.[1] || raw
+  token = token.trim().replace(/^Bearer\s+/i, '')
+  token = token.replace(/^['"]+|['"]+$/g, '')
+  return token.replace(/[\s\u2028\u2029\u0085]+/g, '')
+}
+
+function analisarTokenMelhorEnvio(token: string) {
+  const parts = token.split('.')
+  if (parts.length !== 3) {
+    return { jwt: false as const, expirado: false, expiraEm: null as string | null }
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(parts[1], 'base64url').toString('utf8')
+    ) as { exp?: number }
+
+    const exp = Number(payload.exp)
+    const expirado = Number.isFinite(exp) && exp > 0
+      ? exp * 1000 <= Date.now()
+      : false
+
+    return {
+      jwt: true as const,
+      expirado,
+      expiraEm:
+        Number.isFinite(exp) && exp > 0
+          ? new Date(exp * 1000).toISOString()
+          : null,
+    }
+  } catch {
+    return { jwt: false as const, expirado: false, expiraEm: null as string | null }
+  }
 }
 
 export function melhorEnvioOriginCep() {
@@ -195,6 +234,26 @@ export async function cotarMelhorEnvioComDiagnostico(
       opcoes: [],
       status: 'nao_configurado',
       mensagem: 'Melhor Envio ainda não está completamente configurado.',
+    }
+  }
+
+  const tokenInfo = analisarTokenMelhorEnvio(token)
+  if (!tokenInfo.jwt) {
+    return {
+      opcoes: [],
+      status: 'token_invalido',
+      mensagem:
+        'O valor salvo em MELHOR_ENVIO_ACCESS_TOKEN não é um access token JWT válido. Salve somente o valor do access_token, sem o nome da variável, refresh token ou outras linhas.',
+    }
+  }
+
+  if (tokenInfo.expirado) {
+    return {
+      opcoes: [],
+      status: 'token_invalido',
+      mensagem: tokenInfo.expiraEm
+        ? `O access token do Melhor Envio expirou em ${new Date(tokenInfo.expiraEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Reconecte a conta para gerar um novo token.`
+        : 'O access token do Melhor Envio expirou. Reconecte a conta para gerar um novo token.',
     }
   }
 
