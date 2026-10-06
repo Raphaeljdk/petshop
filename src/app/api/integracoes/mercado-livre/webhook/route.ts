@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
+import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,12 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await syncMarketplaceSalesToZetta()
-    return NextResponse.json({ ok: true, result })
+    const inventory = await syncZettaStockToMarketplaces().catch((error) => ({
+      errors: [
+        error instanceof Error ? error.message : 'Falha ao reconciliar estoque.',
+      ],
+    }))
+    return NextResponse.json({ ok: true, result, inventory })
   } catch (error) {
     console.error('[mercado-livre/webhook] falha:', error)
     return NextResponse.json({ ok: false }, { status: 503 })
