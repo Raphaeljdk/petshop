@@ -24,6 +24,21 @@ function safeMlError(value: unknown, fallback = 'oauth_failed') {
   return KNOWN_ML_ERRORS.has(normalized) ? normalized : fallback
 }
 
+function safeMlDetail(value: unknown) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  return normalized.slice(0, 240)
+}
+
+class MercadoLivreOAuthError extends Error {
+  constructor(
+    readonly oauthCode: string,
+    readonly detail = ''
+  ) {
+    super(oauthCode)
+  }
+}
+
 function equal(a: string, b: string) {
   const x = Buffer.from(a), y = Buffer.from(b)
   return x.length === y.length && timingSafeEqual(x, y)
@@ -40,6 +55,8 @@ export async function GET(req: NextRequest) {
   if (providerError && user?.role === 'ADMIN') {
     const url = new URL('/?ml=error', req.url)
     url.searchParams.set('ml_code', safeMlError(providerError))
+    const detail = safeMlDetail(req.nextUrl.searchParams.get('error_description'))
+    if (detail) url.searchParams.set('ml_detail', detail)
     return NextResponse.redirect(url)
   }
 
@@ -75,9 +92,14 @@ export async function GET(req: NextRequest) {
     })
 
     if (!tokenResponse.ok) {
-      const payload = await tokenResponse.json().catch(() => null) as { error?: string } | null
+      const payload = await tokenResponse.json().catch(() => null) as {
+        error?: string
+        error_description?: string
+        message?: string
+      } | null
       const code = safeMlError(payload?.error, `http_${tokenResponse.status}`)
-      throw new Error(code)
+      const detail = safeMlDetail(payload?.error_description || payload?.message)
+      throw new MercadoLivreOAuthError(code, detail)
     }
     const tokens = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; user_id?: number | string }
     if (!tokens.access_token || !tokens.refresh_token || !tokens.user_id || !Number.isFinite(Number(tokens.expires_in))) throw new Error('Resposta OAuth incompleta')
@@ -90,10 +112,18 @@ export async function GET(req: NextRequest) {
     })
     return clearCookie(NextResponse.redirect(new URL('/?ml=connected', req.url)))
   } catch (error) {
-    const code = safeMlError(error instanceof Error ? error.message : null)
-    console.error('Mercado Livre OAuth:', code)
+    const code =
+      error instanceof MercadoLivreOAuthError
+        ? error.oauthCode
+        : safeMlError(error instanceof Error ? error.message : null)
+    const detail =
+      error instanceof MercadoLivreOAuthError
+        ? safeMlDetail(error.detail)
+        : safeMlDetail(error instanceof Error ? error.message : null)
+    console.error('Mercado Livre OAuth:', code, detail || '(sem detalhe)')
     const url = new URL('/?ml=error', req.url)
     url.searchParams.set('ml_code', code)
+    if (detail && detail !== code) url.searchParams.set('ml_detail', detail)
     return clearCookie(NextResponse.redirect(url))
   }
 }
