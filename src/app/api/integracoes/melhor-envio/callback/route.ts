@@ -80,7 +80,8 @@ function tokenPage(payload: {
   <body>
     <main>
       <h1>Melhor Envio conectado</h1>
-      <p>A autorização funcionou. Copie estas variáveis para o ambiente seguro do servidor/Vercel.</p>
+      <p>A autorização funcionou. Na Vercel, crie cada variável separadamente.</p>
+      <p class="warn"><strong>Importante:</strong> no campo Value de cada variável, cole somente o conteúdo entre aspas. Não cole a linha inteira nem o bloco completo em MELHOR_ENVIO_ACCESS_TOKEN.</p>
       <p class="warn">Não envie esses valores por chat, print ou repositório. Eles dão acesso à integração.</p>
       <textarea readonly>${escapeHtml(envLines.join('\n'))}</textarea>
       <p class="meta">Expira em: ${escapeHtml(expiresAt)}</p>
