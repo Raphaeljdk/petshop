@@ -72,10 +72,31 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
   })
 
   if (existing) {
+    if (!existing.siggmaImportedAt) {
+      try {
+        const result = await importarVendaNoSiggma(existing.id)
+        return {
+          created: false,
+          vendaId: existing.id,
+          imported: result.imported,
+          status: result.imported ? 'imported' : 'review',
+          error: null,
+        }
+      } catch (error) {
+        return {
+          created: false,
+          vendaId: existing.id,
+          imported: false,
+          status: 'review',
+          error: error instanceof Error ? error.message : 'Falha ao reenviar venda ao Zetta.',
+        }
+      }
+    }
+
     return {
       created: false,
       vendaId: existing.id,
-      imported: Boolean(existing.siggmaImportedAt),
+      imported: true,
       status: existing.siggmaImportStatus,
       error: existing.siggmaImportError,
     }
