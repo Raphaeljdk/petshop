@@ -72,7 +72,6 @@ export function ProductDetailsDialog({
 
     let active = true
     // Reset state for the product being opened; the effect also starts the remote detail fetch.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setSelectedImage(0)
     setQuantity(1)
@@ -176,7 +175,6 @@ export function ProductDetailsDialog({
               }}
             >
               {currentImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={currentImage}
                   alt={current?.nome || product.nome}
