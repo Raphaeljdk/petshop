@@ -1,5 +1,11 @@
 import { db } from '@/lib/db'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
+import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
+import {
+  cancelarOrderMercadoPago,
+  consultarOrderMercadoPago,
+  mapearOrderParaVenda,
+} from '@/lib/mercado-pago-orders'
 
 export const PENDING_SALE_TTL_MS = 4 * 60 * 60 * 1000
 
@@ -20,10 +26,57 @@ export function isPendingSaleExpired(
 export async function cancelExpiredPendingSale(vendaId: string, now = new Date()) {
   const sale = await db.venda.findUnique({
     where: { id: vendaId },
-    select: { id: true, status: true, createdAt: true },
+    select: {
+      id: true,
+      status: true,
+      createdAt: true,
+      mercadoPagoId: true,
+    },
   })
 
   if (!sale || !isPendingSaleExpired(sale, now)) return false
+
+  if (
+    sale.mercadoPagoId &&
+    !sale.mercadoPagoId.startsWith('SIM-') &&
+    !sale.mercadoPagoId.startsWith('SIM_')
+  ) {
+    const config = await getOuCriarConfigPagamento()
+
+    try {
+      const cancelled = await cancelarOrderMercadoPago(sale.mercadoPagoId, config)
+      if (!cancelled.canceled) return false
+    } catch (cancelError) {
+      try {
+        const order = await consultarOrderMercadoPago(sale.mercadoPagoId, config)
+        const state = mapearOrderParaVenda(order.status, order.statusDetail)
+
+        if (state.aprovado) {
+          await applyPaymentSaleState(sale.id, {
+            status: 'concluida',
+            mercadoPagoStatus: state.mercadoPagoStatus,
+          })
+          return false
+        }
+
+        if (!state.rejeitado) {
+          console.error(
+            '[pending-sales] Mercado Pago não confirmou cancelamento:',
+            sale.id,
+            cancelError
+          )
+          return false
+        }
+      } catch (statusError) {
+        console.error(
+          '[pending-sales] não foi possível confirmar cancelamento no gateway:',
+          sale.id,
+          statusError
+        )
+        return false
+      }
+    }
+  }
 
   await applyPaymentSaleState(sale.id, {
     status: 'cancelada',
