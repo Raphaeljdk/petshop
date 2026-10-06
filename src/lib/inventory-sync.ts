@@ -4,12 +4,19 @@ import { mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
 import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-api'
 import { safeStock } from '@/lib/product-stock'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
+import { notifyRestockSubscribers } from '@/lib/restock-notifications'
 
 export type InventorySyncResult = {
   products: number
   mercadoLivreUpdated: number
   amazonUpdated: number
   skippedUnlinked: number
+  restockNotifications: {
+    configured: boolean
+    sent: number
+    pending: number
+    errors: string[]
+  }
   errors: string[]
 }
 
@@ -128,11 +135,23 @@ export async function syncZettaStockToMarketplaces(): Promise<InventorySyncResul
     },
   })
 
+  const restockNotifications = await notifyRestockSubscribers().catch((error) => ({
+    configured: false,
+    sent: 0,
+    pending: 0,
+    errors: [
+      error instanceof Error
+        ? error.message
+        : 'Falha ao processar avisos de reposição.',
+    ],
+  }))
+
   return {
     products: products.length,
     mercadoLivreUpdated,
     amazonUpdated,
     skippedUnlinked,
-    errors: errors.slice(0, 50),
+    restockNotifications,
+    errors: [...errors, ...restockNotifications.errors].slice(0, 50),
   }
 }
