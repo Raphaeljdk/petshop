@@ -129,36 +129,73 @@ export async function cotarMelhorEnvioComDiagnostico(
   }
 
   try {
-    const response = await fetch(`${melhorEnvioBaseUrl()}/api/v2/me/shipment/calculate`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        'User-Agent':
-          process.env.MELHOR_ENVIO_USER_AGENT?.trim() || DEFAULT_USER_AGENT,
+    const requestBody = JSON.stringify({
+      from: { postal_code: cepOrigem },
+      to: { postal_code: destino },
+      package: {
+        height: Math.max(1, pacote.height),
+        width: Math.max(1, pacote.width),
+        length: Math.max(1, pacote.length),
+        weight: Math.max(0.01, pacote.weight),
       },
-      body: JSON.stringify({
-        from: { postal_code: cepOrigem },
-        to: { postal_code: destino },
-        package: {
-          height: Math.max(1, pacote.height),
-          width: Math.max(1, pacote.width),
-          length: Math.max(1, pacote.length),
-          weight: Math.max(0.01, pacote.weight),
-        },
-        options: {
-          insurance_value: Math.max(0, pacote.insuranceValue || 0),
-          receipt: false,
-          own_hand: false,
-        },
-      }),
-      cache: 'no-store',
+      options: {
+        insurance_value: Math.max(0, pacote.insuranceValue || 0),
+        receipt: false,
+        own_hand: false,
+      },
     })
 
+    const baseUrls = melhorEnvioUsaSandbox()
+      ? [SANDBOX_URL]
+      : [PROD_URL, 'https://www.melhorenvio.com.br']
+
+    let response: Response | null = null
+    let ultimoErroTransporte: unknown = null
+
+    for (const baseUrl of baseUrls) {
+      try {
+        response = await fetch(`${baseUrl}/api/v2/me/shipment/calculate`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'User-Agent':
+              process.env.MELHOR_ENVIO_USER_AGENT?.trim() || DEFAULT_USER_AGENT,
+          },
+          body: requestBody,
+          cache: 'no-store',
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000),
+        })
+        break
+      } catch (error) {
+        ultimoErroTransporte = error
+        console.error('Melhor Envio transporte:', baseUrl, error)
+      }
+    }
+
+    if (!response) {
+      const nome =
+        ultimoErroTransporte instanceof Error
+          ? ultimoErroTransporte.name
+          : 'erro_desconhecido'
+      return {
+        opcoes: [],
+        status: 'erro',
+        mensagem:
+          `Falha de conexão do servidor com o Melhor Envio (${nome}). A chamada não chegou a uma resposta HTTP válida.`,
+      }
+    }
+
+    const rawBody = await response.text()
+
     if (!response.ok) {
-      const body = await response.text()
-      console.error('Melhor Envio cotacao:', response.status, body.slice(0, 500))
+      console.error(
+        'Melhor Envio cotacao:',
+        response.status,
+        rawBody.slice(0, 500)
+      )
 
       if (response.status === 401) {
         return {
@@ -175,7 +212,7 @@ export async function cotarMelhorEnvioComDiagnostico(
           opcoes: [],
           status: 'sem_permissao',
           mensagem:
-            'O Melhor Envio recusou a permissão de cotação. Confirme o acesso shipping-calculate e as transportadoras habilitadas no aplicativo.',
+            'O Melhor Envio recusou a chamada (HTTP 403). Confirme a permissão shipping-calculate; se a resposta for HTML, pode haver bloqueio de rede/WAF sobre a origem da requisição.',
           httpStatus: response.status,
         }
       }
@@ -188,7 +225,26 @@ export async function cotarMelhorEnvioComDiagnostico(
       }
     }
 
-    const payload = (await response.json()) as unknown
+    let payload: unknown
+    try {
+      payload = JSON.parse(rawBody)
+    } catch {
+      const contentType = response.headers.get('content-type') || 'desconhecido'
+      console.error(
+        'Melhor Envio resposta não JSON:',
+        response.status,
+        contentType,
+        rawBody.slice(0, 200)
+      )
+      return {
+        opcoes: [],
+        status: 'erro',
+        mensagem:
+          `O Melhor Envio respondeu HTTP ${response.status}, mas em formato inesperado (${contentType.split(';')[0]}). Isso normalmente indica bloqueio/intermediação da requisição antes da API.`,
+        httpStatus: response.status,
+      }
+    }
+
     const quotes = Array.isArray(payload) ? (payload as MelhorEnvioQuote[]) : []
 
     const opcoes = quotes
@@ -229,10 +285,11 @@ export async function cotarMelhorEnvioComDiagnostico(
     }
   } catch (error) {
     console.error('Melhor Envio cotacao indisponivel:', error)
+    const nome = error instanceof Error ? error.name : 'erro_desconhecido'
     return {
       opcoes: [],
       status: 'erro',
-      mensagem: 'Não foi possível consultar o Melhor Envio agora.',
+      mensagem: `Falha inesperada ao consultar o Melhor Envio (${nome}).`,
     }
   }
 }
