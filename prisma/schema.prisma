@@ -133,6 +133,7 @@ model Venda {
   marketplaceOrderId String? @unique
   marketplaceBuyerDocument String?
   marketplaceBuyerName String?
+  marketplaceStockAppliedAt DateTime?
   observacoes String?
   tipoEntrega     String?
   valorFrete      Float?   @default(0)
