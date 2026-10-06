@@ -324,7 +324,7 @@ export async function cotarMelhorEnvioComDiagnostico(
           opcoes: [],
           status: 'token_invalido',
           mensagem:
-            'O token do Melhor Envio foi recusado. Gere um novo token no mesmo ambiente usado pela loja (produção).',
+            'O access token tem formato JWT válido e não está expirado, mas o Melhor Envio o recusou. Ele pode ter sido revogado ou ter sido emitido por outro ambiente/aplicativo. Reconecte a conta pelo botão da Matilha Prado para gerar um token novo de produção.',
           httpStatus: response.status,
         }
       }
