@@ -13,6 +13,7 @@ import {
   numeroPositivo,
 } from '@/lib/melhor-envio'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
