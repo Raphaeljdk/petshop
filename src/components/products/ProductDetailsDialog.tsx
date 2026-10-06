@@ -143,16 +143,16 @@ export function ProductDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[96vh] w-[98vw] max-w-[98vw] gap-0 overflow-y-auto overflow-x-hidden p-0 sm:max-w-[calc(100vw-1.5rem)] lg:h-[94vh] lg:overflow-hidden 2xl:max-w-[1500px]">
+      <DialogContent className="product-details-dialog max-h-[96dvh] w-[98vw] max-w-[98vw] gap-0 overflow-y-auto overflow-x-hidden p-0 sm:max-w-[calc(100vw-1.5rem)] lg:h-[94vh] lg:max-h-[94vh] lg:overflow-hidden 2xl:max-w-[1500px]">
         <DialogTitle className="sr-only">Detalhes do produto</DialogTitle>
         <DialogDescription className="sr-only">
           Fotos, descrição, preço, estoque e informações do produto selecionado.
         </DialogDescription>
 
-        <div className="grid min-w-0 lg:h-full lg:grid-cols-[minmax(0,1.25fr)_minmax(460px,0.75fr)]">
+        <div className="grid w-full min-w-0 lg:h-full lg:grid-cols-[minmax(0,1.25fr)_minmax(460px,0.75fr)]">
           <div className="min-w-0 border-b bg-muted/15 p-4 sm:p-6 lg:flex lg:min-h-0 lg:flex-col lg:border-b-0 lg:border-r lg:p-6 xl:p-8">
             <div
-              className="product-gallery relative aspect-[4/3] overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm focus-visible:outline-2 focus-visible:outline-primary lg:min-h-0 lg:flex-1 lg:aspect-auto"
+              className="product-gallery relative aspect-square w-full max-w-full overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm focus-visible:outline-2 focus-visible:outline-primary sm:aspect-[4/3] lg:min-h-0 lg:flex-1 lg:aspect-auto"
               role="region"
               aria-label="Fotos do produto. Use as setas para navegar."
               tabIndex={images.length > 1 ? 0 : undefined}
