@@ -210,10 +210,12 @@ export async function importarVendaNoSiggma(vendaId: string) {
     throw error
   }
 
-  try {
-    await syncZettaProductsToLocal()
-  } catch (syncError) {
-    console.error('[siggma/orders] pedido importado, mas atualização de estoque falhou:', syncError)
+  if (!marketplaceSale) {
+    try {
+      await syncZettaProductsToLocal()
+    } catch (syncError) {
+      console.error('[siggma/orders] pedido importado, mas atualização de estoque falhou:', syncError)
+    }
   }
 
   return { imported: true, duplicate: false, guid, alreadyImported: false }

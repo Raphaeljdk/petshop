@@ -86,7 +86,7 @@ export async function POST() {
                 // estoque físico/oficial controlado pelo Zetta.
                 amazonAsin: item.asin,
                 estoqueAmazon: sourceStock,
-                ...(!existing.imageUrl && item.imageUrl
+                ...(!existing.mlItemId && item.imageUrl
                   ? { imageUrl: item.imageUrl }
                   : {}),
               }

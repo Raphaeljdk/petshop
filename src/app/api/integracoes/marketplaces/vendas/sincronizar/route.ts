@@ -15,7 +15,7 @@ export async function POST() {
   }
 
   const result = await syncMarketplaceSalesToZetta()
-  const inventory = await syncZettaStockToMarketplaces().catch((error) => ({
+  const inventory = await syncZettaStockToMarketplaces({ refreshZetta: false }).catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,
     amazonUpdated: 0,
