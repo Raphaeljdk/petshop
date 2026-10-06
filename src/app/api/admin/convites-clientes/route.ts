@@ -24,20 +24,47 @@ export async function POST(req: NextRequest) {
     const user = await admin()
     const body = z.object({ siggmaCliCod: z.number().int().positive(), expectedEmail: emailSchema }).strict().safeParse(await readAuthBody(req))
     if (!body.success) throw new AuthError('Selecione um cliente e confira o e-mail.')
-    if (!invitationMailConfig().configured) throw new AuthError('Configure RESEND_API_KEY, INVITATION_EMAIL_FROM e APP_URL (HTTPS) para enviar convites.', 503)
+    const mailConfig = invitationMailConfig()
+    if (!mailConfig.origin) {
+      throw new AuthError('Configure APP_URL ou NEXTAUTH_URL com HTTPS antes de gerar convites.', 503)
+    }
     const limited = await limitAuthAttempts('client-invite', user.id, 30, 60)
     if (limited) return limited
     const target = await officialInvitationClient(body.data.siggmaCliCod)
     if (target.email !== body.data.expectedEmail) throw new AuthError('O e-mail do cadastro mudou. Atualize a lista antes de enviar.', 409)
     const { invitation, token } = await issueClientInvitation(target, user.id)
+    const activationLink = `${mailConfig.origin}/ativar-conta#convite=${token}`
+
+    if (!mailConfig.configured) {
+      await db.clientInvitation.updateMany({
+        where: { id: invitation.id, tokenHash: invitation.tokenHash },
+        data: { emailStatus: 'manual' },
+      })
+      return authJson({
+        success: true,
+        manual: true,
+        activationLink,
+        message: 'Convite gerado. O envio de e-mail ainda não está configurado; copie o link de ativação e envie ao cliente por um canal privado.',
+      }, 201)
+    }
+
     let providerId: string
     try { providerId = await sendClientInvitation(invitation, token) }
     catch {
       await db.clientInvitation.updateMany({ where: { id: invitation.id, tokenHash: invitation.tokenHash }, data: { emailStatus: 'unknown' } })
-      throw new AuthError('Envio não confirmado. Consulte o provedor antes de reenviar. Um novo convite invalida o anterior.', 502)
+      return authJson({
+        success: true,
+        manual: true,
+        activationLink,
+        message: 'O serviço de e-mail não confirmou o envio. Use o link de ativação abaixo em vez de gerar outro convite.',
+      }, 201)
     }
     await db.clientInvitation.updateMany({ where: { id: invitation.id, tokenHash: invitation.tokenHash }, data: { emailStatus: 'accepted', providerId } })
-    return authJson({ success: true, message: 'Convite aceito pelo serviço de e-mail. A entrega na caixa de entrada ainda depende do provedor.' }, 201)
+    return authJson({
+      success: true,
+      manual: false,
+      message: 'Convite aceito pelo serviço de e-mail. A entrega na caixa de entrada ainda depende do provedor.',
+    }, 201)
   } catch (error) { return authFailure(error) }
 }
 export async function DELETE(req: NextRequest) {
