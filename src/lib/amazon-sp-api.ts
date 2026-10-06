@@ -269,6 +269,54 @@ function safeSpApiError(
   )
 }
 
+async function amazonRequest<T>(
+  pathname: string,
+  init: RequestInit,
+  params: Record<string, string> = {}
+): Promise<T> {
+  const config = amazonSpApiConfig()
+  const token = await amazonAccessToken()
+  const url = new URL(pathname, config.endpoint)
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) url.searchParams.set(key, value)
+  }
+
+  const headers = new Headers(init.headers)
+  headers.set('x-amz-access-token', token)
+  headers.set('x-amz-date', amazonDate())
+  headers.set(
+    'user-agent',
+    'MatilhaPrado/1.0 (Language=TypeScript; Platform=Vercel)'
+  )
+  headers.set('Accept', 'application/json')
+  if (init.body) headers.set('Content-Type', 'application/json')
+
+  const response = await fetch(url, {
+    ...init,
+    headers,
+    cache: 'no-store',
+  })
+
+  const payload = (await response.json().catch(() => null)) as
+    | T
+    | {
+        errors?: Array<{ code?: string; message?: string; details?: string }>
+      }
+    | null
+
+  if (!response.ok) {
+    throw safeSpApiError(
+      response.status,
+      payload as {
+        errors?: Array<{ code?: string; message?: string; details?: string }>
+      } | null
+    )
+  }
+
+  return payload as T
+}
+
 async function amazonGet<T>(
   pathname: string,
   params: Record<string, string>
@@ -738,4 +786,40 @@ export async function amazonOrderItems(orderId: string) {
   } while (nextToken)
 
   return items
+}
+
+
+export async function amazonUpdateListingQuantity(
+  sku: string,
+  quantity: number
+) {
+  const config = amazonSpApiConfig()
+  const normalizedQuantity = Math.max(0, Math.floor(quantity))
+
+  return amazonRequest<Record<string, unknown>>(
+    `/listings/2021-08-01/items/${encodeURIComponent(
+      config.sellerId
+    )}/${encodeURIComponent(sku)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        productType: 'PRODUCT',
+        patches: [
+          {
+            op: 'merge',
+            path: '/attributes/fulfillment_availability',
+            value: [
+              {
+                fulfillment_channel_code: 'DEFAULT',
+                quantity: normalizedQuantity,
+              },
+            ],
+          },
+        ],
+      }),
+    },
+    {
+      marketplaceIds: config.marketplaceId,
+    }
+  )
 }
