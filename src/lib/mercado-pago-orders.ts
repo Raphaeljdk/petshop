@@ -486,6 +486,35 @@ export async function criarOrderMercadoPago(
   return resultado
 }
 
+export async function cancelarOrderMercadoPago(
+  orderId: string,
+  config: ConfiguracaoPagamento
+) {
+  if (!orderId || orderId.startsWith('SIM-') || orderId.startsWith('SIM_')) {
+    return { canceled: true, simulated: true }
+  }
+
+  const key = createHash('sha256')
+    .update(`cancel:${orderId}`)
+    .digest('hex')
+    .slice(0, 48)
+
+  const order = await chamarMercadoPago(
+    `/v1/orders/${encodeURIComponent(orderId)}/cancel`,
+    config,
+    {
+      method: 'POST',
+      headers: { 'X-Idempotency-Key': key },
+    }
+  )
+
+  return {
+    canceled: String(order?.status || '').toLowerCase() === 'canceled',
+    simulated: false,
+    raw: order,
+  }
+}
+
 export async function consultarOrderMercadoPago(
   orderId: string,
   config: ConfiguracaoPagamento
