@@ -6,7 +6,7 @@ import {
   validarCep,
 } from '@/lib/frete'
 import {
-  cotarMelhorEnvio,
+  cotarMelhorEnvioComDiagnostico,
   melhorEnvioConfigurado,
   melhorEnvioDefaultPackage,
   melhorEnvioUsaSandbox,
@@ -33,10 +33,16 @@ export async function GET(req: NextRequest) {
 
     const { opcoes, dentroSP, config } = await calcularOpcoesFrete(cepParam)
     const configurado = melhorEnvioConfigurado()
-    let melhorEnvioOpcoes = [] as Awaited<ReturnType<typeof cotarMelhorEnvio>>
+    let melhorEnvioResultado = {
+      opcoes: [],
+      status: configurado ? 'sem_servicos' : 'nao_configurado',
+      mensagem: configurado
+        ? 'Nenhuma cotação consultada ainda.'
+        : 'Melhor Envio ainda não está completamente configurado.',
+    } as Awaited<ReturnType<typeof cotarMelhorEnvioComDiagnostico>>
 
     if (valido && configurado) {
-      melhorEnvioOpcoes = await cotarMelhorEnvio(cepParam, {
+      melhorEnvioResultado = await cotarMelhorEnvioComDiagnostico(cepParam, {
         weight: numeroPositivo(
           req.nextUrl.searchParams.get('weight'),
           melhorEnvioDefaultPackage().weight
@@ -64,7 +70,7 @@ export async function GET(req: NextRequest) {
       cep: cepFormatado,
       valido,
       dentroSP,
-      opcoes: [...opcoes, ...melhorEnvioOpcoes],
+      opcoes: [...opcoes, ...melhorEnvioResultado.opcoes],
       retiradaEndereco: config.retiradaEndereco,
       horarioFuncionamento: HORARIO_FUNCIONAMENTO_LABEL,
       correiosDisponivel: false,
@@ -73,7 +79,10 @@ export async function GET(req: NextRequest) {
       melhorEnvio: {
         configurado,
         ambiente: melhorEnvioUsaSandbox() ? 'sandbox' : 'producao',
-        quantidadeOpcoes: melhorEnvioOpcoes.length,
+        quantidadeOpcoes: melhorEnvioResultado.opcoes.length,
+        status: melhorEnvioResultado.status,
+        mensagem: melhorEnvioResultado.mensagem,
+        httpStatus: melhorEnvioResultado.httpStatus ?? null,
       },
     })
   } catch (e) {
