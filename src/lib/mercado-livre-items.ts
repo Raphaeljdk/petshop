@@ -30,6 +30,7 @@ type MercadoLivreItemBody = {
 type MercadoLivreBulkResult = {
   id?: string
   status_code?: number
+  code?: number
   body?: MercadoLivreItemBody
 }
 
@@ -75,31 +76,43 @@ function sellerSku(body: MercadoLivreItemBody) {
 
 function normalizeBulkItem(result: MercadoLivreBulkResult): MercadoLivreCatalogItem | null {
   const body = result.body
-  if (result.status_code !== 200 || !body?.id) return null
+  const statusCode = result.status_code ?? result.code
+  const itemId = body?.id || result.id
 
-  const images = (body.pictures || [])
+  if (statusCode !== 200 || !body || !itemId) return null
+
+  // /items/bulk returns the item id at the root of each verbose result.
+  // Keep body.id as a fallback for the legacy multiget response while both
+  // formats coexist during Mercado Livre's migration.
+  const normalizedBody: MercadoLivreItemBody = body.id
+    ? body
+    : { ...body, id: itemId }
+
+  const images = (normalizedBody.pictures || [])
     .map((picture) => validHttps(picture.secure_url) || validHttps(picture.url))
     .filter((value): value is string => Boolean(value))
 
   const thumbnail =
     images[0] ||
-    validHttps(body.secure_thumbnail) ||
-    validHttps(body.thumbnail)
+    validHttps(normalizedBody.secure_thumbnail) ||
+    validHttps(normalizedBody.thumbnail)
 
   return {
-    id: body.id,
-    title: body.title?.trim() || 'Produto sem título',
-    price: Number.isFinite(Number(body.price)) ? Math.max(0, Number(body.price)) : 0,
-    currency: body.currency_id || 'BRL',
-    quantity: Number.isFinite(Number(body.available_quantity))
-      ? Math.max(0, Math.floor(Number(body.available_quantity)))
+    id: itemId,
+    title: normalizedBody.title?.trim() || 'Produto sem título',
+    price: Number.isFinite(Number(normalizedBody.price))
+      ? Math.max(0, Number(normalizedBody.price))
       : 0,
-    status: body.status || 'unknown',
-    permalink: validHttps(body.permalink),
+    currency: normalizedBody.currency_id || 'BRL',
+    quantity: Number.isFinite(Number(normalizedBody.available_quantity))
+      ? Math.max(0, Math.floor(Number(normalizedBody.available_quantity)))
+      : 0,
+    status: normalizedBody.status || 'unknown',
+    permalink: validHttps(normalizedBody.permalink),
     thumbnail,
     images,
-    categoryId: body.category_id || null,
-    sku: sellerSku(body),
+    categoryId: normalizedBody.category_id || null,
+    sku: sellerSku(normalizedBody),
   }
 }
 
