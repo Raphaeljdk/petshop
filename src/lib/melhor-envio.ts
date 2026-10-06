@@ -30,6 +30,21 @@ export type MelhorEnvioPackage = {
   quantity?: number
 }
 
+export type MelhorEnvioCotacaoStatus =
+  | 'ok'
+  | 'nao_configurado'
+  | 'token_invalido'
+  | 'sem_permissao'
+  | 'sem_servicos'
+  | 'erro'
+
+export type MelhorEnvioCotacaoResultado = {
+  opcoes: OpcaoFrete[]
+  status: MelhorEnvioCotacaoStatus
+  mensagem: string
+  httpStatus?: number
+}
+
 export function randomUrlSafe(bytes = 32) {
   return randomBytes(bytes).toString('base64url')
 }
@@ -97,15 +112,21 @@ export function numeroPositivo(valor: string | number | null | undefined, fallba
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
-export async function cotarMelhorEnvio(
+export async function cotarMelhorEnvioComDiagnostico(
   cepDestino: string,
   pacote: MelhorEnvioPackage
-): Promise<OpcaoFrete[]> {
+): Promise<MelhorEnvioCotacaoResultado> {
   const token = process.env.MELHOR_ENVIO_ACCESS_TOKEN?.trim()
   const cepOrigem = melhorEnvioOriginCep()
   const destino = cepDestino.replace(/\D/g, '')
 
-  if (!token || cepOrigem.length !== 8 || destino.length !== 8) return []
+  if (!token || cepOrigem.length !== 8 || destino.length !== 8) {
+    return {
+      opcoes: [],
+      status: 'nao_configurado',
+      mensagem: 'Melhor Envio ainda não está completamente configurado.',
+    }
+  }
 
   try {
     const response = await fetch(`${melhorEnvioBaseUrl()}/api/v2/me/shipment/calculate`, {
@@ -138,19 +159,46 @@ export async function cotarMelhorEnvio(
     if (!response.ok) {
       const body = await response.text()
       console.error('Melhor Envio cotacao:', response.status, body.slice(0, 500))
-      return []
+
+      if (response.status === 401) {
+        return {
+          opcoes: [],
+          status: 'token_invalido',
+          mensagem:
+            'O token do Melhor Envio foi recusado. Gere um novo token no mesmo ambiente usado pela loja (produção).',
+          httpStatus: response.status,
+        }
+      }
+
+      if (response.status === 403) {
+        return {
+          opcoes: [],
+          status: 'sem_permissao',
+          mensagem:
+            'O Melhor Envio recusou a permissão de cotação. Confirme o acesso shipping-calculate e as transportadoras habilitadas no aplicativo.',
+          httpStatus: response.status,
+        }
+      }
+
+      return {
+        opcoes: [],
+        status: 'erro',
+        mensagem: `Melhor Envio indisponível no momento (HTTP ${response.status}).`,
+        httpStatus: response.status,
+      }
     }
 
-    const quotes = (await response.json()) as MelhorEnvioQuote[]
+    const payload = (await response.json()) as unknown
+    const quotes = Array.isArray(payload) ? (payload as MelhorEnvioQuote[]) : []
 
-    return quotes
+    const opcoes = quotes
       .filter((quote) => !quote.error && Number(quote.custom_price || quote.price) >= 0)
       .map((quote) => {
         const prazo = Number(quote.custom_delivery_time || quote.delivery_time || 0)
         const transportadora = quote.company?.name || 'Transportadora'
         const servico = quote.name || 'Entrega'
         return {
-          tipo: 'melhor_envio',
+          tipo: 'melhor_envio' as const,
           label: `${transportadora} · ${servico}`,
           valor: Number(quote.custom_price || quote.price || 0),
           prazo:
@@ -162,8 +210,37 @@ export async function cotarMelhorEnvio(
           melhorEnvioServiceId: quote.id ? String(quote.id) : undefined,
         }
       })
+
+    if (opcoes.length === 0) {
+      const primeiroErro = quotes.find((quote) => quote.error)?.error?.trim()
+      return {
+        opcoes: [],
+        status: 'sem_servicos',
+        mensagem: primeiroErro
+          ? `Nenhum serviço disponível. Melhor Envio: ${primeiroErro.slice(0, 180)}`
+          : 'Nenhuma transportadora/serviço retornou cotação. Habilite os serviços do aplicativo no painel do Melhor Envio.',
+      }
+    }
+
+    return {
+      opcoes,
+      status: 'ok',
+      mensagem: `${opcoes.length} opção(ões) de frete encontrada(s).`,
+    }
   } catch (error) {
     console.error('Melhor Envio cotacao indisponivel:', error)
-    return []
+    return {
+      opcoes: [],
+      status: 'erro',
+      mensagem: 'Não foi possível consultar o Melhor Envio agora.',
+    }
   }
+}
+
+export async function cotarMelhorEnvio(
+  cepDestino: string,
+  pacote: MelhorEnvioPackage
+): Promise<OpcaoFrete[]> {
+  const resultado = await cotarMelhorEnvioComDiagnostico(cepDestino, pacote)
+  return resultado.opcoes
 }
