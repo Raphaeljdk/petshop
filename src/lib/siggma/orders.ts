@@ -168,14 +168,9 @@ export async function importarVendaNoSiggma(vendaId: string) {
         guid,
         status: 'novo',
         cpfCnpj: cpfCnpj || undefined,
-        nome:
-          venda.cliente?.nome ||
-          venda.marketplaceBuyerName ||
-          (venda.canal === 'mercadolivre'
-            ? 'E-commerce Mercado Livre'
-            : venda.canal === 'amazon'
-              ? 'E-commerce Amazon'
-              : undefined),
+        nome: marketplaceSale
+          ? `E-commerce ${venda.canal === 'mercadolivre' ? 'Mercado Livre' : 'Amazon'}${venda.marketplaceBuyerName ? ` - ${venda.marketplaceBuyerName}` : ''}`
+          : venda.cliente?.nome || undefined,
         email: venda.cliente?.email || undefined,
         telefone: normalizeCpfCnpj(venda.cliente?.telefone) || undefined,
         celular: normalizeCpfCnpj(venda.cliente?.telefone) || undefined,
