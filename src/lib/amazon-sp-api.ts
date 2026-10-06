@@ -603,3 +603,139 @@ export async function amazonSellerListings(maximum = 500) {
       includedData === 'summaries' ? 'summaries' : 'full',
   }
 }
+
+
+export type AmazonMarketplaceOrder = {
+  orderId: string
+  purchaseDate: string
+  lastUpdateDate: string
+  status: string
+  total: number
+  buyerName: string | null
+}
+
+export type AmazonMarketplaceOrderItem = {
+  asin: string | null
+  sellerSku: string | null
+  title: string | null
+  quantity: number
+  unitPrice: number
+}
+
+type AmazonOrdersApiResponse = {
+  payload?: {
+    Orders?: Array<{
+      AmazonOrderId?: string
+      PurchaseDate?: string
+      LastUpdateDate?: string
+      OrderStatus?: string
+      OrderTotal?: { Amount?: string; CurrencyCode?: string }
+      BuyerInfo?: { BuyerName?: string }
+    }>
+    NextToken?: string
+  }
+}
+
+type AmazonOrderItemsApiResponse = {
+  payload?: {
+    OrderItems?: Array<{
+      ASIN?: string
+      SellerSKU?: string
+      Title?: string
+      QuantityOrdered?: number
+      ItemPrice?: { Amount?: string; CurrencyCode?: string }
+    }>
+    NextToken?: string
+  }
+}
+
+function amazonConfirmedOrderStatus(status?: string) {
+  return ['Unshipped', 'PartiallyShipped', 'Shipped', 'InvoiceUnconfirmed'].includes(
+    String(status || '')
+  )
+}
+
+export async function amazonOrdersUpdatedSince(since: Date, maximum = 100) {
+  const config = amazonSpApiConfig()
+  const orders: AmazonMarketplaceOrder[] = []
+  let nextToken = ''
+
+  try {
+    do {
+      const payload = await amazonGet<AmazonOrdersApiResponse>(
+        '/orders/v0/orders',
+        nextToken
+          ? {
+              MarketplaceIds: config.marketplaceId,
+              NextToken: nextToken,
+            }
+          : {
+              MarketplaceIds: config.marketplaceId,
+              LastUpdatedAfter: since.toISOString(),
+              MaxResultsPerPage: '100',
+            }
+      )
+
+      for (const order of payload.payload?.Orders || []) {
+        if (!order.AmazonOrderId || !amazonConfirmedOrderStatus(order.OrderStatus)) {
+          continue
+        }
+        orders.push({
+          orderId: order.AmazonOrderId,
+          purchaseDate: order.PurchaseDate || order.LastUpdateDate || new Date().toISOString(),
+          lastUpdateDate: order.LastUpdateDate || order.PurchaseDate || new Date().toISOString(),
+          status: order.OrderStatus || 'Unknown',
+          total: Math.max(0, Number(order.OrderTotal?.Amount || 0)),
+          buyerName: order.BuyerInfo?.BuyerName?.trim() || null,
+        })
+        if (orders.length >= maximum) break
+      }
+
+      nextToken = payload.payload?.NextToken || ''
+    } while (nextToken && orders.length < maximum)
+  } catch (error) {
+    if (error instanceof AmazonSpApiError && error.status === 403) {
+      throw new AmazonSpApiError(
+        'orders_role_required',
+        'A Amazon recusou a leitura de pedidos. Adicione à aplicação a função Inventory and Order Tracking (ou permissão equivalente de pedidos), autoautorize novamente a conta e atualize o Refresh Token.',
+        403
+      )
+    }
+    throw error
+  }
+
+  return {
+    orders,
+    truncated: Boolean(nextToken),
+    sellerId: config.sellerId,
+    marketplaceId: config.marketplaceId,
+  }
+}
+
+export async function amazonOrderItems(orderId: string) {
+  const items: AmazonMarketplaceOrderItem[] = []
+  let nextToken = ''
+
+  do {
+    const payload = await amazonGet<AmazonOrderItemsApiResponse>(
+      `/orders/v0/orders/${encodeURIComponent(orderId)}/orderItems`,
+      nextToken ? { NextToken: nextToken } : {}
+    )
+
+    for (const item of payload.payload?.OrderItems || []) {
+      const quantity = Math.max(1, Math.floor(Number(item.QuantityOrdered || 1)))
+      const total = Math.max(0, Number(item.ItemPrice?.Amount || 0))
+      items.push({
+        asin: item.ASIN?.trim() || null,
+        sellerSku: item.SellerSKU?.trim() || null,
+        title: item.Title?.trim() || null,
+        quantity,
+        unitPrice: quantity > 0 ? total / quantity : total,
+      })
+    }
+
+    nextToken = payload.payload?.NextToken || ''
+  } while (nextToken)
+
+  return items
+}
