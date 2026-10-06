@@ -309,28 +309,28 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                 </CardContent>
               </Card>
             ) : (
-              <div className="stagger-grid grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-6">
+              <div className="stagger-grid grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
                 {visible.map((product) => {
                   const currentPrice = product.precoPromo ?? product.preco
                   const hasPromo = product.precoPromo != null && product.precoPromo < product.preco
 
                   return (
-                    <Card key={product.id} className="boutique-product group overflow-hidden py-0 card-hover">
-                      <CardContent className="flex h-full flex-col p-3 sm:p-4">
+                    <Card key={product.id} className="boutique-product group overflow-hidden border-border/70 bg-card py-0 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+                      <CardContent className="flex h-full flex-col p-4 sm:p-5">
                         <button
                           type="button"
                           onClick={() => setSelectedProduct(product)}
                           className="text-left"
                           aria-label={`Ver detalhes de ${product.nome}`}
                         >
-                          <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-muted">
+                          <div className="relative mb-4 aspect-square overflow-hidden rounded-2xl border border-border/50 bg-white">
                             {product.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={product.imageUrl}
                                 alt={product.nome}
                                 loading="lazy"
-                                className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-105"
+                                className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-[1.04] sm:p-4"
                               />
                             ) : (
                               <div className="flex h-full items-center justify-center">
@@ -346,22 +346,26 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                             )}
                           </div>
 
-                          <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug group-hover:text-primary">
+                          <p className="line-clamp-2 min-h-12 text-base font-semibold leading-snug tracking-tight group-hover:text-primary">
                             {product.nome}
                           </p>
-                          <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                          <p className="mt-1.5 truncate text-xs text-muted-foreground">
                             {product.categoria}
                           </p>
                         </button>
 
-                        <div className="mt-auto pt-3">
+                        <div className="mt-auto pt-4">
                           {hasPromo && (
                             <p className="text-[11px] text-muted-foreground line-through">
                               {money(product.preco)}
                             </p>
                           )}
-                          <p className="text-base font-bold text-primary">{money(currentPrice)}</p>
-                          <p className="mt-1 text-[10px] text-muted-foreground">
+                          <p className="text-xl font-extrabold tracking-tight text-primary">{money(currentPrice)}</p>
+                          <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${
+      product.estoqueIlimitado || product.estoque > 0
+        ? 'bg-emerald-50 text-emerald-700'
+        : 'bg-slate-100 text-slate-500'
+    }`}>
                             {product.estoqueIlimitado
                               ? 'Disponível sem limite de estoque'
                               : product.estoque > 0
@@ -373,7 +377,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                         <Button
                           size="sm"
                           onClick={onBuy}
-                          className="mt-3 h-9 w-full"
+                          className="mt-4 h-11 w-full text-sm font-semibold shadow-sm"
                         >
                           {!product.estoqueIlimitado && product.estoque <= 0
                             ? 'Entrar e avisar quando chegar'
