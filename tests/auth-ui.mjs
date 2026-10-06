@@ -77,6 +77,7 @@ try {
       categoria: 'Teste responsivo',
       preco: 49.9,
       estoque: 3,
+      estoqueHub: 3,
       ativo: true,
     },
   })
