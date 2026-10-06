@@ -59,6 +59,82 @@ async function resolveProduct(
   )
 }
 
+async function applyMarketplaceStockDelta(vendaId: string) {
+  return db.$transaction(async (tx) => {
+    const venda = await tx.venda.findUnique({
+      where: { id: vendaId },
+      select: {
+        id: true,
+        canal: true,
+        siggmaImportedAt: true,
+        marketplaceStockAppliedAt: true,
+        itens: {
+          select: {
+            quantidade: true,
+            produto: {
+              select: {
+                id: true,
+                estoque: true,
+                estoqueZetta: true,
+                estoqueMercadoLivre: true,
+                estoqueAmazon: true,
+                zettaProCod: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (
+      !venda ||
+      !venda.siggmaImportedAt ||
+      venda.marketplaceStockAppliedAt ||
+      !['mercadolivre', 'amazon'].includes(venda.canal)
+    ) {
+      return false
+    }
+
+    for (const item of venda.itens) {
+      if (!item.produto.zettaProCod) continue
+
+      const quantidade = Math.max(1, Math.floor(item.quantidade))
+      const novoSaldo = Math.max(
+        0,
+        Number(item.produto.estoqueZetta || item.produto.estoque || 0) - quantidade
+      )
+
+      await tx.produto.update({
+        where: { id: item.produto.id },
+        data: {
+          estoque: novoSaldo,
+          estoqueZetta: novoSaldo,
+          ...(venda.canal === 'mercadolivre'
+            ? {
+                estoqueMercadoLivre: Math.max(
+                  0,
+                  Number(item.produto.estoqueMercadoLivre || 0) - quantidade
+                ),
+              }
+            : {
+                estoqueAmazon: Math.max(
+                  0,
+                  Number(item.produto.estoqueAmazon || 0) - quantidade
+                ),
+              }),
+        },
+      })
+    }
+
+    await tx.venda.update({
+      where: { id: venda.id },
+      data: { marketplaceStockAppliedAt: new Date() },
+    })
+
+    return true
+  })
+}
+
 export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
   const key = marketplaceKey(input.channel, input.orderId)
   const existing = await db.venda.findUnique({
@@ -75,6 +151,7 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
     if (!existing.siggmaImportedAt) {
       try {
         const result = await importarVendaNoSiggma(existing.id)
+        if (result.imported) await applyMarketplaceStockDelta(existing.id)
         return {
           created: false,
           vendaId: existing.id,
@@ -162,6 +239,7 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
 
   try {
     const result = await importarVendaNoSiggma(venda.id)
+    if (result.imported) await applyMarketplaceStockDelta(venda.id)
     return {
       created: true,
       vendaId: venda.id,
