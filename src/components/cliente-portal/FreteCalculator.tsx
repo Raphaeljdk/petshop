@@ -36,6 +36,9 @@ interface FreteResponse {
     configurado: boolean
     ambiente: 'sandbox' | 'producao'
     quantidadeOpcoes: number
+    status?: 'ok' | 'nao_configurado' | 'token_invalido' | 'sem_permissao' | 'sem_servicos' | 'erro'
+    mensagem?: string
+    httpStatus?: number | null
   }
 }
 
@@ -241,6 +244,26 @@ export function FreteCalculator({
               </p>
             </div>
           </div>
+
+          {dados.melhorEnvio?.configurado &&
+            dados.melhorEnvio.quantidadeOpcoes === 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
+                <Truck className="mt-0.5 size-4 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-medium">Melhor Envio conectado, mas sem cotação</p>
+                  <p>
+                    {dados.melhorEnvio.mensagem ||
+                      'Nenhuma transportadora retornou preço para este CEP.'}
+                  </p>
+                  <p className="mt-1 text-[11px]">
+                    Ambiente: <strong>{dados.melhorEnvio.ambiente}</strong>
+                    {dados.melhorEnvio.httpStatus
+                      ? ` · HTTP ${dados.melhorEnvio.httpStatus}`
+                      : ''}
+                  </p>
+                </div>
+              </div>
+            )}
 
           {dados.correiosDisponivel === false && (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
