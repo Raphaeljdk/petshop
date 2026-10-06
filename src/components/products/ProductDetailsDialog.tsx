@@ -71,6 +71,7 @@ export function ProductDetailsDialog({
     if (!open || !product) return
 
     let active = true
+    const controller = new AbortController()
     // Reset state for the product being opened; the effect also starts the remote detail fetch.
     setLoading(true)
     setSelectedImage(0)
@@ -82,6 +83,7 @@ export function ProductDetailsDialog({
 
     void fetch(`/api/public/produtos/${encodeURIComponent(product.id)}`, {
       cache: 'no-store',
+      signal: controller.signal,
     })
       .then(async (response) => {
         const payload = await response.json().catch(() => null)
@@ -94,6 +96,7 @@ export function ProductDetailsDialog({
         setSelectedImage(0)
       })
       .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
         console.error('product details:', error)
       })
       .finally(() => {
@@ -102,6 +105,7 @@ export function ProductDetailsDialog({
 
     return () => {
       active = false
+      controller.abort()
     }
   }, [open, product])
 
