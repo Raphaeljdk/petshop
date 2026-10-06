@@ -142,6 +142,8 @@ try {
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.getByRole('button', { name: 'Cadastrar', exact: true }).waitFor()
 
+  await page.setViewportSize({ width: 1280, height: 900 })
+
   const adminEmail = prefix + '-admin@example.test'
   const code = randomBytes(32).toString('hex')
   await db.adminInvitation.create({ data: { email: adminEmail, tokenHash: createHash('sha256').update(code).digest('hex'), expiresAt: new Date(Date.now() + 600_000) } })
