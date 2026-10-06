@@ -116,7 +116,7 @@ export async function importarVendaNoSiggma(vendaId: string) {
   }
   if (marketplaceSale && !ecommerceId) {
     throw new Error(
-      `ecommerceId do canal ${isMercadoLivre ? 'Mercado Livre' : 'Amazon'} não configurado. Defina ${isMercadoLivre ? 'SIGGMA_ECOMMERCE_ID_MERCADO_LIVRE' : 'SIGGMA_ECOMMERCE_ID_AMAZON'}.`
+      `Canal ${isMercadoLivre ? 'Mercado Livre' : 'Amazon'} ainda sem ecommerceId cadastrado no Hub. Após o cadastro do canal no Zetta, configure ${isMercadoLivre ? 'SIGGMA_ECOMMERCE_ID_MERCADO_LIVRE' : 'SIGGMA_ECOMMERCE_ID_AMAZON'} uma única vez.`
     )
   }
 
