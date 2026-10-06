@@ -47,9 +47,9 @@ propaga esse saldo para Mercado Livre e Amazon. Nunca somamos os saldos dos mark
 - Antes de existir nota, o GUID pode retornar `EXCLUIDO`; isso não significa que a importação do pedido falhou.
 - Cancelar, devolver ou reembolsar não é suportado pela API e deve ser feito no Zetta.
 
-## Configuração pendente por ambiente
+## Configuração fixa por ambiente
 
-Preencher na Vercel os IDs reais cadastrados no Zetta:
+Os `ecommerceId` não são expostos pela API. A Zettabrasil informa cada ID depois que o respectivo canal é cadastrado no sistema. Como os valores são fixos, basta configurá-los uma única vez no Hub/Vercel:
 
 ```env
 SIGGMA_ECOMMERCE_ID_SITE=
@@ -57,4 +57,4 @@ SIGGMA_ECOMMERCE_ID_MERCADO_LIVRE=
 SIGGMA_ECOMMERCE_ID_AMAZON=
 ```
 
-Não inventar esses IDs. Eles precisam vir do cadastro de e-commerce do Zetta.
+Não tentar descobrir esses IDs pela API e não inventar valores. Até a Zettabrasil informar o ID do canal, o Hub bloqueia a importação daquele marketplace para evitar registrar pedidos no e-commerce errado.
