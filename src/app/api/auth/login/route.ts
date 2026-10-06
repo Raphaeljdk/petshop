@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     authReady()
     const data = parsed.data
     const rateKey =
-      data.role === 'CLIENTE' ? `cliente:${data.telefone}` : `equipe:${data.email}`
+      data.role === 'CLIENTE' ? `cliente:${data.identificador.replace(/\D/g, '') || data.identificador}` : `equipe:${data.email}`
     const limited = await limitAuthAttempts('login', rateKey)
     if (limited) return limited
 
@@ -34,15 +34,29 @@ export async function POST(req: NextRequest) {
     } | null = null
 
     if (data.role === 'CLIENTE') {
-      const candidates = await db.$queryRaw<Array<{ id: string }>>`
-        SELECT u."id"
-        FROM "User" u
-        JOIN "Cliente" c ON c."id" = u."clienteId"
-        WHERE u."role" = 'CLIENTE'
-          AND u."ativo" = TRUE
-          AND regexp_replace(COALESCE(c."telefone", ''), '[^0-9]', '', 'g') = ${data.telefone}
-        LIMIT 10
-      `
+      const identifier = data.identificador
+      const candidates = identifier.includes('@')
+        ? await db.user.findMany({
+            where: {
+              role: 'CLIENTE',
+              ativo: true,
+              OR: [
+                { email: { equals: identifier, mode: 'insensitive' } },
+                { cliente: { is: { email: { equals: identifier, mode: 'insensitive' } } } },
+              ],
+            },
+            select: { id: true },
+            take: 10,
+          })
+        : await db.$queryRaw<Array<{ id: string }>>`
+            SELECT u."id"
+            FROM "User" u
+            JOIN "Cliente" c ON c."id" = u."clienteId"
+            WHERE u."role" = 'CLIENTE'
+              AND u."ativo" = TRUE
+              AND regexp_replace(COALESCE(c."telefone", ''), '[^0-9]', '', 'g') = ${identifier.replace(/\D/g, '')}
+            LIMIT 10
+          `
 
       for (const row of candidates) {
         const candidate = await db.user.findUnique({
@@ -96,7 +110,7 @@ export async function POST(req: NextRequest) {
           success: false,
           error:
             data.role === 'CLIENTE'
-              ? 'Telefone ou senha incorretos.'
+              ? 'E-mail, telefone ou senha incorretos.'
               : 'E-mail/usuário ou senha incorretos.',
         },
         401
