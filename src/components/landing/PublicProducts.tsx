@@ -145,7 +145,13 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
       ? products.filter((product) => matchesShortcut(product, selectedShortcut))
       : products
 
-    return filtered.slice(0, 12)
+    return [...filtered]
+      .sort((a, b) => {
+        const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
+        const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
+        return aSemEstoque === bSemEstoque ? 0 : aSemEstoque ? 1 : -1
+      })
+      .slice(0, 12)
   }, [products, selectedShortcut])
 
   const shortcutImages = useMemo(() => {
@@ -324,7 +330,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                                 src={product.imageUrl}
                                 alt={product.nome}
                                 loading="lazy"
-                                className="h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
+                                className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-105"
                               />
                             ) : (
                               <div className="flex h-full items-center justify-center">
@@ -367,10 +373,11 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                         <Button
                           size="sm"
                           onClick={onBuy}
-                          disabled={!product.estoqueIlimitado && product.estoque <= 0}
                           className="mt-3 h-9 w-full"
                         >
-                          Comprar
+                          {!product.estoqueIlimitado && product.estoque <= 0
+                            ? 'Entrar e avisar quando chegar'
+                            : 'Comprar'}
                           <ArrowRight className="size-3.5" />
                         </Button>
                       </CardContent>
