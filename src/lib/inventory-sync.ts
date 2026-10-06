@@ -28,10 +28,16 @@ function amazonSubmissionHasError(payload: unknown) {
   )
 }
 
-export async function syncZettaStockToMarketplaces(): Promise<InventorySyncResult> {
+export async function syncZettaStockToMarketplaces(
+  options: { refreshZetta?: boolean } = {}
+): Promise<InventorySyncResult> {
   // O ERP é a fonte física. Nunca propague saldo de marketplace para outro
   // marketplace, pois ambos podem estar mostrando as mesmas unidades.
-  await syncZettaProductsToLocal()
+  // Após uma venda externa recém-importada, a baixa local já representa o
+  // novo saldo e não deve ser sobrescrita por uma leitura possivelmente atrasada.
+  if (options.refreshZetta !== false) {
+    await syncZettaProductsToLocal()
+  }
 
   const products = await db.produto.findMany({
     where: {
