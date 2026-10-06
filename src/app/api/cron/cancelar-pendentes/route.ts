@@ -16,8 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   const pending = await cancelExpiredPendingSales()
-  const marketplaces = await syncMarketplaceSalesToZetta()
-  const inventory = await syncZettaStockToMarketplaces().catch((error) => ({
+  const inventoryBefore = await syncZettaStockToMarketplaces().catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,
     amazonUpdated: 0,
@@ -25,7 +24,21 @@ export async function GET(req: NextRequest) {
     errors: [
       error instanceof Error
         ? error.message
-        : 'Falha ao sincronizar o estoque unificado.',
+        : 'Falha ao reconciliar o estoque antes das vendas.',
+    ],
+  }))
+  const marketplaces = await syncMarketplaceSalesToZetta()
+  const inventory = await syncZettaStockToMarketplaces({
+    refreshZetta: false,
+  }).catch((error) => ({
+    products: 0,
+    mercadoLivreUpdated: 0,
+    amazonUpdated: 0,
+    skippedUnlinked: 0,
+    errors: [
+      error instanceof Error
+        ? error.message
+        : 'Falha ao propagar a baixa das vendas.',
     ],
   }))
 
@@ -36,6 +49,7 @@ export async function GET(req: NextRequest) {
       cancelled: pending.cancelled,
       cutoff: pending.cutoff.toISOString(),
     },
+    inventoryBefore,
     marketplaces,
     inventory,
   })
