@@ -9,6 +9,7 @@ import {
   cotarMelhorEnvio,
   melhorEnvioConfigurado,
   melhorEnvioDefaultPackage,
+  melhorEnvioUsaSandbox,
   numeroPositivo,
 } from '@/lib/melhor-envio'
 
@@ -68,10 +69,10 @@ export async function GET(req: NextRequest) {
       horarioFuncionamento: HORARIO_FUNCIONAMENTO_LABEL,
       correiosDisponivel: false,
       correiosMensagem:
-        'Correios temporariamente indisponível. PAC/SEDEX permanecem desativados até nova liberação.',
+        'Integração direta dos Correios temporariamente indisponível. Serviços oferecidos via Melhor Envio aparecem normalmente abaixo.',
       melhorEnvio: {
         configurado,
-        ambiente: process.env.MELHOR_ENVIO_SANDBOX === 'true' ? 'sandbox' : 'producao',
+        ambiente: melhorEnvioUsaSandbox() ? 'sandbox' : 'producao',
         quantidadeOpcoes: melhorEnvioOpcoes.length,
       },
     })
