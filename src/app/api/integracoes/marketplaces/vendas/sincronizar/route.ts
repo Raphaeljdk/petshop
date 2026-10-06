@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
+import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,5 +15,17 @@ export async function POST() {
   }
 
   const result = await syncMarketplaceSalesToZetta()
-  return NextResponse.json({ success: true, ...result })
+  const inventory = await syncZettaStockToMarketplaces().catch((error) => ({
+    products: 0,
+    mercadoLivreUpdated: 0,
+    amazonUpdated: 0,
+    skippedUnlinked: 0,
+    errors: [
+      error instanceof Error
+        ? error.message
+        : 'Falha ao sincronizar o estoque unificado.',
+    ],
+  }))
+
+  return NextResponse.json({ success: true, ...result, inventory })
 }
