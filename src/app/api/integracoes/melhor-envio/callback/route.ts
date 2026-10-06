@@ -4,6 +4,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import {
   MELHOR_ENVIO_COOKIE,
   melhorEnvioOAuthConfig,
+  melhorEnvioUsaSandbox,
 } from '@/lib/melhor-envio'
 
 export const runtime = 'nodejs'
@@ -167,7 +168,7 @@ export async function GET(req: NextRequest) {
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
           expiresIn: tokens.expires_in,
-          sandbox: process.env.MELHOR_ENVIO_SANDBOX === 'true',
+          sandbox: melhorEnvioUsaSandbox(),
         }),
         { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
       )

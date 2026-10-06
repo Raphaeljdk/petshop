@@ -75,7 +75,7 @@ export function FreteCalculator({
   const [cep, setCep] = useState('')
   const [loading, setLoading] = useState(false)
   const [dados, setDados] = useState<FreteResponse | null>(null)
-  const [selecionado, setSelecionado] = useState<TipoEntrega | null>(null)
+  const [selecionado, setSelecionado] = useState<string | null>(null)
   const requestVersion = useRef(0)
   const initialized = useRef(false)
 
@@ -90,6 +90,11 @@ export function FreteCalculator({
   useEffect(() => () => { requestVersion.current += 1 }, [])
 
   const podeCalcular = useMemo(() => validarCep(cep), [cep])
+
+  const opcaoKey = (opcao: OpcaoFrete) =>
+    opcao.tipo === 'melhor_envio' && opcao.melhorEnvioServiceId
+      ? `melhor_envio:${opcao.melhorEnvioServiceId}`
+      : opcao.tipo
 
   const calcular = async () => {
     if (loading) return
@@ -113,7 +118,7 @@ export function FreteCalculator({
       // Seleção automática da primeira opção (mais barata) para conveniência
       if (data.opcoes.length > 0) {
         const primeira = data.opcoes[0]
-        setSelecionado(primeira.tipo)
+        setSelecionado(opcaoKey(primeira))
         onSelect({
           tipoEntrega: primeira.tipo,
           valorFrete: primeira.valor,
@@ -131,7 +136,7 @@ export function FreteCalculator({
   }
 
   const selecionarOpcao = (opcao: OpcaoFrete) => {
-    setSelecionado(opcao.tipo)
+    setSelecionado(opcaoKey(opcao))
     onSelect({
       tipoEntrega: opcao.tipo,
       valorFrete: opcao.valor,
@@ -266,18 +271,20 @@ export function FreteCalculator({
           <RadioGroup
             value={selecionado || ''}
             onValueChange={(v) => {
-              const op = dados.opcoes.find((o) => o.tipo === v)
+              const op = dados.opcoes.find((o) => opcaoKey(o) === v)
               if (op) selecionarOpcao(op)
             }}
             className="gap-2"
           >
             {dados.opcoes.map((opcao) => {
               const Icon = ICONS[opcao.tipo]
-              const checked = selecionado === opcao.tipo
+              const key = opcaoKey(opcao)
+              const inputId = `frete-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+              const checked = selecionado === key
               return (
                 <Label
-                  key={opcao.tipo}
-                  htmlFor={`frete-${opcao.tipo}`}
+                  key={key}
+                  htmlFor={inputId}
                   className={cn(
                     'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
                     checked
@@ -286,8 +293,8 @@ export function FreteCalculator({
                   )}
                 >
                   <RadioGroupItem
-                    value={opcao.tipo}
-                    id={`frete-${opcao.tipo}`}
+                    value={key}
+                    id={inputId}
                     className="mt-0.5"
                   />
                   <Icon
@@ -370,7 +377,9 @@ export function FreteSelecionadoBadge({
         ? 'Retirada na loja'
         : tipoEntrega === 'entrega_propria'
           ? 'Motoboy'
-          : 'Sedex'}
+          : tipoEntrega === 'melhor_envio'
+            ? 'Melhor Envio'
+            : 'Sedex'}
       <span className="text-primary">
         {valorFrete === 0 ? 'Grátis' : fmtMoeda(valorFrete)}
       </span>

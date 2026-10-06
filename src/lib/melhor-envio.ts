@@ -3,6 +3,8 @@ import type { OpcaoFrete } from '@/lib/types'
 
 const PROD_URL = 'https://melhorenvio.com.br'
 const SANDBOX_URL = 'https://sandbox.melhorenvio.com.br'
+const MATILHA_PRADO_ORIGIN_CEP = '02333001'
+const DEFAULT_USER_AGENT = 'Matilha Prado (matilhaprado@gmail.com)'
 export const MELHOR_ENVIO_CALLBACK =
   'https://www.matilhaprado.com.br/api/integracoes/melhor-envio/callback'
 export const MELHOR_ENVIO_COOKIE = 'melhor_envio_oauth_pending'
@@ -32,15 +34,26 @@ export function randomUrlSafe(bytes = 32) {
   return randomBytes(bytes).toString('base64url')
 }
 
+export function melhorEnvioOriginCep() {
+  const envCep = (process.env.MELHOR_ENVIO_ORIGIN_CEP || '').replace(/\D/g, '')
+  return envCep.length === 8 ? envCep : MATILHA_PRADO_ORIGIN_CEP
+}
+
 export function melhorEnvioConfigurado() {
   return Boolean(
-    process.env.MELHOR_ENVIO_ACCESS_TOKEN &&
-      process.env.MELHOR_ENVIO_ORIGIN_CEP
+    process.env.MELHOR_ENVIO_ACCESS_TOKEN?.trim() &&
+      melhorEnvioOriginCep().length === 8
   )
 }
 
 export function melhorEnvioBaseUrl() {
+  // Produção da Vercel nunca deve cotar no sandbox por causa de uma variável antiga.
+  if (process.env.VERCEL_ENV === 'production') return PROD_URL
   return process.env.MELHOR_ENVIO_SANDBOX === 'true' ? SANDBOX_URL : PROD_URL
+}
+
+export function melhorEnvioUsaSandbox() {
+  return melhorEnvioBaseUrl() === SANDBOX_URL
 }
 
 export function melhorEnvioOAuthConfig() {
@@ -53,8 +66,7 @@ export function melhorEnvioOAuthConfig() {
   const scopes =
     process.env.MELHOR_ENVIO_SCOPES?.trim() || 'shipping-calculate'
   const userAgent =
-    process.env.MELHOR_ENVIO_USER_AGENT?.trim() ||
-    'Matilha Prado (www.matilhaprado.com.br)'
+    process.env.MELHOR_ENVIO_USER_AGENT?.trim() || DEFAULT_USER_AGENT
 
   if (!clientId || !clientSecret || redirectUri !== MELHOR_ENVIO_CALLBACK) {
     throw new Error('Configuração OAuth do Melhor Envio incompleta')
@@ -89,8 +101,8 @@ export async function cotarMelhorEnvio(
   cepDestino: string,
   pacote: MelhorEnvioPackage
 ): Promise<OpcaoFrete[]> {
-  const token = process.env.MELHOR_ENVIO_ACCESS_TOKEN
-  const cepOrigem = (process.env.MELHOR_ENVIO_ORIGIN_CEP || '').replace(/\D/g, '')
+  const token = process.env.MELHOR_ENVIO_ACCESS_TOKEN?.trim()
+  const cepOrigem = melhorEnvioOriginCep()
   const destino = cepDestino.replace(/\D/g, '')
 
   if (!token || cepOrigem.length !== 8 || destino.length !== 8) return []
@@ -103,8 +115,7 @@ export async function cotarMelhorEnvio(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
         'User-Agent':
-          process.env.MELHOR_ENVIO_USER_AGENT ||
-          'Matilha Prado (www.matilhaprado.com.br)',
+          process.env.MELHOR_ENVIO_USER_AGENT?.trim() || DEFAULT_USER_AGENT,
       },
       body: JSON.stringify({
         from: { postal_code: cepOrigem },
