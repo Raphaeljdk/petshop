@@ -170,6 +170,7 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
       }
     }
 
+    await applyMarketplaceStockDelta(existing.id)
     return {
       created: false,
       vendaId: existing.id,
