@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cancelExpiredPendingSales } from '@/lib/pending-sales'
+import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
   const configured = process.env.CRON_SECRET?.trim()
@@ -12,11 +14,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const result = await cancelExpiredPendingSales()
+  const [pending, marketplaces] = await Promise.all([
+    cancelExpiredPendingSales(),
+    syncMarketplaceSalesToZetta(),
+  ])
+
   return NextResponse.json({
     ok: true,
-    checked: result.checked,
-    cancelled: result.cancelled,
-    cutoff: result.cutoff.toISOString(),
+    pending: {
+      checked: pending.checked,
+      cancelled: pending.cancelled,
+      cutoff: pending.cutoff.toISOString(),
+    },
+    marketplaces,
   })
 }
