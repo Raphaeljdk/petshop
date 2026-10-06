@@ -47,7 +47,11 @@ function vendaSiggmaNumericId(vendaId: string) {
 async function resolveCpfCnpj(venda: {
   clienteId: string | null
   cliente: { cpfCnpj: string | null } | null
+  marketplaceBuyerDocument?: string | null
 }) {
+  const marketplace = normalizeCpfCnpj(venda.marketplaceBuyerDocument)
+  if (marketplace) return marketplace
+
   const local = normalizeCpfCnpj(venda.cliente?.cpfCnpj)
   if (local) return local
   if (!venda.clienteId) return ''
@@ -80,7 +84,10 @@ export async function importarVendaNoSiggma(vendaId: string) {
   }
 
   const cpfCnpj = await resolveCpfCnpj(venda)
-  if (!cpfCnpj) {
+  const marketplaceSale = ['mercadolivre', 'amazon'].includes(
+    String(venda.canal || '').toLowerCase()
+  )
+  if (!cpfCnpj && !marketplaceSale) {
     throw new Error('CPF/CNPJ do cliente é obrigatório para importar o pedido no Siggma.')
   }
 
@@ -160,8 +167,15 @@ export async function importarVendaNoSiggma(vendaId: string) {
         dataCriacao: formatDateTime(venda.createdAt),
         guid,
         status: 'novo',
-        cpfCnpj,
-        nome: venda.cliente?.nome || undefined,
+        cpfCnpj: cpfCnpj || undefined,
+        nome:
+          venda.cliente?.nome ||
+          venda.marketplaceBuyerName ||
+          (venda.canal === 'mercadolivre'
+            ? 'E-commerce Mercado Livre'
+            : venda.canal === 'amazon'
+              ? 'E-commerce Amazon'
+              : undefined),
         email: venda.cliente?.email || undefined,
         telefone: normalizeCpfCnpj(venda.cliente?.telefone) || undefined,
         celular: normalizeCpfCnpj(venda.cliente?.telefone) || undefined,
