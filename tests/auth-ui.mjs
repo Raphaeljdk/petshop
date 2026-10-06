@@ -59,7 +59,7 @@ try {
     for (const route of ['/login', '/cadastro', '/cadastro/administrador']) {
       await page.goto(base + route)
       if (route === '/login') {
-        await page.getByLabel('Telefone com DDD', { exact: true }).waitFor()
+        await page.getByLabel('E-mail ou telefone', { exact: true }).waitFor()
       } else {
         await page.getByLabel('E-mail', { exact: true }).waitFor()
       }
@@ -98,7 +98,7 @@ try {
   assert.ok((await context.cookies()).some(cookie => cookie.name === 'matilha_token' && cookie.httpOnly))
   passed('Cadastro real de cliente abre o portal com sessão')
   const clientUser = await db.user.findUnique({ where: { email } })
-  await db.pet.create({ data: { nome: 'Mel', especie: 'Cachorro', clienteId: clientUser.clienteId } })
+  assert.ok(clientUser?.clienteId)
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.getByRole('button', { name: 'Cadastrar', exact: true }).waitFor()
 
@@ -129,8 +129,8 @@ try {
 
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.goto(base + '/login')
-  await page.getByLabel('Telefone com DDD', { exact: true }).fill('11999991234')
-  await page.getByLabel('Nome do pet', { exact: true }).fill('Mel')
+  await page.getByLabel('E-mail ou telefone', { exact: true }).fill(email)
+  assert.equal(await page.getByLabel('Nome do pet', { exact: true }).count(), 0)
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Entrar na minha conta', exact: true }).click()
   await page.getByRole('navigation', { name: 'Navegação do cliente' }).waitFor()
@@ -140,7 +140,7 @@ try {
   const reduced = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 390, height: 844 } })
   const reducedPage = await reduced.newPage()
   await reducedPage.goto(base + '/login')
-  await reducedPage.getByLabel('Telefone com DDD', { exact: true }).waitFor()
+  await reducedPage.getByLabel('E-mail ou telefone', { exact: true }).waitFor()
   assert.equal(await reducedPage.locator('.account-page-card').evaluate(el => getComputedStyle(el).animationName), 'none')
   passed('Preferência de movimento reduzido respeitada')
   assert.deepEqual(errors, [], 'Sem erros de JavaScript nas telas')

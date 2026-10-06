@@ -1,8 +1,15 @@
-import { NextRequest } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { AuthError, authFailure, authJson, authReady } from '@/lib/auth-http'
 import { integrationBridgeRequest } from '@/lib/integration-bridge'
 import { db } from '@/lib/db'
+
+type ZettaPage = {
+  ok: boolean
+  page: number
+  limit: number
+  total: number
+  data: Array<{ id: number; nome?: string | null }>
+}
 
 async function requireAdmin() {
   authReady()
@@ -11,6 +18,31 @@ async function requireAdmin() {
   if (user.role !== 'ADMIN') {
     throw new AuthError('Acesso permitido apenas à administração.', 403)
   }
+}
+
+function normalizeName(value: string | null | undefined) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+async function fetchAllZettaClients() {
+  const first = await integrationBridgeRequest<ZettaPage>('/api/zetta/clientes?page=1&limit=100')
+  const rows = [...(first.data || [])]
+  const pages = Math.max(1, Math.ceil((first.total || rows.length) / 100))
+
+  for (let page = 2; page <= pages; page += 1) {
+    const current = await integrationBridgeRequest<ZettaPage>(
+      `/api/zetta/clientes?page=${page}&limit=100`
+    )
+    rows.push(...(current.data || []))
+  }
+
+  return rows
 }
 
 export async function GET() {
@@ -30,85 +62,105 @@ export async function GET() {
       },
     })
 
-    return authJson({ success: true, users })
+    return authJson({
+      success: true,
+      users,
+      linked: users.filter((user) => user.siggmaCliCod).length,
+      pending: users.filter((user) => !user.siggmaCliCod).length,
+    })
   } catch (error) {
     return authFailure(error)
   }
 }
 
-export async function PUT(req: NextRequest) {
+export async function POST() {
   try {
     await requireAdmin()
 
-    const body = await req.json().catch(() => null)
-    const userId = typeof body?.userId === 'string' ? body.userId.trim() : ''
-    const rawCliCod = body?.siggmaCliCod
+    const [users, zettaClients] = await Promise.all([
+      db.user.findMany({
+        where: { role: 'CLIENTE' },
+        orderBy: { nome: 'asc' },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          siggmaCliCod: true,
+        },
+      }),
+      fetchAllZettaClients(),
+    ])
 
-    if (!userId) throw new AuthError('Conta do cliente é obrigatória.', 400)
-
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true, nome: true, email: true },
-    })
-    if (!user || user.role !== 'CLIENTE') {
-      throw new AuthError('Conta de cliente não encontrada.', 404)
+    const zettaByName = new Map<string, Array<{ id: number; nome?: string | null }>>()
+    for (const client of zettaClients) {
+      const key = normalizeName(client.nome)
+      if (!key || !Number.isFinite(Number(client.id))) continue
+      const list = zettaByName.get(key) || []
+      list.push(client)
+      zettaByName.set(key, list)
     }
 
-    if (rawCliCod === null || rawCliCod === '' || rawCliCod === undefined) {
-      await db.user.update({
-        where: { id: userId },
-        data: { siggmaCliCod: null },
-      })
-      return authJson({ success: true, linked: false })
+    const portalNameCount = new Map<string, number>()
+    for (const user of users) {
+      const key = normalizeName(user.nome)
+      if (!key) continue
+      portalNameCount.set(key, (portalNameCount.get(key) || 0) + 1)
     }
 
-    const siggmaCliCod = Number.parseInt(String(rawCliCod), 10)
-    if (!Number.isFinite(siggmaCliCod) || siggmaCliCod < 1) {
-      throw new AuthError('Código do cliente Siggma inválido.', 400)
+    const occupied = new Set(
+      users
+        .map((user) => user.siggmaCliCod)
+        .filter((value): value is number => typeof value === 'number' && value > 0)
+    )
+
+    const matches: Array<{ userId: string; siggmaCliCod: number }> = []
+    let ambiguous = 0
+    let notFound = 0
+
+    for (const user of users) {
+      if (user.siggmaCliCod) continue
+      const key = normalizeName(user.nome)
+      const candidates = key ? zettaByName.get(key) || [] : []
+
+      if (!key || candidates.length === 0) {
+        notFound += 1
+        continue
+      }
+
+      if (portalNameCount.get(key) !== 1 || candidates.length !== 1) {
+        ambiguous += 1
+        continue
+      }
+
+      const siggmaCliCod = Number(candidates[0].id)
+      if (occupied.has(siggmaCliCod)) {
+        ambiguous += 1
+        continue
+      }
+
+      occupied.add(siggmaCliCod)
+      matches.push({ userId: user.id, siggmaCliCod })
     }
 
-    const official = await integrationBridgeRequest<{
-      ok: boolean
-      data: { id: number; nome?: string | null }
-    }>(`/api/zetta/clientes/${siggmaCliCod}`)
-
-    if (!official.ok || !official.data?.id) {
-      throw new AuthError('Cliente não encontrado no Zetta.', 404)
-    }
-
-    const alreadyLinked = await db.user.findFirst({
-      where: {
-        siggmaCliCod,
-        NOT: { id: userId },
-      },
-      select: { id: true, nome: true, email: true },
-    })
-    if (alreadyLinked) {
-      throw new AuthError(
-        `O cliCod ${siggmaCliCod} já está vinculado a outra conta do portal.`,
-        409
+    if (matches.length > 0) {
+      await db.$transaction(
+        matches.map((match) =>
+          db.user.update({
+            where: { id: match.userId },
+            data: { siggmaCliCod: match.siggmaCliCod },
+          })
+        )
       )
     }
 
-    const updated = await db.user.update({
-      where: { id: userId },
-      data: { siggmaCliCod },
-      select: {
-        id: true,
-        nome: true,
-        email: true,
-        siggmaCliCod: true,
-      },
-    })
-
     return authJson({
       success: true,
-      linked: true,
-      user: updated,
-      zettaClient: {
-        id: official.data.id,
-        nome: official.data.nome || null,
-      },
+      linkedNow: matches.length,
+      linkedTotal: users.filter((user) => user.siggmaCliCod).length + matches.length,
+      pending: users.filter((user) => !user.siggmaCliCod).length - matches.length,
+      ambiguous,
+      notFound,
+      rule: 'nome_exato_normalizado_unico',
     })
   } catch (error) {
     return authFailure(error)

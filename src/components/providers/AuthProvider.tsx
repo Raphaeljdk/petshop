@@ -41,7 +41,7 @@ export class AuthRequestError extends Error {
   constructor(message: string, public fields: Record<string, string> = {}) { super(message) }
 }
 export type LoginDados =
-  | { role: 'CLIENTE'; telefone: string; petNome: string; senha: string; lembrar?: boolean }
+  | { role: 'CLIENTE'; identificador: string; senha: string; lembrar?: boolean }
   | { role: 'ADMIN'; email: string; senha: string; lembrar?: boolean }
 
 interface AuthContextValue {

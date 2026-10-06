@@ -902,3 +902,109 @@
     font-size: .56rem;
   }
 }
+
+
+/* UX responsiva — acesso, catálogo, produto e compra */
+html, body { max-width: 100%; overflow-x: clip; }
+img, video { max-width: 100%; }
+
+.account-page { min-height: 100dvh; }
+.account-page-card { max-width: 1080px; }
+.account-form-body { width: 100%; }
+.account-field [data-slot="input"] { min-width: 0; font-size: 16px; }
+.account-role { min-width: 0; }
+.product-gallery img { user-select: none; -webkit-user-drag: none; }
+
+@media (max-width: 767px) {
+  .account-page {
+    padding: max(.75rem, env(safe-area-inset-top)) .75rem max(1rem, env(safe-area-inset-bottom));
+    background: var(--background);
+  }
+  .account-page > div:first-child {
+    margin-bottom: .75rem;
+  }
+  .account-page-card {
+    border-radius: 1.25rem;
+    box-shadow: 0 16px 42px -34px #102e4866;
+  }
+  .account-form-body {
+    padding: 1.25rem;
+  }
+  .account-form-body > div:first-child {
+    margin-bottom: 1.25rem;
+  }
+  .account-form-body h2 {
+    font-size: clamp(1.65rem, 8vw, 2rem);
+    line-height: 1.08;
+  }
+  .account-role {
+    min-height: 5.25rem;
+    padding: .8rem;
+  }
+  .account-role svg { margin-bottom: .4rem; }
+  .account-submit {
+    min-height: 3.25rem;
+    font-size: .95rem;
+  }
+
+  [data-slot="dialog-content"]:has(.product-gallery) {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 96dvh;
+    transform: none;
+    border-radius: 1.25rem 1.25rem 0 0;
+    border-bottom: 0;
+  }
+  [data-slot="dialog-content"]:has(.product-gallery) > [data-slot="dialog-close"] {
+    position: fixed;
+    top: max(.75rem, env(safe-area-inset-top));
+    right: .75rem;
+    z-index: 60;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    box-shadow: 0 6px 22px #102e4830;
+  }
+  .product-gallery {
+    min-height: 42dvh;
+    border-radius: 1rem;
+  }
+  .product-gallery + div {
+    scrollbar-width: none;
+  }
+  .product-gallery + div::-webkit-scrollbar { display: none; }
+
+  .boutique-product,
+  .product-card-v2 {
+    border-radius: 1.15rem;
+  }
+  .boutique-product [data-slot="card-content"],
+  .product-card-v2 [data-slot="card-content"] {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .account-form-body { padding: 1rem; }
+  .account-form-body .grid.grid-cols-2 { gap: .5rem; }
+  .account-role { padding: .7rem; }
+  .account-role span { overflow-wrap: anywhere; }
+  .product-gallery { min-height: 38dvh; }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  .account-experience { grid-template-columns: minmax(260px, .75fr) minmax(0, 1.25fr); }
+  .account-story { padding: 2rem; }
+  .account-form-body { padding: 2rem; }
+}
+
+@media (min-width: 1536px) {
+  .landing .container,
+  .client-portal .container {
+    max-width: 1440px;
+  }
+}
