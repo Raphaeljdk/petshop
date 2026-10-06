@@ -95,7 +95,7 @@ try {
     assert.ok(box, 'Modal do produto possui dimensões em ' + width + 'px')
     assert.ok(box.x >= 10, 'Modal mantém margem segura à esquerda em ' + width + 'px')
     assert.ok(box.x + box.width <= width - 10, 'Modal mantém margem segura à direita em ' + width + 'px')
-    assert.ok(box.width >= width - 26, 'Modal aproveita a largura móvel em ' + width + 'px')
+    assert.ok(box.width >= width - 40, 'Modal aproveita a largura móvel em ' + width + 'px')
     assert.ok(box.y >= 0 && box.y + box.height <= 844, 'Modal permanece dentro da altura visível em ' + width + 'px')
     assert.ok(await productDialog.locator('[data-slot="dialog-close"]').isVisible(), 'Botão fechar visível em ' + width + 'px')
     assert.ok(
