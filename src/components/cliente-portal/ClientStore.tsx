@@ -162,6 +162,10 @@ export function ClientStore({
     })
 
     return [...filtrados].sort((a, b) => {
+      const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
+      const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
+      if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
+
       const priceA = a.precoPromo ?? a.preco
       const priceB = b.precoPromo ?? b.preco
       if (ordenacao === 'menor-preco') return priceA - priceB
@@ -374,7 +378,7 @@ export function ClientStore({
     <div className="space-y-5 pb-8 sm:space-y-7">
       <StoreHero
         whatsappUrl={whatsappLoja}
-        productsCount={produtos.filter(produto => produto.estoqueIlimitado || produto.estoque > 0).length}
+        productsCount={produtos.length}
         categoriesCount={categorias.length}
       />
       <StorePromoCarousel />
@@ -507,7 +511,7 @@ export function ClientStore({
                 aria-label={`Ver detalhes de ${p.nome}`}
               >
                 {p.imageUrl ? (
-                  <img src={p.imageUrl} alt={p.nome} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105" />
+                  <img src={p.imageUrl} alt={p.nome} loading="lazy" className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-105" />
                 ) : <Package className="size-12 text-muted-foreground/40" />}
               </button>
               <button
@@ -604,7 +608,7 @@ export function ClientStore({
                       <div key={i.produto.id} className="rounded-xl border border-border p-3">
                         <div className="flex items-start gap-3">
                           <div className="size-12 bg-muted rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-                            {i.produto.imageUrl ? <img src={i.produto.imageUrl} alt={i.produto.nome} className="w-full h-full object-cover" /> : <Package className="size-5 text-muted-foreground" />}
+                            {i.produto.imageUrl ? <img src={i.produto.imageUrl} alt={i.produto.nome} className="h-full w-full object-contain p-1" /> : <Package className="size-5 text-muted-foreground" />}
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold leading-snug line-clamp-2">{i.produto.nome}</p>
