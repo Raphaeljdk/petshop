@@ -131,7 +131,10 @@ export async function importarVendaNoSiggma(vendaId: string) {
     where: {
       id: venda.id,
       siggmaImportedAt: null,
-      siggmaImportStatus: null,
+      OR: [
+        { siggmaImportStatus: null },
+        { siggmaImportStatus: { in: ['review', 'rejected'] } },
+      ],
     },
     data: {
       siggmaGuid: guid,
