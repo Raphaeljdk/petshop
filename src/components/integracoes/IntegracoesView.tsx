@@ -542,13 +542,27 @@ export function IntegracoesView() {
         ...(amazonResult?.errors || []),
       ].filter(Boolean)
 
-      if (imported > 0) {
-        toast.success(`${imported} venda(s) de marketplace enviada(s) ao Zetta.`)
+      const inventoryUpdated =
+        Number(data.inventory?.mercadoLivreUpdated || 0) +
+        Number(data.inventory?.amazonUpdated || 0)
+      const unlinked = Number(data.inventory?.skippedUnlinked || 0)
+      const inventoryErrors = data.inventory?.errors || []
+
+      if (imported > 0 || inventoryUpdated > 0) {
+        toast.success(
+          `${imported} venda(s) enviada(s) ao Zetta e ${inventoryUpdated} anúncio(s) com estoque reconciliado.`
+        )
       } else {
-        toast.info('Sincronização de vendas concluída sem novos pedidos para importar.')
+        toast.info('Vendas e estoque já estavam sincronizados.')
       }
-      if (errors.length) {
-        toast.warning(errors[0])
+      if (unlinked > 0) {
+        toast.warning(
+          `${unlinked} item(ns) de marketplace ainda não estão vinculados ao Zetta e não entram no estoque compartilhado.`
+        )
+      }
+      const firstError = [...errors, ...inventoryErrors][0]
+      if (firstError) {
+        toast.warning(firstError)
       }
     } catch (error) {
       toast.error(
