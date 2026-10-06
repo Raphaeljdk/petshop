@@ -252,19 +252,9 @@ function ProdutoCard({
                 <Tag className="size-3" />
                 {produto.categoria}
               </Badge>
-              {produto.zettaProCod && (
+              {(produto.zettaProCod || produto.mlItemId || produto.amazonAsin) && (
                 <Badge variant="outline" className="text-[9px]">
-                  ERP Zetta #{produto.zettaProCod}
-                </Badge>
-              )}
-              {produto.mlItemId && (
-                <Badge className="text-[9px] bg-yellow-100 text-yellow-700 border-yellow-200">
-                  ML
-                </Badge>
-              )}
-              {produto.amazonAsin && (
-                <Badge className="text-[9px] bg-sky-100 text-sky-700 border-sky-200">
-                  Amazon
+                  Integrado
                 </Badge>
               )}
             </div>
@@ -302,33 +292,17 @@ function ProdutoCard({
           )}
         </div>
 
-        {/* Estoque */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
-              {estoqueMeta.label}
-            </Badge>
-          </div>
-          {!produto.estoqueIlimitado && (
-            <div className="flex flex-wrap gap-1 text-[9px] text-muted-foreground">
-              {(produto.estoqueHub || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Hub {produto.estoqueHub}</span>}
-              {(produto.estoqueZetta || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Zetta {produto.estoqueZetta}</span>}
-              {(produto.estoqueMercadoLivre || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">ML {produto.estoqueMercadoLivre}</span>}
-              {(produto.estoqueAmazon || 0) > 0 && <span className="rounded bg-muted px-1.5 py-0.5">Amazon {produto.estoqueAmazon}</span>}
-            </div>
-          )}
+        {/* Estoque consolidado */}
+        <div className="flex items-center justify-between gap-2">
+          <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
+            {estoqueMeta.label}
+          </Badge>
         </div>
 
         {/* Quick edit: preço + estoque inline */}
         {produto.zettaProCod || produto.mlItemId || produto.amazonAsin ? (
           <div className="rounded-md border border-primary/15 bg-primary/5 p-2 text-[11px] text-muted-foreground">
-            {produto.zettaProCod
-              ? 'Preço e estoque físico são controlados pelo ERP Zetta. Mercado Livre e Amazon são saldos de canal.'
-              : produto.mlItemId && produto.amazonAsin
-                ? 'Produto sem vínculo Zetta: Mercado Livre e Amazon são acompanhados separadamente e não têm seus saldos somados.'
-                : produto.mlItemId
-                  ? 'Saldo do canal é atualizado pela sincronização do Mercado Livre.'
-                  : 'Saldo do canal é atualizado pela sincronização da Amazon.'}
+            Produto sincronizado. Itens equivalentes aparecem uma única vez e o estoque exibido já soma as integrações vinculadas.
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
@@ -433,9 +407,9 @@ function ProdutoListRow({
           <p className="truncate font-semibold">{produto.nome}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <Badge variant="secondary" className="text-[10px]">{produto.categoria}</Badge>
-            {produto.zettaProCod && <Badge variant="outline" className="text-[9px]">Zetta</Badge>}
-            {produto.mlItemId && <Badge className="border-yellow-200 bg-yellow-100 text-[9px] text-yellow-700">Mercado Livre</Badge>}
-            {produto.amazonAsin && <Badge className="border-sky-200 bg-sky-100 text-[9px] text-sky-700">Amazon</Badge>}
+            {(produto.zettaProCod || produto.mlItemId || produto.amazonAsin) && (
+              <Badge variant="outline" className="text-[9px]">Integrado</Badge>
+            )}
           </div>
           {produto.sku && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">SKU {produto.sku}</p>}
         </div>
@@ -797,29 +771,6 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         0
       ),
       ilimitados: produtos.filter((p) => Boolean(p.estoqueIlimitado)).length,
-      zettaProdutos: produtos.filter((p) => Boolean(p.zettaProCod)).length,
-      zettaUnidades: produtos.reduce(
-        (sum, produto) => sum + Math.max(0, Number(produto.estoqueZetta || 0)),
-        0
-      ),
-      hubProdutos: produtos.filter(
-        (p) => !p.zettaProCod && !p.mlItemId && !p.amazonAsin
-      ).length,
-      hubUnidades: produtos.reduce(
-        (sum, produto) => sum + Math.max(0, Number(produto.estoqueHub || 0)),
-        0
-      ),
-      mercadoLivreProdutos: produtos.filter((p) => Boolean(p.mlItemId)).length,
-      mercadoLivreUnidades: produtos.reduce(
-        (sum, produto) =>
-          sum + Math.max(0, Number(produto.estoqueMercadoLivre || 0)),
-        0
-      ),
-      amazonProdutos: produtos.filter((p) => Boolean(p.amazonAsin)).length,
-      amazonUnidades: produtos.reduce(
-        (sum, produto) => sum + Math.max(0, Number(produto.estoqueAmazon || 0)),
-        0
-      ),
     }),
     [produtos]
   )
@@ -1214,28 +1165,16 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque unificado</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Zetta é a fonte oficial do estoque físico quando houver vínculo. Mercado Livre e Amazon ficam registrados como saldos por canal, sem inflar o estoque disponível.
+          Produtos iguais do Zetta, Mercado Livre, Amazon e estoque local aparecem como um único item, com as unidades somadas em um estoque consolidado.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Badge variant="secondary">{resumoEstoque.total} produtos</Badge>
-          <Badge variant="secondary">{resumoEstoque.unidades} un. de estoque oficial</Badge>
+          <Badge variant="secondary">{resumoEstoque.total} produtos únicos</Badge>
+          <Badge variant="secondary">{resumoEstoque.unidades} un. em estoque</Badge>
           {resumoEstoque.ilimitados > 0 && (
             <Badge className="border-emerald-200 bg-emerald-100 text-emerald-700">
               {resumoEstoque.ilimitados} ilimitado(s)
             </Badge>
           )}
-          <Badge variant="outline">
-            Zetta {resumoEstoque.zettaUnidades} un. · {resumoEstoque.zettaProdutos} produtos
-          </Badge>
-          <Badge variant="outline">
-            Hub/local {resumoEstoque.hubUnidades} un. · {resumoEstoque.hubProdutos} produtos
-          </Badge>
-          <Badge className="border-yellow-200 bg-yellow-100 text-yellow-700">
-            Mercado Livre {resumoEstoque.mercadoLivreUnidades} un. · {resumoEstoque.mercadoLivreProdutos} produtos
-          </Badge>
-          <Badge className="border-sky-200 bg-sky-100 text-sky-700">
-            Amazon {resumoEstoque.amazonUnidades} un. · {resumoEstoque.amazonProdutos} produtos
-          </Badge>
         </div>
       </div>
 
