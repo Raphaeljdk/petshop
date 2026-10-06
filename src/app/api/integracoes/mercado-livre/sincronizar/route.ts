@@ -10,6 +10,7 @@ import {
 } from '@/lib/mercado-livre-items'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function POST() {
@@ -130,9 +131,30 @@ export async function POST() {
       }
     }
 
+    const syncedAt = new Date()
+
+    await db.integracao.upsert({
+      where: { id: 'mercado-livre-oauth' },
+      create: {
+        id: 'mercado-livre-oauth',
+        plataforma: 'mercado_livre',
+        ativo: true,
+        sellerId,
+        domain: 'mercadolivre.com.br',
+        ultimaSync: syncedAt,
+      },
+      update: {
+        ativo: true,
+        sellerId,
+        domain: 'mercadolivre.com.br',
+        ultimaSync: syncedAt,
+      },
+    })
+
     return NextResponse.json({
       success: true,
       sellerId,
+      lastSync: syncedAt.toISOString(),
       totalMarketplace: search.total,
       synchronized: items.length,
       created,

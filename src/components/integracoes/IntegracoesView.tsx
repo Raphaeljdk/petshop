@@ -48,7 +48,16 @@ type EstadoIntegracoes = {
   bridge: BridgeStatus | null
 }
 
-type MercadoLivreStatus = { configured: boolean; connected: boolean; databaseReady: boolean; sellerId: string | null; tokenExpired: boolean; error?: string }
+type MercadoLivreStatus = {
+  configured: boolean
+  connected: boolean
+  catalogAccess: boolean
+  databaseReady: boolean
+  sellerId: string | null
+  tokenExpired: boolean
+  lastSync?: string | null
+  error?: string | null
+}
 type MercadoLivreItem = {
   id: string
   title: string
@@ -282,7 +291,7 @@ export function IntegracoesView() {
           const oauthResult = new URLSearchParams(window.location.search).get('ml')
           if (
             mlStatus?.connected &&
-            oauthResult === 'connected' &&
+            (!mlStatus.lastSync || oauthResult === 'connected') &&
             !mlAutoSyncDone.current
           ) {
             mlAutoSyncDone.current = true
@@ -307,6 +316,15 @@ export function IntegracoesView() {
                   )
                 }
                 setMlRefresh((value) => value + 1)
+                setMercadoLivre((current) =>
+                  current
+                    ? {
+                        ...current,
+                        lastSync:
+                          payload.lastSync || new Date().toISOString(),
+                      }
+                    : current
+                )
               })
               .catch((error) => {
                 toast.error(
@@ -352,6 +370,14 @@ export function IntegracoesView() {
         toast.info('Os novos produtos foram importados ocultos. Publique apenas os que quiser exibir.')
       }
       setMlRefresh((value) => value + 1)
+      setMercadoLivre((current) =>
+        current
+          ? {
+              ...current,
+              lastSync: data.lastSync || new Date().toISOString(),
+            }
+          : current
+      )
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -550,6 +576,16 @@ export function IntegracoesView() {
                 Novos anúncios entram no catálogo como <strong>ocultos</strong>. Use “Publicar”
                 somente nos itens que devem aparecer na loja e na vitrine pública.
               </p>
+              {mercadoLivre.lastSync && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Última sincronização:{' '}
+                  {format(
+                    parseISO(mercadoLivre.lastSync),
+                    "dd/MM/yyyy 'às' HH:mm",
+                    { locale: ptBR }
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -575,7 +611,19 @@ export function IntegracoesView() {
           )}
           {mercadoLivre?.configured &&
             mercadoLivre.databaseReady &&
-            !mercadoLivre.connected && (
+            !mercadoLivre.connected &&
+            mercadoLivre.error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
+                <p className="font-medium">
+                  Não foi possível validar o Mercado Livre.
+                </p>
+                <p className="mt-1 text-xs">{mercadoLivre.error}</p>
+              </div>
+            )}
+          {mercadoLivre?.configured &&
+            mercadoLivre.databaseReady &&
+            !mercadoLivre.connected &&
+            !mercadoLivre.error && (
               <p className="text-muted-foreground">
                 Aplicação configurada. Falta autorizar a conta vendedora.
               </p>
