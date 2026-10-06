@@ -130,6 +130,9 @@ model Venda {
   descontoCupom Float @default(0)
   canal      String   @default("loja")
   status     String   @default("concluida")
+  marketplaceOrderId String? @unique
+  marketplaceBuyerDocument String?
+  marketplaceBuyerName String?
   observacoes String?
   tipoEntrega     String?
   valorFrete      Float?   @default(0)
