@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cancelExpiredPendingSales } from '@/lib/pending-sales'
 import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
+import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -14,10 +15,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const [pending, marketplaces] = await Promise.all([
-    cancelExpiredPendingSales(),
-    syncMarketplaceSalesToZetta(),
-  ])
+  const pending = await cancelExpiredPendingSales()
+  const marketplaces = await syncMarketplaceSalesToZetta()
+  const inventory = await syncZettaStockToMarketplaces().catch((error) => ({
+    products: 0,
+    mercadoLivreUpdated: 0,
+    amazonUpdated: 0,
+    skippedUnlinked: 0,
+    errors: [
+      error instanceof Error
+        ? error.message
+        : 'Falha ao sincronizar o estoque unificado.',
+    ],
+  }))
 
   return NextResponse.json({
     ok: true,
@@ -27,5 +37,6 @@ export async function GET(req: NextRequest) {
       cutoff: pending.cutoff.toISOString(),
     },
     marketplaces,
+    inventory,
   })
 }
