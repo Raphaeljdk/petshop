@@ -13,6 +13,22 @@ function money(valueCents: number) {
   return (valueCents / 100).toFixed(2)
 }
 
+function positiveEnvInt(name: string) {
+  const value = Number.parseInt(process.env[name]?.trim() || '', 10)
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+function ecommerceIdForChannel(channel: string) {
+  const normalized = String(channel || '').trim().toLowerCase()
+  if (normalized === 'mercadolivre') {
+    return positiveEnvInt('SIGGMA_ECOMMERCE_ID_MERCADO_LIVRE')
+  }
+  if (normalized === 'amazon') {
+    return positiveEnvInt('SIGGMA_ECOMMERCE_ID_AMAZON')
+  }
+  return positiveEnvInt('SIGGMA_ECOMMERCE_ID_SITE')
+}
+
 function formatDateTime(date: Date) {
   const p = (n: number) => String(n).padStart(2, '0')
   return [
@@ -84,11 +100,24 @@ export async function importarVendaNoSiggma(vendaId: string) {
   }
 
   const cpfCnpj = await resolveCpfCnpj(venda)
-  const marketplaceSale = ['mercadolivre', 'amazon'].includes(
-    String(venda.canal || '').toLowerCase()
-  )
-  if (!cpfCnpj && !marketplaceSale) {
-    throw new Error('CPF/CNPJ do cliente é obrigatório para importar o pedido no Siggma.')
+  const channel = String(venda.canal || '').toLowerCase()
+  const isMercadoLivre = channel === 'mercadolivre'
+  const isAmazon = channel === 'amazon'
+  const marketplaceSale = isMercadoLivre || isAmazon
+  const ecommerceId = ecommerceIdForChannel(channel)
+
+  if (isAmazon && !cpfCnpj) {
+    throw new Error(
+      'CPF/CNPJ do comprador é obrigatório para importar pedidos da Amazon no Zetta.'
+    )
+  }
+  if (!cpfCnpj && !isMercadoLivre) {
+    throw new Error('CPF/CNPJ do cliente é obrigatório para importar o pedido no Zetta.')
+  }
+  if (marketplaceSale && !ecommerceId) {
+    throw new Error(
+      `Canal ${isMercadoLivre ? 'Mercado Livre' : 'Amazon'} ainda sem ecommerceId cadastrado no Hub. Após o cadastro do canal no Zetta, configure ${isMercadoLivre ? 'SIGGMA_ECOMMERCE_ID_MERCADO_LIVRE' : 'SIGGMA_ECOMMERCE_ID_AMAZON'} uma única vez.`
+    )
   }
 
   const officialProducts = await Promise.all(
@@ -103,12 +132,29 @@ export async function importarVendaNoSiggma(vendaId: string) {
 
   const payloadItems = zettaItems.map((item, index) => {
     const official = officialProducts[index]
+    const expectedSku = official.codigo?.trim() || ''
+    const productSku = item.produto.sku?.trim() || ''
+
+    if (marketplaceSale && !expectedSku) {
+      throw new Error(
+        `Produto ${item.produto.nome} não possui o campo codigo em itens-integracao; a reserva de estoque no Zetta não é segura.`
+      )
+    }
+    if (
+      marketplaceSale &&
+      (!productSku || productSku.toLowerCase() !== expectedSku.toLowerCase())
+    ) {
+      throw new Error(
+        `SKU divergente em ${item.produto.nome}. O anúncio deve usar exatamente o código Zetta ${expectedSku || '(ausente)'}.`
+      )
+    }
+
     const itemTotal = itemTotals[index]
     const discount = index === 0 ? discountCents : 0
     const freight = index === 0 ? freightCents : 0
 
     return {
-      sku: zettaProductSku(official),
+      sku: marketplaceSale ? expectedSku : zettaProductSku(official),
       codigoIntegracao: official.codigoIntegracao || undefined,
       descricao: official.nome || item.produto.nome,
       qtd: String(item.quantidade),
@@ -167,6 +213,7 @@ export async function importarVendaNoSiggma(vendaId: string) {
     await siggma.pedidos.importar([
       {
         id: vendaSiggmaNumericId(venda.id),
+        ecommerceId: ecommerceId || undefined,
         dataCriacao: formatDateTime(venda.createdAt),
         guid,
         status: 'novo',

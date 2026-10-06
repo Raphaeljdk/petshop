@@ -15,7 +15,9 @@ export async function POST() {
   }
 
   const result = await syncMarketplaceSalesToZetta()
-  const inventory = await syncZettaStockToMarketplaces({ refreshZetta: false }).catch((error) => ({
+  // O Zetta confirmou que a reserva altera o saldo imediatamente. Releia o ERP
+  // após importar o lote para propagar o saldo autoritativo aos marketplaces.
+  const inventory = await syncZettaStockToMarketplaces({ refreshZetta: true }).catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,
     amazonUpdated: 0,
