@@ -404,7 +404,7 @@ export function ClientHome({
                     <ProductThumb
                       src={compra.itens[0]?.imageUrl}
                       alt={compra.itens[0]?.nome || 'Produto'}
-                      className="size-10 rounded-lg object-cover"
+                      className="size-10 rounded-lg object-contain p-1"
                     />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -461,7 +461,7 @@ export function ClientHome({
                     <ProductThumb
                       src={p.imageUrl}
                       alt={p.nome}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain p-2"
                       iconClassName="size-10"
                     />
                   </div>
