@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await syncMarketplaceSalesToZetta()
-    const inventory = await syncZettaStockToMarketplaces().catch((error) => ({
+    const inventory = await syncZettaStockToMarketplaces({ refreshZetta: false }).catch((error) => ({
       errors: [
         error instanceof Error ? error.message : 'Falha ao reconciliar estoque.',
       ],
