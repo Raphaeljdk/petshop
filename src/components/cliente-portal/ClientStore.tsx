@@ -500,18 +500,18 @@ export function ClientStore({
         </div>
       )}
 
-      <div className="stagger-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+      <div className="stagger-grid grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
         {produtosFiltrados.map((p) => (
-          <Card key={p.id} className="product-card-v2 group card-hover overflow-hidden py-0">
-            <CardContent className="p-4 flex h-full flex-col gap-4">
+          <Card key={p.id} className="product-card-v2 group overflow-hidden border-border/70 bg-card py-0 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+            <CardContent className="flex h-full flex-col gap-4 p-4 sm:p-5">
               <button
                 type="button"
                 onClick={() => setSelectedProduct(p)}
-                className="product-media aspect-square bg-muted rounded-xl flex items-center justify-center overflow-hidden"
+                className="product-media aspect-square overflow-hidden rounded-2xl border border-border/50 bg-white flex items-center justify-center"
                 aria-label={`Ver detalhes de ${p.nome}`}
               >
                 {p.imageUrl ? (
-                  <img src={p.imageUrl} alt={p.nome} loading="lazy" className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-105" />
+                  <img src={p.imageUrl} alt={p.nome} loading="lazy" className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-[1.04] sm:p-4" />
                 ) : <Package className="size-12 text-muted-foreground/40" />}
               </button>
               <button
@@ -519,21 +519,28 @@ export function ClientStore({
                 onClick={() => setSelectedProduct(p)}
                 className="flex-1 min-w-0 text-left"
               >
-                <p className="font-semibold text-base leading-snug line-clamp-2 min-h-11 group-hover:text-primary">{p.nome}</p>
-                <p className="text-xs text-muted-foreground truncate">{p.categoria}</p>
-                <p className="mt-1 text-[11px] font-medium text-primary">Ver fotos e detalhes</p>
+                <p className="min-h-12 line-clamp-2 text-base font-semibold leading-snug tracking-tight group-hover:text-primary sm:text-lg">{p.nome}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{p.categoria}</p>
+                <p className="mt-2 text-xs font-semibold text-primary">Ver fotos e detalhes →</p>
               </button>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   {p.precoPromo ? (
-                    <div><span className="text-xs line-through text-muted-foreground">{fmtMoeda(p.preco)}</span><p className="font-bold text-primary text-sm sm:text-base">{fmtMoeda(p.precoPromo)}</p></div>
-                  ) : <p className="font-bold text-sm sm:text-base">{fmtMoeda(p.preco)}</p>}
+                    <div><span className="text-xs line-through text-muted-foreground">{fmtMoeda(p.preco)}</span><p className="text-xl font-extrabold tracking-tight text-primary">{fmtMoeda(p.precoPromo)}</p></div>
+                  ) : <p className="text-xl font-extrabold tracking-tight">{fmtMoeda(p.preco)}</p>}
                 </div>
-                <Badge variant="secondary" className="text-[10px] shrink-0">
-                  {p.estoqueIlimitado ? 'Estoque ilimitado' : `Est: ${p.estoque}`}
+                <Badge
+                  variant="secondary"
+                  className={`shrink-0 text-[11px] ${
+                    p.estoqueIlimitado || p.estoque > 0
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {p.estoqueIlimitado ? 'Disponível' : p.estoque > 0 ? `${p.estoque} em estoque` : 'Sem estoque'}
                 </Badge>
               </div>
-              <Button size="sm" onClick={() => adicionarAoCarrinho(p)} disabled={!p.estoqueIlimitado && p.estoque <= 0} className="btn-brand h-11">
+              <Button size="sm" onClick={() => adicionarAoCarrinho(p)} disabled={!p.estoqueIlimitado && p.estoque <= 0} className="btn-brand h-12 text-sm font-semibold shadow-sm">
                 <Plus className="size-3.5" /> Adicionar
               </Button>
               <ProductActions product={p} />
