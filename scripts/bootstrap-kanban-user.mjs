@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
@@ -10,31 +9,29 @@ async function main() {
   }
 
   const email = process.env.KANBAN_LOGIN_EMAIL?.trim().toLowerCase()
-  const password = process.env.KANBAN_LOGIN_PASSWORD || ''
+  const passwordHash = process.env.KANBAN_LOGIN_PASSWORD_HASH?.trim() || ''
 
-  if (!email || !password) {
+  if (!email || !passwordHash) {
     console.log('Bootstrap do Kanban ignorado: credenciais não configuradas.')
     return
   }
 
-  if (Buffer.byteLength(password, 'utf8') > 72 || password.length < 10) {
-    throw new Error('KANBAN_LOGIN_PASSWORD deve ter entre 10 e 72 bytes.')
+  if (!/^\$2[aby]\$\d{2}\$/.test(passwordHash)) {
+    throw new Error('KANBAN_LOGIN_PASSWORD_HASH precisa ser um hash bcrypt válido.')
   }
-
-  const senha = await bcrypt.hash(password, 12)
 
   await prisma.user.upsert({
     where: { email },
     create: {
       nome: 'Agenda Matilha Prado',
       email,
-      senha,
+      senha: passwordHash,
       role: 'KANBAN',
       ativo: true,
     },
     update: {
       nome: 'Agenda Matilha Prado',
-      senha,
+      senha: passwordHash,
       role: 'KANBAN',
       ativo: true,
       clienteId: null,
