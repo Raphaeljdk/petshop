@@ -69,7 +69,7 @@ try {
       passed(route + ' responsivo a ' + width + 'px')
     }
   }
-  const productName = 'Produto responsivo ' + prefix
+  const productName = '000 Produto responsivo ' + prefix
   await db.produto.create({
     data: {
       id: 'produto-' + prefix,
@@ -92,9 +92,11 @@ try {
     await productDialog.waitFor()
     const box = await productDialog.boundingBox()
     assert.ok(box, 'Modal do produto possui dimensões em ' + width + 'px')
-    assert.ok(box.x >= -1, 'Modal não ultrapassa a borda esquerda em ' + width + 'px')
-    assert.ok(box.x + box.width <= width + 1, 'Modal não ultrapassa a borda direita em ' + width + 'px')
-    assert.ok(box.width >= width - 2, 'Modal ocupa a largura móvel em ' + width + 'px')
+    assert.ok(box.x >= 10, 'Modal mantém margem segura à esquerda em ' + width + 'px')
+    assert.ok(box.x + box.width <= width - 10, 'Modal mantém margem segura à direita em ' + width + 'px')
+    assert.ok(box.width >= width - 26, 'Modal aproveita a largura móvel em ' + width + 'px')
+    assert.ok(box.y >= 0 && box.y + box.height <= 844, 'Modal permanece dentro da altura visível em ' + width + 'px')
+    assert.ok(await productDialog.locator('[data-slot="dialog-close"]').isVisible(), 'Botão fechar visível em ' + width + 'px')
     assert.ok(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       'Produto não cria overflow horizontal em ' + width + 'px'
