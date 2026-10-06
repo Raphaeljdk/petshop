@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, totalStockFromSources } from '@/lib/product-stock'
+import { isServiceProduct, isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
 
 
 type ConsolidatableProduct = {
@@ -67,7 +67,7 @@ function consolidateAdminProducts<T extends ConsolidatableProduct>(products: T[]
       ...product,
       estoque: product.estoqueIlimitado
         ? product.estoque
-        : totalStockFromSources(product),
+        : officialStockFromSources(product),
     }))
   }
 
@@ -109,21 +109,17 @@ function consolidateAdminProducts<T extends ConsolidatableProduct>(products: T[]
   return Array.from(grouped.values()).map((rows) => {
     const primary = [...rows].sort((a, b) => score(b) - score(a))[0]
 
-    const estoqueHub = rows.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.estoqueHub || 0)),
-      0
+    const estoqueHub = Math.max(
+      ...rows.map((row) => Math.max(0, Number(row.estoqueHub || 0)))
     )
-    const estoqueZetta = rows.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.estoqueZetta || 0)),
-      0
+    const estoqueZetta = Math.max(
+      ...rows.map((row) => Math.max(0, Number(row.estoqueZetta || 0)))
     )
-    const estoqueMercadoLivre = rows.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.estoqueMercadoLivre || 0)),
-      0
+    const estoqueMercadoLivre = Math.max(
+      ...rows.map((row) => Math.max(0, Number(row.estoqueMercadoLivre || 0)))
     )
-    const estoqueAmazon = rows.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.estoqueAmazon || 0)),
-      0
+    const estoqueAmazon = Math.max(
+      ...rows.map((row) => Math.max(0, Number(row.estoqueAmazon || 0)))
     )
     const estoqueIlimitado = rows.some((row) => Boolean(row.estoqueIlimitado))
 
@@ -146,7 +142,7 @@ function consolidateAdminProducts<T extends ConsolidatableProduct>(products: T[]
 
     return {
       ...merged,
-      estoque: estoqueIlimitado ? primary.estoque : totalStockFromSources(merged),
+      estoque: estoqueIlimitado ? primary.estoque : officialStockFromSources(merged),
     } as T
   })
 }
@@ -166,7 +162,9 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       })
 
-      return NextResponse.json(consolidateAdminProducts(produtos))
+      return NextResponse.json(
+        consolidateAdminProducts(produtos).filter((produto) => !isServiceProduct(produto))
+      )
     } catch (prismaError) {
       console.warn(
         '[produtos GET] usando compatibilidade com schema anterior:',
@@ -215,7 +213,9 @@ export async function GET() {
         }
       })
 
-      return NextResponse.json(consolidateAdminProducts(enriched))
+      return NextResponse.json(
+        consolidateAdminProducts(enriched).filter((produto) => !isServiceProduct(produto))
+      )
     }
   } catch (e) {
     console.error('produtos GET erro:', e)

@@ -148,6 +148,9 @@ export interface Venda {
   descontoCupom: number
   canal: CanalVenda
   status: StatusVenda
+  marketplaceOrderId?: string | null
+  marketplaceBuyerDocument?: string | null
+  marketplaceBuyerName?: string | null
   observacoes: string | null
   // Campos de entrega
   tipoEntrega: TipoEntrega | null

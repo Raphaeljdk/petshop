@@ -58,9 +58,13 @@ try {
     await page.setViewportSize({ width, height: 960 })
     for (const route of ['/login', '/cadastro', '/cadastro/administrador']) {
       await page.goto(base + route)
-      await page.getByLabel('E-mail', { exact: true }).waitFor()
+      if (route === '/login') {
+        await page.getByLabel('Telefone com DDD', { exact: true }).waitFor()
+      } else {
+        await page.getByLabel('E-mail', { exact: true }).waitFor()
+      }
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Sem overflow em ' + route + ' / ' + width)
-      assert.ok(await page.getByRole('button', { name: 'Sou administrador' }).isVisible())
+      assert.ok(await page.getByRole('button', { name: route === '/login' ? 'Equipe / administração' : 'Sou administrador' }).isVisible())
       await page.screenshot({ path: 'test-results/auth/' + route.slice(1).replaceAll('/', '-') + '-' + width + '.png', fullPage: true })
       passed(route + ' responsivo a ' + width + 'px')
     }
@@ -93,6 +97,8 @@ try {
   await page.getByRole('navigation', { name: 'Navegação do cliente' }).waitFor()
   assert.ok((await context.cookies()).some(cookie => cookie.name === 'matilha_token' && cookie.httpOnly))
   passed('Cadastro real de cliente abre o portal com sessão')
+  const clientUser = await db.user.findUnique({ where: { email } })
+  await db.pet.create({ data: { nome: 'Mel', especie: 'Cachorro', clienteId: clientUser.clienteId } })
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.getByRole('button', { name: 'Cadastrar', exact: true }).waitFor()
 
@@ -123,7 +129,8 @@ try {
 
   await page.getByRole('button', { name: 'Sair da conta' }).click()
   await page.goto(base + '/login')
-  await page.getByLabel('E-mail', { exact: true }).fill(email)
+  await page.getByLabel('Telefone com DDD', { exact: true }).fill('11999991234')
+  await page.getByLabel('Nome do pet', { exact: true }).fill('Mel')
   await page.getByLabel('Senha', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Entrar na minha conta', exact: true }).click()
   await page.getByRole('navigation', { name: 'Navegação do cliente' }).waitFor()
@@ -133,7 +140,7 @@ try {
   const reduced = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 390, height: 844 } })
   const reducedPage = await reduced.newPage()
   await reducedPage.goto(base + '/login')
-  await reducedPage.getByLabel('E-mail', { exact: true }).waitFor()
+  await reducedPage.getByLabel('Telefone com DDD', { exact: true }).waitFor()
   assert.equal(await reducedPage.locator('.account-page-card').evaluate(el => getComputedStyle(el).animationName), 'none')
   passed('Preferência de movimento reduzido respeitada')
   assert.deepEqual(errors, [], 'Sem erros de JavaScript nas telas')

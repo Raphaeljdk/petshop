@@ -30,6 +30,12 @@ function cpfFor(name: string) {
   return digits.join('')
 }
 const client = (name: string) => ({ nome: 'Cliente de Teste', email: email(name), telefone: '(11) 99999-1234', cpfCnpj: cpfFor(name), senha: password, confirmarSenha: password, role: 'CLIENTE' })
+const clientLogin = (petNome: string, senha = password) => ({
+  role: 'CLIENTE' as const,
+  telefone: '11999991234',
+  petNome,
+  senha,
+})
 async function post(path: string, data: unknown, cookie?: string, origin = base) {
   return fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(data) })
 }
@@ -105,9 +111,11 @@ test('cadastro duplicado não deixa clientes órfãos', async () => {
   expect(await db.cliente.count({ where: { email: email('duplicate') } })).toBe(1)
 })
 
-test('login mantém sessão por sete dias somente quando solicitado e logout remove o cookie', async () => {
+test('login de cliente usa telefone, nome do pet e senha e mantém sessão por sete dias quando solicitado', async () => {
   await post('/api/auth/register', client('remember'))
-  const res = await post('/api/auth/login', { email: email('remember'), senha: password, lembrar: true })
+  const user = await db.user.findUnique({ where: { email: email('remember') } })
+  await db.pet.create({ data: { nome: 'Mel', especie: 'Cachorro', clienteId: user!.clienteId! } })
+  const res = await post('/api/auth/login', { ...clientLogin('Mel'), lembrar: true })
   expect(res.status).toBe(200)
   expect(res.headers.get('set-cookie')).toContain('Max-Age=604800')
   const logout = await fetch(base + '/api/auth/logout', { method: 'POST', headers: { Cookie: cookieOf(res), Origin: base } })
@@ -117,9 +125,11 @@ test('login mantém sessão por sete dias somente quando solicitado e logout rem
 
 test('login rejeita conta desativada e senha errada com a mesma resposta', async () => {
   await post('/api/auth/register', client('disabled'))
-  const wrong = await post('/api/auth/login', { email: email('disabled'), senha: 'SenhaErrada99' })
+  const user = await db.user.findUnique({ where: { email: email('disabled') } })
+  await db.pet.create({ data: { nome: 'Thor', especie: 'Cachorro', clienteId: user!.clienteId! } })
+  const wrong = await post('/api/auth/login', clientLogin('Thor', 'SenhaErrada99'))
   await db.user.update({ where: { email: email('disabled') }, data: { ativo: false } })
-  const inactive = await post('/api/auth/login', { email: email('disabled'), senha: password })
+  const inactive = await post('/api/auth/login', clientLogin('Thor'))
   expect(wrong.status).toBe(401)
   expect(inactive.status).toBe(401)
   expect(await wrong.json()).toEqual(await inactive.json())
@@ -207,9 +217,9 @@ test('admin gera código uma vez, lista sem hash, revoga e substitui convites', 
 
 test('limita repetição de tentativas de login e informa quando tentar novamente', async () => {
   for (let i = 0; i < 10; i++) {
-    expect((await post('/api/auth/login', { email: email('limited'), senha: 'Errada99999' })).status).toBe(401)
+    expect((await post('/api/auth/login', { role: 'CLIENTE', telefone: '11988887777', petNome: 'Pet Inexistente', senha: 'Errada99999' })).status).toBe(401)
   }
-  const limited = await post('/api/auth/login', { email: email('limited'), senha: 'Errada99999' })
+  const limited = await post('/api/auth/login', { role: 'CLIENTE', telefone: '11988887777', petNome: 'Pet Inexistente', senha: 'Errada99999' })
   expect(limited.status).toBe(429)
   expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0)
 }, 20_000)

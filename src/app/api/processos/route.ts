@@ -9,7 +9,7 @@ export async function GET() {
     if (!usuario) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
-    if (usuario.role !== 'ADMIN') {
+    if (!['ADMIN', 'KANBAN'].includes(usuario.role)) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     if (!usuario) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
-    if (usuario.role !== 'ADMIN') {
+    if (!['ADMIN', 'KANBAN'].includes(usuario.role)) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 

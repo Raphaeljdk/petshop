@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "bun run db:deploy:production && bunx prisma generate --schema=prisma/schema.prisma && next build --webpack && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "build": "bun run db:deploy:production && bunx prisma generate --schema=prisma/schema.prisma && bun run db:bootstrap:kanban:production && next build --webpack && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push",
@@ -17,7 +17,8 @@
     "postinstall": "prisma generate --schema=prisma/schema.prisma",
     "test:customer-experience": "node --test tests/customer-experience.test.cjs",
     "db:deploy:production": "if [ \"$VERCEL_ENV\" = \"production\" ]; then export PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1; bun run db:baseline:production && attempt=1; while [ \"$attempt\" -le 3 ]; do echo \"Aplicando migrations de produção (tentativa $attempt/3)...\"; if bunx prisma migrate deploy --schema=prisma/schema.prisma; then exit 0; fi; if [ \"$attempt\" -lt 3 ]; then sleep $((attempt * 4)); fi; attempt=$((attempt + 1)); done; echo \"Falha ao aplicar migrations após 3 tentativas.\"; exit 1; else echo \"Skipping production migration (VERCEL_ENV=$VERCEL_ENV)\"; fi",
-    "db:baseline:production": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node scripts/prisma-baseline-production.mjs; else echo \"Baseline ignorado (VERCEL_ENV=$VERCEL_ENV)\"; fi"
+    "db:baseline:production": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node scripts/prisma-baseline-production.mjs; else echo \"Baseline ignorado (VERCEL_ENV=$VERCEL_ENV)\"; fi",
+    "db:bootstrap:kanban:production": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node scripts/bootstrap-kanban-user.mjs; else echo \"Bootstrap Kanban ignorado (VERCEL_ENV=$VERCEL_ENV)\"; fi"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -34,7 +34,7 @@ export default function Home() {
     return <AuthScreen />
   }
 
-  if (sessao.user?.role === 'ADMIN') {
+  if (sessao.user?.role === 'ADMIN' || sessao.user?.role === 'KANBAN') {
     return <AdminPanel />
   }
 

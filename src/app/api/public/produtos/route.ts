@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 import { legacyProducts } from '@/lib/product-compat'
-import { officialStockFromSources } from '@/lib/product-stock'
+import { isServiceProduct, officialStockFromSources } from '@/lib/product-stock'
 
 function uniqueProducts<T extends { id: string }>(products: T[]) {
   return [...new Map(products.map((product) => [product.id, product])).values()]
@@ -25,7 +25,13 @@ const getPublicProducts = unstable_cache(
             ? produto.estoque
             : officialStockFromSources(produto),
         }))
-        .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
+        .filter((produto) => !isServiceProduct(produto))
+        .sort((a, b) => {
+          const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
+          const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
+          if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
+          return a.nome.localeCompare(b.nome, 'pt-BR')
+        })
     } catch (error) {
       console.error(
         '[public/produtos] Siggma indisponível, usando cache local:',
@@ -44,17 +50,30 @@ const getPublicProducts = unstable_cache(
               ? produto.estoque
               : officialStockFromSources(produto),
           }))
-          .filter((produto) => produto.estoqueIlimitado || produto.estoque > 0)
+          .filter((produto) => !isServiceProduct(produto))
+        .sort((a, b) => {
+          const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
+          const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
+          if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
+          return a.nome.localeCompare(b.nome, 'pt-BR')
+        })
       } catch (schemaError) {
         console.warn(
           '[public/produtos] schema novo ainda não aplicado; usando leitura compatível:',
           schemaError instanceof Error ? schemaError.message : schemaError
         )
-        return legacyProducts({ onlyActive: true, onlyAvailable: true })
+        return (await legacyProducts({ onlyActive: true }))
+          .filter((produto) => !isServiceProduct(produto))
+          .sort((a, b) => {
+            const aSemEstoque = a.estoque <= 0
+            const bSemEstoque = b.estoque <= 0
+            if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
+            return a.nome.localeCompare(b.nome, 'pt-BR')
+          })
       }
     }
   },
-  ['public-products-v4'],
+  ['public-products-v5-items-only'],
   { revalidate: 300 }
 )
 

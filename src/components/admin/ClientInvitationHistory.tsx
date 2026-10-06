@@ -36,11 +36,11 @@ export function ClientInvitationHistory() {
   return <Card><CardContent className="p-4 sm:p-6 space-y-3">
     <div className="flex flex-wrap justify-between gap-2"><div><h2 className="font-semibold">Convites de acesso dos clientes</h2><p className="text-sm text-muted-foreground">Selecione “Convidar para o portal” no cadastro abaixo. Últimos 100 convites.</p></div><Button variant="outline" onClick={() => void load()}>Atualizar</Button></div>
     {loading ? <p role="status">Consultando convites...</p> : error ? <p role="alert" className="text-sm text-destructive">{error}</p> : <>
-      {!configured && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Envio ainda não configurado. Defina RESEND_API_KEY, INVITATION_EMAIL_FROM e APP_URL com HTTPS no servidor.</p>}
+      {!configured && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">E-mail automático ainda não configurado. Ao convidar um cliente, o sistema agora gera um link individual de ativação para copiar e enviar por um canal privado. Para envio automático, ainda serão necessários RESEND_API_KEY e INVITATION_EMAIL_FROM.</p>}
       <p className="text-xs text-muted-foreground">“Aceito pelo provedor” não confirma entrega na caixa de entrada. Confira falhas e devoluções no serviço de e-mail.</p>
       <div className="max-h-80 overflow-y-auto space-y-2">{items.length === 0 ? <p className="text-sm">Nenhum convite gerado.</p> : items.map((item) => {
         const expired = new Date(item.expiresAt) <= new Date()
-        const status = item.usedAt ? 'Acesso ativado' : item.revokedAt ? 'Revogado' : expired ? 'Expirado' : item.emailStatus === 'accepted' ? 'Aceito pelo provedor' : item.emailStatus === 'unknown' ? 'Envio não confirmado' : 'Envio em processamento'
+        const status = item.usedAt ? 'Acesso ativado' : item.revokedAt ? 'Revogado' : expired ? 'Expirado' : item.emailStatus === 'accepted' ? 'Aceito pelo provedor' : item.emailStatus === 'manual' ? 'Link gerado para envio manual' : item.emailStatus === 'unknown' ? 'Envio não confirmado' : 'Envio em processamento'
         return <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div className="min-w-0"><p className="font-medium text-sm">{item.nome}</p><p className="text-sm break-all">{item.email}</p><p className="text-xs text-muted-foreground">{status} · Válido até {new Date(item.expiresAt).toLocaleString('pt-BR')}</p></div>{!item.usedAt && !item.revokedAt && !expired && <Button variant="outline" disabled={Boolean(busy)} onClick={() => void revoke(item.id)}>Revogar</Button>}</div>
       })}</div>
     </>}

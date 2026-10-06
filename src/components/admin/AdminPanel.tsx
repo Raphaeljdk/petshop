@@ -148,6 +148,31 @@ function AdminPanelImpl() {
 
   if (!user) return null
 
+  if (user.role === 'KANBAN') {
+    return (
+      <div className="app-shell flex min-h-dvh flex-col bg-background">
+        <header className="app-header sticky top-0 z-40 border-b border-border">
+          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <Logo size="sm" withText={false} />
+              <div>
+                <p className="text-sm font-semibold">Agenda Matilha Prado</p>
+                <p className="text-xs text-muted-foreground">Acesso exclusivo ao Kanban</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="size-4" />
+              <span className="ml-1">Sair</span>
+            </Button>
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <KanbanBoard limitedAccess />
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell flex flex-col bg-background">
       <a className="skip-link" href="#admin-content">Pular para o conteúdo</a>

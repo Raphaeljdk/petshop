@@ -10,6 +10,7 @@ import {
 import { emitWebSocket } from '@/lib/realtime'
 import { importarVendaNoSiggma } from '@/lib/siggma/orders'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
+import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,6 +109,11 @@ export async function POST(req: NextRequest) {
 
     if (statusMap.aprovado) {
       await importarVendaNoSiggma(venda.id)
+      try {
+        await syncZettaStockToMarketplaces()
+      } catch (inventoryError) {
+        console.error('[pagamento/webhook] estoque dos marketplaces pendente:', inventoryError)
+      }
       await emitWebSocket('pagamento:aprovado', {
         vendaId: venda.id,
         mercadoPagoId: order.orderId,

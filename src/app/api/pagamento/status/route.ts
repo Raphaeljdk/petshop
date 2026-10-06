@@ -8,6 +8,7 @@ import {
 } from '@/lib/mercado-pago-orders'
 import { importarVendaNoSiggma } from '@/lib/siggma/orders'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
+import { cancelExpiredPendingSale, pendingSaleExpiresAt } from '@/lib/pending-sales'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
         mercadoPagoPaymentUrl: true,
         mercadoPagoQrCode: true,
         mercadoPagoPixExpiresAt: true,
+        createdAt: true,
         updatedAt: true,
       },
     })
@@ -59,6 +61,26 @@ export async function GET(req: NextRequest) {
 
     if (venda.clienteId && venda.clienteId !== cliente.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
+    if (await cancelExpiredPendingSale(venda.id)) {
+      const cancelada = await db.venda.findUnique({
+        where: { id: venda.id },
+        select: {
+          id: true,
+          clienteId: true,
+          status: true,
+          total: true,
+          mercadoPagoId: true,
+          mercadoPagoStatus: true,
+          mercadoPagoPaymentUrl: true,
+          mercadoPagoQrCode: true,
+          mercadoPagoPixExpiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+      if (cancelada) venda = cancelada
     }
 
     const orderId = venda.mercadoPagoId
@@ -133,6 +155,10 @@ export async function GET(req: NextRequest) {
         !venda.mercadoPagoId ||
         venda.mercadoPagoId.startsWith('SIM_') ||
         venda.mercadoPagoId.startsWith('SIM-'),
+      pendingExpiresAt:
+        venda.status === 'pendente'
+          ? pendingSaleExpiresAt(venda.createdAt).toISOString()
+          : null,
       updatedAt: venda.updatedAt.toISOString(),
     })
   } catch (e: any) {

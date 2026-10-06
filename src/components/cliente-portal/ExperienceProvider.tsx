@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react'
 import { toast } from 'sonner'
@@ -58,10 +59,31 @@ export function ExperienceProvider({
   const [ready, setReady] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const previousAvailability = useRef<Map<string, boolean | null>>(new Map())
+
   const refresh = useCallback(
     () =>
       portalRequest<Preference[]>('/api/cliente/preferencias')
         .then((rows) => {
+          const previous = previousAvailability.current
+          for (const row of rows) {
+            const before = previous.get(row.produtoId)
+            if (row.restock && row.available === true && before !== true) {
+              toast.success(`${row.product.nome} voltou ao estoque!`, {
+                description: 'O item que você pediu para acompanhar já está disponível.',
+              })
+              void portalRequest('/api/cliente/preferencias', {
+                method: 'PUT',
+                body: JSON.stringify({
+                  produtoId: row.produtoId,
+                  restock: false,
+                }),
+              }).catch(() => undefined)
+            }
+          }
+          previousAvailability.current = new Map(
+            rows.map((row) => [row.produtoId, row.available])
+          )
           setPreferences(rows)
           setReady(true)
         })

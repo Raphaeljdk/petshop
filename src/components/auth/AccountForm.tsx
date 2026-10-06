@@ -53,7 +53,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const [help, setHelp] = useState(false)
-  const [data, setData] = useState({ nome: '', email: '', telefone: '', cpfCnpj: '', endereco: '', cep: '', senha: '', confirmarSenha: '', convite: '' })
+  const [data, setData] = useState({ nome: '', email: '', telefone: '', petNome: '', cpfCnpj: '', endereco: '', cep: '', senha: '', confirmarSenha: '', convite: '' })
   const inFlight = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
   const messageRef = useRef<HTMLDivElement>(null)
@@ -94,7 +94,9 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
     const input = isRegister
       ? { nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
           ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }) }
-      : { email: data.email, senha: data.senha, lembrar: remember }
+      : isAdmin
+        ? { role: 'ADMIN' as const, email: data.email, senha: data.senha, lembrar: remember }
+        : { role: 'CLIENTE' as const, telefone: data.telefone, petNome: data.petNome, senha: data.senha, lembrar: remember }
     const parsed = (isRegister ? (isAdmin ? adminRegistrationSchema : clientRegistrationSchema) : loginSchema).safeParse(input)
     if (!parsed.success) { showErrors(fieldErrors(parsed.error), 'Confira os campos abaixo para continuar.'); return }
     inFlight.current = true
@@ -109,7 +111,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
           ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }),
         })
       } else {
-        await login(data.email, data.senha, remember)
+        await login(parsed.data as Parameters<typeof login>[0])
       }
       setData(prev => ({ ...prev, senha: '', confirmarSenha: '', convite: '' }))
       onSuccess?.()
@@ -135,13 +137,15 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
         {isRegister
           ? isAdmin ? 'Use o convite da administração para criar sua conta de trabalho.' : 'Crie sua conta e cuide da rotina do seu pet com a gente.'
-          : 'Entre com seu e-mail e senha. Sua conta abre o painel correspondente.'}
+          : isAdmin
+            ? 'Entre com seu e-mail ou usuário e senha. Contas da agenda abrem somente o Kanban.'
+            : 'Entre com seu telefone, o nome de um dos seus pets e sua senha.'}
       </p>
     </div>
 
     <div className="mb-6 grid grid-cols-2 gap-2" role="group" aria-label="Tipo de conta">
       {([{ value: 'CLIENTE', title: 'Sou cliente', subtitle: 'Pets e agendamentos', icon: PawPrint },
-        { value: 'ADMIN', title: 'Sou administrador', subtitle: 'Gestão da loja', icon: ShieldCheck }] as const).map(item => (
+        { value: 'ADMIN', title: isRegister ? 'Sou administrador' : 'Equipe / administração', subtitle: isRegister ? 'Gestão da loja' : 'Administração ou agenda', icon: ShieldCheck }] as const).map(item => (
         <button key={item.value} type="button" disabled={busy} aria-pressed={role === item.value}
           onClick={() => changeView(mode, item.value)}
           className={cn('account-role rounded-xl border p-3 text-left transition-colors', role === item.value && 'account-role-active')}>
@@ -158,16 +162,30 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
         <legend className="sr-only">{isRegister ? 'Dados de cadastro' : 'Dados de acesso'}</legend>
         {isRegister && <Field label="Nome completo" icon={UserRound} name="nome" autoComplete="name" required maxLength={100}
           placeholder="Como podemos chamar você?" value={data.nome} onChange={e => update('nome', e.target.value)} error={errors.nome} />}
-        <Field label="E-mail" icon={Mail} name="email" type="email" autoComplete="email" required maxLength={254}
-          autoCapitalize="none" spellCheck={false} placeholder="voce@exemplo.com" value={data.email} onChange={e => update('email', e.target.value)} error={errors.email}
-          hint={isRegister && isAdmin ? 'Use o mesmo e-mail que recebeu o convite.' : undefined} />
-        {isRegister && !isAdmin && <>
-          <Field label="Telefone com DDD" icon={Phone} name="telefone" type="tel" autoComplete="tel-national" required
-            placeholder="(11) 99999-9999" value={data.telefone} onChange={e => update('telefone', formatPhone(e.target.value))} error={errors.telefone} />
-          <Field label="CPF ou CNPJ" icon={UserRound} name="cpfCnpj" inputMode="numeric" required
-            placeholder="000.000.000-00" value={data.cpfCnpj} onChange={e => update('cpfCnpj', formatCpfCnpj(e.target.value))} error={errors.cpfCnpj}
-            hint="Usado para localizar ou criar seu cadastro no Siggma e emitir pedidos." />
-        </>}
+        {(isRegister || isAdmin) && <Field
+          label={!isRegister && isAdmin ? 'E-mail ou usuário' : 'E-mail'}
+          icon={Mail}
+          name="email"
+          type={!isRegister && isAdmin ? 'text' : 'email'}
+          autoComplete="username"
+          required
+          maxLength={254}
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder={!isRegister && isAdmin ? 'Seu acesso da equipe' : 'voce@exemplo.com'}
+          value={data.email}
+          onChange={e => update('email', e.target.value)}
+          error={errors.email}
+          hint={isRegister && isAdmin ? 'Use o mesmo e-mail que recebeu o convite.' : undefined}
+        />}
+        {!isAdmin && <Field label="Telefone com DDD" icon={Phone} name="telefone" type="tel" autoComplete="tel-national" required
+          placeholder="(11) 99999-9999" value={data.telefone} onChange={e => update('telefone', formatPhone(e.target.value))} error={errors.telefone} />}
+        {!isRegister && !isAdmin && <Field label="Nome do pet" icon={PawPrint} name="petNome" autoComplete="off" required maxLength={100}
+          placeholder="Ex.: Mel" value={data.petNome} onChange={e => update('petNome', e.target.value)} error={errors.petNome}
+          hint="Use o nome de um pet vinculado ao seu cadastro." />}
+        {isRegister && !isAdmin && <Field label="CPF ou CNPJ" icon={UserRound} name="cpfCnpj" inputMode="numeric" required
+          placeholder="000.000.000-00" value={data.cpfCnpj} onChange={e => update('cpfCnpj', formatCpfCnpj(e.target.value))} error={errors.cpfCnpj}
+          hint="Usado para localizar ou criar seu cadastro no Siggma e emitir pedidos." />}
         {isRegister && isAdmin && <Field label="Código de convite" icon={KeyRound} name="convite" autoComplete="off" required maxLength={64}
           spellCheck={false} autoCapitalize="none" placeholder="Cole o código fornecido pela administração" value={data.convite}
           onChange={e => update('convite', e.target.value.trim())} error={errors.convite}
@@ -204,7 +222,9 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
           <button type="button" onClick={() => setHelp(value => !value)} aria-expanded={help} className="font-medium text-primary hover:underline">Preciso de ajuda</button>
         </div>}
         {help && <p className="rounded-xl bg-muted p-3 text-sm leading-relaxed text-muted-foreground">
-          Confira seu e-mail e o Caps Lock. Se perdeu sua senha ou já possui cadastro na loja, procure a equipe da Matilha Prado para recuperar seu acesso.
+          {isAdmin
+            ? 'Confira seu e-mail/usuário e o Caps Lock. Se perdeu sua senha, procure a administração.'
+            : 'Confira o telefone com DDD, o nome do pet e o Caps Lock. Se perdeu sua senha, procure a equipe da Matilha Prado.'}
         </p>}
         <Button type="submit" disabled={busy} className="account-submit h-12 w-full rounded-xl text-sm font-semibold">
           {busy ? <><Loader2 className="size-4 animate-spin" /> {isRegister ? 'Criando sua conta...' : 'Entrando...'}</>

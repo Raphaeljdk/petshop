@@ -325,3 +325,39 @@ export async function mercadoLivreItemDetails(itemId: string, token: string) {
     description: description?.plain_text?.trim() || null,
   }
 }
+
+
+export async function mercadoLivreUpdateStock(
+  itemId: string,
+  quantity: number,
+  token: string
+) {
+  const response = await fetch(
+    `https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        available_quantity: Math.max(0, Math.floor(quantity)),
+      }),
+      cache: 'no-store',
+    }
+  )
+
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message =
+      typeof payload?.message === 'string'
+        ? payload.message
+        : `HTTP ${response.status}`
+    throw new Error(
+      `Mercado Livre recusou a atualização de estoque do anúncio ${itemId}: ${message}`
+    )
+  }
+
+  return payload
+}

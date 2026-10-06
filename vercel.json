@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run build"
+  "buildCommand": "bun run build",
+  "crons": [
+    {
+      "path": "/api/cron/cancelar-pendentes",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }

@@ -152,6 +152,7 @@ export function IntegracoesView() {
   const [amazonSyncing, setAmazonSyncing] = useState(false)
   const [amazonRefresh, setAmazonRefresh] = useState(0)
   const [amazonPublishingId, setAmazonPublishingId] = useState<string | null>(null)
+  const [marketplaceSalesSyncing, setMarketplaceSalesSyncing] = useState(false)
   const amazonAutoSyncDone = useRef(false)
 
   useEffect(() => {
@@ -518,6 +519,60 @@ export function IntegracoesView() {
         estado.pagamento?.mercadoPagoPublicKey
     )
 
+  const sincronizarVendasMarketplaces = async () => {
+    if (marketplaceSalesSyncing) return
+    setMarketplaceSalesSyncing(true)
+    try {
+      const response = await fetch('/api/integracoes/marketplaces/vendas/sincronizar', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || 'Não foi possível sincronizar as vendas.')
+      }
+
+      const ml = data.mercadoLivre
+      const amazonResult = data.amazon
+      const imported = Number(ml?.imported || 0) + Number(amazonResult?.imported || 0)
+      const errors = [
+        data.mercadoLivreError,
+        data.amazonError,
+        ...(ml?.errors || []),
+        ...(amazonResult?.errors || []),
+      ].filter(Boolean)
+
+      const inventoryUpdated =
+        Number(data.inventory?.mercadoLivreUpdated || 0) +
+        Number(data.inventory?.amazonUpdated || 0)
+      const unlinked = Number(data.inventory?.skippedUnlinked || 0)
+      const inventoryErrors = data.inventory?.errors || []
+
+      if (imported > 0 || inventoryUpdated > 0) {
+        toast.success(
+          `${imported} venda(s) enviada(s) ao Zetta e ${inventoryUpdated} anúncio(s) com estoque reconciliado.`
+        )
+      } else {
+        toast.info('Vendas e estoque já estavam sincronizados.')
+      }
+      if (unlinked > 0) {
+        toast.warning(
+          `${unlinked} item(ns) de marketplace ainda não estão vinculados ao Zetta e não entram no estoque compartilhado.`
+        )
+      }
+      const firstError = [...errors, ...inventoryErrors][0]
+      if (firstError) {
+        toast.warning(firstError)
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Falha ao sincronizar vendas dos marketplaces.'
+      )
+    } finally {
+      setMarketplaceSalesSyncing(false)
+    }
+  }
+
   const motoboyAtivo = Boolean(estado.frete?.entregaPropriaAtiva)
 
   return (
@@ -539,10 +594,19 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              As integrações com marketplaces exigem credenciais e aprovação
-              específicas de cada plataforma e são configuradas pelo
-              desenvolvedor.
+              Catálogo e vendas ficam vinculados ao estoque unificado. Pedidos pagos do Mercado Livre e pedidos confirmados da Amazon são registrados como vendas de e-commerce e enviados ao Zetta quando todos os itens possuem vínculo com o ERP.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 bg-white"
+              onClick={() => void sincronizarVendasMarketplaces()}
+              disabled={marketplaceSalesSyncing}
+            >
+              <RefreshCw className={`size-4 ${marketplaceSalesSyncing ? 'animate-spin' : ''}`} />
+              {marketplaceSalesSyncing ? 'Sincronizando vendas...' : 'Sincronizar vendas → Zetta'}
+            </Button>
           </div>
         </CardContent>
       </Card>

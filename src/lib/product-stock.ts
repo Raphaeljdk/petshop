@@ -25,6 +25,31 @@ export function safeStock(value?: number | null) {
   return Math.max(0, Math.floor(number))
 }
 
+
+export function isServiceProduct(product: {
+  nome?: string | null
+  categoria?: string | null
+  estoqueIlimitado?: boolean | null
+}) {
+  if (product.estoqueIlimitado) return true
+
+  const nome = normalizeText(product.nome)
+  const categoria = normalizeText(product.categoria)
+  if (categoria.includes('servic')) return true
+
+  return (
+    nome === 'banho' ||
+    nome === 'tosa' ||
+    nome === 'banho e tosa' ||
+    nome === 'consulta' ||
+    nome === 'consulta veterinaria' ||
+    nome === 'vacinacao' ||
+    nome === 'vacina' ||
+    nome === 'spa pet' ||
+    nome === 'tosa higienica'
+  )
+}
+
 export function isUnlimitedBathProduct(product: {
   nome?: string | null
   categoria?: string | null

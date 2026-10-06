@@ -70,6 +70,7 @@ import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
 
 interface KanbanBoardProps {
   onCountsChange?: (counts: { novo: number; andamento: number }) => void
+  limitedAccess?: boolean
 }
 
 type ColunaId = 'novo' | 'em_andamento' | 'finalizado'
@@ -466,7 +467,7 @@ function ColunaKanban({
 /* Componente principal                                                   */
 /* --------------------------------------------------------------------- */
 
-export function KanbanBoard({ onCountsChange }: KanbanBoardProps) {
+export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoardProps) {
   const [processos, setProcessos] = useState<Processo[]>([])
   const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
@@ -823,7 +824,7 @@ export function KanbanBoard({ onCountsChange }: KanbanBoardProps) {
     </div>
   )
 
-  if (atendimentoView === 'zetta') {
+  if (!limitedAccess && atendimentoView === 'zetta') {
     return (
       <div className="space-y-4 sm:space-y-6">
         <div>
@@ -863,7 +864,7 @@ export function KanbanBoard({ onCountsChange }: KanbanBoardProps) {
         </Button>
       </div>
 
-      {atendimentoTabs}
+      {!limitedAccess && atendimentoTabs}
 
       {/* Filtros */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">
