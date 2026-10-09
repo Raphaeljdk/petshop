@@ -18,6 +18,6 @@ export function regiaoMotoboyPorCep(cep: string) {
   if (!/^\d{5}-?\d{3}$/.test(cep)) return null
   const numero = Number(cep.replace('-', ''))
   return MOTOBOY_REGIOES.find(regiao =>
-    regiao.faixas.some(([inicio, fim]) => numero >= inicio && numero <= fim)
+    regiao.faixas.some(([inicio, fim]: readonly [number, number]) => numero >= inicio && numero <= fim)
   ) ?? null
 }
