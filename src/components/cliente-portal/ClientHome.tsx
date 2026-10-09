@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Sparkles,
   Heart,
+  PawPrint,
+  ArrowRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -173,6 +175,9 @@ export function ClientHome({
   }
 
   const nome = data.cliente.nome?.split(' ')[0] || 'Cliente'
+  const primeiroPet = data.pets[0]
+  const proximoAgendamento = data.proximosAgendamentos[0]
+  const nomesPets = data.pets.slice(0, 2).map(pet => pet.nome).join(' e ')
 
   function formatarDataHora(dataStr: string) {
     const d = parseISO(dataStr)
@@ -180,6 +185,14 @@ export function ClientHome({
     if (isTomorrow(d)) return `Amanhã às ${format(d, 'HH:mm', { locale: ptBR })}`
     return format(d, "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })
   }
+
+  const cuidado = data.stats.processosAtivos > 0
+    ? { title: 'Tem cuidado acontecendo por aqui.', description: 'Há atendimento em aberto para sua matilha. Veja os detalhes e a etapa de cada pet.', action: 'Acompanhar meus pets', onClick: onIrParaPets }
+    : proximoAgendamento
+      ? { title: `O próximo encontro de ${proximoAgendamento.pet.nome}`, description: `${formatarDataHora(proximoAgendamento.dataHora)} · ${proximoAgendamento.servico.replace(/_/g, ' ')}. Confira os detalhes na sua agenda.`, action: 'Ver meu agendamento', onClick: onIrParaAgendamentos }
+      : primeiroPet
+        ? { title: 'Que tal reservar um momento de cuidado?', description: `Veja a agenda para organizar o próximo atendimento de ${data.pets.length === 1 ? primeiroPet.nome : 'sua matilha'}.`, action: 'Planejar próximo cuidado', onClick: onIrParaAgendamentos }
+        : { title: 'Cada amizade tem uma história. Vamos conhecer a sua?', description: data.zettaLinked ? 'Os pets do seu cadastro na loja aparecem no portal. Se algum estiver faltando, nossa equipe ajuda você.' : 'Comece pelo perfil do seu pet para reunir os cuidados e os próximos atendimentos em um só lugar.', action: 'Conhecer o espaço dos pets', onClick: onIrParaPets }
 
   return (
     <div className="space-y-6">
@@ -190,12 +203,16 @@ export function ClientHome({
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="size-5 text-orange-300" />
-            <span className="text-sm text-white/80">Bem-vindo de volta,</span>
+            <span className="text-sm text-white/80">Seu cantinho na Matilha Prado</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">{nome}!</h1>
+          <h1 className="break-words text-3xl sm:text-4xl font-bold tracking-tight mb-3">Que bom ter você aqui, {nome}!</h1>
           <p className="text-white/80 text-sm sm:text-base max-w-lg">
-            Gerencie seus pets, agende serviços e compre produtos premium para seu melhor amigo.
+            {primeiroPet ? `${nomesPets}${data.pets.length > 2 ? ' e toda a sua matilha' : ''}: cada cuidado faz parte de uma história. Acompanhe a de vocês por aqui.` : 'Um espaço para os pequenos cuidados e os grandes momentos com seu melhor amigo.'}
           </p>
+          {data.pets.length > 0 && <div className="mt-4 flex flex-wrap gap-2" aria-label="Sua matilha">
+            {data.pets.slice(0, 3).map(pet => <button key={pet.id} type="button" onClick={onIrParaPets} aria-label={`Ver meus pets, incluindo ${pet.nome}`} className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-sm hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"><span aria-hidden="true">{ESPECIE_ICONE[pet.especie] || '🐾'}</span><span className="truncate">{pet.nome}</span></button>)}
+            {data.pets.length > 3 && <button type="button" onClick={onIrParaPets} className="min-h-11 rounded-full border border-white/20 px-3 text-sm hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white">Ver toda a matilha</button>}
+          </div>}
 
           {/* Stats inline */}
           <div className="flex flex-wrap gap-4 mt-6">
@@ -219,6 +236,14 @@ export function ClientHome({
           </div>
         </div>
       </div>
+
+      <section aria-labelledby="proximo-cuidado" className="flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:flex-row sm:items-center sm:p-6">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-card text-primary"><PawPrint className="size-5" aria-hidden="true" /></div>
+          <div className="min-w-0"><p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">O próximo cuidado</p><h2 id="proximo-cuidado" className="break-words text-base font-semibold">{cuidado.title}</h2><p className="mt-1 break-words text-sm leading-6 text-muted-foreground">{cuidado.description}</p></div>
+        </div>
+        <Button type="button" onClick={cuidado.onClick} className="h-auto min-h-12 shrink-0 whitespace-normal rounded-xl px-4 py-3 text-center sm:max-w-56">{cuidado.action}<ArrowRight className="size-4 shrink-0" aria-hidden="true" /></Button>
+      </section>
 
       {/* ===== ATALHOS RÁPIDOS ===== */}
       <div className="stagger-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -314,7 +339,6 @@ export function ClientHome({
             <CardTitle className="text-base flex items-center gap-2">
               <Dog className="size-4 text-primary" />
               Status dos Meus Pets
-              {data.zettaLinked && <Badge variant="outline">ERP</Badge>}
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={onIrParaPets} className="h-7 text-xs">
               Ver todos <ChevronRight className="size-3" />
@@ -324,9 +348,9 @@ export function ClientHome({
             {data.pets.length === 0 ? (
               <div className="text-center py-8">
                 <Dog className="size-10 mx-auto mb-2 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">Nenhum pet cadastrado</p>
+                <p className="text-sm text-muted-foreground">Seu companheiro merece um espaço só dele.</p>
                 <Button size="sm" className="mt-3 btn-brand" onClick={onIrParaPets}>
-                  {data.zettaLinked ? 'Ver integração de pets' : 'Cadastrar pet'}
+                  {data.zettaLinked ? 'Consultar meus pets' : 'Cadastrar meu pet'}
                 </Button>
               </div>
             ) : (

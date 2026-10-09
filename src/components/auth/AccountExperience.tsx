@@ -14,7 +14,7 @@ export function AccountExperience(props: {
         <div className="account-paw mb-7 flex size-16 items-center justify-center rounded-2xl"><PawPrint className="size-8" /></div>
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">Conectados pelo cuidado</p>
         <h2 className="text-3xl font-semibold leading-[1.15] tracking-tight">Um só lugar.<br /><span className="text-orange-300">Todo o carinho.</span></h2>
-        <p className="mt-5 max-w-xs text-sm leading-7 text-slate-300">Da rotina do seu pet à organização da nossa equipe. Cada acesso aproxima você da Matilha Prado.</p>
+        <p className="mt-5 max-w-xs text-sm leading-7 text-slate-300">Do banho cheio de carinho à próxima compra. Um cantinho para acompanhar quem deixa sua vida mais feliz.</p>
       </div>
       <div className="relative z-10 space-y-5 text-sm">
         <div className="flex items-center gap-3"><CalendarClock className="size-5 text-orange-300" /><span>Agendamentos à mão</span></div>

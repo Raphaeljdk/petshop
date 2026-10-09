@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Logo } from '@/components/brand/Logo'
+import { PrivacyNotice } from './PrivacyNotice'
 
 export function ActivateClientAccount() {
   const token = useRef('')
@@ -61,5 +62,6 @@ export function ActivateClientAccount() {
       <Button type="submit" disabled={busy} className="w-full h-12 btn-brand">{busy ? 'Ativando...' : 'Confirmar e-mail e ativar minha conta'}</Button>
     </form>}
     {!done && <p className="text-sm text-muted-foreground">Já possui acesso? <Link className="underline" href="/login">Entre na sua conta</Link>.</p>}
+    <PrivacyNotice />
   </CardContent></Card></main>
 }
