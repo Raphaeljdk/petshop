@@ -1,3 +1,4 @@
+import { regiaoMotoboyPorCep } from '@/lib/motoboy'
 import { db } from '@/lib/db'
 import type { ConfiguracaoFrete as ConfigFretePrisma } from '@prisma/client'
 import type { ConfiguracaoFrete, OpcaoFrete, TipoEntrega } from '@/lib/types'
@@ -5,12 +6,9 @@ import type { ConfiguracaoFrete, OpcaoFrete, TipoEntrega } from '@/lib/types'
 /**
  * Regras de entrega do Matilha Prado.
  *
- * Política atual definida pelo cliente:
- *  - Motoboy próprio somente na Zona Norte de São Paulo
- *  - Valor fixo de R$ 20,00
- *  - CEPs aceitos: 02000-000 a 02999-999
- *  - Correios/Sedex desativado
- *  - Retirada na loja continua disponível quando habilitada
+ * Motoboy por região de São Paulo: Norte R$ 20, Centro/Leste R$ 30 e Sul R$ 40.
+ * As faixas operacionais ficam em motoboy.ts e são usadas também no checkout.
+ * Retirada e cotações de transportadoras mantêm suas regras existentes.
  */
 
 const CEP_REGEX = /^\d{5}-?\d{3}$/
@@ -45,18 +43,6 @@ export function aplicarMascaraCep(valor: string): string {
   const limpo = valor.replace(/\D/g, '').slice(0, 8)
   if (limpo.length <= 5) return limpo
   return `${limpo.slice(0, 5)}-${limpo.slice(5)}`
-}
-
-function cepDentroDeFaixa(
-  cep: string,
-  cepInicial: string,
-  cepFinal: string
-): boolean {
-  const n = parseInt(normalizarCep(cep).padEnd(8, '0'), 10)
-  const ini = parseInt(normalizarCep(cepInicial).padEnd(8, '0'), 10)
-  const fim = parseInt(normalizarCep(cepFinal).padEnd(8, '0'), 10)
-  if (Number.isNaN(n) || Number.isNaN(ini) || Number.isNaN(fim)) return false
-  return n >= ini && n <= fim
 }
 
 /**
@@ -130,7 +116,7 @@ export async function getOuCriarConfigFrete(): Promise<ConfiguracaoFrete> {
 
 /**
  * Calcula as opções de entrega disponíveis para o CEP informado.
- * Motoboy só aparece para CEPs da faixa 02000-000 a 02999-999.
+ * Motoboy só aparece nas faixas operacionais das regiões atendidas.
  */
 export async function calcularOpcoesFrete(
   cep: string
@@ -139,13 +125,7 @@ export async function calcularOpcoesFrete(
   const opcoes: OpcaoFrete[] = []
   const cepValido = CEP_REGEX.test(cep) && validarCep(cep)
 
-  const dentroZonaNorte =
-    cepValido &&
-    cepDentroDeFaixa(
-      cep,
-      MOTOBOY_ZONA_NORTE_CEP_INICIAL,
-      MOTOBOY_ZONA_NORTE_CEP_FINAL
-    )
+  const regiao = cepValido ? regiaoMotoboyPorCep(cep) : null
 
   if (config.retiradaAtiva) {
     opcoes.push({
@@ -159,19 +139,19 @@ export async function calcularOpcoesFrete(
     })
   }
 
-  if (dentroZonaNorte) {
+  if (regiao) {
     opcoes.push({
       tipo: 'entrega_propria',
-      label: 'Motoboy Matilha Prado',
-      valor: MOTOBOY_ZONA_NORTE_VALOR,
+      label: `Motoboy Matilha Prado · ${regiao.nome}`,
+      valor: regiao.valor,
       prazo: config.entregaPropriaPrazo,
-      descricao: `Entrega própria na Zona Norte de São Paulo · ${HORARIO_FUNCIONAMENTO_LABEL}`,
+      descricao: `Entrega própria · ${regiao.nome} de São Paulo · ${HORARIO_FUNCIONAMENTO_LABEL}`,
       disponivel: true,
     })
   }
 
   // Sedex/Correios está intencionalmente desativado para novos pedidos.
-  return { opcoes, dentroSP: !!dentroZonaNorte, config }
+  return { opcoes, dentroSP: !!regiao, config }
 }
 
 export async function getOpcaoFrete(

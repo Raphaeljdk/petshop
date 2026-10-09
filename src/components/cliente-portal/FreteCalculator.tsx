@@ -149,6 +149,8 @@ export function FreteCalculator({
     })
   }
 
+  const motoboy = dados?.opcoes.find(opcao => opcao.tipo === 'entrega_propria' && opcao.disponivel)
+
   const conteudo = (
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row gap-2">
@@ -282,13 +284,13 @@ export function FreteCalculator({
 
       {!loading && dados && dados.valido && dados.opcoes.length > 0 && (
         <>
-          {dados.dentroSP ? (
+          {motoboy ? (
             <p className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
-              CEP dentro da área de cobertura da Zona Norte — motoboy disponível por R$ 20,00, das 09h às 20h.
+              {motoboy.label}: {fmtMoeda(motoboy.valor)}. Atendimento das {dados.horarioFuncionamento || '09h às 20h'}.
             </p>
           ) : (
             <p className="text-[11px] text-muted-foreground bg-muted/50 border border-border rounded px-2 py-1">
-              CEP fora da área de motoboy da Zona Norte. Se a retirada estiver ativa, ela continuará disponível.
+              Motoboy indisponível para este CEP. Escolha a retirada na loja ou uma das transportadoras disponíveis.
             </p>
           )}
           <RadioGroup

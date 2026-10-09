@@ -24,6 +24,7 @@ function harness() {
       },
     }).outputText
     const localRequire = (id) => {
+      if (id === '@/lib/realtime') return { emitWebSocket: async () => {} }
       if (id === '@/lib/db') return { db: state.db }
       if (id === '@/lib/auth-helpers' || id === '@/lib/auth-cookies')
         return {
@@ -398,3 +399,73 @@ test(
     }
   },
 )
+
+function shippingHarness() {
+  const h = harness()
+  const config = {
+    id: 'shipping', entregaPropriaAtiva: true, entregaPropriaValor: 20,
+    entregaPropriaCepInicial: '02000-000', entregaPropriaCepFinal: '02999-999',
+    entregaPropriaPrazo: 'Até 4 horas', retiradaAtiva: true,
+    retiradaPrazo: 'Pronto para retirada em até 4 horas', retiradaEndereco: 'Loja',
+    sedexAtivo: false, createdAt: new Date(), updatedAt: new Date(),
+  }
+  h.state.db.configuracaoFrete = { findFirst: async () => config }
+  return h
+}
+
+test('motoboy quotes all authorized regions, including eastern and southern outer ranges', async () => {
+  const h = shippingHarness()
+  const { calcularOpcoesFrete } = h.load('src/lib/frete.ts')
+  for (const [cep, region, price] of [
+    ['02000-000', 'Zona Norte', 20], ['02999-999', 'Zona Norte', 20],
+    ['05100-000', 'Zona Norte', 20], ['05299-999', 'Zona Norte', 20],
+    ['01001-000', 'Centro', 30], ['01399-999', 'Centro', 30], ['01599-999', 'Centro', 30],
+    ['03000-000', 'Zona Leste', 30], ['03999-999', 'Zona Leste', 30],
+    ['08000-000', 'Zona Leste', 30], ['08499-999', 'Zona Leste', 30],
+    ['04000-000', 'Zona Sul', 40], ['04999-999', 'Zona Sul', 40],
+    ['05700-000', 'Zona Sul', 40], ['05899-999', 'Zona Sul', 40], ['04795000', 'Zona Sul', 40],
+  ]) {
+    const { opcoes } = await calcularOpcoesFrete(cep)
+    const delivery = opcoes.find(o => o.tipo === 'entrega_propria')
+    assert.equal(delivery?.valor, price, cep)
+    assert.ok(delivery.label.includes(region), cep)
+    assert.equal(opcoes.find(o => o.tipo === 'retirada')?.valor, 0)
+  }
+  for (const cep of ['', '02000', '020000000', '02000x000', '01400-000', '01600-000', '05000-000', '05300-000', '05699-999', '05900-000', '06000-000', '08500-000', '20040-020']) {
+    const { opcoes } = await calcularOpcoesFrete(cep)
+    assert.equal(opcoes.some(o => o.tipo === 'entrega_propria'), false, cep)
+    assert.equal(opcoes.find(o => o.tipo === 'retirada')?.valor, 0, cep)
+  }
+})
+
+test('checkout recalculates regional motoboy price and persists the correct order total', async () => {
+  const h = shippingHarness()
+  h.state.client = { id: 'shipping-client', endereco: 'Rua de teste, 123' }
+  const product = { id: 'product', nome: 'Ração', ativo: true, preco: 50, estoqueHub: 10 }
+  h.state.db.produto = { findMany: async () => [product] }
+  let saved
+  h.state.db.$transaction = async fn => fn({
+    produto: { findUnique: async () => product, update: async () => product },
+    venda: { create: async ({ data }) => {
+      saved = data
+      return { id: 'order', ...data, createdAt: new Date(), updatedAt: new Date() }
+    } },
+  })
+  const route = h.load('src/app/api/cliente/carrinho/route.ts')
+  for (const [cep, price] of [['02401-000', 20], ['01001-000', 30], ['08210-000', 30], ['04795-000', 40]]) {
+    const result = await route.POST(h.request('/api/cliente/carrinho', 'POST', {
+      itens: [{ produtoId: 'product', quantidade: 2 }], tipoEntrega: 'entrega_propria',
+      cepEntrega: cep, valorFrete: 0, total: 1,
+    }))
+    assert.equal(result.status, 201, JSON.stringify(await result.json()))
+    assert.equal(saved.valorFrete, price)
+    assert.equal(saved.total, 100 + price)
+    assert.equal(saved.cepEntrega, cep.replace('-', ''))
+  }
+  saved = null
+  const rejected = await route.POST(h.request('/api/cliente/carrinho', 'POST', {
+    itens: [{ produtoId: 'product', quantidade: 1 }], tipoEntrega: 'entrega_propria', cepEntrega: '06000-000', valorFrete: 20,
+  }))
+  assert.equal(rejected.status, 400)
+  assert.equal(saved, null, 'Unsupported CEP must not create an order')
+})

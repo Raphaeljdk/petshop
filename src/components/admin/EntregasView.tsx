@@ -252,7 +252,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             Entregas
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Gerencie pedidos com motoboy próprio na Zona Norte
+            Gerencie entregas por motoboy no Centro e nas zonas Norte, Leste e Sul de São Paulo
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
