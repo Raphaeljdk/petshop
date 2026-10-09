@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
  *
  * Sempre preserva:
  *  - Retirada na loja
- *  - Motoboy Matilha Prado na faixa configurada da Zona Norte de São Paulo
+ *  - Motoboy Matilha Prado nas faixas atendidas do Centro e das zonas Norte, Leste e Sul
  *
  * Quando MELHOR_ENVIO_ACCESS_TOKEN + MELHOR_ENVIO_ORIGIN_CEP estiverem configurados,
  * acrescenta as cotações reais retornadas pelo Melhor Envio.

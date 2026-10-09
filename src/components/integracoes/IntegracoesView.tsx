@@ -1,5 +1,7 @@
 'use client'
 
+import { MOTOBOY_REGIOES } from '@/lib/motoboy'
+
 import { useEffect, useRef, useState } from 'react'
 import {
   Plug,
@@ -1280,11 +1282,9 @@ export function IntegracoesView() {
             </div>
           </CardHeader>
           <CardContent className="space-y-1 text-xs text-muted-foreground">
-            <p>Zona Norte de São Paulo.</p>
-            <p>
-              Taxa fixa: <strong className="text-foreground">R$ 20,00</strong>
-            </p>
-            <p>Faixa operacional de CEP: 02000-000 a 02999-999.</p>
+            <p>Entrega por região de São Paulo, calculada pelo CEP.</p>
+            {MOTOBOY_REGIOES.map(regiao => <p key={regiao.id}>{regiao.nome}: <strong className="text-foreground">{regiao.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></p>)}
+            <p>Consulte a disponibilidade pelo CEP no checkout.</p>
             <p className="text-amber-700">
               Correios/Sedex desativado para novos pedidos.
             </p>
