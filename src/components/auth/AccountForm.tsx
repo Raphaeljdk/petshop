@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { AuthRequestError, useAuth } from '@/components/providers/AuthProvider'
 import { adminRegistrationSchema, clientRegistrationSchema, fieldErrors, formatCep, formatCpfCnpj, formatPhone, loginSchema, passwordRules } from '@/lib/auth-validation'
 import { cn } from '@/lib/utils'
+import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { PrivacyNotice } from './PrivacyNotice'
 
 export type AccountMode = 'login' | 'cadastro'
 export type AccountRole = 'CLIENTE' | 'ADMIN'
@@ -139,7 +141,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
           ? isAdmin ? 'Use o convite da administração para criar sua conta de trabalho.' : 'Crie sua conta e cuide da rotina do seu pet com a gente.'
           : isAdmin
             ? 'Entre com seu e-mail ou usuário e senha. Contas da agenda abrem somente o Kanban.'
-            : 'Entre com seu e-mail ou telefone e sua senha.'}
+            : 'A rotina do seu melhor amigo, pertinho de você. Entre com seu e-mail ou telefone e sua senha.'}
       </p>
     </div>
 
@@ -186,7 +188,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
           placeholder="(11) 99999-9999" value={data.telefone} onChange={e => update('telefone', formatPhone(e.target.value))} error={errors.telefone} />}
         {isRegister && !isAdmin && <Field label="CPF ou CNPJ" icon={UserRound} name="cpfCnpj" inputMode="numeric" required
           placeholder="000.000.000-00" value={data.cpfCnpj} onChange={e => update('cpfCnpj', formatCpfCnpj(e.target.value))} error={errors.cpfCnpj}
-          hint="Usado para localizar ou criar seu cadastro no Siggma e emitir pedidos." />}
+          hint="Para localizar seu cadastro na loja e emitir seus pedidos." />}
         {isRegister && isAdmin && <Field label="Código de convite" icon={KeyRound} name="convite" autoComplete="off" required maxLength={64}
           spellCheck={false} autoCapitalize="none" placeholder="Cole o código fornecido pela administração" value={data.convite}
           onChange={e => update('convite', e.target.value.trim())} error={errors.convite}
@@ -222,11 +224,13 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
           </label>
           <button type="button" onClick={() => setHelp(value => !value)} aria-expanded={help} className="font-medium text-primary hover:underline">Preciso de ajuda</button>
         </div>}
-        {help && <p className="rounded-xl bg-muted p-3 text-sm leading-relaxed text-muted-foreground">
-          {isAdmin
+        {help && <div className="rounded-xl bg-muted p-3 text-sm leading-relaxed text-muted-foreground">
+          <p>{isAdmin
             ? 'Confira seu e-mail/usuário e o Caps Lock. Se perdeu sua senha, procure a administração.'
-            : 'Confira se digitou o mesmo e-mail ou telefone da sua conta e verifique o Caps Lock. Se perdeu sua senha, procure a equipe da Matilha Prado.'}
-        </p>}
+            : 'Confira o e-mail ou telefone usado no cadastro e o Caps Lock. Esqueceu a senha? Nossa equipe orienta você a recuperar o acesso.'}</p>
+          {!isAdmin && <a href={matilhaWhatsAppUrl('Olá! Já tenho conta na Matilha Prado e preciso de ajuda para acessar.')} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center rounded-md font-semibold text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">Conversar com a equipe<span className="sr-only"> (WhatsApp, nova aba)</span></a>}
+          {!isAdmin && <p className="text-xs">Sua senha é só sua. Não envie sua senha pelo atendimento.</p>}
+        </div>}
         <Button type="submit" disabled={busy} className="account-submit h-12 w-full rounded-xl text-sm font-semibold">
           {busy ? <><Loader2 className="size-4 animate-spin" /> {isRegister ? 'Criando sua conta...' : 'Entrando...'}</>
             : <>{isRegister ? (isAdmin ? 'Criar conta de administrador' : 'Criar minha conta') : 'Entrar na minha conta'}<ArrowRight className="size-4" /></>}
@@ -238,9 +242,16 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
           onClick={() => changeView(isRegister ? 'login' : 'cadastro')}>{isRegister ? 'Entrar' : 'Criar conta'}</button>
       </p>
     </form>
-    <div className="mt-6 flex items-start gap-2.5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
-      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-700 dark:text-teal-300" />
-      <p>{isAdmin ? 'Acesso exclusivo para pessoas autorizadas pela Matilha Prado.' : 'Seus dados identificam sua conta e ajudam a organizar os atendimentos do seu pet.'}</p>
+    {!isAdmin && <details className="mt-5 rounded-xl border bg-muted/30 px-4 py-1">
+      <summary className="cursor-pointer rounded-md py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">Já é cliente da loja e ainda não tem acesso?</summary>
+      <div className="pb-3 text-xs leading-6 text-muted-foreground">
+        <p>Você pode usar seu cadastro da loja. Peça à equipe um convite de primeiro acesso, abra o link recebido e defina sua senha. Depois, entre com seu e-mail ou telefone.</p>
+        <a href={matilhaWhatsAppUrl('Olá! Já sou cliente da Matilha Prado e gostaria de receber meu convite de primeiro acesso ao portal.')} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center rounded-md font-semibold text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">Pedir ajuda com o primeiro acesso<span className="sr-only"> (WhatsApp, nova aba)</span></a>
+      </div>
+    </details>}
+    <div className="mt-5">
+      <PrivacyNotice />
+      {isAdmin && <p className="mt-3 text-xs text-muted-foreground">Acesso exclusivo para pessoas autorizadas pela Matilha Prado.</p>}
     </div>
   </div>
 }

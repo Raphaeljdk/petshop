@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, MessageCircle, Syringe } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { Confetti } from '@/components/brand/Confetti'
@@ -200,8 +201,9 @@ function ClientPortalContent() {
         <div className="container max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-center">
           <Logo size="sm" withText />
           <p className="text-xs text-muted-foreground">
-            Matilha Prado — Plataforma de Pet Shop
+            Uma família cuidando da sua.
           </p>
+          <Link href="/privacidade" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-md text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-ring">Privacidade e LGPD<span className="sr-only"> (nova aba)</span></Link>
         </div>
       </footer>
     </div>

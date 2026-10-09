@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Reveal } from '@/components/motion/Reveal'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { ShieldCheck, CalendarClock, Bell, ChevronRight, User as UserIcon, MapPin, Heart, PawPrint, Menu, MessageCircle, Instagram, Navigation, ShoppingBag } from 'lucide-react'
@@ -404,6 +405,7 @@ export function AuthScreen() {
                 <li><button onClick={abrirCadastro} className="hover:text-white transition-colors">Cadastro de cliente</button></li>
                 <li><button onClick={() => openAccount('cadastro', 'ADMIN')} className="hover:text-white transition-colors">Cadastro de administrador</button></li>
                 <li><button onClick={() => openAccount('login', 'ADMIN')} className="hover:text-white transition-colors">Acesso da equipe</button></li>
+                <li><Link href="/privacidade" className="inline-flex min-h-11 items-center rounded-md hover:text-white focus-visible:outline-2 focus-visible:outline-white">Privacidade e LGPD</Link></li>
               </ul>
             </div>
           </div>
