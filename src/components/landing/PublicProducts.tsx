@@ -175,7 +175,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   )
 
   return (
-    <section ref={sectionRef} id="produtos" className="boutique-section py-14 sm:py-18 lg:py-24" aria-labelledby="boutique-title">
+    <section ref={sectionRef} id="produtos" className="boutique-section pt-8 pb-14 sm:pt-10 sm:pb-18 lg:pt-12 lg:pb-24" aria-labelledby="boutique-title">
       <div className="container relative mx-auto px-4">
         <div className="boutique-heading mx-auto mb-8 max-w-3xl text-center sm:mb-10">
           <Badge variant="secondary" className="boutique-eyebrow mb-5">
