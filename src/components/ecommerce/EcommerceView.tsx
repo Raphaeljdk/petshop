@@ -647,6 +647,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const [buscaProduto, setBuscaProduto] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas')
   const [estoqueBaixo, setEstoqueBaixo] = useState(false)
+  const [mostrarDesativados, setMostrarDesativados] = useState(false)
   const [ordenacao, setOrdenacao] = useState<Ordenacao>('recente')
   const [faixaPreco, setFaixaPreco] = useState<[number, number]>([0, 1000])
 
@@ -778,6 +779,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   const produtosFiltrados = useMemo(() => {
     const termo = buscaProduto.trim().toLowerCase()
     const filtrados = produtos.filter((p) => {
+      // Registros duplicados desativados ficam arquivados por padrão para não
+      // poluir a gestão do catálogo. O administrador ainda pode exibi-los.
+      if (!mostrarDesativados && !p.ativo) return false
       if (termo) {
         const nome = (p.nome || '').toLowerCase()
         const descricao = (p.descricao || '').toLowerCase()
@@ -827,7 +831,15 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         break
     }
     return ordenados
-  }, [produtos, buscaProduto, filtroCategoria, estoqueBaixo, ordenacao, faixaPreco])
+  }, [
+    produtos,
+    buscaProduto,
+    filtroCategoria,
+    estoqueBaixo,
+    mostrarDesativados,
+    ordenacao,
+    faixaPreco,
+  ])
 
   /* ---------------------- vendas: filtros + período ---------------------- */
 
@@ -908,6 +920,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
     buscaProduto.trim() !== '' ||
     filtroCategoria !== 'todas' ||
     estoqueBaixo ||
+    mostrarDesativados ||
     faixaPreco[0] > 0 ||
     faixaPreco[1] < 10000
   const temFiltrosVenda =
@@ -920,6 +933,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
     setBuscaProduto('')
     setFiltroCategoria('todas')
     setEstoqueBaixo(false)
+    setMostrarDesativados(false)
     const max = Math.max(100, ...produtos.map((p) => Math.ceil(p.preco)))
     setFaixaPreco([0, max])
     setOrdenacao('recente')
@@ -1244,6 +1258,19 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                   className="text-xs whitespace-nowrap cursor-pointer"
                 >
                   Estoque baixo
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 px-3 border border-border rounded-md h-9 bg-background">
+                <Switch
+                  id="mostrar-desativados"
+                  checked={mostrarDesativados}
+                  onCheckedChange={setMostrarDesativados}
+                />
+                <Label
+                  htmlFor="mostrar-desativados"
+                  className="text-xs whitespace-nowrap cursor-pointer"
+                >
+                  Mostrar desativados
                 </Label>
               </div>
               <div className="flex-1 flex items-center gap-3 px-3 border border-border rounded-md h-9 bg-background">
