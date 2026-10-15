@@ -25,7 +25,6 @@ export function safeStock(value?: number | null) {
   return Math.max(0, Math.floor(number))
 }
 
-
 export function isServiceProduct(product: {
   nome?: string | null
   categoria?: string | null
@@ -37,16 +36,19 @@ export function isServiceProduct(product: {
   const categoria = normalizeText(product.categoria)
   if (categoria.includes('servic')) return true
 
+  // Serviços do Zetta chegam com nomes detalhados e categoria genérica
+  // ("Pet Shop"). Reconhecemos somente prefixos de serviços para não ocultar
+  // produtos físicos como "spray banho a seco".
+  const serviceName =
+    /^(banho(?:\s|$)|tosa(?:\s|$)|hidratacao(?:\s|$)|trimming(?:\s|$)|remocao(?:\s|$)|desembolo(?:\s|$)|vapor de ozonio(?:\s|$)|corte de unha(?:\s|$)|escovacao de dentes(?:\s|$)|pct .*banho|pct .*escovacao)/
+
   return (
-    nome === 'banho' ||
-    nome === 'tosa' ||
-    nome === 'banho e tosa' ||
+    serviceName.test(nome) ||
     nome === 'consulta' ||
     nome === 'consulta veterinaria' ||
     nome === 'vacinacao' ||
     nome === 'vacina' ||
-    nome === 'spa pet' ||
-    nome === 'tosa higienica'
+    nome === 'spa pet'
   )
 }
 
