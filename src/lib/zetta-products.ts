@@ -35,6 +35,14 @@ function asBoolean(value: unknown) {
   return value === true || String(value).toLowerCase() === 'true'
 }
 
+export function normalizeProductName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+}
+
 function normalizeImageUrls(value: unknown) {
   if (!Array.isArray(value)) return []
 
@@ -157,7 +165,7 @@ export async function syncZettaProductsToLocal() {
     categories.map((category) => [Number(category.id), category.nome || 'Pet Shop'])
   )
 
-  const valid = products.filter(
+  const eligible = products.filter(
     (product) =>
       Number.isFinite(product.id) &&
       product.id > 0 &&
@@ -165,9 +173,23 @@ export async function syncZettaProductsToLocal() {
       !product.inativo
   )
 
+  // O nome é a referência para duplicidade na vitrine. Quando o Zetta enviar
+  // mais de um cadastro com o mesmo nome normalizado, apenas o de maior preço
+  // participa da sincronização.
+  const uniqueByName = new Map<string, ZettaProduct>()
+  for (const product of eligible) {
+    const key = normalizeProductName(product.nome)
+    const current = uniqueByName.get(key)
+    if (!current || zettaProductPrice(product) > zettaProductPrice(current)) {
+      uniqueByName.set(key, product)
+    }
+  }
+  const valid = Array.from(uniqueByName.values())
+
   const existingProducts = await db.produto.findMany({
     select: {
       id: true,
+      nome: true,
       sku: true,
       zettaProCod: true,
       mlItemId: true,
@@ -188,12 +210,21 @@ export async function syncZettaProductsToLocal() {
       .map((row) => [Number(row.zettaProCod), row])
   )
   const bySku = new Map<string, typeof existingProducts>()
+  const byName = new Map<string, typeof existingProducts>()
   for (const row of existingProducts) {
-    const key = row.sku?.trim().toLowerCase()
-    if (!key) continue
-    const rows = bySku.get(key) || []
-    rows.push(row)
-    bySku.set(key, rows)
+    const skuKey = row.sku?.trim().toLowerCase()
+    if (skuKey) {
+      const rows = bySku.get(skuKey) || []
+      rows.push(row)
+      bySku.set(skuKey, rows)
+    }
+
+    const nameKey = normalizeProductName(row.nome)
+    if (nameKey) {
+      const rows = byName.get(nameKey) || []
+      rows.push(row)
+      byName.set(nameKey, rows)
+    }
   }
 
   const claimedExistingIds = new Set<string>()
@@ -208,12 +239,17 @@ export async function syncZettaProductsToLocal() {
     const imageUrl = product.galeria?.[0] || null
     const sku = zettaProductSku(product)
     const direct = byZettaId.get(product.id)
-    const skuMatches = (bySku.get(sku.trim().toLowerCase()) || []).filter(
-      (row) =>
-        !claimedExistingIds.has(row.id) &&
-        (row.zettaProCod == null || row.zettaProCod === product.id)
-    )
-    const existing = direct || (skuMatches.length === 1 ? skuMatches[0] : null)
+    const available = (row: (typeof existingProducts)[number]) =>
+      !claimedExistingIds.has(row.id) &&
+      (row.zettaProCod == null || row.zettaProCod === product.id)
+    const skuMatches = (bySku.get(sku.trim().toLowerCase()) || []).filter(available)
+    const nameMatches = (
+      byName.get(normalizeProductName(product.nome)) || []
+    ).filter(available)
+    const existing =
+      direct ||
+      (nameMatches.length === 1 ? nameMatches[0] : null) ||
+      (skuMatches.length === 1 ? skuMatches[0] : null)
     const estoqueZetta = zettaProductStock(product)
     const estoqueIlimitado = isUnlimitedBathProduct({
       nome: product.nome,
