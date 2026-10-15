@@ -15,6 +15,7 @@ import type { AccountMode, AccountRole } from '@/components/auth/AccountForm'
 import { cn } from '@/lib/utils'
 import { MATILHA_CONTACT, matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { GoogleReviews } from '@/components/landing/GoogleReviews'
+import { HeroCarousel } from '@/components/landing/HeroCarousel'
 import { PublicProducts } from '@/components/landing/PublicProducts'
 import { AtendimentoMenu } from '@/components/landing/AtendimentoMenu'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
@@ -155,6 +156,7 @@ export function AuthScreen() {
 
       {/* Hero: preserve the supplied brand artwork as the main visual. */}
       <main id="conteudo" tabIndex={-1}>
+      <HeroCarousel onShop={() => scrollTo('produtos')} onAccount={abrirLogin}>
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="container mx-auto px-6 sm:px-10 hero-grid">
           <div className="animate-slide-up">
@@ -184,6 +186,9 @@ export function AuthScreen() {
           </div>
         </div>
       </section>
+
+      </HeroCarousel>
+      <PublicProducts onBuy={abrirLogin} />
 
       {/* Stats */}
       <section className="landing-stats">
@@ -268,7 +273,6 @@ export function AuthScreen() {
         </div>
       </section>
 
-      <PublicProducts onBuy={abrirLogin} />
 
       <div className="container mx-auto px-4 sm:px-6 mt-8">
         <InstallAppCard />

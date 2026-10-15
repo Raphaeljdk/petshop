@@ -240,7 +240,8 @@ export async function syncZettaProductsToLocal() {
           sku,
           zettaProCod: product.id,
           ...(imageUrl ? { imageUrl } : {}),
-          ativo: true,
+          // A publicação é controlada pela loja; sincronizar não deve reativar itens ocultos.
+          ativo: existing.ativo,
         },
       })
     }
