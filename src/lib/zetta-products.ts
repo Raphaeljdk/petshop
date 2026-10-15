@@ -174,15 +174,32 @@ export async function syncZettaProductsToLocal() {
   )
 
   // O nome é a referência para duplicidade na vitrine. Quando o Zetta enviar
-  // mais de um cadastro com o mesmo nome normalizado, apenas o de maior preço
-  // participa da sincronização.
+  // mais de um cadastro com o mesmo nome normalizado, mantém o cadastro de
+  // maior preço e soma os estoques físicos dos registros duplicados.
   const uniqueByName = new Map<string, ZettaProduct>()
   for (const product of eligible) {
     const key = normalizeProductName(product.nome)
     const current = uniqueByName.get(key)
-    if (!current || zettaProductPrice(product) > zettaProductPrice(current)) {
-      uniqueByName.set(key, product)
+
+    if (!current) {
+      const stock = zettaProductStock(product)
+      uniqueByName.set(key, {
+        ...product,
+        estoqueReal: stock,
+        estoqueRealProduto: stock,
+      })
+      continue
     }
+
+    const totalStock = zettaProductStock(current) + zettaProductStock(product)
+    const preferred =
+      zettaProductPrice(product) > zettaProductPrice(current) ? product : current
+
+    uniqueByName.set(key, {
+      ...preferred,
+      estoqueReal: totalStock,
+      estoqueRealProduto: totalStock,
+    })
   }
   const valid = Array.from(uniqueByName.values())
 
