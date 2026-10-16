@@ -85,13 +85,11 @@ export function catalogVariantInfo(nome: string) {
   if (hasColorChoices) first = first.replace(COLOR_CHOICES, '')
   first = first.replace(/[\s,(/–—-]+$/, '').trim()
 
-  let color: string | null = null
-  if (hasColorChoices) {
-    // A cor efetiva costuma vir no identificador após " - ".
-    const tail = parts.slice(1).join(' ')
-    const hits = Array.from(tail.matchAll(COLOR_MATCH))
-    if (hits.length) color = niceColor(hits[hits.length - 1][0])
-  }
+  // Mesmo quando o nome principal não informa cores, um sufixo
+  // " - Rosa GG" precisa permanecer distinto de " - Azul PP".
+  const tail = parts.slice(1).join(' ')
+  const hits = Array.from(tail.matchAll(COLOR_MATCH))
+  const color = hits.length ? niceColor(hits[hits.length - 1][0]) : null
 
   // Títulos impossíveis de limpar são mantidos, para nunca deixar um produto sem nome.
   return { title: first || original, size, color }
