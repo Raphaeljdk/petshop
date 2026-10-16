@@ -73,20 +73,26 @@ export function ProductDetailsDialog({
 
   useEffect(() => {
     if (!open || !product) return
+    setSelectedVariantId(product.id)
+    setSelectedImage(0)
+    setQuantity(1)
+  }, [open, product])
+
+  useEffect(() => {
+    if (!open || !product) return
 
     let active = true
     const controller = new AbortController()
-    // Reset state for the product being opened; the effect also starts the remote detail fetch.
+    const chosen = product.variantes?.find((item) => item.id === selectedVariantId)
+    const target = chosen || product
     setLoading(true)
     setSelectedImage(0)
-    setQuantity(1)
-    setSelectedVariantId(product.id)
     setDetails({
-      ...product,
-      imagens: product.imageUrl ? [product.imageUrl] : [],
+      ...target,
+      imagens: target.imageUrl ? [target.imageUrl] : [],
     })
-
-    void fetch(`/api/public/produtos/${encodeURIComponent(product.id)}`, {
+    // Busca as fotos, descrição e link do anúncio da variação escolhida.
+    void fetch('/api/public/produtos/' + encodeURIComponent(target.id), {
       cache: 'no-store',
       signal: controller.signal,
     })
@@ -112,7 +118,7 @@ export function ProductDetailsDialog({
       active = false
       controller.abort()
     }
-  }, [open, product])
+  }, [open, product, selectedVariantId])
 
   const selectedVariant = product?.variantes?.find(
     (variant) => variant.id === selectedVariantId
@@ -129,9 +135,12 @@ export function ProductDetailsDialog({
     ? {
         ...baseCurrent,
         ...selectedVariant,
-        imagens: selectedVariant.imageUrl
-          ? [selectedVariant.imageUrl]
-          : baseCurrent?.imagens || [],
+        imagens: selectedVariant.id === details?.id && details.imagens?.length
+          ? details.imagens
+          : selectedVariant.imageUrl
+            ? [selectedVariant.imageUrl]
+            : baseCurrent?.imagens || [],
+        descricao: selectedVariant.descricao || (selectedVariant.id === details?.id ? details.descricao : null),
         marketplaceUrl: selectedVariant.id === details?.id ? details.marketplaceUrl : null,
       }
     : baseCurrent
