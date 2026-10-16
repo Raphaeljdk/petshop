@@ -178,7 +178,7 @@ const getPublicProducts = unstable_cache(
       }
     }
   },
-  ['public-products-v5-items-only'],
+  ['public-products-v6-name-base-variants'],
   { revalidate: 300 }
 )
 
