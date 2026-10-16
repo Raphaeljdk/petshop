@@ -9,7 +9,7 @@ const make = (id, nome, estoque, extra = {}) => ({
 test('título fica somente com o nome base e a cor, nunca com tamanho', () => {
   assert.deepEqual(
     catalogVariantInfo('Vestido Pet Luxo Tweed Laço Lilás Pp, M E G - Mp Lilás M'),
-    { title: 'Vestido Pet Luxo Tweed Laço Lilás', size: 'M', color: null },
+    { title: 'Vestido Pet Luxo Tweed Laço Lilás', size: 'M', color: 'Lilás' },
   )
   assert.equal(catalogVariantInfo('Vestido Pet Luxo Tweed Laço Lilás GG').title,
     'Vestido Pet Luxo Tweed Laço Lilás')
@@ -32,6 +32,16 @@ test('títulos com duas cores viram um mesmo produto com cor selecionável', () 
   assert.equal(products[0].nome, 'Jaqueta Puffer Urso')
   assert.equal(products[0].variantes?.length, 2)
   assert.equal(products[0].estoque, 2)
+})
+
+test('a cor após o hífen diferencia anúncios da mesma família', () => {
+  const products = groupCatalogProducts([
+    make('pink', 'Jaqueta Ursinho - Rosa GG', 1),
+    make('blue', 'Jaqueta Ursinho - Azul GG', 2),
+  ])
+  assert.equal(products.length, 1)
+  assert.equal(products[0].variantes?.length, 2)
+  assert.equal(products[0].estoque, 3)
 })
 
 test('uma única variação ainda recebe título limpo', () => {
