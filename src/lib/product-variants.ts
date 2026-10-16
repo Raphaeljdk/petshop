@@ -117,7 +117,7 @@ function catalogFamilyName(nome: string): string | null {
 const MODEL_WORDS = '(?:hipop[oó]tamo|tubar[aã]o|jacar[eé]|pato|elefante|girafa|dinossauro|coelho|ursinho|baleia|le[aã]o|macaco|unic[oó]rnio|porquinho)'
 const COLOR_WORDS = COLORS.slice(3, -1)
 const COLOR_MODIFIER = '(?:chiclete|celeste|beb[eê]|claro|clara|escuro|escura|marinho|royal|pastel|perolado|perolada)'
-const COLOR_TOKEN = '(' + COLOR_WORDS + '(?:[-\s]+' + COLOR_MODIFIER + ')?)'
+const COLOR_TOKEN = '(' + COLOR_WORDS + '(?:[-\\s]+' + COLOR_MODIFIER + ')?)'
 const END_COLOR_MODEL = new RegExp('\\s+' + COLOR_TOKEN + '\\s+(' + MODEL_WORDS + ')$', 'i')
 const END_COLOR = new RegExp('(?:\\s+|\\/)' + COLOR_TOKEN + '$', 'i')
 const TRAILING_MODEL = new RegExp('\\b(' + MODEL_WORDS + ')$', 'i')
