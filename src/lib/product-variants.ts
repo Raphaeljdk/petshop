@@ -94,6 +94,9 @@ export function isClothingProduct(product: { nome?: string | null; categoria?: s
  */
 function catalogFamilyName(nome: string): string | null {
   const normalized = key(nome)
+  if (/^vestido pet luxo tweed laco lilas\b/.test(normalized)) {
+    return 'Vestido Pet Luxo Tweed Laço Lilás'
+  }
   if (/^brinquedo mordedor pelucia emite som caes gatos pets leve\b/.test(normalized)) {
     return 'Brinquedo Mordedor Pelúcia Emite Som Cães Gatos Pets Leve'
   }
