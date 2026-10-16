@@ -117,7 +117,7 @@ test('brinquedo mordedor agrupa hipopótamo lilás e tubarão azul, sem perder m
   assert.equal(products[0].variantes?.length, 2)
   assert.deepEqual(
     products[0].variantes?.map((p) => [p.modeloLabel, p.corLabel]),
-    [['Tubarão', 'Azul Celeste'], ['Hipopótamo', 'Lilás']],
+    [['Hipopótamo', 'Lilás'], ['Tubarão', 'Azul Celeste']],
   )
 })
 
