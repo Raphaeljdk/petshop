@@ -426,16 +426,20 @@ export function ProductDetailsDialog({
               <Badge
                 variant="outline"
                 className={
-                  current?.estoqueIlimitado || (current?.estoque || 0) > 0
-                    ? 'border-green-200 bg-green-50 text-green-700'
-                    : 'border-red-200 bg-red-50 text-red-700'
+                  clothing && !hasIdentifiedSize
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : current?.estoqueIlimitado || (current?.estoque || 0) > 0
+                      ? 'border-green-200 bg-green-50 text-green-700'
+                      : 'border-red-200 bg-red-50 text-red-700'
                 }
               >
-                {current?.estoqueIlimitado
-                  ? 'Estoque ilimitado'
-                  : (current?.estoque || 0) > 0
-                    ? `${current?.estoque} unidade(s) disponível(is)`
-                    : 'Produto indisponível'}
+                {clothing && !hasIdentifiedSize
+                  ? 'Tamanho não informado — consulte a loja'
+                  : current?.estoqueIlimitado
+                    ? 'Estoque ilimitado'
+                    : (current?.estoque || 0) > 0
+                      ? `${current?.estoque} unidade(s) disponível(is)`
+                      : 'Produto indisponível'}
               </Badge>
             </div>
 
