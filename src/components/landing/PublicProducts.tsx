@@ -355,9 +355,11 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                             <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
                               {isClothingProduct(product)
                                 ? 'Tamanhos: P · M · G · GG'
-                                : product.variantes?.some((variant) => Boolean(variant.corLabel))
-                                  ? 'Opções de cores e tamanhos'
-                                  : (product.variantes?.length || 0) + ' tamanhos disponíveis'}
+                                : product.variantes?.some((variant) => Boolean(variant.modeloLabel))
+                                  ? 'Escolha o modelo'
+                                  : product.variantes?.some((variant) => Boolean(variant.corLabel))
+                                    ? 'Escolha a cor'
+                                    : (product.variantes?.length || 0) + ' variações disponíveis'}
                             </Badge>
                           )}
                         </button>

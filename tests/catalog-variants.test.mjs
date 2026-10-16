@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '../src/lib/product-variants.ts'
+import { catalogVariantDetails, catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '../src/lib/product-variants.ts'
 
 const make = (id, nome, estoque, extra = {}) => ({
   id, nome, estoque, preco: 189.9, precoPromo: null, ...extra,
@@ -105,4 +105,84 @@ test('roupa sem tamanho conhecido não recebe tamanho de SKU inventado', () => {
   assert.equal(isClothingProduct(result[0]), true)
   assert.equal(result[0].variacaoLabel, null)
   assert.equal(result[0].estoque, 7)
+})
+
+test('brinquedo mordedor agrupa hipopótamo lilás e tubarão azul, sem perder modelo', () => {
+  const products = groupCatalogProducts([
+    make('hipo', 'Brinquedo Mordedor Pelúcia Emite Som Cães Gatos Pets Leve Lilás Hipopótamo', 2),
+    make('tubarao', 'Brinquedo Mordedor Pelúcia Emite Som Cães Gatos Pets Leve Azul-celeste Tubarão', 4),
+  ])
+  assert.equal(products.length, 1)
+  assert.equal(products[0].estoque, 6)
+  assert.equal(products[0].variantes?.length, 2)
+  assert.deepEqual(
+    products[0].variantes?.map((p) => [p.modeloLabel, p.corLabel]),
+    [['Hipopótamo', 'Lilás'], ['Tubarão', 'Azul Celeste']],
+  )
+})
+
+test('três brinquedos catnip ficam em um anúncio principal com três cores', () => {
+  const names = ['Laranja', 'Verde', 'Amarelo'].map(
+    (cor) => 'Brinquedo P/ Gatos Catnip Erva Natural Bolinha Giratória ' + cor
+  )
+  const grouped = groupCatalogProducts(names.map((nome, id) => make(String(id), nome, 1)))
+  assert.equal(grouped.length, 1)
+  assert.equal(grouped[0].variantes?.length, 3)
+  assert.deepEqual(
+    new Set(grouped[0].variantes?.map((p) => p.corLabel)),
+    new Set(['Laranja', 'Verde', 'Amarelo']),
+  )
+})
+
+test('casinha Coração Cotelê agrupa cores sem agrupar outras casinhas', () => {
+  const names = ['Verde', 'Rosa', 'Bege'].map(
+    (cor) => 'Casinha Coração Cotelê Verde, Rosa Ou Bege Bonito P Cachorro ' + cor
+  )
+  const group = groupCatalogProducts([
+    ...names.map((nome, id) => make(String(id), nome, 1)),
+    make('outro', 'Casinha Estilo Iglu Rosa', 7),
+  ])
+  assert.equal(group.length, 2)
+  const cotele = group.find((p) => p.nome === 'Casinha Coração Cotelê')
+  assert.equal(cotele?.variantes?.length, 3)
+  assert.equal(cotele?.estoque, 3)
+})
+
+test('Donutz com anúncios descritos de maneiras diferentes vira uma família', () => {
+  const result = groupCatalogProducts([
+    make('rosa', 'Pelúcia Donutz Zippypaws Com Apito Para Cães E Gatos Grande Rosa-chiclete Donutz', 2),
+    make('azul', 'Brinquedo Pelúcia Donutz Com Som Zippypaws Azul Para Cães Grandes', 2),
+    make('marrom', 'Pelúcia Donutz Zippypaws Com Apito Para Cães E Gatos Grande Marrom Donutz', 1),
+  ])
+  assert.equal(result.length, 1)
+  assert.equal(result[0].variantes?.length, 3)
+  assert.equal(result[0].estoque, 5)
+})
+
+test('moletom e jaqueta puffer preservam cor e tamanho sem juntar outros modelos', () => {
+  const moletom = [
+    'Moletom Maxi Sport Marinho Ou Vermelho Cachorro Porte Grande Vermelho/p',
+    'Moletom Maxi Sport Marinho Ou Vermelho Cachorro Porte Grande Azul-marinho',
+  ]
+  assert.deepEqual(
+    catalogVariantDetails(moletom[0]),
+    {title: 'Moletom Maxi Sport', size: 'P', color: 'Vermelho', model: null},
+  )
+  const jaquetas = [
+    'Jaqueta Puffer Pet Rosa/azul Metalizado Reforçada Cães Gatos Azul-escuro',
+    'Jaqueta Puffer Pet Rosa/azul Metalizado Reforçada Cães Gatos Rosa-chiclete',
+    'Jaqueta Guia Rosa Perolado',
+  ]
+  const result = groupCatalogProducts([...moletom, ...jaquetas].map((nome, id) => make(String(id), nome, 1)))
+  assert.equal(result.length, 3)
+  assert.equal(result.find((p) => p.nome === 'Jaqueta Puffer Pet Metalizado Reforçada')?.variantes?.length, 2)
+})
+
+test('SKU igual não torna cores diferentes a mesma variação física', () => {
+  const products = groupCatalogProducts([
+    make('verde', 'Brinquedo P/ Gatos Catnip Erva Natural Bolinha Giratória Verde', 3, {sku:'789123'}),
+    make('laranja', 'Brinquedo P/ Gatos Catnip Erva Natural Bolinha Giratória Laranja', 2, {sku:'789123'}),
+  ])
+  assert.equal(products[0].estoque, 5)
+  assert.equal(products[0].variantes?.length, 2)
 })

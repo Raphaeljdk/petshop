@@ -19,6 +19,7 @@ export type CatalogVariantProduct = {
 export type CatalogVariant<T> = T & {
   variacaoLabel?: string | null
   corLabel?: string | null
+  modeloLabel?: string | null
 }
 
 export type CatalogGroup<T> = CatalogVariant<T> & {
@@ -87,34 +88,118 @@ export function isClothingProduct(product: { nome?: string | null; categoria?: s
 }
 
 /**
- * Remove listas promocionais de tamanhos, tamanho de SKU e subtítulos após " - ".
- * Preserva cores no título, exceto quando o próprio título anuncia alternativas
- * ("Rosa ou Azul"), caso em que as cores passam a ser uma opção do produto.
+ * Equivalências de anúncio encontradas no catálogo da Matilha Prado.
+ * São famílias identificadas por termos distintivos (não apenas "brinquedo"
+ * ou "casinha"), para não misturar itens fisicamente diferentes.
  */
-export function catalogVariantInfo(nome: string) {
-  const original = (nome || '').replace(/\s+/g, ' ').trim()
+function catalogFamilyName(nome: string): string | null {
+  const normalized = key(nome)
+  if (/^coleira de passeio azul\b/.test(normalized)) return 'Coleira de Passeio Azul'
+  if (/^vestido pet luxo tweed laco lilas\b/.test(normalized)) {
+    return 'Vestido Pet Luxo Tweed Laço Lilás'
+  }
+  if (/^brinquedo mordedor pelucia emite som caes gatos pets leve\b/.test(normalized)) {
+    return 'Brinquedo Mordedor Pelúcia Emite Som Cães Gatos Pets Leve'
+  }
+  if (/^casinha coracao cotele\b/.test(normalized)) return 'Casinha Coração Cotelê'
+  if (/^brinquedo p gatos catnip erva natural bolinha giratoria\b/.test(normalized)) {
+    return 'Brinquedo para Gatos Catnip Erva Natural Bolinha Giratória'
+  }
+  if (/^moletom maxi sport\b/.test(normalized)) return 'Moletom Maxi Sport'
+  if (/^jaqueta puffer pet rosa azul metalizado reforcada\b/.test(normalized) ||
+      /^jaqueta puffer pet metalizado reforcada\b/.test(normalized)) {
+    return 'Jaqueta Puffer Pet Metalizado Reforçada'
+  }
+  if (/\bdonutz\b/.test(normalized) && /\bzippypaws\b/.test(normalized) &&
+      /\b(?:pelucia|brinquedo)\b/.test(normalized)) {
+    return 'Pelúcia Donutz Zippypaws'
+  }
+  if (/^jaqueta puffer urso rosa ou azul\b/.test(normalized)) return 'Jaqueta Puffer Urso'
+  return null
+}
+
+const MODEL_WORDS = '(?:hipop[oó]tamo|tubar[aã]o|jacar[eé]|pato|elefante|girafa|dinossauro|coelho|ursinho|baleia|le[aã]o|macaco|unic[oó]rnio|porquinho)'
+const COLOR_WORDS = COLORS
+const COLOR_MODIFIER = '(?:chiclete|celeste|beb[eê]|claro|clara|escuro|escura|marinho|royal|pastel|perolado|perolada)'
+const COLOR_TOKEN = '(' + COLOR_WORDS + '(?:[-\\s]+' + COLOR_MODIFIER + ')?)'
+const END_COLOR_MODEL = new RegExp('\\s+' + COLOR_TOKEN + '\\s+(' + MODEL_WORDS + ')$', 'i')
+const END_COLOR = new RegExp('(?:\\s+|\\/)' + COLOR_TOKEN + '$', 'i')
+const TRAILING_MODEL = new RegExp('\\b(' + MODEL_WORDS + ')$', 'i')
+const COLORS_IN_NAME = new RegExp('\\b' + COLOR_WORDS + '(?:[-\\s]+' + COLOR_MODIFIER + ')?\\b', 'gi')
+
+function canonicalColor(value: string) {
+  return niceColor(value).replace(/ +/g, ' ').trim()
+}
+
+function capitalizeModel(value: string) {
+  return value.slice(0, 1).toLocaleUpperCase('pt-BR') + value.slice(1).toLocaleLowerCase('pt-BR')
+}
+
+/** Título da família + atributos de uma variação física real. */
+export function catalogVariantDetails(nome: string) {
+  const original = (nome || '').replace(/\s*\/\s*(PP|P|M|G|GG|XGG)\s*$/i, ' $1').replace(/\s+/g, ' ').trim()
   const parts = original.split(/\s+[-–—]\s+/)
-  let first = parts[0] || original
-  const specificSize = original.match(END_SIZE)
-  const size = canonicalSize(specificSize?.[1])
+  const sizeFromEnd = original.match(END_SIZE)
+  const size = canonicalSize(sizeFromEnd?.[1])
+  let title = parts[0] || original
+  // Os anúncios podem colocar tamanho depois de /, - ou junto de uma lista.
+  title = title.replace(SIZE_LIST, '').replace(SINGLE_SIZE, '')
+  let body = original.replace(SIZE_LIST, '').replace(SINGLE_SIZE, '').trim()
 
-  first = first.replace(SIZE_LIST, '').replace(SINGLE_SIZE, '')
-  const hasColorChoices = COLOR_CHOICES.test(first)
-  if (hasColorChoices) first = first.replace(COLOR_CHOICES, '')
-  first = first.replace(/[\s,(/–—-]+$/, '').trim()
+  let color: string | null = null
+  let model: string | null = null
+  const lastColorModel = body.match(END_COLOR_MODEL)
+  if (lastColorModel) {
+    color = canonicalColor(lastColorModel[1])
+    model = capitalizeModel(lastColorModel[2])
+    body = body.slice(0, lastColorModel.index).trim()
+  } else {
+    const lastColor = body.match(END_COLOR)
+    if (lastColor) {
+      color = canonicalColor(lastColor[1])
+      body = body.slice(0, lastColor.index).trim()
+    }
+  }
 
-  // Mesmo quando o nome principal não informa cores, um sufixo
-  // " - Rosa GG" precisa permanecer distinto de " - Azul PP".
+  // Sufixos de variação depois de " - ", sem descartar o modelo da família.
   const tail = parts.slice(1).join(' ')
-  const hits = Array.from(tail.matchAll(COLOR_MATCH))
-  // Quando a cor está no próprio nome principal, reaproveita-se como variação.
-  const headColor = first.match(new RegExp('(?:^|\\s)' + COLORS + '$', 'i'))
-  const color = hits.length
-    ? niceColor(hits[hits.length - 1][0])
-    : headColor ? niceColor(headColor[0].trim()) : null
+  const tailColors = Array.from(tail.matchAll(COLORS_IN_NAME))
+  if (!color && tailColors.length) color = canonicalColor(tailColors[tailColors.length - 1][0])
+  if (!model && /\b(?:mordedor|pel[uú]cia|brinquedo)\b/i.test(original)) {
+    const tailModel = original.match(TRAILING_MODEL)
+    if (tailModel && (color || tail.length > 0)) model = capitalizeModel(tailModel[1])
+  }
+  if (!color && /\bdonutz\b/i.test(original)) {
+    const matches = Array.from(original.matchAll(COLORS_IN_NAME))
+    if (matches.length) color = canonicalColor(matches[matches.length - 1][0])
+  }
 
-  // Títulos impossíveis de limpar são mantidos, para nunca deixar um produto sem nome.
-  return { title: first || original, size, color }
+  const family = catalogFamilyName(original)
+  if (family) {
+    title = family
+    // A forma "Rosa Ou Azul" indica cores disponíveis, não parte do nome.
+  } else {
+    title = title.replace(COLOR_CHOICES, '')
+    const prefixPart = body.split(/\s+[-–—]\s+/)[0]
+    if (prefixPart) {
+      // Retira apenas a cor/modelo no FINAL do nome; "urso rosa" ou
+      // outras palavras de características no meio são preservadas.
+      title = prefixPart
+    }
+    // Cor+modelo no final em anúncios sem separador, ex. Lilás Hipopótamo.
+    title = title.replace(END_COLOR_MODEL, '').replace(END_COLOR, '')
+    title = title.replace(COLOR_CHOICES, '')
+    title = title.replace(SIZE_LIST, '').replace(SINGLE_SIZE, '')
+  }
+
+  title = title.replace(/[\s,(/–—-]+$/, '').trim() || original
+  return { title, size, color, model }
+}
+
+/** Interface legada: preservada para as demais áreas e testes existentes. */
+export function catalogVariantInfo(nome: string) {
+  const { title, size, color } = catalogVariantDetails(nome)
+  return { title, size, color }
 }
 
 function priority<T extends CatalogVariantProduct>(a: T, b: T) {
@@ -131,7 +216,7 @@ function priority<T extends CatalogVariantProduct>(a: T, b: T) {
 export function groupCatalogProducts<T extends CatalogVariantProduct>(products: T[]): CatalogGroup<T>[] {
   const grouped = new Map<string, T[]>()
   for (const item of products) {
-    const title = catalogVariantInfo(item.nome).title
+    const title = catalogVariantDetails(item.nome).title
     const groupKey = key(title) || item.id
     const rows = grouped.get(groupKey) || []
     rows.push(item)
@@ -143,21 +228,22 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
     // estoque espelhado entre ML, Amazon e Zetta.
     const distinct = new Map<string, T>()
     for (const item of rows) {
-      const info = catalogVariantInfo(item.nome)
-      const dimension = key(info.color || '') + '|' + (info.size || '')
+      const info = catalogVariantDetails(item.nome)
+      const dimension = key(info.model || '') + '|' + key(info.color || '') + '|' + (info.size || '')
       const previous = distinct.get(dimension)
       if (!previous || priority(item, previous) < 0) distinct.set(dimension, item)
     }
 
     const selected = Array.from(distinct.values()).sort(priority)
     const primary = selected[0]
-    const info = catalogVariantInfo(primary.nome)
+    const info = catalogVariantDetails(primary.nome)
     const variants: CatalogVariant<T>[] = selected.map((item) => {
-      const variant = catalogVariantInfo(item.nome)
+      const variant = catalogVariantDetails(item.nome)
       return {
         ...item,
         variacaoLabel: variant.size,
         corLabel: variant.color,
+        modeloLabel: variant.model,
       }
     })
 
@@ -166,7 +252,7 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
     // possível espelho, nunca somado novamente aos tamanhos.
     const colorBuckets = new Map<string, CatalogVariant<T>[]>()
     for (const item of variants) {
-      const colorKey = key(item.corLabel || '')
+      const colorKey = key(item.modeloLabel || '') + ':' + key(item.corLabel || '')
       const bucket = colorBuckets.get(colorKey) || []
       bucket.push(item)
       colorBuckets.set(colorKey, bucket)
@@ -179,10 +265,10 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
       return sized.length ? Math.max(sizedStock, unsizedStock) : unsizedStock
     }
     const namedColorStock = Array.from(colorBuckets.entries())
-      .filter(([color]) => Boolean(color))
+      .filter(([dimension]) => dimension !== ':')
       .reduce((sum, [, items]) => sum + bucketStock(items), 0)
     // Se há item sem cor e versões com cor, ele pode ser o mesmo estoque.
-    const unknownColorStock = bucketStock(colorBuckets.get('') || [])
+    const unknownColorStock = bucketStock(colorBuckets.get(':') || [])
     const stock = Math.max(namedColorStock, unknownColorStock)
 
     return {
@@ -190,6 +276,7 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
       nome: info.title,
       variacaoLabel: info.size,
       corLabel: info.color,
+      modeloLabel: info.model,
       estoque: stock,
       estoqueIlimitado: variants.some((item) => Boolean(item.estoqueIlimitado)),
       ...(variants.length > 1 ? { variantes: variants } : {}),
