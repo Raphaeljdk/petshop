@@ -33,6 +33,7 @@ export type ProductPreview = {
   marketplaceUrl?: string | null
   variacaoLabel?: string | null
   corLabel?: string | null
+  modeloLabel?: string | null
   variantes?: ProductPreview[]
 }
 
@@ -125,11 +126,18 @@ export function ProductDetailsDialog({
     ? product.variantes
     : product ? [product] : []
   const selectedVariant = realVariants.find((variant) => variant.id === selectedVariantId)
+  const modelOptions = Array.from(new Set(
+    realVariants.map((variant) => variant.modeloLabel || 'Padrão')
+  ))
+  const selectedModel = selectedVariant?.modeloLabel || 'Padrão'
+  const modelVariants = realVariants.filter(
+    (variant) => (variant.modeloLabel || 'Padrão') === selectedModel
+  )
   const colorOptions = Array.from(new Set(
-    realVariants.map((variant) => variant.corLabel || 'Padrão')
+    modelVariants.map((variant) => variant.corLabel || 'Padrão')
   ))
   const selectedColor = selectedVariant?.corLabel || 'Padrão'
-  const sizeVariants = realVariants.filter(
+  const sizeVariants = modelVariants.filter(
     (variant) => (variant.corLabel || 'Padrão') === selectedColor
   )
   const clothing = Boolean(product && isClothingProduct(product))
@@ -325,6 +333,47 @@ export function ProductDetailsDialog({
               {product.nome}
             </h2>
 
+            {modelOptions.length > 1 && (
+              <fieldset className="mt-5">
+                <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Escolha o modelo
+                </legend>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {modelOptions.map((model) => (
+                    <button
+                      key={model}
+                      type="button"
+                      aria-pressed={model === selectedModel}
+                      onClick={() => {
+                        const options = realVariants.filter(
+                          (variant) => (variant.modeloLabel || 'Padrão') === model
+                        )
+                        const target = options.find(
+                          (variant) => variant.corLabel === selectedVariant?.corLabel &&
+                            variant.variacaoLabel === selectedVariant?.variacaoLabel &&
+                            (variant.estoqueIlimitado || variant.estoque > 0)
+                        ) || options.find(
+                          (variant) => variant.estoqueIlimitado || variant.estoque > 0
+                        ) || options[0]
+                        if (!target) return
+                        setSelectedVariantId(target.id)
+                        setSelectedImage(0)
+                        setQuantity(1)
+                      }}
+                      className={[
+                        'rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                        model === selectedModel
+                          ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                          : 'border-border bg-background hover:border-primary/60',
+                      ].join(' ')}
+                    >
+                      {model}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
             {product.variantes && colorOptions.length > 1 && (
               <fieldset className="mt-5">
                 <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -336,9 +385,9 @@ export function ProductDetailsDialog({
                       key={color}
                       type="button"
                       onClick={() => {
-                        const matches = product.variantes?.filter(
+                        const matches = modelVariants.filter(
                           (variant) => (variant.corLabel || 'Padrão') === color
-                        ) || []
+                        )
                         const selected = matches.find(
                           (variant) => variant.variacaoLabel === current?.variacaoLabel &&
                             (variant.estoqueIlimitado || variant.estoque > 0)
