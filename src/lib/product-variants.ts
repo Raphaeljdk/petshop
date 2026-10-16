@@ -68,6 +68,24 @@ function canonicalSize(value?: string | null) {
   return aliases[size] || size
 }
 
+export const CLOTHING_SIZES = ['P', 'M', 'G', 'GG'] as const
+
+/** Grade visual comum para todas as roupas. PP/XGG continuam disponíveis quando
+ * há um anúncio real desses tamanhos; a grade não cria SKUs nem saldo.
+ */
+export function clothingSizeOptions(existing: Array<string | null | undefined>) {
+  const extras = ['PP', 'XGG'].filter((size) => existing.includes(size))
+  return [...extras.filter((size) => size === 'PP'), ...CLOTHING_SIZES, ...extras.filter((size) => size === 'XGG')]
+}
+
+/** Reconhece vestuário também quando o marketplace usa categorias genéricas. */
+export function isClothingProduct(product: { nome?: string | null; categoria?: string | null }) {
+  const name = key(product.nome || '')
+  const category = key(product.categoria || '')
+  const clothes = /\b(?:roupas?|roupinhas?|vestidos?|jaquetas?|casacos?|camisetas?|camisas?|blusas?|moletons?|pijamas?|macacoes?|macacao|fantasias?|sueteres?|sueter|coletes?|regatas?|saias?|calcas?|jardineiras?|shorts?|bermudas?|agasalhos?|puffers?|vestuario|capa de chuva|corta vento|conjuntos?)\b/
+  return clothes.test(name) || /\b(?:roupas?|roupinhas?|vestuario|moda pet|vestimentas?)\b/.test(category)
+}
+
 /**
  * Remove listas promocionais de tamanhos, tamanho de SKU e subtítulos após " - ".
  * Preserva cores no título, exceto quando o próprio título anuncia alternativas
@@ -170,6 +188,8 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
     return {
       ...primary,
       nome: info.title,
+      variacaoLabel: info.size,
+      corLabel: info.color,
       estoque: stock,
       estoqueIlimitado: variants.some((item) => Boolean(item.estoqueIlimitado)),
       ...(variants.length > 1 ? { variantes: variants } : {}),
