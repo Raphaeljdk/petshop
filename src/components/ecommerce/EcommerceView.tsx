@@ -73,6 +73,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
+import { catalogVariantInfo, groupCatalogProducts } from '@/lib/product-variants'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -86,88 +87,11 @@ function estoqueOficial(produto: Produto) {
 }
 
 type ProdutoComVariantes = Produto & {
-  variantes?: Produto[]
-}
-
-function normalizarNomeVariacao(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
-
-function tamanhoDoProduto(nome: string) {
-  const normalizado = normalizarNomeVariacao(nome)
-  const match = normalizado.match(
-    /(?:^|\s)(?:tamanho\s+|tam\s+)?(xxl|xgg|xl|xg|gg|pp|small|medium|large|xs|xx large|x large|p|m|g)$/
-  )
-  if (!match) return null
-
-  const aliases: Record<string, string> = {
-    xs: 'PP',
-    small: 'P',
-    medium: 'M',
-    large: 'G',
-    xl: 'GG',
-    xg: 'GG',
-    xgg: 'XGG',
-    xxl: 'XGG',
-    'x large': 'GG',
-    'xx large': 'XGG',
-  }
-  return aliases[match[1]] || match[1].toUpperCase()
-}
-
-function nomeBaseDaVariacao(nome: string) {
-  return nome
-    .replace(
-      /\s+(?:tamanhos?\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|XS|P|M|G)(?:\s*(?:,|\/|&|\be\b|\bou\b|-)\s*(?:XXL|XGG|XL|XG|GG|PP|XS|P|M|G)){1,}.*$/i,
-      ''
-    )
-    .replace(
-      /(?:[\s,(/-]+)(?:tamanho\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|SMALL|MEDIUM|LARGE|XS|XX[-\s]?LARGE|X[-\s]?LARGE|P|M|G)\)?\s*$/i,
-      ''
-    )
-    .replace(/[\s,(/-]+$/, '')
-    .trim()
+  variantes?: Array<Produto & { variacaoLabel?: string | null; corLabel?: string | null }>
 }
 
 function agruparVariacoes(produtos: Produto[]): ProdutoComVariantes[] {
-  const grupos = new Map<string, Produto[]>()
-  const avulsos: ProdutoComVariantes[] = []
-
-  for (const produto of produtos) {
-    if (!tamanhoDoProduto(produto.nome)) {
-      avulsos.push(produto)
-      continue
-    }
-    const chave = normalizarNomeVariacao(nomeBaseDaVariacao(produto.nome))
-    const grupo = grupos.get(chave) || []
-    grupo.push(produto)
-    grupos.set(chave, grupo)
-  }
-
-  for (const variantes of grupos.values()) {
-    if (variantes.length === 1) {
-      avulsos.push(variantes[0])
-      continue
-    }
-    const ordenadas = [...variantes].sort((a, b) =>
-      (tamanhoDoProduto(a.nome) || '').localeCompare(tamanhoDoProduto(b.nome) || '', 'pt-BR')
-    )
-    const principal = ordenadas.find((produto) => estoqueOficial(produto) > 0) || ordenadas[0]
-    avulsos.push({
-      ...principal,
-      nome: nomeBaseDaVariacao(principal.nome),
-      estoque: ordenadas.reduce((total, produto) => total + estoqueOficial(produto), 0),
-      estoqueIlimitado: ordenadas.some((produto) => produto.estoqueIlimitado),
-      variantes: ordenadas,
-    })
-  }
-
-  return avulsos
+  return groupCatalogProducts(produtos)
 }
 
 function corEstoque(qtd: number, ilimitado = false): { label: string; className: string } {
@@ -362,7 +286,7 @@ function ProdutoCard({
             </legend>
             <div className="flex flex-wrap gap-1.5">
               {variantes.map((variante) => {
-                const tamanho = tamanhoDoProduto(variante.nome)
+                const info = catalogVariantInfo(variante.nome)
                 return (
                   <Button
                     key={variante.id}
@@ -373,7 +297,7 @@ function ProdutoCard({
                     aria-pressed={selecionado.id === variante.id}
                     onClick={() => setVarianteId(variante.id)}
                   >
-                    {tamanho}
+                    {[info.color, info.size].filter(Boolean).join(' · ') || 'Único'}
                     <span className="sr-only">, {estoqueOficial(variante)} em estoque</span>
                   </Button>
                 )
@@ -538,7 +462,7 @@ function ProdutoListRow({
                   className="h-6 px-2 text-[10px]"
                   onClick={() => onEditar(variante)}
                 >
-                  {tamanhoDoProduto(variante.nome)} · {estoqueOficial(variante)} un.
+                  {[variante.corLabel, variante.variacaoLabel].filter(Boolean).join(' · ') || 'Único'} · {estoqueOficial(variante)} un.
                 </Button>
               ))}
             </div>
