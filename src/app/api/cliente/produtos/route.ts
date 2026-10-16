@@ -54,6 +54,10 @@ function variantSize(name: string) {
 function variantBaseName(name: string) {
   return name
     .replace(
+      /\s+(?:tamanhos?\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|XS|P|M|G)(?:\s*(?:,|\/|&|\be\b|\bou\b|-)\s*(?:XXL|XGG|XL|XG|GG|PP|XS|P|M|G)){1,}.*$/i,
+      ''
+    )
+    .replace(
       /(?:[\s,(/-]+)(?:tamanho\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|SMALL|MEDIUM|LARGE|XS|XX[-\s]?LARGE|X[-\s]?LARGE|P|M|G)\)?\s*$/i,
       ''
     )
@@ -71,7 +75,7 @@ function groupProductVariants<T extends VariantProduct>(products: T[]) {
       singles.push(product)
       continue
     }
-    const key = `${normalizeVariantText(variantBaseName(product.nome))}::${normalizeVariantText(product.categoria)}`
+    const key = normalizeVariantText(variantBaseName(product.nome))
     const rows = groups.get(key) || []
     rows.push(product)
     groups.set(key, rows)
