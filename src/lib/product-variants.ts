@@ -142,11 +142,26 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
     // A quantidade exibida é soma das variações físicas únicas. Se existir uma
     // versão sem tamanho misturada às numeradas, seu saldo é tratado como
     // possível espelho, nunca somado novamente aos tamanhos.
-    const sized = variants.filter((item) => item.variacaoLabel)
-    const unsized = variants.filter((item) => !item.variacaoLabel)
-    const sizedStock = sized.reduce((sum, item) => sum + Math.max(0, item.estoque), 0)
-    const unsizedStock = unsized.reduce((sum, item) => sum + Math.max(0, item.estoque), 0)
-    const stock = sized.length > 0 ? Math.max(sizedStock, unsizedStock) : unsizedStock
+    const colorBuckets = new Map<string, CatalogVariant<T>[]>()
+    for (const item of variants) {
+      const colorKey = key(item.corLabel || '')
+      const bucket = colorBuckets.get(colorKey) || []
+      bucket.push(item)
+      colorBuckets.set(colorKey, bucket)
+    }
+    const bucketStock = (items: CatalogVariant<T>[]) => {
+      const sized = items.filter((item) => item.variacaoLabel)
+      const unsized = items.filter((item) => !item.variacaoLabel)
+      const sizedStock = sized.reduce((sum, item) => sum + Math.max(0, item.estoque), 0)
+      const unsizedStock = unsized.reduce((sum, item) => sum + Math.max(0, item.estoque), 0)
+      return sized.length ? Math.max(sizedStock, unsizedStock) : unsizedStock
+    }
+    const namedColorStock = Array.from(colorBuckets.entries())
+      .filter(([color]) => Boolean(color))
+      .reduce((sum, [, items]) => sum + bucketStock(items), 0)
+    // Se há item sem cor e versões com cor, ele pode ser o mesmo estoque.
+    const unknownColorStock = bucketStock(colorBuckets.get('') || [])
+    const stock = Math.max(namedColorStock, unknownColorStock)
 
     return {
       ...primary,
