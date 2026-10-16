@@ -73,7 +73,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
-import { catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '@/lib/product-variants'
+import { catalogVariantDetails, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '@/lib/product-variants'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -87,7 +87,7 @@ function estoqueOficial(produto: Produto) {
 }
 
 type ProdutoComVariantes = Produto & {
-  variantes?: Array<Produto & { variacaoLabel?: string | null; corLabel?: string | null }>
+  variantes?: Array<Produto & { variacaoLabel?: string | null; corLabel?: string | null; modeloLabel?: string | null }>
 }
 
 function agruparVariacoes(produtos: Produto[]): ProdutoComVariantes[] {
@@ -238,12 +238,12 @@ function ProdutoCard({
   const [varianteId, setVarianteId] = useState(variantes[0].id)
   const selecionado = variantes.find((variante) => variante.id === varianteId) || variantes[0]
   const roupa = isClothingProduct(produto)
-  const corSelecionada = catalogVariantInfo(selecionado.nome).color || ''
+  const corSelecionada = catalogVariantDetails(selecionado.nome).color || ''
   const variantesDaCor = variantes.filter((variante) =>
-    (catalogVariantInfo(variante.nome).color || '') === corSelecionada
+    (catalogVariantDetails(variante.nome).color || '') === corSelecionada
   )
   const tamanhosRoupa = clothingSizeOptions(variantesDaCor.map((item) =>
-    catalogVariantInfo(item.nome).size
+    catalogVariantDetails(item.nome).size
   ))
   const estoqueTotal = estoqueOficial(produto)
   const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
@@ -295,7 +295,7 @@ function ProdutoCard({
             <div className="flex flex-wrap gap-1.5">
               {tamanhosRoupa.map((tamanho) => {
                 const opcao = variantesDaCor.find((variante) =>
-                  catalogVariantInfo(variante.nome).size === tamanho
+                  catalogVariantDetails(variante.nome).size === tamanho
                 )
                 const indisponivel = !opcao || (!opcao.estoqueIlimitado && estoqueOficial(opcao) <= 0)
                 return (
@@ -329,7 +329,7 @@ function ProdutoCard({
             </legend>
             <div className="flex flex-wrap gap-1.5">
               {variantes.map((variante) => {
-                const info = catalogVariantInfo(variante.nome)
+                const info = catalogVariantDetails(variante.nome)
                 return (
                   <Button
                     key={variante.id}
@@ -340,7 +340,7 @@ function ProdutoCard({
                     aria-pressed={selecionado.id === variante.id}
                     onClick={() => setVarianteId(variante.id)}
                   >
-                    {[info.color, info.size].filter(Boolean).join(' · ') || 'Único'}
+                    {[info.model, info.color, info.size].filter(Boolean).join(' · ') || 'Único'}
                     <span className="sr-only">, {estoqueOficial(variante)} em estoque</span>
                   </Button>
                 )
@@ -505,7 +505,7 @@ function ProdutoListRow({
                   className="h-6 px-2 text-[10px]"
                   onClick={() => onEditar(variante)}
                 >
-                  {[variante.corLabel, variante.variacaoLabel].filter(Boolean).join(' · ') || 'Único'} · {estoqueOficial(variante)} un.
+                  {[variante.modeloLabel, variante.corLabel, variante.variacaoLabel].filter(Boolean).join(' · ') || 'Único'} · {estoqueOficial(variante)} un.
                 </Button>
               ))}
             </div>
