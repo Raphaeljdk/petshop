@@ -31,6 +31,7 @@ import { PagamentoCheckout } from '@/components/cliente-portal/PagamentoCheckout
 import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { isClothingProduct } from '@/lib/product-variants'
 import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
 import { StoreHero } from '@/components/cliente-portal/StoreHero'
 import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
@@ -528,11 +529,13 @@ export function ClientStore({
                 <p className="min-h-12 line-clamp-2 text-base font-semibold leading-snug tracking-tight group-hover:text-primary sm:text-lg">{p.nome}</p>
                 <p className="mt-1 truncate text-xs text-muted-foreground">{p.categoria}</p>
                 <p className="mt-2 text-xs font-semibold text-primary">Ver fotos e detalhes →</p>
-                {p.variantes && p.variantes.length > 1 && (
+                {(isClothingProduct(p) || (p.variantes && p.variantes.length > 1)) && (
                   <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
-                    {p.variantes.some((variant) => Boolean(variant.corLabel))
-                                ? 'Opções de cores e tamanhos'
-                                : p.variantes.length + ' tamanhos disponíveis'}
+                    {isClothingProduct(p)
+                      ? 'Escolha o tamanho: P · M · G · GG'
+                      : p.variantes?.some((variant) => Boolean(variant.corLabel))
+                        ? 'Opções de cores e tamanhos'
+                        : (p.variantes?.length || 0) + ' tamanhos disponíveis'}
                   </Badge>
                 )}
               </button>
@@ -556,17 +559,17 @@ export function ClientStore({
               <Button
                 size="sm"
                 onClick={() => {
-                  if (p.variantes && p.variantes.length > 1) {
+                  if (isClothingProduct(p) || (p.variantes && p.variantes.length > 1)) {
                     setSelectedProduct(p)
                     return
                   }
                   adicionarAoCarrinho(p)
                 }}
-                disabled={!p.estoqueIlimitado && p.estoque <= 0}
+                disabled={!isClothingProduct(p) && !p.estoqueIlimitado && p.estoque <= 0}
                 className="btn-brand h-12 text-sm font-semibold shadow-sm"
               >
                 <Plus className="size-3.5" />
-                {p.variantes && p.variantes.length > 1 ? 'Escolher tamanho' : 'Adicionar'}
+                {(isClothingProduct(p) || (p.variantes && p.variantes.length > 1)) ? 'Escolher tamanho' : 'Adicionar'}
               </Button>
               <ProductActions product={p} />
             </CardContent>
