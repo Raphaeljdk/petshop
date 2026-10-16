@@ -73,7 +73,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
-import { catalogVariantInfo, groupCatalogProducts } from '@/lib/product-variants'
+import { catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '@/lib/product-variants'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -237,6 +237,14 @@ function ProdutoCard({
   const variantes = produto.variantes?.length ? produto.variantes : [produto]
   const [varianteId, setVarianteId] = useState(variantes[0].id)
   const selecionado = variantes.find((variante) => variante.id === varianteId) || variantes[0]
+  const roupa = isClothingProduct(produto)
+  const corSelecionada = catalogVariantInfo(selecionado.nome).color || ''
+  const variantesDaCor = variantes.filter((variante) =>
+    (catalogVariantInfo(variante.nome).color || '') === corSelecionada
+  )
+  const tamanhosRoupa = clothingSizeOptions(variantesDaCor.map((item) =>
+    catalogVariantInfo(item.nome).size
+  ))
   const estoqueTotal = estoqueOficial(produto)
   const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
   const temPromo = selecionado.precoPromo && selecionado.precoPromo > 0
@@ -277,6 +285,41 @@ function ProdutoCard({
             aria-label="Ativar/desativar produto"
           />
         </div>
+
+        {/* Grade padrão de roupas; apenas tamanhos com SKU real podem ser selecionados. */}
+        {roupa && (
+          <fieldset className="space-y-1.5">
+            <legend className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Tamanhos disponíveis no catálogo
+            </legend>
+            <div className="flex flex-wrap gap-1.5">
+              {tamanhosRoupa.map((tamanho) => {
+                const opcao = variantesDaCor.find((variante) =>
+                  catalogVariantInfo(variante.nome).size === tamanho
+                )
+                const indisponivel = !opcao || (!opcao.estoqueIlimitado && estoqueOficial(opcao) <= 0)
+                return (
+                  <Button
+                    key={tamanho}
+                    type="button"
+                    size="sm"
+                    variant={opcao && selecionado.id === opcao.id ? 'default' : 'outline'}
+                    disabled={indisponivel}
+                    title={indisponivel ? 'Não disponível neste tamanho' : 'Consultar ' + tamanho}
+                    onClick={() => { if (opcao) setVarianteId(opcao.id) }}
+                    className="h-7 min-w-9 px-2 text-[11px]"
+                    aria-pressed={Boolean(opcao && selecionado.id === opcao.id)}
+                  >
+                    {tamanho}
+                  </Button>
+                )
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Tamanhos sem anúncio ou estoque ficam desabilitados, sem gerar unidades fictícias.
+            </p>
+          </fieldset>
+        )}
 
         {/* SKU + descrição */}
         {variantes.length > 1 && (

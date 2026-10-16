@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { clothingSizeOptions, isClothingProduct } from '@/lib/product-variants'
 import { ProductReviews } from './ProductReviews'
 
 export type ProductPreview = {
@@ -120,28 +121,41 @@ export function ProductDetailsDialog({
     }
   }, [open, product, selectedVariantId])
 
-  const selectedVariant = product?.variantes?.find(
-    (variant) => variant.id === selectedVariantId
-  )
+  const realVariants = product?.variantes?.length
+    ? product.variantes
+    : product ? [product] : []
+  const selectedVariant = realVariants.find((variant) => variant.id === selectedVariantId)
   const colorOptions = Array.from(new Set(
-    (product?.variantes || []).map((variant) => variant.corLabel || 'Padrão')
+    realVariants.map((variant) => variant.corLabel || 'Padrão')
   ))
   const selectedColor = selectedVariant?.corLabel || 'Padrão'
-  const sizeVariants = (product?.variantes || []).filter(
+  const sizeVariants = realVariants.filter(
     (variant) => (variant.corLabel || 'Padrão') === selectedColor
   )
+  const clothing = Boolean(product && isClothingProduct(product))
+  const sizeOptions = clothing
+    ? clothingSizeOptions(sizeVariants.map((variant) => variant.variacaoLabel))
+    : sizeVariants.map((variant) => variant.variacaoLabel || 'Único')
+  const hasIdentifiedSize = !clothing || Boolean(selectedVariant?.variacaoLabel)
+  // Não disponibilizar compra quando a loja não sabe qual tamanho será enviado.
+  const sizeCanBePurchased = hasIdentifiedSize && Boolean(
+    selectedVariant && (selectedVariant.estoqueIlimitado || selectedVariant.estoque > 0)
+  )
   const baseCurrent = details || (product ? { ...product, imagens: product.imageUrl ? [product.imageUrl] : [] } : null)
+  const variantDetails = selectedVariant?.id === details?.id ? details : null
   const current: ProductDetails | null = selectedVariant
     ? {
         ...baseCurrent,
         ...selectedVariant,
-        imagens: selectedVariant.id === details?.id && details.imagens?.length
-          ? details.imagens
+        // Quando a API responde, preço, estoque e fotos da variação têm prioridade.
+        ...(variantDetails || {}),
+        imagens: variantDetails?.imagens?.length
+          ? variantDetails.imagens
           : selectedVariant.imageUrl
             ? [selectedVariant.imageUrl]
             : baseCurrent?.imagens || [],
-        descricao: selectedVariant.descricao || (selectedVariant.id === details?.id ? details.descricao : null),
-        marketplaceUrl: selectedVariant.id === details?.id ? details.marketplaceUrl : null,
+        descricao: variantDetails?.descricao || selectedVariant.descricao || null,
+        marketplaceUrl: variantDetails?.marketplaceUrl || null,
       }
     : baseCurrent
   const images = current?.imagens?.filter(Boolean) || []
@@ -351,20 +365,27 @@ export function ProductDetailsDialog({
               </fieldset>
             )}
 
-            {sizeVariants.length > 1 && (
+            {(clothing || sizeVariants.length > 1) && (
               <fieldset className="mt-5">
                 <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Escolha o tamanho
                 </legend>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {sizeVariants.map((variant) => {
-                    const selected = current?.id === variant.id
-                    const unavailable = !variant.estoqueIlimitado && variant.estoque <= 0
+                  {sizeOptions.map((size) => {
+                    const variant = sizeVariants.find((item) =>
+                      (item.variacaoLabel || 'Único') === size
+                    )
+                    const selected = Boolean(variant && selectedVariant?.id === variant.id)
+                    const unavailable = !variant ||
+                      (!variant.estoqueIlimitado && variant.estoque <= 0)
                     return (
                       <button
-                        key={variant.id}
+                        key={size}
                         type="button"
+                        disabled={unavailable}
+                        title={unavailable ? 'Tamanho indisponível' : 'Selecionar tamanho ' + size}
                         onClick={() => {
+                          if (!variant || unavailable) return
                           setSelectedVariantId(variant.id)
                           setSelectedImage(0)
                           setQuantity(1)
@@ -374,18 +395,26 @@ export function ProductDetailsDialog({
                           selected
                             ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                             : 'border-border bg-background hover:border-primary/60',
-                          unavailable ? 'opacity-45' : '',
+                          unavailable ? 'cursor-not-allowed opacity-40' : '',
                         ].join(' ')}
                         aria-pressed={selected}
+                        aria-label={'Tamanho ' + size + (unavailable ? ', indisponível' : ', disponível')}
                       >
-                        {variant.variacaoLabel || 'Único'}
+                        {size}
                       </button>
                     )
                   })}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Preço e estoque são atualizados conforme a variação escolhida.
+                  {clothing
+                    ? 'P, M, G e GG. Tamanhos sem anúncio ou sem estoque ficam desabilitados.'
+                    : 'Preço e estoque são atualizados conforme o tamanho escolhido.'}
                 </p>
+                {clothing && !sizeVariants.some((variant) => Boolean(variant.variacaoLabel)) && (
+                  <p className="mt-2 text-xs font-medium text-amber-700">
+                    O fornecedor ainda não identificou o tamanho desta roupa. Consulte a loja antes de comprar.
+                  </p>
+                )}
               </fieldset>
             )}
 
@@ -400,16 +429,20 @@ export function ProductDetailsDialog({
               <Badge
                 variant="outline"
                 className={
-                  current?.estoqueIlimitado || (current?.estoque || 0) > 0
-                    ? 'border-green-200 bg-green-50 text-green-700'
-                    : 'border-red-200 bg-red-50 text-red-700'
+                  clothing && !hasIdentifiedSize
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : current?.estoqueIlimitado || (current?.estoque || 0) > 0
+                      ? 'border-green-200 bg-green-50 text-green-700'
+                      : 'border-red-200 bg-red-50 text-red-700'
                 }
               >
-                {current?.estoqueIlimitado
-                  ? 'Estoque ilimitado'
-                  : (current?.estoque || 0) > 0
-                    ? `${current?.estoque} unidade(s) disponível(is)`
-                    : 'Produto indisponível'}
+                {clothing && !hasIdentifiedSize
+                  ? 'Tamanho não informado — consulte a loja'
+                  : current?.estoqueIlimitado
+                    ? 'Estoque ilimitado'
+                    : (current?.estoque || 0) > 0
+                      ? `${current?.estoque} unidade(s) disponível(is)`
+                      : 'Produto indisponível'}
               </Badge>
             </div>
 
@@ -464,9 +497,11 @@ export function ProductDetailsDialog({
                         )
                       }
                       disabled={
-                        current?.estoqueIlimitado
-                          ? quantity >= 99
-                          : quantity >= (current?.estoque || 0)
+                        !sizeCanBePurchased || (
+                          current?.estoqueIlimitado
+                            ? quantity >= 99
+                            : quantity >= (current?.estoque || 0)
+                        )
                       }
                       aria-label="Aumentar quantidade"
                     >
@@ -476,9 +511,9 @@ export function ProductDetailsDialog({
 
                   <Button
                     className="btn-brand h-12 min-w-0 w-full px-4 text-sm font-semibold shadow-sm xl:text-base"
-                    disabled={!current?.estoqueIlimitado && (current?.estoque || 0) <= 0}
+                    disabled={!sizeCanBePurchased || (!current?.estoqueIlimitado && (current?.estoque || 0) <= 0)}
                     onClick={() => {
-                      if (!current) return
+                      if (!current || !sizeCanBePurchased) return
                       onAddToCart(current, quantity)
                       onOpenChange(false)
                     }}
@@ -490,8 +525,9 @@ export function ProductDetailsDialog({
               ) : (
                 <Button
                   className="btn-brand h-12 w-full text-base font-semibold shadow-sm"
-                  disabled={!current?.estoqueIlimitado && (current?.estoque || 0) <= 0}
+                  disabled={!sizeCanBePurchased || (!current?.estoqueIlimitado && (current?.estoque || 0) <= 0)}
                   onClick={() => {
+                    if (!sizeCanBePurchased) return
                     onOpenChange(false)
                     onLoginToBuy?.()
                   }}

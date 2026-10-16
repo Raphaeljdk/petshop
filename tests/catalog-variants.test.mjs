@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { catalogVariantInfo, groupCatalogProducts } from '../src/lib/product-variants.ts'
+import { catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '../src/lib/product-variants.ts'
 
 const make = (id, nome, estoque, extra = {}) => ({
   id, nome, estoque, preco: 189.9, precoPromo: null, ...extra,
@@ -72,4 +72,37 @@ test('sem tamanho, anúncio repetido é um único produto e mantém maior preço
   assert.equal(products[0].nome, 'Jaqueta Ursinho')
   assert.equal(products[0].id, 'ml2')
   assert.equal(products[0].estoque, 8)
+})
+
+test('todas as roupas têm uma grade visual P/M/G/GG, mesmo com poucos SKUs reais', () => {
+  assert.deepEqual(clothingSizeOptions(['M']), ['P', 'M', 'G', 'GG'])
+  assert.deepEqual(clothingSizeOptions([]), ['P', 'M', 'G', 'GG'])
+  assert.deepEqual(clothingSizeOptions(['PP', 'G', 'XGG']), ['PP', 'P', 'M', 'G', 'GG', 'XGG'])
+  assert.equal(isClothingProduct({ nome: 'Jaqueta Puffer Urso', categoria: 'Pet shop' }), true)
+  assert.equal(isClothingProduct({ nome: 'Vestido Pet Lilás', categoria: 'Produtos' }), true)
+  assert.equal(isClothingProduct({ nome: 'Capa de chuva amarela', categoria: 'Pets' }), true)
+  assert.equal(isClothingProduct({ nome: 'Modelinho exclusivo', categoria: 'Roupas de Inverno' }), true)
+  assert.equal(isClothingProduct({ nome: 'Coleira com laço', categoria: 'Acessórios' }), false)
+  assert.equal(isClothingProduct({ nome: 'Ração para cães', categoria: 'Alimentos' }), false)
+})
+
+test('roupa com somente um tamanho preserva SKU e tamanho no item principal', () => {
+  const result = groupCatalogProducts([
+    make('real-g', 'Jaqueta de Inverno G', 4, { zettaProCod: 234 }),
+  ])
+  assert.equal(result.length, 1)
+  assert.equal(result[0].nome, 'Jaqueta de Inverno')
+  assert.equal(result[0].variacaoLabel, 'G')
+  assert.equal(result[0].id, 'real-g')
+  assert.equal(result[0].estoque, 4)
+  assert.equal(result[0].variantes, undefined)
+})
+
+test('roupa sem tamanho conhecido não recebe tamanho de SKU inventado', () => {
+  const result = groupCatalogProducts([
+    make('unmapped', 'Casaco de Frio para Cães', 7),
+  ])
+  assert.equal(isClothingProduct(result[0]), true)
+  assert.equal(result[0].variacaoLabel, null)
+  assert.equal(result[0].estoque, 7)
 })

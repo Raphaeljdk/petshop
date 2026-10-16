@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { isClothingProduct } from '@/lib/product-variants'
 import {
   ProductDetailsDialog,
   type ProductPreview,
@@ -350,11 +351,13 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                           <p className="mt-1.5 truncate text-xs text-muted-foreground">
                             {product.categoria}
                           </p>
-                          {product.variantes && product.variantes.length > 1 && (
+                          {(isClothingProduct(product) || (product.variantes && product.variantes.length > 1)) && (
                             <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
-                              {product.variantes.some((variant) => Boolean(variant.corLabel))
-                                ? 'Opções de cores e tamanhos'
-                                : product.variantes.length + ' tamanhos disponíveis'}
+                              {isClothingProduct(product)
+                                ? 'Tamanhos: P · M · G · GG'
+                                : product.variantes?.some((variant) => Boolean(variant.corLabel))
+                                  ? 'Opções de cores e tamanhos'
+                                  : (product.variantes?.length || 0) + ' tamanhos disponíveis'}
                             </Badge>
                           )}
                         </button>
