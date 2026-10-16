@@ -103,6 +103,7 @@ export async function GET() {
               : 'hub',
         variacaoLabel: product.variacaoLabel ?? null,
         corLabel: product.corLabel ?? null,
+        modeloLabel: product.modeloLabel ?? null,
         variantes: product.variantes,
         origens: [
           product.zettaProCod ? 'zetta' : null,
