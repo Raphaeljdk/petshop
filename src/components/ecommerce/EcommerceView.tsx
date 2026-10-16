@@ -85,6 +85,87 @@ function estoqueOficial(produto: Produto) {
   return Math.max(0, Number(produto.estoque || 0))
 }
 
+type ProdutoComVariantes = Produto & {
+  variantes?: Produto[]
+}
+
+function normalizarNomeVariacao(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function tamanhoDoProduto(nome: string) {
+  const normalizado = normalizarNomeVariacao(nome)
+  const match = normalizado.match(
+    /(?:^|\s)(?:tamanho\s+|tam\s+)?(xxl|xgg|xl|xg|gg|pp|small|medium|large|xs|xx large|x large|p|m|g)$/
+  )
+  if (!match) return null
+
+  const aliases: Record<string, string> = {
+    xs: 'PP',
+    small: 'P',
+    medium: 'M',
+    large: 'G',
+    xl: 'GG',
+    xg: 'GG',
+    xgg: 'XGG',
+    xxl: 'XGG',
+    'x large': 'GG',
+    'xx large': 'XGG',
+  }
+  return aliases[match[1]] || match[1].toUpperCase()
+}
+
+function nomeBaseDaVariacao(nome: string) {
+  return nome
+    .replace(
+      /(?:[\s,(/-]+)(?:tamanho\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|SMALL|MEDIUM|LARGE|XS|XX[-\s]?LARGE|X[-\s]?LARGE|P|M|G)\)?\s*$/i,
+      ''
+    )
+    .replace(/[\s,(/-]+$/, '')
+    .trim()
+}
+
+function agruparVariacoes(produtos: Produto[]): ProdutoComVariantes[] {
+  const grupos = new Map<string, Produto[]>()
+  const avulsos: ProdutoComVariantes[] = []
+
+  for (const produto of produtos) {
+    if (!tamanhoDoProduto(produto.nome)) {
+      avulsos.push(produto)
+      continue
+    }
+    const chave = `${normalizarNomeVariacao(nomeBaseDaVariacao(produto.nome))}::${normalizarNomeVariacao(produto.categoria)}`
+    const grupo = grupos.get(chave) || []
+    grupo.push(produto)
+    grupos.set(chave, grupo)
+  }
+
+  for (const variantes of grupos.values()) {
+    if (variantes.length === 1) {
+      avulsos.push(variantes[0])
+      continue
+    }
+    const ordenadas = [...variantes].sort((a, b) =>
+      (tamanhoDoProduto(a.nome) || '').localeCompare(tamanhoDoProduto(b.nome) || '', 'pt-BR')
+    )
+    const principal = ordenadas.find((produto) => estoqueOficial(produto) > 0) || ordenadas[0]
+    avulsos.push({
+      ...principal,
+      nome: nomeBaseDaVariacao(principal.nome),
+      estoque: ordenadas.reduce((total, produto) => total + estoqueOficial(produto), 0),
+      estoqueIlimitado: ordenadas.some((produto) => produto.estoqueIlimitado),
+      variantes: ordenadas,
+    })
+  }
+
+  return avulsos
+}
+
 function corEstoque(qtd: number, ilimitado = false): { label: string; className: string } {
   if (ilimitado) {
     return {
@@ -209,12 +290,12 @@ function StatCard({
 /* --------------------------------------------------------------------- */
 
 interface ProdutoCardProps {
-  produto: Produto
-  onEditar: () => void
-  onExcluir: () => void
-  onToggleAtivo: () => void
-  onQuickEditPreco: (novoPreco: number) => void
-  onQuickEditEstoque: (novoEstoque: number) => void
+  produto: ProdutoComVariantes
+  onEditar: (produto: Produto) => void
+  onExcluir: (produto: Produto) => void
+  onToggleAtivo: (produto: Produto) => void
+  onQuickEditPreco: (produto: Produto, novoPreco: number) => void
+  onQuickEditEstoque: (produto: Produto, novoEstoque: number) => void
 }
 
 function ProdutoCard({
@@ -225,9 +306,12 @@ function ProdutoCard({
   onQuickEditPreco,
   onQuickEditEstoque,
 }: ProdutoCardProps) {
+  const variantes = produto.variantes?.length ? produto.variantes : [produto]
+  const [varianteId, setVarianteId] = useState(variantes[0].id)
+  const selecionado = variantes.find((variante) => variante.id === varianteId) || variantes[0]
   const estoqueTotal = estoqueOficial(produto)
   const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
-  const temPromo = produto.precoPromo && produto.precoPromo > 0
+  const temPromo = selecionado.precoPromo && selecionado.precoPromo > 0
 
   return (
     <Card className={cn('admin-product-card flex flex-col', !produto.ativo && 'opacity-60')}>
@@ -235,9 +319,9 @@ function ProdutoCard({
         {/* Header do card */}
         <div className="flex items-start gap-3">
           <div className="size-14 rounded-lg bg-muted flex items-center justify-center text-3xl shrink-0">
-            {produto.imageUrl ? (
+            {selecionado.imageUrl ? (
               <img
-                src={produto.imageUrl}
+                src={selecionado.imageUrl}
                 alt={produto.nome}
                 className="size-14 object-cover rounded-lg"
               />
@@ -260,16 +344,42 @@ function ProdutoCard({
             </div>
           </div>
           <Switch
-            checked={produto.ativo}
-            onCheckedChange={onToggleAtivo}
+            checked={selecionado.ativo}
+            onCheckedChange={() => onToggleAtivo(selecionado)}
             aria-label="Ativar/desativar produto"
           />
         </div>
 
         {/* SKU + descrição */}
-        {produto.sku && (
+        {variantes.length > 1 && (
+          <fieldset className="space-y-1.5">
+            <legend className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Variações
+            </legend>
+            <div className="flex flex-wrap gap-1.5">
+              {variantes.map((variante) => {
+                const tamanho = tamanhoDoProduto(variante.nome)
+                return (
+                  <Button
+                    key={variante.id}
+                    type="button"
+                    size="sm"
+                    variant={selecionado.id === variante.id ? 'default' : 'outline'}
+                    className="h-7 min-w-9 px-2 text-[11px]"
+                    aria-pressed={selecionado.id === variante.id}
+                    onClick={() => setVarianteId(variante.id)}
+                  >
+                    {tamanho}
+                    <span className="sr-only">, {estoqueOficial(variante)} em estoque</span>
+                  </Button>
+                )
+              })}
+            </div>
+          </fieldset>
+        )}
+        {selecionado.sku && (
           <p className="text-[10px] text-muted-foreground">
-            SKU: <span className="font-mono">{produto.sku}</span>
+            SKU: <span className="font-mono">{selecionado.sku}</span>
           </p>
         )}
 
@@ -278,17 +388,17 @@ function ProdutoCard({
           {temPromo ? (
             <>
               <span className="text-xs line-through text-muted-foreground">
-                {fmtMoeda(produto.preco)}
+                {fmtMoeda(selecionado.preco)}
               </span>
               <span className="text-xl font-bold text-primary">
-                {fmtMoeda(produto.precoPromo!)}
+                {fmtMoeda(selecionado.precoPromo!)}
               </span>
               <Badge className="text-[9px] bg-red-100 text-red-700 border-red-200">
                 PROMO
               </Badge>
             </>
           ) : (
-            <span className="text-xl font-bold">{fmtMoeda(produto.preco)}</span>
+            <span className="text-xl font-bold">{fmtMoeda(selecionado.preco)}</span>
           )}
         </div>
 
@@ -300,9 +410,9 @@ function ProdutoCard({
         </div>
 
         {/* Quick edit: preço + estoque inline */}
-        {produto.zettaProCod || produto.mlItemId || produto.amazonAsin ? (
+        {selecionado.zettaProCod || selecionado.mlItemId || selecionado.amazonAsin ? (
           <div className="rounded-md border border-primary/15 bg-primary/5 p-2 text-[11px] text-muted-foreground">
-            Produto sincronizado. Itens equivalentes aparecem uma única vez e o estoque exibido já soma as integrações vinculadas.
+            Produto com variações agrupadas. Escolha o tamanho acima para consultar e editar o SKU correto; o total considera as unidades dessas variações.
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
@@ -311,16 +421,17 @@ function ProdutoCard({
               Preço (R$)
             </Label>
             <Input
-              id={`qpreco-${produto.id}`}
+              id={`qpreco-${selecionado.id}`}
               type="number"
               step="0.01"
               min="0"
-              defaultValue={produto.preco}
+              key={`preco-${selecionado.id}`}
+              defaultValue={selecionado.preco}
               className="h-8 text-xs"
               onBlur={(e) => {
                 const novo = Number(e.target.value)
-                if (!Number.isNaN(novo) && novo !== produto.preco) {
-                  onQuickEditPreco(novo)
+                if (!Number.isNaN(novo) && novo !== selecionado.preco) {
+                  onQuickEditPreco(selecionado, novo)
                 }
               }}
             />
@@ -330,15 +441,16 @@ function ProdutoCard({
               Estoque
             </Label>
             <Input
-              id={`qest-${produto.id}`}
+              id={`qest-${selecionado.id}`}
               type="number"
               min="0"
-              defaultValue={produto.estoque}
+              key={`estoque-${selecionado.id}`}
+              defaultValue={selecionado.estoque}
               className="h-8 text-xs"
               onBlur={(e) => {
                 const novo = Math.max(0, Number(e.target.value) || 0)
-                if (novo !== produto.estoque) {
-                  onQuickEditEstoque(novo)
+                if (novo !== selecionado.estoque) {
+                  onQuickEditEstoque(selecionado, novo)
                 }
               }}
             />
@@ -353,7 +465,7 @@ function ProdutoCard({
             size="icon"
             variant="ghost"
             className="size-8"
-            onClick={onEditar}
+            onClick={() => onEditar(selecionado)}
           >
             <Pencil className="size-3.5" />
           </Button>
@@ -361,7 +473,7 @@ function ProdutoCard({
             size="icon"
             variant="ghost"
             className="size-8 text-destructive"
-            onClick={onExcluir}
+            onClick={() => onExcluir(selecionado)}
           >
             <Trash2 className="size-3.5" />
           </Button>
@@ -381,10 +493,10 @@ function ProdutoListRow({
   onExcluir,
   onToggleAtivo,
 }: {
-  produto: Produto
-  onEditar: () => void
-  onExcluir: () => void
-  onToggleAtivo: () => void
+  produto: ProdutoComVariantes
+  onEditar: (produto: Produto) => void
+  onExcluir: (produto: Produto) => void
+  onToggleAtivo: (produto: Produto) => void
 }) {
   const estoqueTotal = estoqueOficial(produto)
   const estoqueMeta = corEstoque(estoqueTotal, produto.estoqueIlimitado)
@@ -411,7 +523,24 @@ function ProdutoListRow({
               <Badge variant="outline" className="text-[9px]">Integrado</Badge>
             )}
           </div>
-          {produto.sku && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">SKU {produto.sku}</p>}
+          {produto.variantes && produto.variantes.length > 1 ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {produto.variantes.map((variante) => (
+                <Button
+                  key={variante.id}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => onEditar(variante)}
+                >
+                  {tamanhoDoProduto(variante.nome)} · {estoqueOficial(variante)} un.
+                </Button>
+              ))}
+            </div>
+          ) : (
+            produto.sku && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">SKU {produto.sku}</p>
+          )}
         </div>
 
         <div>
@@ -427,11 +556,11 @@ function ProdutoListRow({
         </div>
 
         <div className="flex items-center justify-end gap-1">
-          <Switch checked={produto.ativo} onCheckedChange={onToggleAtivo} aria-label="Ativar/desativar produto" />
-          <Button size="icon" variant="ghost" className="size-9" onClick={onEditar} aria-label={`Editar ${produto.nome}`}>
+          <Switch checked={produto.ativo} onCheckedChange={() => onToggleAtivo(produto)} aria-label="Ativar/desativar produto" />
+          <Button size="icon" variant="ghost" className="size-9" onClick={() => onEditar(produto)} aria-label={`Editar ${produto.nome}`}>
             <Pencil className="size-4" />
           </Button>
-          <Button size="icon" variant="ghost" className="size-9 text-destructive" onClick={onExcluir} aria-label={`Excluir ${produto.nome}`}>
+          <Button size="icon" variant="ghost" className="size-9 text-destructive" onClick={() => onExcluir(produto)} aria-label={`Excluir ${produto.nome}`}>
             <Trash2 className="size-4" />
           </Button>
         </div>
@@ -765,7 +894,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   const resumoEstoque = useMemo(
     () => ({
-      total: produtos.length,
+      total: agruparVariacoes(produtos.filter((produto) => produto.ativo)).length,
       unidades: produtos.reduce(
         (sum, produto) =>
           produto.estoqueIlimitado ? sum : sum + estoqueOficial(produto),
@@ -830,7 +959,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         )
         break
     }
-    return ordenados
+    return agruparVariacoes(ordenados)
   }, [
     produtos,
     buscaProduto,
@@ -1179,7 +1308,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque unificado</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Produtos iguais do Zetta, Mercado Livre, Amazon e estoque local aparecem como um único item, com as unidades somadas em um estoque consolidado.
+          Produtos iguais e suas variações de tamanho aparecem em uma única ficha. Cada tamanho mantém seu próprio SKU e estoque.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge variant="secondary">{resumoEstoque.total} produtos únicos</Badge>
@@ -1379,17 +1508,17 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                     <ProdutoCard
                       key={p.id}
                       produto={p}
-                      onEditar={() => abrirEdicaoProduto(p)}
-                      onExcluir={() =>
+                      onEditar={abrirEdicaoProduto}
+                      onExcluir={(produto) =>
                         setConfirmExcluir({
                           tipo: 'produto',
-                          id: p.id,
-                          nome: p.nome,
+                          id: produto.id,
+                          nome: produto.nome,
                         })
                       }
-                      onToggleAtivo={() => toggleProdutoAtivo(p)}
-                      onQuickEditPreco={(novo) => quickEditProduto(p, { preco: novo })}
-                      onQuickEditEstoque={(novo) => quickEditProduto(p, { estoque: novo })}
+                      onToggleAtivo={toggleProdutoAtivo}
+                      onQuickEditPreco={(produto, novo) => quickEditProduto(produto, { preco: novo })}
+                      onQuickEditEstoque={(produto, novo) => quickEditProduto(produto, { estoque: novo })}
                     />
                   ))}
                 </div>
@@ -1399,15 +1528,15 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                     <ProdutoListRow
                       key={p.id}
                       produto={p}
-                      onEditar={() => abrirEdicaoProduto(p)}
-                      onExcluir={() =>
+                      onEditar={abrirEdicaoProduto}
+                      onExcluir={(produto) =>
                         setConfirmExcluir({
                           tipo: 'produto',
-                          id: p.id,
-                          nome: p.nome,
+                          id: produto.id,
+                          nome: produto.nome,
                         })
                       }
-                      onToggleAtivo={() => toggleProdutoAtivo(p)}
+                      onToggleAtivo={toggleProdutoAtivo}
                     />
                   ))}
                 </div>
