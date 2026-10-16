@@ -133,7 +133,7 @@ function capitalizeModel(value: string) {
 
 /** Título da família + atributos de uma variação física real. */
 export function catalogVariantDetails(nome: string) {
-  const original = (nome || '').replace(/\s+/g, ' ').trim()
+  const original = (nome || '').replace(/\s*\/\s*(PP|P|M|G|GG|XGG)\s*$/i, ' $1').replace(/\s+/g, ' ').trim()
   const parts = original.split(/\s+[-–—]\s+/)
   const sizeFromEnd = original.match(END_SIZE)
   const size = canonicalSize(sizeFromEnd?.[1])
