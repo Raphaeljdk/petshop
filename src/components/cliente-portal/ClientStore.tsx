@@ -49,6 +49,11 @@ interface ClientStoreProps {
   onCartUiChange?: (state: ClientCartUiState | null) => void
 }
 
+type StoreProduct = Produto & {
+  variacaoLabel?: string | null
+  variantes?: StoreProduct[]
+}
+
 export interface CarrinhoItem {
   produto: Produto
   quantidade: number
@@ -87,7 +92,7 @@ export function ClientStore({
   }, [repeatItems, onRepeatConsumed])
   const cartRevision = useRef(0)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [produtos, setProdutos] = useState<Produto[]>([])
+  const [produtos, setProdutos] = useState<StoreProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>(() => repeatItems || [])
@@ -103,7 +108,7 @@ export function ClientStore({
   const [vendaEmPagamento, setVendaEmPagamento] = useState<Venda | null>(null)
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
   const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<Produto | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null)
   const [busca, setBusca] = useState('')
   const [buscaAberta, setBuscaAberta] = useState(false)
   const buscaInputRef = useRef<HTMLInputElement>(null)
@@ -522,6 +527,11 @@ export function ClientStore({
                 <p className="min-h-12 line-clamp-2 text-base font-semibold leading-snug tracking-tight group-hover:text-primary sm:text-lg">{p.nome}</p>
                 <p className="mt-1 truncate text-xs text-muted-foreground">{p.categoria}</p>
                 <p className="mt-2 text-xs font-semibold text-primary">Ver fotos e detalhes →</p>
+                {p.variantes && p.variantes.length > 1 && (
+                  <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
+                    {p.variantes.length} tamanhos disponíveis
+                  </Badge>
+                )}
               </button>
               <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
@@ -540,8 +550,20 @@ export function ClientStore({
                   {p.estoqueIlimitado ? 'Disponível' : p.estoque > 0 ? `${p.estoque} em estoque` : 'Sem estoque'}
                 </Badge>
               </div>
-              <Button size="sm" onClick={() => adicionarAoCarrinho(p)} disabled={!p.estoqueIlimitado && p.estoque <= 0} className="btn-brand h-12 text-sm font-semibold shadow-sm">
-                <Plus className="size-3.5" /> Adicionar
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (p.variantes && p.variantes.length > 1) {
+                    setSelectedProduct(p)
+                    return
+                  }
+                  adicionarAoCarrinho(p)
+                }}
+                disabled={!p.estoqueIlimitado && p.estoque <= 0}
+                className="btn-brand h-12 text-sm font-semibold shadow-sm"
+              >
+                <Plus className="size-3.5" />
+                {p.variantes && p.variantes.length > 1 ? 'Escolher tamanho' : 'Adicionar'}
               </Button>
               <ProductActions product={p} />
             </CardContent>
@@ -555,10 +577,8 @@ export function ClientStore({
         onOpenChange={(open) => {
           if (!open) setSelectedProduct(null)
         }}
-        onAddToCart={(_details, quantity) => {
-          if (selectedProduct) {
-            adicionarQuantidadeAoCarrinho(selectedProduct, quantity)
-          }
+        onAddToCart={(details, quantity) => {
+          adicionarQuantidadeAoCarrinho(details as StoreProduct, quantity)
         }}
       />
 
