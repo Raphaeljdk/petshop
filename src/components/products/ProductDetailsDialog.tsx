@@ -31,6 +31,7 @@ export type ProductPreview = {
   origem?: 'mercado_livre' | 'amazon' | 'zetta' | 'hub'
   marketplaceUrl?: string | null
   variacaoLabel?: string | null
+  corLabel?: string | null
   variantes?: ProductPreview[]
 }
 
@@ -72,20 +73,26 @@ export function ProductDetailsDialog({
 
   useEffect(() => {
     if (!open || !product) return
+    setSelectedVariantId(product.id)
+    setSelectedImage(0)
+    setQuantity(1)
+  }, [open, product])
+
+  useEffect(() => {
+    if (!open || !product) return
 
     let active = true
     const controller = new AbortController()
-    // Reset state for the product being opened; the effect also starts the remote detail fetch.
+    const chosen = product.variantes?.find((item) => item.id === selectedVariantId)
+    const target = chosen || product
     setLoading(true)
     setSelectedImage(0)
-    setQuantity(1)
-    setSelectedVariantId(product.id)
     setDetails({
-      ...product,
-      imagens: product.imageUrl ? [product.imageUrl] : [],
+      ...target,
+      imagens: target.imageUrl ? [target.imageUrl] : [],
     })
-
-    void fetch(`/api/public/produtos/${encodeURIComponent(product.id)}`, {
+    // Busca as fotos, descrição e link do anúncio da variação escolhida.
+    void fetch('/api/public/produtos/' + encodeURIComponent(target.id), {
       cache: 'no-store',
       signal: controller.signal,
     })
@@ -111,19 +118,30 @@ export function ProductDetailsDialog({
       active = false
       controller.abort()
     }
-  }, [open, product])
+  }, [open, product, selectedVariantId])
 
   const selectedVariant = product?.variantes?.find(
     (variant) => variant.id === selectedVariantId
+  )
+  const colorOptions = Array.from(new Set(
+    (product?.variantes || []).map((variant) => variant.corLabel || 'Padrão')
+  ))
+  const selectedColor = selectedVariant?.corLabel || 'Padrão'
+  const sizeVariants = (product?.variantes || []).filter(
+    (variant) => (variant.corLabel || 'Padrão') === selectedColor
   )
   const baseCurrent = details || (product ? { ...product, imagens: product.imageUrl ? [product.imageUrl] : [] } : null)
   const current: ProductDetails | null = selectedVariant
     ? {
         ...baseCurrent,
         ...selectedVariant,
-        imagens: selectedVariant.imageUrl
-          ? [selectedVariant.imageUrl]
-          : baseCurrent?.imagens || [],
+        imagens: selectedVariant.id === details?.id && details.imagens?.length
+          ? details.imagens
+          : selectedVariant.imageUrl
+            ? [selectedVariant.imageUrl]
+            : baseCurrent?.imagens || [],
+        descricao: selectedVariant.descricao || (selectedVariant.id === details?.id ? details.descricao : null),
+        marketplaceUrl: selectedVariant.id === details?.id ? details.marketplaceUrl : null,
       }
     : baseCurrent
   const images = current?.imagens?.filter(Boolean) || []
@@ -293,13 +311,53 @@ export function ProductDetailsDialog({
               {product.nome}
             </h2>
 
-            {product.variantes && product.variantes.length > 1 && (
+            {product.variantes && colorOptions.length > 1 && (
+              <fieldset className="mt-5">
+                <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Escolha a cor
+                </legend>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        const matches = product.variantes?.filter(
+                          (variant) => (variant.corLabel || 'Padrão') === color
+                        ) || []
+                        const selected = matches.find(
+                          (variant) => variant.variacaoLabel === current?.variacaoLabel &&
+                            (variant.estoqueIlimitado || variant.estoque > 0)
+                        ) || matches.find(
+                          (variant) => variant.estoqueIlimitado || variant.estoque > 0
+                        ) || matches[0]
+                        if (!selected) return
+                        setSelectedVariantId(selected.id)
+                        setSelectedImage(0)
+                        setQuantity(1)
+                      }}
+                      aria-pressed={color === selectedColor}
+                      className={[
+                        'rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                        color === selectedColor
+                          ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                          : 'border-border bg-background hover:border-primary/60',
+                      ].join(' ')}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            {sizeVariants.length > 1 && (
               <fieldset className="mt-5">
                 <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Escolha o tamanho
                 </legend>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {product.variantes.map((variant) => {
+                  {sizeVariants.map((variant) => {
                     const selected = current?.id === variant.id
                     const unavailable = !variant.estoqueIlimitado && variant.estoque <= 0
                     return (
@@ -320,13 +378,13 @@ export function ProductDetailsDialog({
                         ].join(' ')}
                         aria-pressed={selected}
                       >
-                        {variant.variacaoLabel || variant.nome}
+                        {variant.variacaoLabel || 'Único'}
                       </button>
                     )
                   })}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Preço e estoque são atualizados conforme o tamanho escolhido.
+                  Preço e estoque são atualizados conforme a variação escolhida.
                 </p>
               </fieldset>
             )}

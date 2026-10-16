@@ -352,7 +352,9 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                           </p>
                           {product.variantes && product.variantes.length > 1 && (
                             <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
-                              {product.variantes.length} tamanhos disponíveis
+                              {product.variantes.some((variant) => Boolean(variant.corLabel))
+                                ? 'Opções de cores e tamanhos'
+                                : product.variantes.length + ' tamanhos disponíveis'}
                             </Badge>
                           )}
                         </button>
