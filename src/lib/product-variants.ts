@@ -94,6 +94,7 @@ export function isClothingProduct(product: { nome?: string | null; categoria?: s
  */
 function catalogFamilyName(nome: string): string | null {
   const normalized = key(nome)
+  if (/^coleira de passeio azul\b/.test(normalized)) return 'Coleira de Passeio Azul'
   if (/^vestido pet luxo tweed laco lilas\b/.test(normalized)) {
     return 'Vestido Pet Luxo Tweed Laço Lilás'
   }
