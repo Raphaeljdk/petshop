@@ -123,6 +123,10 @@ function tamanhoDoProduto(nome: string) {
 function nomeBaseDaVariacao(nome: string) {
   return nome
     .replace(
+      /\s+(?:tamanhos?\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|XS|P|M|G)(?:\s*(?:,|\/|&|\be\b|\bou\b|-)\s*(?:XXL|XGG|XL|XG|GG|PP|XS|P|M|G)){1,}.*$/i,
+      ''
+    )
+    .replace(
       /(?:[\s,(/-]+)(?:tamanho\s+|tam\.?\s*)?(?:XXL|XGG|XL|XG|GG|PP|SMALL|MEDIUM|LARGE|XS|XX[-\s]?LARGE|X[-\s]?LARGE|P|M|G)\)?\s*$/i,
       ''
     )
@@ -139,7 +143,7 @@ function agruparVariacoes(produtos: Produto[]): ProdutoComVariantes[] {
       avulsos.push(produto)
       continue
     }
-    const chave = `${normalizarNomeVariacao(nomeBaseDaVariacao(produto.nome))}::${normalizarNomeVariacao(produto.categoria)}`
+    const chave = normalizarNomeVariacao(nomeBaseDaVariacao(produto.nome))
     const grupo = grupos.get(chave) || []
     grupo.push(produto)
     grupos.set(chave, grupo)
