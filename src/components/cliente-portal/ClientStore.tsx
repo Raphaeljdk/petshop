@@ -529,7 +529,9 @@ export function ClientStore({
                 <p className="mt-2 text-xs font-semibold text-primary">Ver fotos e detalhes →</p>
                 {p.variantes && p.variantes.length > 1 && (
                   <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
-                    {p.variantes.length} tamanhos disponíveis
+                    {p.variantes.some((variant) => Boolean(variant.corLabel))
+                                ? 'Opções de cores e tamanhos'
+                                : p.variantes.length + ' tamanhos disponíveis'}
                   </Badge>
                 )}
               </button>
