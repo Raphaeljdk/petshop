@@ -98,6 +98,8 @@ function groupProductVariants<T extends VariantProduct>(products: T[]) {
     grouped.push({
       ...primary,
       nome: variantBaseName(primary.nome),
+      estoque: ordered.reduce((total, variant) => total + Math.max(0, variant.estoque), 0),
+      estoqueIlimitado: ordered.some((variant) => variant.estoqueIlimitado),
       variantes: ordered.map((variant) => ({
         ...variant,
         variacaoLabel: variantSize(variant.nome),
