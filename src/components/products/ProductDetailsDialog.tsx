@@ -30,6 +30,8 @@ export type ProductPreview = {
   imageUrl: string | null
   origem?: 'mercado_livre' | 'amazon' | 'zetta' | 'hub'
   marketplaceUrl?: string | null
+  variacaoLabel?: string | null
+  variantes?: ProductPreview[]
 }
 
 type ProductDetails = ProductPreview & {
@@ -65,6 +67,7 @@ export function ProductDetailsDialog({
   const [loading, setLoading] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [quantity, setQuantity] = useState(1)
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export function ProductDetailsDialog({
     setLoading(true)
     setSelectedImage(0)
     setQuantity(1)
+    setSelectedVariantId(product.id)
     setDetails({
       ...product,
       imagens: product.imageUrl ? [product.imageUrl] : [],
@@ -92,7 +96,7 @@ export function ProductDetailsDialog({
       })
       .then((payload) => {
         if (!active) return
-        setDetails(payload)
+        setDetails({ ...payload, variantes: product.variantes })
         setSelectedImage(0)
       })
       .catch((error) => {
@@ -109,7 +113,19 @@ export function ProductDetailsDialog({
     }
   }, [open, product])
 
-  const current = details || (product ? { ...product, imagens: product.imageUrl ? [product.imageUrl] : [] } : null)
+  const selectedVariant = product?.variantes?.find(
+    (variant) => variant.id === selectedVariantId
+  )
+  const baseCurrent = details || (product ? { ...product, imagens: product.imageUrl ? [product.imageUrl] : [] } : null)
+  const current: ProductDetails | null = selectedVariant
+    ? {
+        ...baseCurrent,
+        ...selectedVariant,
+        imagens: selectedVariant.imageUrl
+          ? [selectedVariant.imageUrl]
+          : baseCurrent?.imagens || [],
+      }
+    : baseCurrent
   const images = current?.imagens?.filter(Boolean) || []
   const currentImage = images[selectedImage] || current?.imageUrl || null
   const currentPrice = current ? current.precoPromo ?? current.preco : 0
@@ -274,8 +290,46 @@ export function ProductDetailsDialog({
             </div>
 
             <h2 className="mt-3 break-words pr-10 text-[1.35rem] font-bold leading-[1.12] tracking-tight text-slate-950 sm:mt-4 sm:text-3xl lg:pr-6 lg:text-[2.05rem] xl:text-[2.2rem]">
-              {current?.nome || product.nome}
+              {product.nome}
             </h2>
+
+            {product.variantes && product.variantes.length > 1 && (
+              <fieldset className="mt-5">
+                <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Escolha o tamanho
+                </legend>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {product.variantes.map((variant) => {
+                    const selected = current?.id === variant.id
+                    const unavailable = !variant.estoqueIlimitado && variant.estoque <= 0
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedVariantId(variant.id)
+                          setSelectedImage(0)
+                          setQuantity(1)
+                        }}
+                        className={[
+                          'min-w-12 rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                          selected
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                            : 'border-border bg-background hover:border-primary/60',
+                          unavailable ? 'opacity-45' : '',
+                        ].join(' ')}
+                        aria-pressed={selected}
+                      >
+                        {variant.variacaoLabel || variant.nome}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Preço e estoque são atualizados conforme o tamanho escolhido.
+                </p>
+              </fieldset>
+            )}
 
             <div className="mt-4">
               {hasPromo && current && (
