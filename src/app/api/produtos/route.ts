@@ -49,8 +49,12 @@ function productMatchKeys(product: ConsolidatableProduct) {
 
   const sku = compactProductMatch(product.sku)
   const marketplaceFallbackSku = /^ml[a-z]?\d+$/.test(sku)
+  // O Zetta e alguns anúncios compartilham SKU entre cores/modelos.
+  // Um SKU igual sozinho NÃO significa a mesma variação física.
+  // A união por SKU exige também o título original normalizado idêntico.
   if (sku.length >= 3 && !marketplaceFallbackSku) {
-    keys.push(`sku:${sku}`)
+    const titleSignature = normalizeProductMatch(product.nome)
+    if (titleSignature) keys.push(`sku:${sku}:nome:${titleSignature}`)
   }
 
   const nome = normalizeProductMatch(product.nome)
