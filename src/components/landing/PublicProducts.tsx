@@ -350,6 +350,11 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                           <p className="mt-1.5 truncate text-xs text-muted-foreground">
                             {product.categoria}
                           </p>
+                          {product.variantes && product.variantes.length > 1 && (
+                            <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
+                              {product.variantes.length} tamanhos disponíveis
+                            </Badge>
+                          )}
                         </button>
 
                         <div className="mt-auto pt-4">
