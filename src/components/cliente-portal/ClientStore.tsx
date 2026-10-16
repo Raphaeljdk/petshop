@@ -53,6 +53,7 @@ interface ClientStoreProps {
 type StoreProduct = Produto & {
   variacaoLabel?: string | null
   corLabel?: string | null
+  modeloLabel?: string | null
   variantes?: StoreProduct[]
 }
 
@@ -533,9 +534,11 @@ export function ClientStore({
                   <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
                     {isClothingProduct(p)
                       ? 'Escolha o tamanho: P · M · G · GG'
-                      : p.variantes?.some((variant) => Boolean(variant.corLabel))
-                        ? 'Opções de cores e tamanhos'
-                        : (p.variantes?.length || 0) + ' tamanhos disponíveis'}
+                      : p.variantes?.some((variant) => Boolean(variant.modeloLabel))
+                        ? 'Escolher modelo e cor'
+                        : p.variantes?.some((variant) => Boolean(variant.corLabel))
+                          ? 'Opções de cores'
+                          : (p.variantes?.length || 0) + ' variações disponíveis'}
                   </Badge>
                 )}
               </button>
@@ -569,7 +572,7 @@ export function ClientStore({
                 className="btn-brand h-12 text-sm font-semibold shadow-sm"
               >
                 <Plus className="size-3.5" />
-                {(isClothingProduct(p) || (p.variantes && p.variantes.length > 1)) ? 'Escolher tamanho' : 'Adicionar'}
+                {(isClothingProduct(p) || (p.variantes && p.variantes.length > 1)) ? (isClothingProduct(p) ? 'Escolher tamanho' : 'Escolher variação') : 'Adicionar'}
               </Button>
               <ProductActions product={p} />
             </CardContent>
