@@ -51,6 +51,7 @@ interface ClientStoreProps {
 
 type StoreProduct = Produto & {
   variacaoLabel?: string | null
+  corLabel?: string | null
   variantes?: StoreProduct[]
 }
 
