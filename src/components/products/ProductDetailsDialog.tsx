@@ -142,17 +142,20 @@ export function ProductDetailsDialog({
     selectedVariant && (selectedVariant.estoqueIlimitado || selectedVariant.estoque > 0)
   )
   const baseCurrent = details || (product ? { ...product, imagens: product.imageUrl ? [product.imageUrl] : [] } : null)
+  const variantDetails = selectedVariant?.id === details?.id ? details : null
   const current: ProductDetails | null = selectedVariant
     ? {
         ...baseCurrent,
         ...selectedVariant,
-        imagens: selectedVariant.id === details?.id && details.imagens?.length
-          ? details.imagens
+        // Quando a API responde, preço, estoque e fotos da variação têm prioridade.
+        ...(variantDetails || {}),
+        imagens: variantDetails?.imagens?.length
+          ? variantDetails.imagens
           : selectedVariant.imageUrl
             ? [selectedVariant.imageUrl]
             : baseCurrent?.imagens || [],
-        descricao: selectedVariant.descricao || (selectedVariant.id === details?.id ? details.descricao : null),
-        marketplaceUrl: selectedVariant.id === details?.id ? details.marketplaceUrl : null,
+        descricao: variantDetails?.descricao || selectedVariant.descricao || null,
+        marketplaceUrl: variantDetails?.marketplaceUrl || null,
       }
     : baseCurrent
   const images = current?.imagens?.filter(Boolean) || []
