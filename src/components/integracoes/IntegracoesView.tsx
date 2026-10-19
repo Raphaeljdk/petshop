@@ -216,7 +216,6 @@ export function IntegracoesView() {
           fetch('/api/pagamento/config', { credentials: 'same-origin' }),
           fetch('/api/frete/config', { credentials: 'same-origin' }),
           fetch('/api/integracoes', { credentials: 'same-origin' }),
-          fetch('/api/admin/integration-bridge/status', { credentials: 'same-origin', cache: 'no-store' }),
           fetch('/api/integracoes/mercado-livre/status', { credentials: 'same-origin', cache: 'no-store' }),
           fetch('/api/integracoes/amazon/status', { credentials: 'same-origin', cache: 'no-store' }),
         ])
@@ -538,7 +537,7 @@ export function IntegracoesView() {
 
       if (imported > 0 || inventoryUpdated > 0) {
         toast.success(
-          `${imported} venda(s) enviada(s) ao Zetta e ${inventoryUpdated} anúncio(s) com estoque reconciliado.`
+          `${imported} venda(s) registrada(s) no ERP próprio e ${inventoryUpdated} anúncio(s) com estoque atualizado.`
         )
       } else {
         toast.info('Vendas e estoque já estavam sincronizados.')
@@ -1154,7 +1153,7 @@ export function IntegracoesView() {
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="font-semibold">ERP Matilha Prado</p>
-            <p className="mt-1 text-xs text-muted-foreground">Cadastro, vendas e estoque gerenciados localmente. Zetta/Siggma desativado.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Cadastros, pagamentos e estoque centralizados no ERP próprio. Marketplaces sincronizados por APIs independentes.</p>
           </div>
           <Badge variant="outline">Base própria</Badge>
         </CardContent>
