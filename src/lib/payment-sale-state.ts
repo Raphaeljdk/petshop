@@ -38,8 +38,6 @@ export async function applyPaymentSaleState(
 
       const firstPendingCancellation =
         patch.status === 'cancelada' && current.status === 'pendente'
-      const cancellationAfterApproval =
-        patch.status === 'cancelada' && current.status === 'concluida'
 
       if (firstPendingCancellation) {
         // Uma venda pendente já reservou o saldo no ERP local.
@@ -64,13 +62,6 @@ export async function applyPaymentSaleState(
         where: { id: vendaId },
         data: {
           ...patch,
-          ...(requiresErpReview
-            ? {
-                siggmaImportStatus: 'cancelamento-revisao',
-                siggmaImportError:
-                  'Pagamento cancelado/estornado após importação no Siggma. Revisar cancelamento no ERP antes de ajustar estoque.',
-              }
-            : {}),
           updatedAt: new Date(),
         },
       })
