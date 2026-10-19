@@ -5,8 +5,12 @@ import { acceptClientInvitation, hashInvitation, issueClientInvitation, invitati
 
 if (!/postgresql:\/\/[^/]+\/matilha_auth_test\b/.test(process.env.DATABASE_URL || '')) throw new Error('Use apenas o banco isolado matilha_auth_test.')
 const prefix = `client-invite-${randomBytes(6).toString('hex')}`
-let id = randomBytes(4).readUInt32BE(0) % 1_000_000_000 + 1
-const target = () => ({ siggmaCliCod: id++, nome: 'Cliente Teste', telefone: '11999999999', email: `${prefix}-${id}@example.test` })
+let id = 0
+const target = async () => {
+  const email = `${prefix}-${++id}@example.test`
+  const cliente = await db.cliente.create({ data: { nome: 'Cliente Teste', telefone: '11999999999', email } })
+  return { clienteId: cliente.id, nome: cliente.nome, telefone: cliente.telefone, email }
+}
 const passwordHash = '$2b$12$test-only-password-hash'
 afterAll(async () => {
   await db.user.deleteMany({ where: { email: { startsWith: prefix } } })
@@ -15,7 +19,7 @@ afterAll(async () => {
   await db.$disconnect()
 })
 test('guarda apenas hash; ativação cria CLIENTE vinculado e confirma uso', async () => {
-  const person = target()
+  const person = await target()
   const { invitation, token } = await issueClientInvitation(person, 'admin-test')
   expect(token).toMatch(/^[a-f0-9]{64}$/)
   expect(invitation.tokenHash).toBe(hashInvitation(token))
@@ -24,7 +28,8 @@ test('guarda apenas hash; ativação cria CLIENTE vinculado e confirma uso', asy
   await acceptClientInvitation(token, passwordHash)
   const user = await db.user.findUnique({ where: { email: person.email } })
   expect(user?.role).toBe('CLIENTE')
-  expect(user?.siggmaCliCod).toBe(person.siggmaCliCod)
+  expect(user?.clienteId).toBe(person.clienteId)
+  expect(user?.siggmaCliCod).toBeNull()
   expect(user?.clienteId).toBeTruthy()
   expect((await db.clientInvitation.findUnique({ where: { id: invitation.id } }))?.usedAt).not.toBeNull()
   await expect(acceptClientInvitation(token, 'replacement')).rejects.toThrow()
@@ -67,11 +72,10 @@ test('não altera conta existente nem consome convite em conflito', async () => 
   await expect(issueClientInvitation(person, 'admin-test')).rejects.toThrow()
   await db.user.deleteMany({ where: { email: person.email.toUpperCase() } })
 })
-test('não associa prontuário local apenas pelo e-mail', async () => {
-  const person = target()
-  await db.cliente.create({ data: { nome: 'Original', email: person.email, telefone: '1111111111' } })
-  await expect(issueClientInvitation(person, 'admin-test')).rejects.toThrow()
-  expect((await db.cliente.findUnique({ where: { email: person.email } }))?.nome).toBe('Original')
+test('não permite convite com identificador local de outro cliente', async () => {
+  const person = await target()
+  await expect(issueClientInvitation({ ...person, clienteId: 'id-inexistente' }, 'admin-test')).rejects.toThrow()
+  expect((await db.cliente.findUnique({ where: { id: person.clienteId } }))?.nome).toBe('Cliente Teste')
 })
 test('envio é individual, tem link sem token na query e não expõe senha', async () => {
   const originalFetch = globalThis.fetch
