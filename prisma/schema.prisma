@@ -30,6 +30,7 @@ model Cliente {
   telefone  String
   cpfCnpj   String?  @unique
   email     String?  @unique
+  importacaoLegadoId String? @unique // referencia historica, sem chamadas ao sistema antigo
   endereco  String?
   cep       String?  // CEP para cálculo de frete
   createdAt DateTime @default(now())
@@ -56,6 +57,7 @@ model Pet {
   fotoUrl     String?
   observacoes String?
   clienteId   String
+  importacaoLegadoId String? @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
