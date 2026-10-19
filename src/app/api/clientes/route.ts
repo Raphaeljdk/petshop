@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { clienteInputSchema, clienteValidationError } from '@/lib/cliente-validation'
+import { clienteComPetsSchema } from '@/lib/pet-validation'
+import { assertSameOrigin } from '@/lib/auth-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,9 +19,10 @@ export async function GET() {
   if (denied) return denied
   try {
     const clientes = await db.cliente.findMany({
+      where: { ativo: true },
       orderBy: { nome: 'asc' },
       include: {
-        pets: { select: { id: true, nome: true, especie: true } },
+        pets: { where: { ativo: true }, orderBy: { nome: 'asc' }, select: { id: true, nome: true, especie: true, raca: true, porte: true, sexo: true, nascimento: true, cor: true, castrado: true, observacoes: true, idade: true, peso: true } },
         _count: { select: { vendas: true, pets: true } },
       },
     })
@@ -34,8 +37,18 @@ export async function POST(req: NextRequest) {
   const denied = await requireAdmin()
   if (denied) return denied
   try {
-    const data = clienteInputSchema.parse(await req.json())
-    const cliente = await db.cliente.create({ data })
+    assertSameOrigin(req)
+    const input = clienteComPetsSchema.parse(await req.json())
+    const { pets, ...campos } = input
+    const data = clienteInputSchema.parse(campos)
+    // Cliente e todos os pets são cadastrados de forma atômica.
+    const cliente = await db.cliente.create({
+      data: {
+        ...data,
+        pets: { create: pets },
+      },
+      include: { pets: true },
+    })
     return NextResponse.json(cliente, { status: 201 })
   } catch (error) {
     const validation = clienteValidationError(error)

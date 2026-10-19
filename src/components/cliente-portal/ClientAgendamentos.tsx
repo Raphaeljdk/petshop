@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { CalendarClock, Clock, MessageCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -26,6 +27,7 @@ export function ClientAgendamentos() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState(false)
+  const [refresh, setRefresh] = useState(0)
   const [dataPreferida, setDataPreferida] = useState<Date>()
   const [periodo, setPeriodo] = useState('Sem preferência')
   const [petNome, setPetNome] = useState('')
@@ -54,7 +56,7 @@ export function ClientAgendamentos() {
     return () => {
       active = false
     }
-  }, [])
+  }, [refresh])
 
   const futuros = useMemo(
     () =>
@@ -81,6 +83,17 @@ export function ClientAgendamentos() {
     ].filter(Boolean).join('\n')
   )
 
+  async function cancelarAgendamento(item: Agendamento) {
+    if (!window.confirm('Cancelar sua reserva para ' + (item.pet?.nome || 'seu pet') + '?')) return
+    try {
+      const res = await fetch('/api/cliente/agendamentos/' + item.id, { method: 'DELETE', credentials: 'same-origin' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Não foi possível cancelar.')
+      toast.success('Agendamento cancelado com sucesso.')
+      setRefresh(v => v + 1)
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao cancelar.') }
+  }
+
   const card = (item: Agendamento, passado = false) => {
     const data = parseISO(item.dataHora)
     return (
@@ -97,6 +110,9 @@ export function ClientAgendamentos() {
             <p className="truncate text-sm font-medium">{item.servico}</p>
             <p className="truncate text-xs text-muted-foreground">{item.pet?.nome || 'Pet'}</p>
           </div>
+          {!passado && item.status === 'agendado' && new Date(item.dataHora).getTime() > Date.now() + 24 * 60 * 60_000 && (
+            <Button variant="outline" size="sm" type="button" onClick={() => void cancelarAgendamento(item)} className="text-xs text-destructive">Cancelar</Button>
+          )}
           <Badge className={`text-[10px] ${statusVariant(item.status)}`}>
             {item.statusOriginal || item.status}
           </Badge>

@@ -13,6 +13,7 @@ export async function GET() {
     }
 
     const pets = await db.pet.findMany({
+      where: { ativo: true, cliente: { ativo: true } },
       orderBy: { createdAt: 'desc' },
       include: { cliente: true },
     })
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const clienteExiste = await db.cliente.findUnique({ where: { id: clienteId } })
+    const clienteExiste = await db.cliente.findFirst({ where: { id: clienteId, ativo: true } })
     if (!clienteExiste) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
     }

@@ -31,6 +31,7 @@ model Cliente {
   cpfCnpj   String?  @unique
   email     String?  @unique
   importacaoLegadoId String? @unique // referencia historica, sem chamadas ao sistema antigo
+  ativo Boolean @default(true)
   endereco  String?
   cep       String?  // CEP para cálculo de frete
   createdAt DateTime @default(now())
@@ -58,6 +59,12 @@ model Pet {
   observacoes String?
   clienteId   String
   importacaoLegadoId String? @unique
+  ativo Boolean @default(true)
+  porte String?
+  sexo String?
+  nascimento DateTime?
+  cor String?
+  castrado Boolean?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
@@ -94,6 +101,7 @@ model Agendamento {
   updatedAt DateTime @updatedAt
   pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  @@index([dataHora, status])
 }
 
 model Produto {
@@ -454,4 +462,17 @@ model NotaFiscal {
   venda Venda @relation(fields: [vendaId], references: [id], onDelete: Restrict)
 
   @@index([status, createdAt])
+}
+
+
+// Eventos permanentes de auditoria da agenda própria.
+model AgendaEvento {
+  id String @id @default(cuid())
+  agendamentoId String
+  acao String
+  autorId String
+  detalhe String?
+  createdAt DateTime @default(now())
+
+  @@index([agendamentoId, createdAt])
 }

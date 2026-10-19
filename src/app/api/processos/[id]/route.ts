@@ -58,6 +58,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Processo não encontrado' }, { status: 404 })
     }
 
+    if (status !== undefined && !['novo','em_andamento','aguardando_resposta','finalizado','cancelado'].includes(status)) {
+      return NextResponse.json({ error: 'Status de atendimento inválido.' }, { status: 400 })
+    }
     const dadosAtualizacao: any = {}
     if (status !== undefined) dadosAtualizacao.status = status
     if (anamnese !== undefined) dadosAtualizacao.anamnese = anamnese
@@ -142,7 +145,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Processo não encontrado' }, { status: 404 })
     }
 
-    await db.processo.delete({ where: { id } })
+    // Conserva os atendimentos no histórico para auditoria.
+    await db.processo.update({ where: { id }, data: { status: 'cancelado' } })
 
     return NextResponse.json({ success: true })
   } catch (e) {
