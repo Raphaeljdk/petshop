@@ -38,77 +38,23 @@ export function getIntegrationBridgeStatus() {
   } as const
 }
 
-function getConfig() {
-  const status = getIntegrationBridgeStatus()
-  if (!status.configured) {
-    throw new IntegrationBridgeConfigurationError([...status.missing])
-  }
-
-  const url = process.env.INTEGRATION_BRIDGE_URL!.trim().replace(/\/+$/, '')
-  const secret = process.env.INTEGRATION_BRIDGE_SECRET!.trim()
-
-  if (process.env.NODE_ENV === 'production' && !url.startsWith('https://')) {
-    throw new IntegrationBridgeConfigurationError([
-      'INTEGRATION_BRIDGE_URL_HTTPS_REQUIRED',
-    ])
-  }
-
-  return { url, secret }
-}
-
+/**
+ * Integração encerrada: a aplicação não acessa mais a bridge Zetta.
+ * Mantemos a assinatura para impedir acessos acidentais do código legado.
+ */
 export async function integrationBridgeRequest<T>(
-  path: string,
-  init: RequestInit = {}
+  _path: string,
+  _init: RequestInit = {}
 ): Promise<T> {
-  throw new Error('Integração legada Zetta/Siggma desativada. Utilize a base local da Matilha Prado.')
-  // A integração permanece no histórico apenas para eventual auditoria.
-  const { url, secret } = getConfig()
-  const headers = new Headers(init.headers)
-
-  headers.set('Accept', 'application/json')
-  headers.set('Authorization', `Bearer ${secret}`)
-  if (init.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json')
-  }
-
-  const response = await fetch(
-    `${url}${path.startsWith('/') ? path : `/${path}`}`,
-    {
-      ...init,
-      headers,
-      cache: 'no-store',
-      signal: AbortSignal.timeout(10_000),
-    }
-  )
-
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    const message =
-      payload && typeof payload === 'object' && 'error' in payload
-        ? String((payload as { error?: unknown }).error || 'Bridge indisponível')
-        : `Bridge respondeu HTTP ${response.status}`
-
-    throw new Error(message)
-  }
-
-  return payload as T
+  throw new Error('A integração Zetta/Siggma foi desativada no ERP Matilha Prado.')
 }
 
 export async function testIntegrationBridge() {
-  const result = await integrationBridgeRequest<{
-    ok?: boolean
-    bridge?: string
-    siggmaApiConfigured?: boolean
-    siggmaOrderWriteConfigured?: boolean
-    zettaDatabaseConfigured?: boolean
-  }>('/api/status')
-
   return {
-    reachable: result.ok === true,
-    bridge: result.bridge || null,
-    siggmaApiConfigured: Boolean(result.siggmaApiConfigured),
-    siggmaOrderWriteConfigured: Boolean(result.siggmaOrderWriteConfigured),
-    zettaDatabaseConfigured: Boolean(result.zettaDatabaseConfigured),
+    reachable: false,
+    bridge: null,
+    siggmaApiConfigured: false,
+    siggmaOrderWriteConfigured: false,
+    zettaDatabaseConfigured: false,
   }
 }
