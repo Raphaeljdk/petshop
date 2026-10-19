@@ -45,7 +45,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { id } = await params
     const cliente = await db.cliente.findUnique({ where: { id }, select: { id: true, ativo: true } })
     if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
-    await db.cliente.update({ where: { id }, data: { ativo: false } })
+    await db.$transaction([
+      db.cliente.update({ where: { id }, data: { ativo: false } }),
+      db.user.updateMany({ where: { clienteId: id, role: 'CLIENTE' }, data: { ativo: false } }),
+    ])
     return NextResponse.json({ success: true, modo: 'inativado', aviso: 'Cadastro oculto sem apagar vendas ou histórico.' })
   } catch (e) {
     console.error('clientes DELETE:', e)

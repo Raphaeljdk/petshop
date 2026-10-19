@@ -145,7 +145,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Processo não encontrado' }, { status: 404 })
     }
 
-    await db.processo.delete({ where: { id } })
+    // Conserva os atendimentos no histórico para auditoria.
+    await db.processo.update({ where: { id }, data: { status: 'cancelado' } })
 
     return NextResponse.json({ success: true })
   } catch (e) {

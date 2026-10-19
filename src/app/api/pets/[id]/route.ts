@@ -95,7 +95,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Pet não encontrado' }, { status: 404 })
     }
 
-    await db.pet.delete({ where: { id } })
+    // Exclusão lógica preserva histórico de agendamentos e atendimentos.
+    await db.pet.update({ where: { id }, data: { ativo: false } })
 
     return NextResponse.json({ success: true })
   } catch (e) {
