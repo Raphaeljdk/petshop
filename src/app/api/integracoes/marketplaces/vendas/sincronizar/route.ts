@@ -14,9 +14,9 @@ export async function POST() {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
 
-  const result = await syncMarketplaceSalesToZetta()
+  const result = await syncMarketplaceSalesToLocal()
   // Registre pedidos no ERP próprio e publique o estoque local nos canais.
-  const inventory = await syncZettaStockToMarketplaces({ refreshZetta: true }).catch((error) => ({
+  const inventory = await syncLocalStockToMarketplaces().catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,
     amazonUpdated: 0,
