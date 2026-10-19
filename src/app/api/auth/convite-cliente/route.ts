@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     if (data.action === 'verify') return authJson({ success: true, email: invitation.email, expiresAt: invitation.expiresAt })
     if (data.senha !== data.confirmarSenha) throw new AuthError('As senhas não coincidem.')
     // Recheck the destination at activation; an outdated email cannot claim the record.
-    const official = await officialInvitationClient(invitation.siggmaCliCod)
+    if (!invitation.clienteId) throw new AuthError('Convite legado. Solicite um novo acesso ao portal.', 410)
+    const official = await officialInvitationClient(invitation.clienteId)
     if (official.email !== invitation.email) throw new AuthError('O cadastro mudou. Peça um novo convite à loja.', 409)
     await acceptClientInvitation(data.token, await bcrypt.hash(data.senha, 12))
     return authJson({ success: true }, 201)

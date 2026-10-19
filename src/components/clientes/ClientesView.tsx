@@ -9,6 +9,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
+import { ClientInviteButton } from '@/components/admin/ClientInviteButton'
+import { ClientInvitationHistory } from '@/components/admin/ClientInvitationHistory'
 
 type ClienteLocal = {
   id: string
@@ -184,6 +186,8 @@ export function ClientesView({ onCountsChange }: { onCountsChange?: (total: numb
         </Card>
       )}
 
+      <ClientInvitationHistory />
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input className="pl-10" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone, CPF/CNPJ, e-mail ou pet" aria-label="Buscar clientes" />
@@ -213,6 +217,7 @@ export function ClientesView({ onCountsChange }: { onCountsChange?: (total: numb
                   {cliente.cpfCnpj && <span className="flex items-center gap-2"><UserRound className="size-4 shrink-0" />{cliente.cpfCnpj}</span>}
                   {cliente.endereco && <span className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0" />{cliente.endereco}</span>}
                 </div>
+                {cliente.email && <div className="mt-3"><ClientInviteButton id={cliente.id} nome={cliente.nome} email={cliente.email} /></div>}
                 <div className="mt-4 border-t pt-3">
                   <p className="text-xs font-medium text-muted-foreground">Pets ({cliente.pets.length})</p>
                   <p className="mt-1 text-sm">{cliente.pets.length ? cliente.pets.map((pet) => pet.nome).join(' · ') : 'Nenhum pet cadastrado'}</p>

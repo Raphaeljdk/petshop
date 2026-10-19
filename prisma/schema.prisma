@@ -308,7 +308,8 @@ model AuthAttempt {
 
 model ClientInvitation {
   id String @id @default(cuid())
-  siggmaCliCod Int @unique
+  siggmaCliCod Int? @unique // referencia legada, não consultada
+  clienteId String? @unique // cadastro oficial do ERP Matilha Prado
   nome String
   email String
   telefone String
