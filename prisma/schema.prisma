@@ -115,6 +115,13 @@ model Produto {
   ativo       Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  ncm         String?
+  cest        String?
+  cfop        String?
+  origem      String? @default("0")
+  cst         String?
+  csosn       String?
+  unidadeFiscal String? @default("UN")
   itensVenda ItemVenda[]
   preferences CustomerPreference[]
   reviews ProductReview[]
@@ -158,6 +165,7 @@ model Venda {
   usoCupom CupomUso?
   itens   ItemVenda[]
   reviews ProductReview[]
+  notaFiscal NotaFiscal?
 
   @@index([cupomId])
 }
@@ -399,4 +407,48 @@ model LoyaltyRedemption {
   createdAt DateTime @default(now())
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   @@index([clienteId])
+}
+
+
+// ERP Matilha Prado: configuração do emitente e registro fiscal independentes do Zetta.
+// Emissão real será habilitada apenas após integração homologada com SEFAZ/provedor.
+model ConfiguracaoFiscal {
+  id String @id @default("matilha-prado")
+  razaoSocial String?
+  nomeFantasia String?
+  cnpj String?
+  inscricaoEstadual String?
+  regimeTributario String?
+  logradouro String?
+  numeroEndereco String?
+  bairro String?
+  cidade String?
+  uf String?
+  cep String?
+  codigoMunicipio String?
+  serieNfe Int @default(1)
+  ambiente String @default("homologacao")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotaFiscal {
+  id String @id @default(cuid())
+  vendaId String @unique
+  modelo String @default("55")
+  status String @default("rascunho")
+  numero Int?
+  serie Int?
+  chaveAcesso String? @unique
+  protocolo String?
+  xmlAutorizado String? @db.Text
+  danfeUrl String?
+  erro String?
+  autorizadaEm DateTime?
+  canceladaEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  venda Venda @relation(fields: [vendaId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
 }
