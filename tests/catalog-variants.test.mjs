@@ -121,6 +121,22 @@ test('brinquedo mordedor agrupa hipopótamo lilás e tubarão azul, sem perder m
   )
 })
 
+
+test('brinquedo de pelúcia agrupa verde jacaré e verde-limão coelho', () => {
+  const products = groupCatalogProducts([
+    make('jacare', 'Brinquedo De Pelúcia Pet Com Apito Resistente E Anti Stress Verde Jacaré', 2, { preco: 59.9 }),
+    make('coelho', 'Brinquedo De Pelúcia Pet Com Apito Resistente E Anti Stress Verde-limão Coelho', 2, { preco: 49.9 }),
+  ])
+
+  assert.equal(products.length, 1)
+  assert.equal(products[0].nome, 'Brinquedo De Pelúcia Pet Com Apito Resistente E Anti Stress')
+  assert.equal(products[0].estoque, 4)
+  assert.equal(products[0].variantes?.length, 2)
+  assert.deepEqual(
+    products[0].variantes?.map((p) => [p.modeloLabel, p.corLabel]),
+    [['Jacaré', 'Verde'], ['Coelho', 'Verde Limão']],
+  )
+})
 test('três brinquedos catnip ficam em um anúncio principal com três cores', () => {
   const names = ['Laranja', 'Verde', 'Amarelo'].map(
     (cor) => 'Brinquedo P/ Gatos Catnip Erva Natural Bolinha Giratória ' + cor
