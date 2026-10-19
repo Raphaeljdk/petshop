@@ -4,12 +4,6 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { legacyProducts } from '@/lib/product-compat'
 import { officialStockFromSources } from '@/lib/product-stock'
-import {
-  getZettaAnimalsByClient,
-  getZettaHistoriesByClient,
-  historyService,
-  normalizeHistoryStatus,
-} from '@/lib/zetta-client'
 
 export async function GET() {
   try {
@@ -33,44 +27,6 @@ export async function GET() {
     }> = []
     let processosAtivos = 0
 
-    if (usuario.siggmaCliCod) {
-      const [animais, historicos] = await Promise.all([
-        getZettaAnimalsByClient(usuario.siggmaCliCod),
-        getZettaHistoriesByClient(usuario.siggmaCliCod),
-      ])
-
-      const ultimoPorAnimal = new Map<number, (typeof historicos)[number]>()
-      for (const historico of historicos) {
-        if (!ultimoPorAnimal.has(historico.animalId)) {
-          ultimoPorAnimal.set(historico.animalId, historico)
-        }
-        const status = normalizeHistoryStatus(historico)
-        if (status === 'em_andamento' || status === 'aguardando_resposta') {
-          processosAtivos += 1
-        }
-      }
-
-      petsResumo = animais.map((animal) => {
-        const ultimo = ultimoPorAnimal.get(animal.id)
-        return {
-          id: `zetta:${animal.id}`,
-          nome: animal.nome,
-          especie: animal.especie || 'Pet',
-          raca: animal.raca || null,
-          fotoUrl: null,
-          ultimoProcesso: ultimo
-            ? {
-                status: normalizeHistoryStatus(ultimo),
-                servico: historyService(ultimo),
-                createdAt:
-                  ultimo.datahora ||
-                  ultimo.dataAtualizacao ||
-                  new Date().toISOString(),
-              }
-            : null,
-        }
-      })
-    } else {
       const pets = await db.pet.findMany({
         where: { clienteId: cliente.id },
         include: {
@@ -100,8 +56,6 @@ export async function GET() {
             }
           : null,
       }))
-    }
-
     const agora = new Date()
     const proximosAgendamentos = await db.agendamento.findMany({
       where: {
@@ -193,7 +147,7 @@ export async function GET() {
         email: cliente.email,
         cep: cliente.cep,
       },
-      zettaLinked: Boolean(usuario.siggmaCliCod),
+      zettaLinked: false,
       stats: {
         totalPets: petsResumo.length,
         totalAgendamentos: proximosAgendamentos.length,

@@ -35,19 +35,10 @@ import type {
 } from '@/lib/types'
 import { toast } from 'sonner'
 
-type BridgeStatus = {
-  reachable?: boolean
-  bridge?: string | null
-  siggmaApiConfigured?: boolean
-  siggmaOrderWriteConfigured?: boolean
-  zettaDatabaseConfigured?: boolean
-}
-
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
   frete: ConfiguracaoFrete | null
   outras: Integracao[]
-  bridge: BridgeStatus | null
 }
 
 type MercadoLivreStatus = {
@@ -133,7 +124,6 @@ export function IntegracoesView() {
     pagamento: null,
     frete: null,
     outras: [],
-    bridge: null,
   })
   const [loading, setLoading] = useState(true)
   const [mercadoLivre, setMercadoLivre] = useState<MercadoLivreStatus | null>(null)
@@ -222,7 +212,7 @@ export function IntegracoesView() {
 
     async function carregar() {
       try {
-        const [pagamentoRes, freteRes, integracoesRes, bridgeRes, mlRes, amazonRes] = await Promise.all([
+        const [pagamentoRes, freteRes, integracoesRes, mlRes, amazonRes] = await Promise.all([
           fetch('/api/pagamento/config', { credentials: 'same-origin' }),
           fetch('/api/frete/config', { credentials: 'same-origin' }),
           fetch('/api/integracoes', { credentials: 'same-origin' }),
@@ -240,8 +230,6 @@ export function IntegracoesView() {
         const todas: Integracao[] = integracoesRes.ok
           ? await integracoesRes.json()
           : []
-        const bridgePayload = bridgeRes.ok ? await bridgeRes.json() : null
-        const bridge: BridgeStatus | null = bridgePayload?.bridge || null
         const mlStatus: MercadoLivreStatus | null = await mlRes.json().catch(() => null)
         const amazonStatus: AmazonStatus | null = await amazonRes.json().catch(() => null)
 
@@ -255,7 +243,6 @@ export function IntegracoesView() {
                   i.plataforma
                 )
             ),
-            bridge,
           })
           setMercadoLivre(mlStatus)
           setAmazon(amazonStatus)
@@ -547,7 +534,6 @@ export function IntegracoesView() {
       const inventoryUpdated =
         Number(data.inventory?.mercadoLivreUpdated || 0) +
         Number(data.inventory?.amazonUpdated || 0)
-      const unlinked = Number(data.inventory?.skippedUnlinked || 0)
       const inventoryErrors = data.inventory?.errors || []
 
       if (imported > 0 || inventoryUpdated > 0) {
@@ -556,11 +542,6 @@ export function IntegracoesView() {
         )
       } else {
         toast.info('Vendas e estoque já estavam sincronizados.')
-      }
-      if (unlinked > 0) {
-        toast.warning(
-          `${unlinked} item(ns) de marketplace ainda não estão vinculados ao Zetta e não entram no estoque compartilhado.`
-        )
       }
       const firstError = [...errors, ...inventoryErrors][0]
       if (firstError) {
@@ -596,7 +577,7 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              Catálogo e vendas ficam vinculados ao estoque unificado. Pedidos pagos do Mercado Livre e pedidos confirmados da Amazon são registrados como vendas de e-commerce e enviados ao Zetta quando todos os itens possuem vínculo com o ERP.
+              Catálogo e vendas ficam vinculados ao estoque unificado. Pedidos confirmados do Mercado Livre e da Amazon são registrados no ERP próprio, com baixa no estoque local e atualização dos canais conectados.
             </p>
             <Button
               type="button"
@@ -607,7 +588,7 @@ export function IntegracoesView() {
               disabled={marketplaceSalesSyncing}
             >
               <RefreshCw className={`size-4 ${marketplaceSalesSyncing ? 'animate-spin' : ''}`} />
-              {marketplaceSalesSyncing ? 'Sincronizando vendas...' : 'Sincronizar vendas → Zetta'}
+              {marketplaceSalesSyncing ? 'Sincronizando vendas...' : 'Sincronizar vendas e estoque'}
             </Button>
           </div>
         </CardContent>
@@ -1169,30 +1150,13 @@ export function IntegracoesView() {
         </CardContent>
       </Card>
 
-      <Card className={estado.bridge?.reachable ? 'border-green-300' : 'border-amber-300'}>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                <Plug className="size-5 text-orange-600" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Siggma / Zetta</CardTitle>
-                <CardDescription className="text-xs">
-                  Bridge Oracle + ERP
-                </CardDescription>
-              </div>
-            </div>
-            <Badge variant={estado.bridge?.reachable ? 'default' : 'secondary'}>
-              {estado.bridge?.reachable ? 'Online' : 'Verificar'}
-            </Badge>
+      <Card className="border-primary/20">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="font-semibold">ERP Matilha Prado</p>
+            <p className="mt-1 text-xs text-muted-foreground">Cadastro, vendas e estoque gerenciados localmente. Zetta/Siggma desativado.</p>
           </div>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-          <p>Bridge: <strong className="text-foreground">{estado.bridge?.reachable ? 'Online' : 'Indisponível'}</strong></p>
-          <p>Banco Zetta: <strong className="text-foreground">{estado.bridge?.zettaDatabaseConfigured ? 'Conectado' : 'Pendente'}</strong></p>
-          <p>API Siggma: <strong className="text-foreground">{estado.bridge?.siggmaApiConfigured ? 'Autenticada' : 'Pendente'}</strong></p>
-          <p>Gravação de pedidos: <strong className={estado.bridge?.siggmaOrderWriteConfigured ? 'text-green-700' : 'text-amber-700'}>{estado.bridge?.siggmaOrderWriteConfigured ? 'Ativa' : 'Aguardando endpoint da Zetta'}</strong></p>
+          <Badge variant="outline">Base própria</Badge>
         </CardContent>
       </Card>
 
