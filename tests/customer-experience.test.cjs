@@ -323,18 +323,21 @@ test('personal loyalty coupons cannot be shared or reused while a payment is pen
   )
 })
 
-test('direct Siggma booking requires an explicit release flag', () => {
-  const booking = fs.readFileSync(
-    path.join(root, 'src/lib/siggma/booking.ts'),
-    'utf8',
-  )
+test('portal de agendamentos usa base local e solicita confirmação sem Siggma', () => {
   const route = fs.readFileSync(
-    path.join(root, 'src/app/api/cliente/agendamentos/route.ts'),
-    'utf8',
+    path.join(root, 'src/app/api/cliente/agendamentos/route.ts'), 'utf8',
   )
-  assert.match(booking, /SIGGMA_AGENDAMENTO_DIRETO_ENABLED/)
-  assert.match(booking, /directEnabled && expedienteId && services\.length/)
-  assert.match(route, /!config\.configured/)
+  const services = fs.readFileSync(
+    path.join(root, 'src/app/api/cliente/agendamentos/servicos/route.ts'), 'utf8',
+  )
+  const requests = fs.readFileSync(
+    path.join(root, 'src/app/api/cliente/solicitacoes-agendamento/route.ts'), 'utf8',
+  )
+  assert.match(route, /db\.agendamento\.findMany/)
+  assert.doesNotMatch(route, /listOfficialAgenda|siggma\.agendamentos/)
+  assert.match(services, /configured: false/)
+  assert.match(requests, /db\.pet\.findFirst/)
+  assert.doesNotMatch(requests, /getZettaAnimalsByClient/)
 })
 
 test('booking confirmations require a future time and a real agenda reference', async () => {
