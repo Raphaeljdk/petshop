@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
-import { getZettaAnimalsByClient } from '@/lib/zetta-client'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { assertSameOrigin } from '@/lib/auth-http'
 
@@ -46,13 +45,9 @@ export async function POST(req: NextRequest) {
         { error: 'Escolha uma data futura nos próximos seis meses.' },
         { status: 400 },
       )
-    const pet = user.siggmaCliCod
-      ? (await getZettaAnimalsByClient(user.siggmaCliCod)).find(
-          (p) => `zetta:${p.id}` === input.petKey,
-        )
-      : await db.pet.findFirst({
-          where: { id: input.petKey, clienteId: user.cliente.id },
-        })
+    const pet = await db.pet.findFirst({
+      where: { id: input.petKey, clienteId: user.cliente.id },
+    })
     if (!pet)
       return NextResponse.json({ error: 'Pet não encontrado' }, { status: 404 })
     const booking = await db.$transaction(async (tx) => {
