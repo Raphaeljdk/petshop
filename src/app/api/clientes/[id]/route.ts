@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { clienteInputSchema, clienteValidationError } from '@/lib/cliente-validation'
+import { assertSameOrigin } from '@/lib/auth-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const denied = await requireAdmin()
   if (denied) return denied
   try {
+    assertSameOrigin(req)
     const { id } = await params
     const existe = await db.cliente.findUnique({ where: { id }, select: { id: true } })
     if (!existe) return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
@@ -33,10 +35,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-// A exclusão física pode remover vínculos de compras e pets em cascata.
-// O ERP não expõe DELETE sem política de retenção aprovada.
-export async function DELETE() {
+
+/** Exclusão lógica: mantém vendas, documentos fiscais, pets e atendimentos intactos. */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requireAdmin()
   if (denied) return denied
-  return NextResponse.json({ error: 'Exclusão bloqueada para preservar o histórico fiscal e comercial.' }, { status: 409 })
+  try {
+    assertSameOrigin(req)
+    const { id } = await params
+    const cliente = await db.cliente.findUnique({ where: { id }, select: { id: true, ativo: true } })
+    if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
+    await db.cliente.update({ where: { id }, data: { ativo: false } })
+    return NextResponse.json({ success: true, modo: 'inativado', aviso: 'Cadastro oculto sem apagar vendas ou histórico.' })
+  } catch (e) {
+    console.error('clientes DELETE:', e)
+    return NextResponse.json({ error: 'Não foi possível desativar o cadastro.' }, { status: 500 })
+  }
 }
