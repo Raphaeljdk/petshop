@@ -64,7 +64,7 @@ function AdminPanelImpl() {
     ecommerce: 'Estoque',
     integracoes: 'Integrações',
     notificacoes: 'Notificações',
-    clientes: 'Clientes e pets',
+    clientes: 'Cadastro de clientes',
     entregas: 'Entregas',
     pagamentos: 'Pagamentos',
     cupons: 'Cupons e parceiros',

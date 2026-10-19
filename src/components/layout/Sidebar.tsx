@@ -61,7 +61,7 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
         { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
         { id: 'kanban', label: 'Kanban de pets', icon: KanbanSquare, badge: counts?.novo },
         { id: 'agendamentos', label: 'Agendamentos', icon: CalendarClock },
-        { id: 'clientes', label: 'Clientes e pets', icon: UsersRound },
+        { id: 'clientes', label: 'Cadastro de clientes', icon: UsersRound },
       ],
     },
     {

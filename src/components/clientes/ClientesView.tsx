@@ -1,373 +1,225 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import {
-  CheckCircle2,
-  Dog,
-  Link2,
-  Mail,
-  Phone,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  UserRound,
-  UsersRound,
-  X,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Edit3, Mail, MapPin, PawPrint, Phone, Plus, RefreshCw, Search, UserRound, UsersRound, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
-import { ZettaClientLinks } from '@/components/admin/ZettaClientLinks'
-import { ClientInviteButton } from '@/components/admin/ClientInviteButton'
-import { ClientInvitationHistory } from '@/components/admin/ClientInvitationHistory'
-import { toast } from 'sonner'
 
-type PortalAccount = {
+type ClienteLocal = {
   id: string
   nome: string
+  telefone: string
+  email: string | null
+  cpfCnpj: string | null
+  endereco: string | null
+  cep: string | null
+  pets: Array<{ id: string; nome: string; especie: string }>
+  _count?: { vendas: number; pets: number }
+}
+type CamposCliente = {
+  nome: string
+  telefone: string
   email: string
-  ativo: boolean
-  siggmaCliCod: number | null
-  clienteId: string | null
+  cpfCnpj: string
+  endereco: string
+  cep: string
 }
+const vazio: CamposCliente = { nome: '', telefone: '', email: '', cpfCnpj: '', endereco: '', cep: '' }
 
-type ZettaPet = {
-  id: number
-  clienteId: number
-  nome?: string | null
-  especie?: string | null
-  raca?: string | null
-  sexo?: string | null
-  peso?: number | string | null
-  status?: string | null
-}
-
-type ZettaClient = {
-  id: number
-  nome?: string | null
-  apelido?: string | null
-  email?: string | null
-  telefone?: string | null
-  celular?: string | null
-  ativo?: boolean | null
-  dataAtualizacao?: string | null
-  pets: ZettaPet[]
-  portal: PortalAccount | null
-}
-
-type UnifiedResponse = {
-  success: boolean
-  source: 'zetta'
-  totalClientes: number
-  totalPets: number
-  contasPortal: number
-  contasVinculadas: number
-  clientes: ZettaClient[]
-  error?: string
-}
-
-interface ClientesViewProps {
-  onCountsChange?: (total: number) => void
-}
-
-const PAGE_SIZE = 24
-
-export function ClientesView({ onCountsChange }: ClientesViewProps) {
-  const [data, setData] = useState<UnifiedResponse | null>(null)
+export function ClientesView({ onCountsChange }: { onCountsChange?: (total: number) => void }) {
+  const [clientes, setClientes] = useState<ClienteLocal[]>([])
   const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
   const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState<'todos' | 'com_pets' | 'sem_pets' | 'vinculados'>('todos')
-  const [pagina, setPagina] = useState(1)
-  const [refresh, setRefresh] = useState(0)
+  const [editando, setEditando] = useState<string | null>(null)
+  const [formAberto, setFormAberto] = useState(false)
+  const [form, setForm] = useState<CamposCliente>(vazio)
 
-  useEffect(() => {
-    let active = true
-
-    async function carregar() {
-      setLoading(true)
-      try {
-        const res = await fetch('/api/admin/zetta/clientes-unificados', {
-          credentials: 'same-origin',
-          cache: 'no-store',
-        })
-        const payload = await res.json().catch(() => null)
-        if (!res.ok || !payload?.success) {
-          throw new Error(payload?.error || 'Não foi possível consultar clientes e pets do Zetta.')
-        }
-        if (!active) return
-        setData(payload)
-        onCountsChange?.(payload.totalClientes || 0)
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Falha ao consultar o Zetta.')
-      } finally {
-        if (active) setLoading(false)
-      }
+  const carregar = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/clientes', { credentials: 'same-origin', cache: 'no-store' })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !Array.isArray(data)) throw new Error(data?.error || 'Falha ao carregar clientes.')
+      setClientes(data)
+      onCountsChange?.(data.length)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar clientes.')
+    } finally {
+      setLoading(false)
     }
+  }, [onCountsChange])
 
-    void carregar()
-    return () => {
-      active = false
-    }
-  }, [onCountsChange, refresh])
+  useEffect(() => { void carregar() }, [carregar])
 
-  const clientesFiltrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase()
-    return (data?.clientes || []).filter((cliente) => {
-      if (termo) {
-        const campos = [
-          cliente.nome,
-          cliente.apelido,
-          cliente.email,
-          cliente.telefone,
-          cliente.celular,
-          String(cliente.id),
-          ...cliente.pets.flatMap((pet) => [pet.nome, pet.especie, pet.raca]),
-        ]
-        if (!campos.some((value) => String(value || '').toLowerCase().includes(termo))) {
-          return false
-        }
-      }
+  const filtrados = useMemo(() => {
+    const termo = busca.trim().toLocaleLowerCase('pt-BR')
+    if (!termo) return clientes
+    return clientes.filter((cliente) =>
+      [cliente.nome, cliente.telefone, cliente.email, cliente.cpfCnpj, ...cliente.pets.map((pet) => pet.nome)]
+        .some((valor) => String(valor || '').toLocaleLowerCase('pt-BR').includes(termo))
+    )
+  }, [clientes, busca])
 
-      if (filtro === 'com_pets' && cliente.pets.length === 0) return false
-      if (filtro === 'sem_pets' && cliente.pets.length > 0) return false
-      if (filtro === 'vinculados' && !cliente.portal) return false
-      return true
+  const abrirNovo = () => {
+    setEditando(null)
+    setForm({ ...vazio })
+    setFormAberto(true)
+  }
+  const abrirEdicao = (cliente: ClienteLocal) => {
+    setEditando(cliente.id)
+    setForm({
+      nome: cliente.nome,
+      telefone: cliente.telefone,
+      email: cliente.email || '',
+      cpfCnpj: cliente.cpfCnpj || '',
+      endereco: cliente.endereco || '',
+      cep: cliente.cep || '',
     })
-  }, [data, busca, filtro])
+    setFormAberto(true)
+  }
+  const salvar = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!form.nome.trim() || !form.telefone.trim()) {
+      toast.error('Informe o nome e o telefone do cliente.')
+      return
+    }
+    setSalvando(true)
+    try {
+      const res = await fetch(editando ? '/api/clientes/' + editando : '/api/clientes', {
+        method: editando ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(form),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Não foi possível salvar o cliente.')
+      toast.success(editando ? 'Cliente atualizado.' : 'Cliente cadastrado.')
+      setFormAberto(false)
+      await carregar()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o cliente.')
+    } finally {
+      setSalvando(false)
+    }
+  }
 
-  const totalPaginas = Math.max(1, Math.ceil(clientesFiltrados.length / PAGE_SIZE))
-  const clientesPagina = clientesFiltrados.slice(
-    (pagina - 1) * PAGE_SIZE,
-    pagina * PAGE_SIZE
+  const campo = (id: keyof CamposCliente, rotulo: string, placeholder: string, obrigatorio = false) => (
+    <div className="space-y-1.5" key={id}>
+      <Label htmlFor={'cliente-' + id}>{rotulo}</Label>
+      <Input
+        id={'cliente-' + id}
+        required={obrigatorio}
+        maxLength={id === 'endereco' ? 250 : 120}
+        value={form[id]}
+        onChange={(event) => setForm((atual) => ({ ...atual, [id]: event.target.value }))}
+        placeholder={placeholder}
+        type={id === 'email' ? 'email' : 'text'}
+        autoComplete={id === 'nome' ? 'name' : id === 'email' ? 'email' : id === 'telefone' ? 'tel' : 'off'}
+      />
+    </div>
   )
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Clientes & Pets</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            O Zetta é a fonte oficial. O Hub Matilha Prado organiza, consulta e vincula esses dados ao portal do cliente.
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Cadastro de clientes</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Base própria da Matilha Prado. Cadastre clientes para vendas, entregas e futuras emissões fiscais.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={loading}
-          onClick={() => setRefresh((value) => value + 1)}
-        >
-          <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar Zetta
-        </Button>
-      </div>
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex gap-3">
-            <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold">Uma única base de clientes</p>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Clientes e pets exibidos nesta tela vêm do Siggma/Zetta. As contas do Hub não duplicam o cadastro do ERP: elas servem apenas para autenticação e são ligadas ao cliente correto pelo <strong>cliCod</strong>. Alterações no cadastro oficial dependerão da API de escrita do Zetta.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <UsersRound className="size-5 text-blue-600" />
-            <p className="mt-3 text-2xl font-bold">{loading ? '—' : data?.totalClientes || 0}</p>
-            <p className="text-xs text-muted-foreground">Clientes no Zetta</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <Dog className="size-5 text-orange-600" />
-            <p className="mt-3 text-2xl font-bold">{loading ? '—' : data?.totalPets || 0}</p>
-            <p className="text-xs text-muted-foreground">Pets no Zetta</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <UserRound className="size-5 text-cyan-600" />
-            <p className="mt-3 text-2xl font-bold">{loading ? '—' : data?.contasPortal || 0}</p>
-            <p className="text-xs text-muted-foreground">Contas no portal</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <Link2 className="size-5 text-green-600" />
-            <p className="mt-3 text-2xl font-bold">{loading ? '—' : data?.contasVinculadas || 0}</p>
-            <p className="text-xs text-muted-foreground">Contas vinculadas</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <ZettaClientLinks />
-
-      <div className="rounded-xl border bg-card/50 p-3 sm:p-4">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={busca}
-              onChange={(event) => { setBusca(event.target.value); setPagina(1) }}
-              placeholder="Buscar cliente, telefone, e-mail, cliCod ou pet..."
-              className="pl-9"
-            />
-            {busca && (
-              <button
-                type="button"
-                onClick={() => { setBusca(''); setPagina(1) }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Limpar busca"
-              >
-                <X className="size-4" />
-              </button>
-            )}
-          </div>
-          <Select value={filtro} onValueChange={(value) => { setFiltro(value as typeof filtro); setPagina(1) }}>
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os clientes</SelectItem>
-              <SelectItem value="com_pets">Com pets</SelectItem>
-              <SelectItem value="sem_pets">Sem pets</SelectItem>
-              <SelectItem value="vinculados">Com acesso ao portal</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={() => void carregar()} disabled={loading} aria-label="Atualizar clientes">
+            <RefreshCw className={'size-4 ' + (loading ? 'animate-spin' : '')} />
+            <span className="hidden sm:inline ml-2">Atualizar</span>
+          </Button>
+          <Button type="button" onClick={abrirNovo}><Plus className="mr-2 size-4" />Novo cliente</Button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Mostrando {clientesFiltrados.length} de {data?.totalClientes || 0} cliente(s) oficiais.
-        </p>
       </div>
 
-      <ClientInvitationHistory />
+      <div className="grid grid-cols-2 gap-3">
+        <Card><CardContent className="p-4">
+          <UsersRound className="size-5 text-primary" />
+          <p className="mt-2 text-2xl font-bold">{clientes.length}</p>
+          <p className="text-xs text-muted-foreground">Clientes cadastrados</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <PawPrint className="size-5 text-primary" />
+          <p className="mt-2 text-2xl font-bold">{clientes.reduce((total, cliente) => total + cliente.pets.length, 0)}</p>
+          <p className="text-xs text-muted-foreground">Pets locais</p>
+        </CardContent></Card>
+      </div>
 
-      {loading ? (
-        <SkeletonLoader type="cards" count={8} />
+      {formAberto && (
+        <Card className="border-primary/30">
+          <CardContent className="p-4 sm:p-6">
+            <form onSubmit={salvar} className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold">{editando ? 'Editar cliente' : 'Cadastrar cliente'}</h2>
+                <Button type="button" variant="ghost" size="icon" onClick={() => setFormAberto(false)} aria-label="Fechar formulário"><X className="size-4" /></Button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {campo('nome', 'Nome completo *', 'Nome do cliente', true)}
+                {campo('telefone', 'Telefone / WhatsApp *', '(11) 99999-9999', true)}
+                {campo('email', 'E-mail', 'cliente@exemplo.com')}
+                {campo('cpfCnpj', 'CPF ou CNPJ', 'Documento para nota fiscal')}
+                {campo('cep', 'CEP', '00000-000')}
+                {campo('endereco', 'Endereço completo', 'Rua, número, bairro, cidade e UF')}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O CPF/CNPJ e o endereço serão utilizados no futuro emissor fiscal. Nenhuma nota é emitida neste formulário.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" type="button" onClick={() => setFormAberto(false)}>Cancelar</Button>
+                <Button type="submit" disabled={salvando}>{salvando ? 'Salvando...' : editando ? 'Salvar alterações' : 'Cadastrar cliente'}</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input className="pl-10" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone, CPF/CNPJ, e-mail ou pet" aria-label="Buscar clientes" />
+      </div>
+
+      {loading ? <SkeletonLoader type="cards" count={4} /> : filtrados.length === 0 ? (
+        <Card><CardContent className="py-12 text-center">
+          <UserRound className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-3 text-sm font-medium">{busca ? 'Nenhum resultado para a busca.' : 'Nenhum cliente cadastrado.'}</p>
+          {!busca && <Button className="mt-4" onClick={abrirNovo}>Cadastrar primeiro cliente</Button>}
+        </CardContent></Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {clientesPagina.map((cliente) => (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {filtrados.map((cliente) => (
             <Card key={cliente.id} className="overflow-hidden">
-              <CardHeader className="pb-3">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <CardTitle className="truncate text-base">
-                      {cliente.nome || cliente.apelido || `Cliente #${cliente.id}`}
-                    </CardTitle>
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                      cliCod {cliente.id}
-                    </p>
+                    <p className="font-semibold text-base break-words">{cliente.nome}</p>
+                    <Badge variant="secondary" className="mt-1">{cliente._count?.vendas || 0} venda(s)</Badge>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant={cliente.ativo === false ? 'secondary' : 'default'}>
-                      {cliente.ativo === false ? 'Inativo' : 'Ativo'}
-                    </Badge>
-                    {cliente.portal && (
-                      <Badge variant="outline" className="text-[10px]">
-                        <CheckCircle2 className="size-3" /> Portal vinculado
-                      </Badge>
-                    )}
-                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => abrirEdicao(cliente)}><Edit3 className="mr-1.5 size-3.5" />Editar</Button>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {!cliente.portal && <ClientInviteButton id={cliente.id} nome={cliente.nome || `Cliente #${cliente.id}`} email={cliente.email || ''} disabled={cliente.ativo === false} />}
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  {(cliente.celular || cliente.telefone) && (
-                    <p className="flex items-center gap-1.5">
-                      <Phone className="size-3.5" />
-                      {cliente.celular || cliente.telefone}
-                    </p>
-                  )}
-                  {cliente.email && (
-                    <p className="flex items-center gap-1.5 truncate">
-                      <Mail className="size-3.5 shrink-0" />
-                      <span className="truncate">{cliente.email}</span>
-                    </p>
-                  )}
-                  {cliente.portal && (
-                    <p className="flex items-center gap-1.5 text-green-700">
-                      <Link2 className="size-3.5 shrink-0" />
-                      <span className="truncate">{cliente.portal.email}</span>
-                    </p>
-                  )}
+                <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-2 break-all"><Phone className="size-4 shrink-0" />{cliente.telefone}</span>
+                  {cliente.email && <span className="flex items-center gap-2 break-all"><Mail className="size-4 shrink-0" />{cliente.email}</span>}
+                  {cliente.cpfCnpj && <span className="flex items-center gap-2"><UserRound className="size-4 shrink-0" />{cliente.cpfCnpj}</span>}
+                  {cliente.endereco && <span className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0" />{cliente.endereco}</span>}
                 </div>
-
-                <div className="border-t pt-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Pets ({cliente.pets.length})
-                    </p>
-                    <Badge variant="secondary" className="text-[10px]">Fonte Zetta</Badge>
-                  </div>
-
-                  {cliente.pets.length === 0 ? (
-                    <p className="py-2 text-xs text-muted-foreground">Nenhum pet vinculado no ERP.</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {cliente.pets.slice(0, 5).map((pet) => (
-                        <div key={pet.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{pet.nome || `Pet #${pet.id}`}</p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {pet.especie || 'Espécie não informada'}
-                              {pet.raca ? ` · ${pet.raca}` : ''}
-                              {pet.peso != null ? ` · ${pet.peso} kg` : ''}
-                            </p>
-                          </div>
-                          <Badge variant="outline" className="shrink-0 text-[10px]">
-                            #{pet.id}
-                          </Badge>
-                        </div>
-                      ))}
-                      {cliente.pets.length > 5 && (
-                        <p className="text-[11px] text-muted-foreground">
-                          + {cliente.pets.length - 5} pet(s) neste cliente
-                        </p>
-                      )}
-                    </div>
-                  )}
+                <div className="mt-4 border-t pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">Pets ({cliente.pets.length})</p>
+                  <p className="mt-1 text-sm">{cliente.pets.length ? cliente.pets.map((pet) => pet.nome).join(' · ') : 'Nenhum pet cadastrado'}</p>
                 </div>
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
-
-      {!loading && clientesPagina.length === 0 && (
-        <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-          Nenhum cliente encontrado com os filtros selecionados.
-        </div>
-      )}
-
-      {!loading && clientesFiltrados.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            Página {pagina} de {totalPaginas}
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina((value) => Math.max(1, value - 1))}>
-              Anterior
-            </Button>
-            <Button variant="outline" size="sm" disabled={pagina >= totalPaginas} onClick={() => setPagina((value) => Math.min(totalPaginas, value + 1))}>
-              Próxima
-            </Button>
-          </div>
         </div>
       )}
     </div>
