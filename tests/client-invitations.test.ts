@@ -37,7 +37,7 @@ test('guarda apenas hash; ativação cria CLIENTE vinculado e confirma uso', asy
 })
 test('expirado, revogado e token inválido não criam conta', async () => {
   for (const state of ['expired', 'revoked']) {
-    const person = target()
+    const person = await target()
     const { invitation, token } = await issueClientInvitation(person, 'admin-test')
     await db.clientInvitation.update({ where: { id: invitation.id }, data: state === 'expired' ? { expiresAt: new Date(0) } : { revokedAt: new Date() } })
     await expect(acceptClientInvitation(token, passwordHash)).rejects.toThrow()
@@ -46,7 +46,7 @@ test('expirado, revogado e token inválido não criam conta', async () => {
   await expect(acceptClientInvitation('0'.repeat(64), passwordHash)).rejects.toThrow()
 })
 test('ativações concorrentes consomem o convite uma única vez', async () => {
-  const person = target()
+  const person = await target()
   const { token } = await issueClientInvitation(person, 'admin-test')
   const results = await Promise.allSettled([acceptClientInvitation(token, passwordHash), acceptClientInvitation(token, passwordHash)])
   expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
@@ -54,7 +54,7 @@ test('ativações concorrentes consomem o convite uma única vez', async () => {
   expect(await db.cliente.count({ where: { email: person.email } })).toBe(1)
 })
 test('reenvio invalida link anterior e limita envios consecutivos', async () => {
-  const person = target()
+  const person = await target()
   const first = await issueClientInvitation(person, 'admin-test')
   await expect(issueClientInvitation(person, 'admin-test')).rejects.toThrow()
   await db.clientInvitation.update({ where: { id: first.invitation.id }, data: { issuedAt: new Date(Date.now() - 61_000) } })
@@ -63,7 +63,7 @@ test('reenvio invalida link anterior e limita envios consecutivos', async () => 
   await acceptClientInvitation(second.token, passwordHash)
 })
 test('não altera conta existente nem consome convite em conflito', async () => {
-  const person = target()
+  const person = await target()
   const { invitation, token } = await issueClientInvitation(person, 'admin-test')
   await db.user.create({ data: { nome: 'Original', email: person.email.toUpperCase(), senha: 'original', role: 'ADMIN' } })
   await expect(acceptClientInvitation(token, passwordHash)).rejects.toThrow()
@@ -89,7 +89,7 @@ test('envio é individual, tem link sem token na query e não expõe senha', asy
     return Response.json({ id: 'fake-email-id' })
   }, { preconnect: originalFetch.preconnect }) as typeof fetch
   try {
-    const person = target()
+    const person = await target()
     const token = randomBytes(32).toString('hex')
     expect(await sendClientInvitation({ ...person, tokenHash: hashInvitation(token) }, token)).toBe('fake-email-id')
     expect(sent.to).toEqual([person.email])
