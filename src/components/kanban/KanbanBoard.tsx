@@ -66,14 +66,13 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { cn } from '@/lib/utils'
 import type { Pet, Processo, StatusProcesso } from '@/lib/types'
-import { ZettaResourceTable } from '@/components/admin/ZettaResourceTable'
 
 interface KanbanBoardProps {
   onCountsChange?: (counts: { novo: number; andamento: number }) => void
   limitedAccess?: boolean
 }
 
-type ColunaId = 'novo' | 'em_andamento' | 'finalizado'
+type ColunaId = 'novo' | 'em_andamento' | 'finalizado' | 'cancelado'
 
 interface ColunaConfig {
   id: ColunaId
@@ -105,6 +104,13 @@ const COLUNAS: ColunaConfig[] = [
     cardBorder: 'border-l-green-400',
     dot: 'bg-green-500',
   },
+  {
+    id: 'cancelado',
+    titulo: 'Cancelado',
+    headerClass: 'bg-slate-100 border-slate-200 text-slate-700',
+    cardBorder: 'border-l-slate-400',
+    dot: 'bg-slate-500',
+  },
 ]
 
 const STATUS_PROCESSO_TO_COLUNA: Record<StatusProcesso, ColunaId | null> = {
@@ -112,7 +118,7 @@ const STATUS_PROCESSO_TO_COLUNA: Record<StatusProcesso, ColunaId | null> = {
   em_andamento: 'em_andamento',
   finalizado: 'finalizado',
   aguardando_resposta: null,
-  cancelado: null,
+  cancelado: 'cancelado',
 }
 
 const SERVICOS_FILTRO = [
@@ -129,6 +135,7 @@ const STATUS_FILTRO = [
   { value: 'novo', label: 'Novo' },
   { value: 'em_andamento', label: 'Em Andamento' },
   { value: 'finalizado', label: 'Finalizado' },
+  { value: 'cancelado', label: 'Cancelado' },
 ] as const
 
 const SERVICOS_PRESET = [
@@ -190,8 +197,8 @@ interface CardProcessoProps {
 
 function CardProcesso({ processo, onAbrirAnamnese, onMover }: CardProcessoProps) {
   const colunaIdx = COLUNAS.findIndex((c) => c.id === processo.status)
-  const podeAvancar = colunaIdx >= 0 && colunaIdx < COLUNAS.length - 1
-  const podeVoltar = colunaIdx > 0
+  const podeAvancar = colunaIdx >= 0 && colunaIdx < 2
+  const podeVoltar = colunaIdx > 0 && colunaIdx < 3
   const coluna = COLUNAS[colunaIdx]
 
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -300,6 +307,16 @@ function CardProcesso({ processo, onAbrirAnamnese, onMover }: CardProcessoProps)
               ) : null}
             </div>
 
+            <div className="mt-2 flex flex-wrap gap-2">
+              {processo.status !== 'cancelado' && processo.status !== 'finalizado' && (
+                <Button type="button" size="sm" variant="outline" className="text-xs text-destructive"
+                  onClick={(e) => { e.stopPropagation(); if (window.confirm('Cancelar este atendimento? O registro ficará no histórico.')) onMover('cancelado') }}>Cancelar atendimento</Button>
+              )}
+              {processo.status === 'cancelado' && (
+                <Button type="button" size="sm" variant="outline" className="text-xs"
+                  onClick={(e) => { e.stopPropagation(); onMover('novo') }}>Reabrir</Button>
+              )}
+            </div>
             {/* Linha 5: botões Avançar / Voltar em todos os tamanhos */}
             {(podeAvancar || podeVoltar) && (
               <div className="flex items-center gap-2 mt-2">
@@ -471,7 +488,6 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
   const [processos, setProcessos] = useState<Processo[]>([])
   const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
-  const [atendimentoView, setAtendimentoView] = useState<'hub' | 'zetta'>('hub')
 
   // drag state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -577,6 +593,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
       novo: [],
       em_andamento: [],
       finalizado: [],
+      cancelado: [],
     }
     for (const p of processosFiltrados) {
       const col = STATUS_PROCESSO_TO_COLUNA[p.status]
@@ -813,36 +830,6 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
 
   /* ---------------------- render ---------------------- */
 
-  const atendimentoTabs = (
-    <div className="inline-flex flex-wrap gap-2 rounded-xl border bg-card p-1">
-      <Button type="button" size="sm" variant={atendimentoView === 'hub' ? 'default' : 'ghost'} onClick={() => setAtendimentoView('hub')}>
-        Atendimentos do Hub
-      </Button>
-      <Button type="button" size="sm" variant={atendimentoView === 'zetta' ? 'default' : 'ghost'} onClick={() => setAtendimentoView('zetta')}>
-        Atendimentos Zetta
-      </Button>
-    </div>
-  )
-
-  if (!limitedAccess && atendimentoView === 'zetta') {
-    return (
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Kanban de Pets</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Atendimentos operacionais do Hub e registros oficiais do ERP separados por aba.
-          </p>
-        </div>
-        {atendimentoTabs}
-        <ZettaResourceTable
-          resource="atendimentos"
-          title="Atendimentos do ERP Zetta"
-          description="Histórico de atendimentos registrado no ERP. Esta visualização é somente leitura."
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -864,7 +851,6 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         </Button>
       </div>
 
-      {!limitedAccess && atendimentoTabs}
 
       {/* Filtros */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">
@@ -944,7 +930,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
           onDragCancel={onDragCancel}
         >
           {/* Desktop: grid 3 colunas */}
-          <div className="hidden md:grid gap-4 md:grid-cols-3">
+          <div className="hidden md:grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {colunasVisiveis.map((col) => (
               <ColunaKanban
                 key={col.id}
