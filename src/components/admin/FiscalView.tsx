@@ -171,7 +171,7 @@ export function FiscalView() {
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
         <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 size-5 shrink-0" />
           <div><p className="font-semibold">Emissão fiscal ainda não habilitada</p>
-            <p className="mt-1 text-sm">Você já pode cadastrar o emitente, classificar produtos e preparar rascunhos vinculados aos pedidos. Para transmitir NF-e, cancelar uma nota autorizada ou baixar XML/DANFE oficial, ainda falta conectar e homologar o emissor fiscal com a SEFAZ. Nenhum rascunho é uma nota fiscal válida.</p>
+            <p className="mt-1 text-sm">O ERP cria automaticamente um rascunho de NF-e por venda concluída do site e dos marketplaces, além de permitir preparar pedidos antigos manualmente. Para transmitir NF-e, cancelar uma nota autorizada ou baixar XML/DANFE oficial, falta conectar um emissor homologado à SEFAZ. Nenhum rascunho é uma nota fiscal válida.</p>
           </div>
         </div>
       </div>
@@ -199,7 +199,7 @@ export function FiscalView() {
       {aba === 'notas' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="font-semibold">Vendas de todos os canais</h2><p className="text-xs text-muted-foreground">Até 150 pedidos recentes. Cada venda pode ter somente um registro de NF-e.</p></div>
+            <div><h2 className="font-semibold">Vendas de todos os canais</h2><p className="text-xs text-muted-foreground">Últimos 150 pedidos. Rascunhos automáticos para novas vendas concluídas, sem emissão fiscal real.</p></div>
             <Badge variant="outline">NF-e 55</Badge>
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
@@ -224,7 +224,7 @@ export function FiscalView() {
               ))}
             </div>
           )}
-          {!!data?.notas.length && <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Histórico: {data.notas.length} registro(s) nesta versão. XML e DANFE somente serão disponibilizados após autorização fiscal válida.</div>}
+          {!!data?.notas.length && <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Histórico: {data.notas.length} registro(s). Se a nota já foi emitida pelo Mercado Pago, concilie-a antes de qualquer transmissão pelo ERP. XML e DANFE oficiais somente após autorização fiscal.</div>}
         </CardContent></Card>
       )}
 

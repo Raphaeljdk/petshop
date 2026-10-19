@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { emitWebSocket } from '@/lib/realtime'
 import { officialStockFromSources } from '@/lib/product-stock'
+import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 
 const STATUS_VALIDOS = new Set(['concluida', 'pendente', 'cancelada'])
 const CANAIS_VALIDOS = new Set(['loja', 'site', 'mercado_livre', 'amazon'])
@@ -163,6 +164,12 @@ export async function POST(req: NextRequest) {
         },
       })
     })
+
+    // Cria o rascunho fiscal por venda concluída; erro fiscal não desfaz a venda.
+    if (statusFinal === 'concluida') {
+      try { await ensureFiscalDraftForSale(venda.id) }
+      catch (error) { console.error('[vendas] rascunho fiscal pendente:', error) }
+    }
 
     await emitWebSocket('venda:nova', {
       id: venda.id,

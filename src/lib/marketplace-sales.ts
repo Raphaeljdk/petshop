@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 
 export type MarketplaceChannel = 'mercadolivre' | 'amazon'
 export type MarketplaceSaleItem = {
@@ -101,6 +102,10 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
     await tx.venda.update({ where: { id: venda.id }, data: { marketplaceStockAppliedAt: new Date() } })
     return { id: venda.id, alertas }
   })
+  // Uma venda confirmada de marketplace também recebe um único rascunho fiscal.
+  // Antes de transmitir a NF-e, conciliar notas que possam ter sido emitidas no canal.
+  try { await ensureFiscalDraftForSale(resultado.id) }
+  catch (error) { console.error('[marketplace-sales] rascunho fiscal pendente:', error) }
   return {
     created: true,
     vendaId: resultado.id,
