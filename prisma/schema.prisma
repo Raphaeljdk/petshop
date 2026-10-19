@@ -462,3 +462,16 @@ model NotaFiscal {
 
   @@index([status, createdAt])
 }
+
+
+// Eventos permanentes de auditoria da agenda própria.
+model AgendaEvento {
+  id String @id @default(cuid())
+  agendamentoId String
+  acao String
+  autorId String
+  detalhe String?
+  createdAt DateTime @default(now())
+
+  @@index([agendamentoId, createdAt])
+}
