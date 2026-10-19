@@ -17,7 +17,7 @@ export const petInputSchema = z.object({
   raca: v.raca || null,
   porte: v.porte || null,
   sexo: v.sexo || null,
-  nascimento: v.nascimento ? new Date(v.nascimento + 'T12:00:00.000Z') : null,
+  nascimento: v.nascimento && /^\d{4}-\d{2}-\d{2}$/.test(v.nascimento) ? new Date(v.nascimento + 'T12:00:00.000Z') : null,
   cor: v.cor || null,
   castrado: v.castrado ?? null,
   idade: v.idade || null,

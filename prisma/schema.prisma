@@ -101,6 +101,7 @@ model Agendamento {
   updatedAt DateTime @updatedAt
   pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  @@index([dataHora, status])
 }
 
 model Produto {

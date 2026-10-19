@@ -87,8 +87,9 @@ function PetFields({ value, onChange, prefix }: { value: PetDraft; onChange: (va
 }
 function petToDraft(pet: PetRecord): PetDraft {
   return {
-    ...emptyPet(), ...pet,
-    nascimento: pet.nascimento ? pet.nascimento.slice(0, 10) : '',
+    nome: pet.nome, especie: pet.especie, raca: pet.raca || '', porte: pet.porte || '',
+    sexo: pet.sexo || '', nascimento: pet.nascimento ? pet.nascimento.slice(0, 10) : '',
+    cor: pet.cor || '', castrado: pet.castrado ?? null, observacoes: pet.observacoes || '',
   }
 }
 
