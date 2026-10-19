@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cancelExpiredPendingSales } from '@/lib/pending-sales'
-import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
-import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
+import { syncMarketplaceSalesToLocal } from '@/lib/marketplace-sync'
+import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   const pending = await cancelExpiredPendingSales()
-  const inventoryBefore = await syncZettaStockToMarketplaces().catch((error) => ({
+  const inventoryBefore = await syncLocalStockToMarketplaces().catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,
     amazonUpdated: 0,
@@ -27,10 +27,8 @@ export async function GET(req: NextRequest) {
         : 'Falha ao reconciliar o estoque antes das vendas.',
     ],
   }))
-  const marketplaces = await syncMarketplaceSalesToZetta()
-  const inventory = await syncZettaStockToMarketplaces({
-    refreshZetta: false,
-  }).catch((error) => ({
+  const marketplaces = await syncMarketplaceSalesToLocal()
+  const inventory = await syncLocalStockToMarketplaces().catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,
     amazonUpdated: 0,
