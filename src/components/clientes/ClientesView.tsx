@@ -125,7 +125,7 @@ export function ClientesView({ onCountsChange }: { onCountsChange?: (total: numb
   }, [clientes, busca])
 
   function abrirNovo() {
-    setEditando(null); setForm({ ...emptyCliente }); setNovosPets([emptyPet()])
+    setEditando(null); setForm({ ...emptyCliente }); setNovosPets([])
     setPetClienteId(null); setFormAberto(true)
   }
   function abrirEdicao(c: ClienteLocal) {

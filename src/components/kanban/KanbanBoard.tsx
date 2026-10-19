@@ -117,7 +117,7 @@ const STATUS_PROCESSO_TO_COLUNA: Record<StatusProcesso, ColunaId | null> = {
   novo: 'novo',
   em_andamento: 'em_andamento',
   finalizado: 'finalizado',
-  aguardando_resposta: null,
+  aguardando_resposta: 'em_andamento',
   cancelado: 'cancelado',
 }
 
