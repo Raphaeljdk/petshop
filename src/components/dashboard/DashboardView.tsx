@@ -1,373 +1,77 @@
 'use client'
-
-import { useEffect, useState } from 'react'
-import {
-  Activity,
-  AlertTriangle,
-  CalendarClock,
-  CheckCircle2,
-  Dog,
-  Link2,
-  Package,
-  Plug,
-  RefreshCw,
-  ShieldCheck,
-  ShoppingCart,
-  Truck,
-  Users,
-} from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useCallback, useEffect, useState } from 'react'
+import { Activity, AlertTriangle, CalendarClock, CheckCircle2, Dog, FileText, Package, RefreshCw, ShoppingCart, Wallet, Users, ArrowUpRight } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
-import type { DashboardStats } from '@/lib/types'
-import { cn } from '@/lib/utils'
 
-interface DashboardViewProps {
-  onIrParaKanban?: () => void
-  onIrParaAgendamentos?: () => void
-  onNovoAgendamento?: () => void
-  onNovoProduto?: () => void
-  onIrParaEcommerce?: () => void
-  onNovaVenda?: () => void
-  onIrParaNotificacoes?: () => void
-  onIrParaClientes?: () => void
-  onIrParaIntegracoes?: () => void
-  onIrParaEntregas?: () => void
-  onIrParaPagamentos?: () => void
+type Metrics = {
+  clientes: number; pets: number; produtos: number; atendimentos: number; agendamentosHoje: number
+  vendasPendentes: number; estoqueBaixo: number; notasPendentes: number; notasEmitidas: number
+  receitaMes: number; vendasMes: number; contasPortal: number
+  ultimosAtendimentos: Array<{ id: string; status: string; servico: string; valorServico: number; createdAt: string; pet: { nome: string; cliente: { nome: string } } }>
+  proximosAgendamentos: Array<{ id: string; status: string; dataHora: string; servico: string; pet: { nome: string }; cliente: { nome: string } }>
 }
-
-export function DashboardView({
-  onIrParaKanban,
-  onIrParaAgendamentos,
-  onIrParaEcommerce,
-  onIrParaClientes,
-  onIrParaIntegracoes,
-  onIrParaEntregas,
-  onIrParaPagamentos,
-}: DashboardViewProps) {
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [retry, setRetry] = useState(0)
-
-  useEffect(() => {
-    let active = true
-
-    async function carregar() {
-      try {
-        const res = await fetch('/api/dashboard', {
-          credentials: 'same-origin',
-          cache: 'no-store',
-        })
-        if (!res.ok) throw new Error('Falha ao carregar o painel')
-        const data = await res.json()
-        if (active) {
-          setStats(data)
-          setError(false)
-        }
-      } catch (e) {
-        console.error('dashboard erro:', e)
-        if (active) setError(true)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-
-    void carregar()
-    const timer = setInterval(() => void carregar(), 30000)
-    return () => {
-      active = false
-      clearInterval(timer)
-    }
-  }, [retry])
-
-  if (loading && !stats) {
-    return <SkeletonLoader type="dashboard" />
-  }
-
-  if (error && !stats) {
-    return (
-      <Card>
-        <CardContent className="space-y-4 py-8 text-center">
-          <AlertTriangle className="mx-auto size-8 text-primary" />
-          <h1 className="text-xl font-semibold">Não foi possível consultar o painel</h1>
-          <p className="text-sm text-muted-foreground">
-            O painel não conseguiu carregar os dados do Hub. Tente novamente; a falha pode estar na bridge Zetta ou no banco interno.
-          </p>
-          <Button
-            onClick={() => {
-              setLoading(true)
-              setError(false)
-              setRetry((value) => value + 1)
-            }}
-          >
-            <RefreshCw className="size-4" /> Tentar novamente
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  const zetta = stats?.zetta
-  const metricas = [
-    {
-      label: 'Clientes Zetta',
-      valor: zetta?.clientes ?? stats?.totalClientes ?? 0,
-      icon: Users,
-      color: 'text-blue-600 bg-blue-50',
-      onClick: onIrParaClientes,
-    },
-    {
-      label: 'Pets Zetta',
-      valor: zetta?.pets ?? stats?.totalPets ?? 0,
-      icon: Dog,
-      color: 'text-orange-600 bg-orange-50',
-      onClick: onIrParaClientes,
-    },
-    {
-      label: 'Produtos Zetta',
-      valor: zetta?.produtos ?? stats?.totalProdutos ?? 0,
-      icon: Package,
-      color: 'text-purple-600 bg-purple-50',
-      onClick: onIrParaEcommerce,
-    },
-    {
-      label: 'Atendimentos Zetta',
-      valor: zetta?.atendimentos ?? 0,
-      icon: Activity,
-      color: 'text-amber-600 bg-amber-50',
-      onClick: onIrParaKanban,
-    },
-    {
-      label: 'Contas do portal',
-      valor: zetta?.contasPortal ?? 0,
-      icon: ShieldCheck,
-      color: 'text-cyan-600 bg-cyan-50',
-      onClick: onIrParaClientes,
-    },
-    {
-      label: 'Portal vinculado',
-      valor: zetta?.contasVinculadas ?? 0,
-      icon: Link2,
-      color: 'text-green-600 bg-green-50',
-      onClick: onIrParaClientes,
-    },
+type Props = {
+  onIrParaKanban?: () => void; onIrParaAgendamentos?: () => void; onNovoAgendamento?: () => void
+  onNovoProduto?: () => void; onIrParaEcommerce?: () => void; onNovaVenda?: () => void
+  onIrParaNotificacoes?: () => void; onIrParaClientes?: () => void; onIrParaIntegracoes?: () => void
+  onIrParaEntregas?: () => void; onIrParaPagamentos?: () => void; onIrParaFiscal?: () => void
+}
+const money = (x: number) => x.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const day = (x: string) => new Date(x).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+export function DashboardView({onIrParaKanban,onIrParaAgendamentos,onIrParaEcommerce,onIrParaClientes,
+  onIrParaEntregas,onIrParaPagamentos,onIrParaFiscal}:Props) {
+  const [data,setData] = useState<Metrics|null>(null)
+  const [loading,setLoading] = useState(true)
+  const [error,setError] = useState<string|null>(null)
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard', { credentials:'same-origin',cache:'no-store' })
+      const result = await res.json().catch(()=>({}))
+      if(!res.ok) throw new Error(result.error||'Falha ao carregar indicadores.')
+      setData(result); setError(null)
+    } catch(e){setError(e instanceof Error?e.message:'Falha ao consultar painel.')}
+    finally {setLoading(false)}
+  },[])
+  useEffect(()=>{void fetchData();const timer=setInterval(()=>void fetchData(),60_000);return()=>clearInterval(timer)},[fetchData])
+  if(loading&&!data) return <SkeletonLoader type="dashboard"/>
+  if(error&&!data) return <Card><CardContent className="py-12 text-center"><AlertTriangle className="mx-auto size-8 text-destructive"/><p className="mt-2">{error}</p><Button className="mt-3" onClick={()=>void fetchData()}>Tentar novamente</Button></CardContent></Card>
+  const kpis=[
+    {label:'Clientes ativos',value:data?.clientes||0,icon:Users,onClick:onIrParaClientes},
+    {label:'Pets ativos',value:data?.pets||0,icon:Dog,onClick:onIrParaClientes},
+    {label:'Produtos',value:data?.produtos||0,icon:Package,onClick:onIrParaEcommerce},
+    {label:'Atendimentos',value:data?.atendimentos||0,icon:Activity,onClick:onIrParaKanban},
+    {label:'Agenda de hoje',value:data?.agendamentosHoje||0,icon:CalendarClock,onClick:onIrParaAgendamentos},
+    {label:'Pedidos pendentes',value:data?.vendasPendentes||0,icon:ShoppingCart,onClick:onIrParaPagamentos},
+    {label:'Estoque baixo',value:data?.estoqueBaixo||0,icon:AlertTriangle,onClick:onIrParaEcommerce},
+    {label:'NF-e pendentes',value:data?.notasPendentes||0,icon:FileText,onClick:onIrParaFiscal},
+    {label:'NF-e autorizadas',value:data?.notasEmitidas||0,icon:CheckCircle2,onClick:onIrParaFiscal},
   ]
-
-  const atalhos = [
-    {
-      label: 'Clientes e pets',
-      icon: Users,
-      onClick: onIrParaClientes,
-      className: 'text-blue-600 bg-blue-50',
-    },
-    {
-      label: 'Atendimentos',
-      icon: Activity,
-      onClick: onIrParaKanban,
-      className: 'text-amber-600 bg-amber-50',
-    },
-    {
-      label: 'Agendamentos',
-      icon: CalendarClock,
-      onClick: onIrParaAgendamentos,
-      className: 'text-cyan-600 bg-cyan-50',
-    },
-    {
-      label: 'Produtos / estoque',
-      icon: Package,
-      onClick: onIrParaEcommerce,
-      className: 'text-purple-600 bg-purple-50',
-    },
-    {
-      label: 'Integrações',
-      icon: Plug,
-      onClick: onIrParaIntegracoes,
-      className: 'text-indigo-600 bg-indigo-50',
-    },
-    {
-      label: 'Entregas',
-      icon: Truck,
-      onClick: onIrParaEntregas,
-      className: 'text-sky-600 bg-sky-50',
-    },
-    {
-      label: 'Pagamentos',
-      icon: ShoppingCart,
-      onClick: onIrParaPagamentos,
-      className: 'text-emerald-600 bg-emerald-50',
-    },
-  ] as const
-
-  return (
-    <div className="dashboard-view space-y-5 sm:space-y-7">
-      <div className="page-heading admin-overview-hero">
-        <div>
-          <p className="eyebrow text-primary !mb-2 !mt-0">Sua matilha, em dia</p>
-          <h1 className="font-bold">Visão geral</h1>
-          <p>
-            Dados operacionais oficiais do Siggma/Zetta. O Hub Matilha Prado funciona como camada de gestão e acesso.
-          </p>
-        </div>
-        <Badge
-          variant={zetta?.online ? 'default' : 'secondary'}
-          className="h-9 px-3 text-sm"
-        >
-          {zetta?.online ? (
-            <>
-              <CheckCircle2 className="size-4" /> Zetta online
-            </>
-          ) : (
-            <>
-              <AlertTriangle className="size-4" /> Zetta indisponível
-            </>
-          )}
-        </Badge>
-      </div>
-
-      {error && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Não foi possível atualizar agora. Exibindo os dados da última consulta.
-        </p>
-      )}
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="flex gap-3 p-4 sm:p-5">
-          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-          <div>
-            <p className="text-sm font-semibold">Zetta como fonte única de dados</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Clientes, pets, produtos e atendimentos exibidos no painel usam o Siggma como fonte oficial. O Hub mantém autenticação, portal, pagamentos e a interface administrativa; clientes e pedidos utilizam as rotas oficiais de escrita já documentadas pela Zetta.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="stagger-grid grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 2xl:grid-cols-6">
-        {metricas.map((metrica) => {
-          const Icon = metrica.icon
-          return (
-            <button
-              key={metrica.label}
-              type="button"
-              onClick={metrica.onClick}
-              disabled={!metrica.onClick}
-              className="text-left"
-            >
-              <Card className="metric-card card-hover h-full py-0">
-                <CardContent className="flex flex-row items-center justify-between gap-3 p-4 sm:p-5">
-                  <div className={cn('flex size-10 items-center justify-center rounded-xl', metrica.color)}>
-                    <Icon className="size-4 sm:size-5" />
-                  </div>
-                  <div className="text-right">
-                    <p className="metric-value">{loading ? '—' : metrica.valor}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{metrica.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="size-4 text-primary" />
-              Últimos atendimentos do Zetta
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {(zetta?.ultimosAtendimentos?.length ?? 0) === 0 ? (
-              <p className="py-6 text-sm text-muted-foreground">
-                Nenhum atendimento retornado pelo ERP.
-              </p>
-            ) : (
-              zetta?.ultimosAtendimentos.map((atendimento) => (
-                <div
-                  key={String(atendimento.id)}
-                  className="flex items-center justify-between gap-3 border-b py-2 last:border-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      Atendimento #{atendimento.id}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      Cliente {atendimento.clienteId ?? '—'}
-                      {atendimento.datahora
-                        ? ` · ${new Date(atendimento.datahora).toLocaleString('pt-BR')}`
-                        : ''}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="shrink-0">
-                    {atendimento.status || 'Sem status'}
-                  </Badge>
-                </div>
-              ))
-            )}
-            <Button variant="outline" size="sm" onClick={onIrParaKanban} disabled={!onIrParaKanban}>
-              Ver atendimentos
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Plug className="size-4 text-primary" />
-              Papel do Hub
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Leitura do Zetta</span>
-              <Badge variant={zetta?.online ? 'default' : 'secondary'}>
-                {zetta?.online ? 'Online' : 'Verificar'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Contas do portal</span>
-              <strong>{zetta?.contasPortal ?? 0}</strong>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Vinculadas ao cliCod</span>
-              <strong>{zetta?.contasVinculadas ?? 0}</strong>
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              A agenda consolidada da unidade já é exibida no Hub em modo de leitura. A criação de agendamentos permanece no Siggma e a solicitação de criação pelo Hub já está em avaliação pela equipe de produto da Zetta.
-            </div>
-            <Button variant="outline" size="sm" onClick={onIrParaIntegracoes} disabled={!onIrParaIntegracoes}>
-              Ver integrações
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold text-muted-foreground">Acesso rápido</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {atalhos.map((atalho) => {
-            const Icon = atalho.icon
-            return (
-              <Button
-                key={atalho.label}
-                type="button"
-                variant="outline"
-                disabled={!atalho.onClick}
-                onClick={atalho.onClick}
-                className="h-auto min-h-16 justify-start gap-3 rounded-xl bg-card px-3 py-3 text-left"
-              >
-                <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg', atalho.className)}>
-                  <Icon className="size-4" />
-                </div>
-                <span className="text-sm font-medium">{atalho.label}</span>
-              </Button>
-            )
-          })}
-        </div>
-      </div>
+  return <div className="space-y-5 pb-10">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-gradient-to-r from-card to-primary/5 p-5 sm:p-7">
+      <div><p className="mb-1 text-xs font-bold uppercase tracking-widest text-primary">Sua matilha, em dia</p><h1 className="text-2xl font-bold">Visão geral · ERP próprio</h1><p className="mt-1 text-sm text-muted-foreground">Indicadores reais de clientes, agenda, estoque, vendas e notas no banco Matilha Prado.</p></div>
+      <Button type="button" variant="outline" size="sm" disabled={loading} onClick={()=>void fetchData()}><RefreshCw className={'mr-2 size-4 '+(loading?'animate-spin':'')}/>Atualizar</Button>
     </div>
-  )
+    {error&&<p role="status" className="text-sm text-destructive">Falha na atualização: {error}. Exibindo últimos dados carregados.</p>}
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      {kpis.map(({label,value,icon:Icon,onClick})=><button key={label} type="button" disabled={!onClick} onClick={onClick} className="text-left disabled:cursor-default">
+        <Card className="h-full transition-shadow hover:shadow-md"><CardContent className="p-4"><Icon className="size-5 text-primary"/><p className="mt-3 text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></CardContent></Card>
+      </button>)}
+    </div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Wallet className="size-5 text-primary"/><p className="text-sm font-medium">Vendas concluídas no mês</p></div><p className="mt-3 text-3xl font-bold">{money(data?.receitaMes||0)}</p><p className="mt-1 text-xs text-muted-foreground">{data?.vendasMes||0} venda(s) concluída(s) · valor bruto, antes de custos e impostos</p></CardContent></Card>
+      <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Users className="size-5 text-primary"/><p className="text-sm font-medium">Contas do portal</p></div><p className="mt-3 text-3xl font-bold">{data?.contasPortal||0}</p><p className="mt-1 text-xs text-muted-foreground">Acessos dos clientes ao portal Matilha Prado</p></CardContent></Card>
+    </div>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Próximos agendamentos</h2><Button variant="ghost" size="sm" onClick={onIrParaAgendamentos}>Abrir agenda<ArrowUpRight className="ml-1 size-4"/></Button></div>
+        {data?.proximosAgendamentos?.length?data.proximosAgendamentos.map(a=><div key={a.id} className="flex items-center justify-between gap-2 border-t py-2"><div className="min-w-0"><p className="truncate text-sm font-medium">{a.pet.nome} · {a.servico}</p><p className="text-xs text-muted-foreground">{a.cliente.nome} · {day(a.dataHora)}</p></div><Badge variant="outline">{a.status}</Badge></div>):<p className="py-5 text-sm text-muted-foreground">Sem agendamentos futuros.</p>}
+      </CardContent></Card>
+      <Card><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Últimos atendimentos</h2><Button variant="ghost" size="sm" onClick={onIrParaKanban}>Abrir Kanban<ArrowUpRight className="ml-1 size-4"/></Button></div>
+        {data?.ultimosAtendimentos?.length?data.ultimosAtendimentos.map(a=><div key={a.id} className="flex items-center justify-between gap-2 border-t py-2"><div className="min-w-0"><p className="truncate text-sm font-medium">{a.pet?.nome||'Pet'} · {a.servico}</p><p className="text-xs text-muted-foreground">{a.pet?.cliente?.nome||'Tutor'} · {day(a.createdAt)} · {money(a.valorServico)}</p></div><Badge variant="outline">{a.status.replaceAll('_',' ')}</Badge></div>):<p className="py-5 text-sm text-muted-foreground">Ainda não há atendimentos.</p>}
+      </CardContent></Card>
+    </div>
+    <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={onIrParaClientes}>Clientes e pets</Button><Button variant="outline" onClick={onIrParaEcommerce}>Estoque</Button><Button variant="outline" onClick={onIrParaEntregas}>Entregas</Button><Button variant="outline" onClick={onIrParaPagamentos}>Pagamentos</Button><Button variant="outline" onClick={onIrParaFiscal}>Fiscal e Notas</Button></div>
+  </div>
 }
