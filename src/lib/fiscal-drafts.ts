@@ -9,11 +9,14 @@ export async function ensureFiscalDraftForSale(vendaId: string) {
   const venda = await db.venda.findUnique({
     where: { id: vendaId },
     select: {
-      id: true, status: true, total: true,
+      id: true, status: true, total: true, canal: true,
       itens: { take: 1, select: { id: true } },
     },
   })
   if (!venda || venda.status !== 'concluida' || !(venda.total > 0) || !venda.itens.length) return null
+  // Não inferir uma venda online por ter sido registrada em tablet/PDV.
+  // Operações presenciais precisam da regra própria de NFC-e (modelo 65).
+  if (!['site', 'amazon', 'mercado_livre', 'mercadolivre'].includes(venda.canal)) return null
 
   const config = await db.configuracaoFiscal.findUnique({
     where: { id: 'matilha-prado' },

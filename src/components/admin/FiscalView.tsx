@@ -171,7 +171,7 @@ export function FiscalView() {
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
         <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 size-5 shrink-0" />
           <div><p className="font-semibold">Emissão fiscal ainda não habilitada</p>
-            <p className="mt-1 text-sm">O ERP cria automaticamente um rascunho de NF-e por venda concluída do site e dos marketplaces, além de permitir preparar pedidos antigos manualmente. Para transmitir NF-e, cancelar uma nota autorizada ou baixar XML/DANFE oficial, falta conectar um emissor homologado à SEFAZ. Nenhum rascunho é uma nota fiscal válida.</p>
+            <p className="mt-1 text-sm">O ERP cria automaticamente um rascunho de NF-e por venda online concluída do site e dos marketplaces, além de permitir preparar pedidos online antigos manualmente. Vendas presenciais exigem o fluxo próprio de NFC-e (65). Para transmitir NF-e, cancelar uma nota autorizada ou baixar XML/DANFE oficial, falta conectar um emissor homologado à SEFAZ. Nenhum rascunho é uma nota fiscal válida.</p>
           </div>
         </div>
       </div>
@@ -199,7 +199,7 @@ export function FiscalView() {
       {aba === 'notas' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="font-semibold">Vendas de todos os canais</h2><p className="text-xs text-muted-foreground">Últimos 150 pedidos. Rascunhos automáticos para novas vendas concluídas, sem emissão fiscal real.</p></div>
+            <div><h2 className="font-semibold">Vendas de todos os canais</h2><p className="text-xs text-muted-foreground">Últimos 150 pedidos. Rascunhos automáticos para vendas online concluídas; vendas presenciais exigem NFC-e.</p></div>
             <Badge variant="outline">NF-e 55</Badge>
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
@@ -216,9 +216,9 @@ export function FiscalView() {
                     <p className="mt-1 text-xs text-muted-foreground">{dataCurta(v.createdAt)} · Pedido {v.marketplaceOrderId || v.id.slice(-8)} · {v.status}</p>
                   </div>
                   <p className="font-semibold text-sm">{moeda(v.total)}</p>
-                  <Button size="sm" variant="outline" disabled={!!v.notaFiscal || v.status === 'cancelada' || preparando === v.id} onClick={() => preparar(v.id)}>
+                  <Button size="sm" variant="outline" disabled={!!v.notaFiscal || v.status === 'cancelada' || v.canal === 'loja' || preparando === v.id} onClick={() => preparar(v.id)}>
                     {preparando === v.id ? <Loader2 className="mr-2 size-4 animate-spin" /> : <FileText className="mr-2 size-4" />}
-                    {v.notaFiscal ? 'Rascunho registrado' : 'Preparar NF-e'}
+                    {v.canal === 'loja' ? 'NFC-e: em breve' : v.notaFiscal ? 'Rascunho registrado' : 'Preparar NF-e'}
                   </Button>
                 </div>
               ))}

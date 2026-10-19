@@ -8,7 +8,7 @@
 5. Produtos: NF-e 55 e NFC-e 65 se permitido. Serviços: avaliar NFS-e separadamente, não misturar com notas de mercadorias.
 
 ## Implementado com segurança
-- Rascunho local idempotente para vendas concluídas do próprio ERP, webhooks de pagamentos aprovados e pedidos de marketplaces.
+- Rascunho local idempotente para vendas online concluídas (site), webhooks de pagamentos aprovados e pedidos de marketplaces. Vendas administrativas presenciais (`loja`) aguardam o módulo NFC-e e não recebem rascunho de NF-e automaticamente.
 - Uma venda não gera mais de um registro de nota. Reenvios de webhook não duplicam.
 - Falhas ao criar rascunho não anulam pagamento/venda: operador pode usar ação manual na aba Fiscal e Notas.
 - A emissão autorizada por SEFAZ **não** foi implementada. Nenhuma chave, XML, DANFE, protocolo, número ou suposta autorização é inventada.

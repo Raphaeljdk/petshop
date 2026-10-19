@@ -14,10 +14,13 @@ export async function POST(req: NextRequest) {
     if (!input.success) return NextResponse.json({ error: 'Selecione uma venda válida.' }, { status: 400 })
     const venda = await db.venda.findUnique({
       where: { id: input.data.vendaId },
-      select: { id: true, status: true, mercadoPagoStatus: true, total: true, itens: { select: { id: true } } },
+      select: { id: true, canal: true, status: true, mercadoPagoStatus: true, total: true, itens: { select: { id: true } } },
     })
     if (!venda) return NextResponse.json({ error: 'Venda não encontrada.' }, { status: 404 })
     if (venda.status === 'cancelada') return NextResponse.json({ error: 'Venda cancelada não pode gerar nota.' }, { status: 409 })
+    if (!['site', 'amazon', 'mercado_livre', 'mercadolivre'].includes(venda.canal)) {
+      return NextResponse.json({ error: 'Venda presencial exige classificação própria e módulo NFC-e (65); não pode ser transformada em online pelo dispositivo usado.' }, { status: 409 })
+    }
     if (venda.status !== 'concluida' && !['approved', 'authorized'].includes(venda.mercadoPagoStatus || '')) {
       return NextResponse.json({ error: 'Confirme o pagamento da venda antes de preparar a NF-e.' }, { status: 409 })
     }
