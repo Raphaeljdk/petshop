@@ -13,7 +13,7 @@ import { ClientInvitationHistory } from '@/components/admin/ClientInvitationHist
 
 type PetDraft = {
   nome: string; especie: string; raca: string; porte: string; sexo: string
-  nascimento: string; cor: string; castrado: boolean | null; observacoes: string
+  nascimento: string; cor: string; castrado: boolean | null; observacoes: string; idade: string; peso: string
 }
 type PetRecord = PetDraft & { id: string; nascimento: string | null }
 type ClienteLocal = {
@@ -27,7 +27,7 @@ type CamposCliente = {
 const emptyCliente: CamposCliente = { nome: '', telefone: '', email: '', cpfCnpj: '', endereco: '', cep: '' }
 const emptyPet = (): PetDraft => ({
   nome: '', especie: 'Cão', raca: '', porte: '', sexo: '', nascimento: '',
-  cor: '', castrado: null, observacoes: '',
+  cor: '', castrado: null, observacoes: '', idade: '', peso: '',
 })
 async function readResponse(res: Response) {
   const data = await res.json().catch(() => ({}))
@@ -71,6 +71,8 @@ function PetFields({ value, onChange, prefix }: { value: PetDraft; onChange: (va
       </div>
       {field('nascimento', 'Nascimento')}
       {field('cor', 'Cor')}
+      {field('idade', 'Idade informada')}
+      {field('peso', 'Peso / kg')}
       <div className="space-y-1.5"><Label htmlFor={prefix + 'castrado'}>Castrado?</Label>
         <select id={prefix + 'castrado'} className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           value={value.castrado === null ? '' : value.castrado ? 'sim' : 'nao'}
@@ -90,6 +92,7 @@ function petToDraft(pet: PetRecord): PetDraft {
     nome: pet.nome, especie: pet.especie, raca: pet.raca || '', porte: pet.porte || '',
     sexo: pet.sexo || '', nascimento: pet.nascimento ? pet.nascimento.slice(0, 10) : '',
     cor: pet.cor || '', castrado: pet.castrado ?? null, observacoes: pet.observacoes || '',
+    idade: pet.idade || '', peso: pet.peso || '',
   }
 }
 

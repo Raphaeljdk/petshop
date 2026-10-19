@@ -22,7 +22,7 @@ export async function GET() {
       where: { ativo: true },
       orderBy: { nome: 'asc' },
       include: {
-        pets: { where: { ativo: true }, orderBy: { nome: 'asc' }, select: { id: true, nome: true, especie: true, raca: true, porte: true, sexo: true, nascimento: true, cor: true, castrado: true, observacoes: true } },
+        pets: { where: { ativo: true }, orderBy: { nome: 'asc' }, select: { id: true, nome: true, especie: true, raca: true, porte: true, sexo: true, nascimento: true, cor: true, castrado: true, observacoes: true, idade: true, peso: true } },
         _count: { select: { vendas: true, pets: true } },
       },
     })
