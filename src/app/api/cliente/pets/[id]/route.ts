@@ -12,11 +12,6 @@ export async function PUT(
     const user = await getUsuarioLogado()
     if (!user?.cliente)
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-    if (user.siggmaCliCod)
-      return NextResponse.json(
-        { error: 'Para alterar o cadastro oficial, fale com a loja.' },
-        { status: 409 },
-      )
     const { id } = await params
     const data = z
       .object({

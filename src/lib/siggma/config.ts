@@ -31,7 +31,7 @@ export function getSiggmaConfigurationStatus() {
   if (!emp) missing.push('SIGGMA_EMP')
 
   return {
-    configured: missing.length === 0,
+    configured: false,
     missing,
     baseUrl,
     environment: baseUrl === SIGGMA_PRODUCTION_URL ? 'production' : 'homologation',
@@ -42,13 +42,5 @@ export function getSiggmaConfigurationStatus() {
 }
 
 export function getSiggmaConfig(): SiggmaConfig {
-  const status = getSiggmaConfigurationStatus()
-  if (!status.configured) throw new SiggmaConfigurationError([...status.missing])
-
-  return {
-    baseUrl: status.baseUrl,
-    clientId: process.env.SIGGMA_CLIENT_ID!.trim(),
-    clientSecret: process.env.SIGGMA_CLIENT_SECRET!.trim(),
-    emp: process.env.SIGGMA_EMP!.trim(),
-  }
+  throw new Error('Integração Siggma/Zetta desativada no ERP Matilha Prado.')
 }

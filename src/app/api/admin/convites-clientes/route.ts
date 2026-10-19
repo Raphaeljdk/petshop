@@ -15,14 +15,14 @@ async function admin() {
 export async function GET() {
   try {
     await admin()
-    const invitations = await db.clientInvitation.findMany({ orderBy: { issuedAt: 'desc' }, take: 100, select: { id: true, siggmaCliCod: true, nome: true, email: true, expiresAt: true, usedAt: true, revokedAt: true, issuedAt: true, emailStatus: true } })
+    const invitations = await db.clientInvitation.findMany({ orderBy: { issuedAt: 'desc' }, take: 100, select: { id: true, clienteId: true, nome: true, email: true, expiresAt: true, usedAt: true, revokedAt: true, issuedAt: true, emailStatus: true } })
     return authJson({ success: true, configured: invitationMailConfig().configured, invitations })
   } catch (error) { return authFailure(error) }
 }
 export async function POST(req: NextRequest) {
   try {
     const user = await admin()
-    const body = z.object({ siggmaCliCod: z.number().int().positive(), expectedEmail: emailSchema }).strict().safeParse(await readAuthBody(req))
+    const body = z.object({ clienteId: z.string().min(1).max(80), expectedEmail: emailSchema }).strict().safeParse(await readAuthBody(req))
     if (!body.success) throw new AuthError('Selecione um cliente e confira o e-mail.')
     const mailConfig = invitationMailConfig()
     if (!mailConfig.origin) {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
     const limited = await limitAuthAttempts('client-invite', user.id, 30, 60)
     if (limited) return limited
-    const target = await officialInvitationClient(body.data.siggmaCliCod)
+    const target = await officialInvitationClient(body.data.clienteId)
     if (target.email !== body.data.expectedEmail) throw new AuthError('O e-mail do cadastro mudou. Atualize a lista antes de enviar.', 409)
     const { invitation, token } = await issueClientInvitation(target, user.id)
     const activationLink = `${mailConfig.origin}/ativar-conta#convite=${token}`

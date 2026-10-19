@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
-import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
-import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
+import { syncMarketplaceSalesToLocal } from '@/lib/marketplace-sync'
+import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: true })
     }
 
-    const result = await syncMarketplaceSalesToZetta()
-    const inventory = await syncZettaStockToMarketplaces({ refreshZetta: false }).catch((error) => ({
+    const result = await syncMarketplaceSalesToLocal()
+    const inventory = await syncLocalStockToMarketplaces().catch((error) => ({
       errors: [
         error instanceof Error ? error.message : 'Falha ao reconciliar estoque.',
       ],

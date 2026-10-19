@@ -1,4 +1,5 @@
 export type StockSources = {
+  estoque?: number | null
   estoqueHub?: number | null
   estoqueZetta?: number | null
   estoqueMercadoLivre?: number | null
@@ -85,26 +86,14 @@ export function totalStockFromSources(stock: StockSources) {
 }
 
 /**
- * Estoque operacional/oficial do produto.
- *
- * Regra central da Matilha Prado:
- * 1. Produto vinculado ao Zetta -> Zetta é a fonte oficial.
- * 2. Sem Zetta, estoque próprio do Hub tem prioridade.
- * 3. Sem fonte central, usa o maior saldo entre marketplaces como fallback,
- *    nunca a soma, para não duplicar fisicamente o mesmo item.
+ * Estoque oficial é o saldo persistido no ERP Matilha Prado (Produto.estoque).
+ * Os saldos recebidos dos canais são apenas informativos; nunca são somados.
+ * Compatibilidade: fixtures sem campo estoque usam o saldo local do Hub.
  */
 export function officialStockFromSources(stock: ProductStockSources) {
-  if (stock.zettaProCod != null) {
-    return safeStock(stock.estoqueZetta)
-  }
-
-  const hub = safeStock(stock.estoqueHub)
-  if (hub > 0) return hub
-
-  const mercadoLivre = safeStock(stock.estoqueMercadoLivre)
-  const amazon = safeStock(stock.estoqueAmazon)
-
-  return Math.max(mercadoLivre, amazon)
+  if (stock.estoque != null) return safeStock(stock.estoque)
+  if (stock.estoqueHub != null) return safeStock(stock.estoqueHub)
+  return Math.max(safeStock(stock.estoqueMercadoLivre), safeStock(stock.estoqueAmazon))
 }
 
 export function stockAccounting(stock: StockSources) {

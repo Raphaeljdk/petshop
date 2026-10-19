@@ -3,7 +3,6 @@ import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import { mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
 import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-api'
 import { safeStock } from '@/lib/product-stock'
-import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 import { notifyRestockSubscribers } from '@/lib/restock-notifications'
 
 export type InventorySyncResult = {
@@ -28,31 +27,21 @@ function amazonSubmissionHasError(payload: unknown) {
   )
 }
 
-export async function syncZettaStockToMarketplaces(
-  options: { refreshZetta?: boolean } = {}
-): Promise<InventorySyncResult> {
-  // O ERP é a fonte física. Nunca propague saldo de marketplace para outro
-  // marketplace, pois ambos podem estar mostrando as mesmas unidades.
-  // Após uma venda externa recém-importada, a baixa local já representa o
-  // novo saldo e não deve ser sobrescrita por uma leitura possivelmente atrasada.
-  if (options.refreshZetta !== false) {
-    await syncZettaProductsToLocal()
-  }
-
+export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResult> {
+  // O Produto.estoque do ERP Matilha Prado é a única fonte física;
+  // marketplaces recebem o saldo e nunca sobrescrevem o estoque local.
   const products = await db.produto.findMany({
     where: {
       ativo: true,
-      zettaProCod: { not: null },
       OR: [{ mlItemId: { not: null } }, { amazonAsin: { not: null } }],
     },
     select: {
       id: true,
       nome: true,
       sku: true,
-      zettaProCod: true,
+      estoque: true,
       mlItemId: true,
       amazonAsin: true,
-      estoqueZetta: true,
       estoqueMercadoLivre: true,
       estoqueAmazon: true,
     },
@@ -75,13 +64,7 @@ export async function syncZettaStockToMarketplaces(
   }
 
   for (const product of products) {
-    const quantity = safeStock(product.estoqueZetta)
-
-    // O campo operacional local acompanha o ERP, sem somar saldos de canais.
-    await db.produto.update({
-      where: { id: product.id },
-      data: { estoque: quantity },
-    })
+    const quantity = safeStock(product.estoque)
 
     if (
       product.mlItemId &&
@@ -133,13 +116,7 @@ export async function syncZettaStockToMarketplaces(
     }
   }
 
-  const skippedUnlinked = await db.produto.count({
-    where: {
-      ativo: true,
-      zettaProCod: null,
-      OR: [{ mlItemId: { not: null } }, { amazonAsin: { not: null } }],
-    },
-  })
+  const skippedUnlinked = 0
 
   const restockNotifications = await notifyRestockSubscribers().catch((error) => ({
     configured: false,

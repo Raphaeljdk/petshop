@@ -94,16 +94,6 @@ export async function POST(req: NextRequest) {
           )
         }
 
-        if (produto.zettaProCod) {
-          return NextResponse.json(
-            {
-              error:
-                'Produtos vinculados ao Zetta devem ser vendidos pelo ERP enquanto o endpoint oficial de escrita não estiver integrado.',
-            },
-            { status: 409 }
-          )
-        }
-
         const estoqueDisponivel = officialStockFromSources(produto)
         if (!produto.estoqueIlimitado && estoqueDisponivel < item.quantidade) {
           return NextResponse.json(
@@ -128,12 +118,6 @@ export async function POST(req: NextRequest) {
         const produto = await tx.produto.findUnique({ where: { id: item.produtoId } })
         if (!produto) throw new Error('Produto não encontrado')
 
-        if (produto.zettaProCod && statusFinal !== 'cancelada') {
-          throw new Error(
-            'Produto vinculado ao Zetta não pode ter o estoque alterado por esta rota.'
-          )
-        }
-
         const precoUnit = item.precoUnit ?? produto.precoPromo ?? produto.preco
         total += precoUnit * item.quantidade
         itensData.push({
@@ -148,17 +132,15 @@ export async function POST(req: NextRequest) {
             throw new Error(`Estoque insuficiente para ${produto.nome}`)
           }
 
-          const usaHubComoFonte = produto.estoqueHub > 0
-
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: {
-              estoque: estoqueDisponivel - item.quantidade,
-              ...(usaHubComoFonte
-                ? { estoqueHub: produto.estoqueHub - item.quantidade }
-                : {}),
-            },
+          // Baixa atômica: duas vendas simultâneas não podem consumir
+          // mais unidades que o saldo do ERP próprio.
+          const atualizado = await tx.produto.updateMany({
+            where: { id: item.produtoId, estoque: { gte: item.quantidade } },
+            data: { estoque: { decrement: item.quantidade } },
           })
+          if (atualizado.count !== 1) throw new Error('Estoque insuficiente para ' + produto.nome)
+          const saldo = await tx.produto.findUniqueOrThrow({ where: { id: item.produtoId }, select: { estoque: true } })
+          await tx.produto.update({ where: { id: item.produtoId }, data: { estoqueHub: saldo.estoque } })
         }
       }
 

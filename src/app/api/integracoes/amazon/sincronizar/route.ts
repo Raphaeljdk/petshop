@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
+import { isUnlimitedBathProduct } from '@/lib/product-stock'
 import { AmazonSpApiError, amazonSellerListings } from '@/lib/amazon-sp-api'
 
 export const runtime = 'nodejs'
@@ -52,15 +52,7 @@ export async function POST() {
         nome: item.title,
         categoria: item.productType || 'Amazon',
       })
-      const estoqueOperacional = officialStockFromSources({
-        zettaProCod: existing?.zettaProCod,
-        mlItemId: existing?.mlItemId,
-        amazonAsin: item.asin,
-        estoqueHub: existing?.estoqueHub,
-        estoqueZetta: existing?.estoqueZetta,
-        estoqueMercadoLivre: existing?.estoqueMercadoLivre,
-        estoqueAmazon: sourceStock,
-      })
+      const estoqueOperacional = existing?.estoque ?? sourceStock
 
       const marketplaceData = {
         nome: item.title,
@@ -75,32 +67,13 @@ export async function POST() {
       }
 
       if (existing) {
-        const zettaMaster = Boolean(existing.zettaProCod)
-        const preserveMaster = zettaMaster || matchedBySku
-
         await db.produto.update({
           where: { id: existing.id },
-          data: zettaMaster
-            ? {
-                // Amazon é apenas um canal deste produto. Nunca altera o
-                // estoque físico/oficial controlado pelo Zetta.
-                amazonAsin: item.asin,
-                estoqueAmazon: sourceStock,
-                ...(!existing.mlItemId && item.imageUrl
-                  ? { imageUrl: item.imageUrl }
-                  : {}),
-              }
-            : preserveMaster
-              ? {
-                  amazonAsin: item.asin,
-                  estoqueAmazon: sourceStock,
-                  estoqueIlimitado,
-                  estoque: estoqueOperacional,
-                  ...(!existing.imageUrl && item.imageUrl
-                    ? { imageUrl: item.imageUrl }
-                    : {}),
-                }
-              : marketplaceData,
+          data: {
+            amazonAsin: item.asin,
+            estoqueAmazon: sourceStock,
+            ...(!existing.imageUrl && item.imageUrl ? { imageUrl: item.imageUrl } : {}),
+          },
         })
         if (matchedBySku) linked += 1
         updated += 1
@@ -110,7 +83,7 @@ export async function POST() {
             ...marketplaceData,
             descricao: null,
             precoPromo: null,
-            estoqueHub: 0,
+            estoqueHub: sourceStock,
             estoqueZetta: 0,
             estoqueMercadoLivre: 0,
             estoqueAmazon: sourceStock,

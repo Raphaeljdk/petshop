@@ -13,6 +13,7 @@ import { NotificacoesView } from '@/components/notificacoes/NotificacoesView'
 import { ClientesView } from '@/components/clientes/ClientesView'
 import { EntregasView } from '@/components/admin/EntregasView'
 import { PagamentosView } from '@/components/admin/PagamentosView'
+import { FiscalView } from '@/components/admin/FiscalView'
 import { CuponsView } from '@/components/admin/CuponsView'
 import { AdminInvitations } from '@/components/admin/AdminInvitations'
 import { NotificationBell } from '@/components/admin/NotificationBell'
@@ -64,9 +65,10 @@ function AdminPanelImpl() {
     ecommerce: 'Estoque',
     integracoes: 'Integrações',
     notificacoes: 'Notificações',
-    clientes: 'Clientes e pets',
+    clientes: 'Cadastro de clientes',
     entregas: 'Entregas',
     pagamentos: 'Pagamentos',
+    fiscal: 'Fiscal e Notas',
     cupons: 'Cupons e parceiros',
     relacionamento: 'Relacionamento',
     equipe: 'Equipe e convites',
@@ -253,6 +255,7 @@ function AdminPanelImpl() {
             {tab === 'equipe' && <AdminInvitations />}
             {tab === 'entregas' && <EntregasView refreshSignal={entregasRefreshSignal} />}
             {tab === 'pagamentos' && <PagamentosView refreshSignal={pagamentosRefreshSignal} />}
+            {tab === 'fiscal' && <FiscalView />}
             {tab === 'cupons' && <CuponsView />}
             {tab === 'dashboard' && <SalesInsights />}
             {tab === 'relacionamento' && <CustomerExperienceAdmin />}

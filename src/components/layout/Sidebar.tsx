@@ -14,6 +14,7 @@ import {
   PawPrint,
   ShieldCheck,
   TicketPercent,
+  FileText,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,7 @@ export type TabId =
   | 'clientes'
   | 'entregas'
   | 'pagamentos'
+  | 'fiscal'
   | 'cupons'
   | 'equipe'
   | 'relacionamento'
@@ -61,7 +63,7 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
         { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
         { id: 'kanban', label: 'Kanban de pets', icon: KanbanSquare, badge: counts?.novo },
         { id: 'agendamentos', label: 'Agendamentos', icon: CalendarClock },
-        { id: 'clientes', label: 'Clientes e pets', icon: UsersRound },
+        { id: 'clientes', label: 'Cadastro de clientes', icon: UsersRound },
       ],
     },
     {
@@ -70,6 +72,7 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
         { id: 'ecommerce', label: 'Estoque', icon: Package },
         { id: 'entregas', label: 'Entregas', icon: Truck },
         { id: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
+        { id: 'fiscal', label: 'Fiscal e Notas', icon: FileText },
         { id: 'cupons', label: 'Cupons e parceiros', icon: TicketPercent },
         { id: 'relacionamento', label: 'Relacionamento', icon: UsersRound },
       ],

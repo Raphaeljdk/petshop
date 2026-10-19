@@ -39,22 +39,23 @@ export async function PUT(
 
     const dados: any = {}
 
-    // Produtos vinculados a fontes externas recebem nome, preço, estoque e SKU
-    // da integração. O painel local edita apenas metadados e publicação.
-    if (
-      !produtoExistente.zettaProCod &&
-      !produtoExistente.mlItemId &&
-      !produtoExistente.amazonAsin
-    ) {
-      if (nome !== undefined) dados.nome = nome
-      if (preco !== undefined) dados.preco = preco
-      if (precoPromo !== undefined) dados.precoPromo = precoPromo
-      if (estoque !== undefined) {
-        dados.estoque = estoque
-        dados.estoqueHub = estoque
+    // A Matilha Prado passa a controlar inclusive produtos importados.
+    if (nome !== undefined) dados.nome = String(nome).trim()
+    if (preco !== undefined) {
+      if (!Number.isFinite(preco) || preco < 0) {
+        return NextResponse.json({ error: 'Preço inválido.' }, { status: 400 })
       }
-      if (sku !== undefined) dados.sku = sku
+      dados.preco = preco
     }
+    if (precoPromo !== undefined) dados.precoPromo = precoPromo
+    if (estoque !== undefined) {
+      if (!Number.isInteger(estoque) || estoque < 0) {
+        return NextResponse.json({ error: 'Estoque deve ser um inteiro não negativo.' }, { status: 400 })
+      }
+      dados.estoque = estoque
+      dados.estoqueHub = estoque
+    }
+    if (sku !== undefined) dados.sku = sku
 
     if (descricao !== undefined) dados.descricao = descricao
     if (categoria !== undefined) dados.categoria = categoria

@@ -26,10 +26,7 @@ export async function applyPaymentSaleState(
               produto: {
                 select: {
                   id: true,
-                  zettaProCod: true,
-                  mlItemId: true,
-                  amazonAsin: true,
-                  estoqueHub: true,
+                  estoque: true,
                 },
               },
             },
@@ -41,44 +38,30 @@ export async function applyPaymentSaleState(
 
       const firstPendingCancellation =
         patch.status === 'cancelada' && current.status === 'pendente'
-      const cancellationAfterApproval =
-        patch.status === 'cancelada' && current.status === 'concluida'
 
       if (firstPendingCancellation) {
+        // Uma venda pendente já reservou o saldo no ERP local.
+        // Restitua qualquer produto, independentemente do vínculo legado.
         for (const item of current.itens) {
-          if (!item.produto.zettaProCod) {
-            const restaurarHub =
-              item.produto.estoqueHub > 0 ||
-              (!item.produto.mlItemId && !item.produto.amazonAsin)
-
-            await tx.produto.update({
-              where: { id: item.produtoId },
-              data: {
-                estoque: { increment: item.quantidade },
-                ...(restaurarHub
-                  ? { estoqueHub: { increment: item.quantidade } }
-                  : {}),
-              },
-            })
-          }
+          const produto = await tx.produto.update({
+            where: { id: item.produtoId },
+            data: { estoque: { increment: item.quantidade } },
+            select: { estoque: true },
+          })
+          await tx.produto.update({
+            where: { id: item.produtoId },
+            data: { estoqueHub: produto.estoque },
+          })
         }
         await tx.cupomUso.deleteMany({ where: { vendaId } })
       }
 
-      const requiresErpReview =
-        cancellationAfterApproval && Boolean(current.siggmaImportedAt)
-
+      // Estornos após conclusão devem ser conferidos antes de repor o estoque,
+      // pois a mercadoria pode ter sido expedida.
       return tx.venda.update({
         where: { id: vendaId },
         data: {
           ...patch,
-          ...(requiresErpReview
-            ? {
-                siggmaImportStatus: 'cancelamento-revisao',
-                siggmaImportError:
-                  'Pagamento cancelado/estornado após importação no Siggma. Revisar cancelamento no ERP antes de ajustar estoque.',
-              }
-            : {}),
           updatedAt: new Date(),
         },
       })

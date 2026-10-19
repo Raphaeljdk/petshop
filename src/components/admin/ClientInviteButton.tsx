@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-export function ClientInviteButton({ id, nome, email, disabled }: { id: number; nome: string; email: string; disabled?: boolean }) {
+export function ClientInviteButton({ id, nome, email, disabled }: { id: string; nome: string; email: string; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -15,7 +15,7 @@ export function ClientInviteButton({ id, nome, email, disabled }: { id: number; 
     if (busy) return
     setBusy(true); setMessage('')
     try {
-      const res = await fetch('/api/admin/convites-clientes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ siggmaCliCod: id, expectedEmail: email.trim().toLowerCase() }) })
+      const res = await fetch('/api/admin/convites-clientes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clienteId: id, expectedEmail: email.trim().toLowerCase() }) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Não foi possível enviar o convite.')
       setSuccess(true); setMessage(data.message); setActivationLink(data.activationLink || '')
