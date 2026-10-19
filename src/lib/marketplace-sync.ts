@@ -267,7 +267,7 @@ async function syncAmazon() {
   }
 }
 
-export async function syncMarketplaceSalesToZetta() {
+export async function syncMarketplaceSalesToLocal() {
   const result: {
     mercadoLivre?: Awaited<ReturnType<typeof syncMercadoLivre>>
     amazon?: Awaited<ReturnType<typeof syncAmazon>>

@@ -42,6 +42,7 @@ export function getSiggmaConfigurationStatus() {
 }
 
 export function getSiggmaConfig(): SiggmaConfig {
+  throw new Error('Integração Zetta/Siggma desativada no ERP Matilha Prado.')
   const status = getSiggmaConfigurationStatus()
   if (!status.configured) throw new SiggmaConfigurationError([...status.missing])
 

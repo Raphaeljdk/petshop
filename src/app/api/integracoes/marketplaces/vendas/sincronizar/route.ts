@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { syncMarketplaceSalesToZetta } from '@/lib/marketplace-sync'
-import { syncZettaStockToMarketplaces } from '@/lib/inventory-sync'
+import { syncMarketplaceSalesToLocal } from '@/lib/marketplace-sync'
+import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,8 +15,7 @@ export async function POST() {
   }
 
   const result = await syncMarketplaceSalesToZetta()
-  // O Zetta confirmou que a reserva altera o saldo imediatamente. Releia o ERP
-  // após importar o lote para propagar o saldo autoritativo aos marketplaces.
+  // Registre pedidos no ERP próprio e publique o estoque local nos canais.
   const inventory = await syncZettaStockToMarketplaces({ refreshZetta: true }).catch((error) => ({
     products: 0,
     mercadoLivreUpdated: 0,

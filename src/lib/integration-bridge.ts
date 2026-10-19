@@ -60,6 +60,8 @@ export async function integrationBridgeRequest<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
+  throw new Error('Integração legada Zetta/Siggma desativada. Utilize a base local da Matilha Prado.')
+  // A integração permanece no histórico apenas para eventual auditoria.
   const { url, secret } = getConfig()
   const headers = new Headers(init.headers)
 

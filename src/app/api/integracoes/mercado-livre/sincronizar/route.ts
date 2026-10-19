@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
+import { isUnlimitedBathProduct } from '@/lib/product-stock'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import {
   mercadoLivreCategoryNames,
@@ -58,15 +58,7 @@ export async function POST() {
         nome: item.title,
         categoria: item.categoryId ? categories.get(item.categoryId) || 'Mercado Livre' : 'Mercado Livre',
       })
-      const estoqueOperacional = officialStockFromSources({
-        zettaProCod: existing?.zettaProCod,
-        mlItemId: item.id,
-        amazonAsin: existing?.amazonAsin,
-        estoqueHub: existing?.estoqueHub,
-        estoqueZetta: existing?.estoqueZetta,
-        estoqueMercadoLivre: sourceStock,
-        estoqueAmazon: existing?.estoqueAmazon,
-      })
+      const estoqueOperacional = existing?.estoque ?? sourceStock
 
       const marketplaceData = {
         nome: item.title,
@@ -83,30 +75,14 @@ export async function POST() {
       }
 
       if (existing) {
-        const zettaMaster = Boolean(existing.zettaProCod)
-        const preserveMaster = zettaMaster || matchedBySku
-
+        // Catálogo externo não altera preço, título nem estoque físico do ERP local.
         await db.produto.update({
           where: { id: existing.id },
-          data: zettaMaster
-            ? {
-                // Mercado Livre é apenas um canal deste produto. Nunca altera
-                // o estoque físico/oficial controlado pelo Zetta.
-                mlItemId: item.id,
-                estoqueMercadoLivre: sourceStock,
-                ...(item.thumbnail ? { imageUrl: item.thumbnail } : {}),
-              }
-            : preserveMaster
-              ? {
-                  mlItemId: item.id,
-                  estoqueMercadoLivre: sourceStock,
-                  estoqueIlimitado,
-                  estoque: estoqueOperacional,
-                  ...(!existing.imageUrl && item.thumbnail
-                    ? { imageUrl: item.thumbnail }
-                    : {}),
-                }
-              : marketplaceData,
+          data: {
+            mlItemId: item.id,
+            estoqueMercadoLivre: sourceStock,
+            ...(!existing.imageUrl && item.thumbnail ? { imageUrl: item.thumbnail } : {}),
+          },
         })
         if (matchedBySku) linked += 1
         updated += 1
@@ -116,7 +92,7 @@ export async function POST() {
             ...marketplaceData,
             descricao: null,
             precoPromo: null,
-            estoqueHub: 0,
+            estoqueHub: sourceStock,
             estoqueZetta: 0,
             estoqueMercadoLivre: sourceStock,
             estoqueAmazon: 0,
