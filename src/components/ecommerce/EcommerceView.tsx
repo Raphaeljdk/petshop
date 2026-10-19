@@ -381,7 +381,7 @@ function ProdutoCard({
         </div>
 
         {/* Quick edit: preço + estoque inline */}
-        {produto.variantes?.length > 1 ? (
+        {(produto.variantes?.length ?? 0) > 1 ? (
           <div className="rounded-md border border-primary/15 bg-primary/5 p-2 text-[11px] text-muted-foreground">
             Produto com variações agrupadas. Escolha o tamanho acima para consultar e editar o SKU correto; o total considera as unidades dessas variações.
           </div>
