@@ -454,6 +454,10 @@ model NotaFiscal {
   protocolo String?
   xmlAutorizado String? @db.Text
   danfeUrl String?
+  emissor String? // mercado_livre ou emissor externo
+  emissorDocumentoId String?
+  emissaoSolicitadaEm DateTime?
+  consultadaEm DateTime?
   erro String?
   autorizadaEm DateTime?
   canceladaEm DateTime?
