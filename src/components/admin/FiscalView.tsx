@@ -50,6 +50,15 @@ type Product = {
 }
 type ProductsData = { produtos: Product[]; total: number; pagina: number; porPagina: number }
 type Aba = 'notas' | 'emitente' | 'produtos'
+type FiscalPreflight = {
+  canal:string;modeloSugerido:string;tipo:string;provedor:string;
+  prontoParaSolicitar:boolean;habilitadoParaEmissao:boolean;
+  checks:Array<{id:string;ok:boolean;texto:string}>;aviso:string;
+}
+type NotaAmazonFba = {
+  id:string;numeroExterno:string|null;serie:string|null;
+  status:string;data:string|null;pedido:string|null;tipo:string|null;
+}
 const moeda = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dataCurta = (s: string) => new Date(s).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -68,6 +77,12 @@ export function FiscalView() {
   const [preparando, setPreparando] = useState<string | null>(null)
   const [consultando, setConsultando] = useState<string | null>(null)
   const [emitindo, setEmitindo] = useState<string | null>(null)
+  const [testando,setTestando] = useState<string|null>(null)
+  const [inspecionando,setInspecionando] = useState<string|null>(null)
+  const [preflights,setPreflights] = useState<Record<string,FiscalPreflight>>({})
+  const [notasFba,setNotasFba] = useState<NotaAmazonFba[]|null>(null)
+  const [consultandoFba,setConsultandoFba] = useState(false)
+  const [testandoProvedor,setTestandoProvedor] = useState(false)
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -162,6 +177,36 @@ export function FiscalView() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  async function testarEmissao(vendaId:string){
+    setTestando(vendaId);setInspecionando(vendaId)
+    try{
+      const result=await jsonRes(await fetch('/api/admin/fiscal/validar',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({vendaId})
+      })) as FiscalPreflight
+      setPreflights(prev=>({...prev,[vendaId]:result}))
+      toast.success('Teste fiscal concluído sem emitir nota.')
+    }catch(e){toast.error(e instanceof Error?e.message:'Falha na validação fiscal.')}
+    finally{setTestando(null)}
+  }
+  async function carregarFba(){
+    setConsultandoFba(true)
+    try{
+      const result=await jsonRes(await fetch('/api/admin/fiscal/amazon/notas',{cache:'no-store',credentials:'same-origin'}))
+      setNotasFba(result.notas||[])
+      toast.success('Notas Amazon FBA consultadas (somente leitura).')
+    }catch(e){toast.error(e instanceof Error?e.message:'Não foi possível consultar a Amazon.')}
+    finally{setConsultandoFba(false)}
+  }
+  async function testarProvedor(){
+    setTestandoProvedor(true)
+    try{
+      const result=await jsonRes(await fetch('/api/admin/fiscal/provedor',{method:'POST',credentials:'same-origin'}))
+      toast.success(result.aviso||'Conexão fiscal validada sem emissão.')
+    }catch(e){toast.error(e instanceof Error?e.message:'Erro no teste da conexão fiscal.')}
+    finally{setTestandoProvedor(false)}
+  }
+
   async function salvarProduto() {
     if (!editandoProduto) return
     setSaving(true)
@@ -204,13 +249,22 @@ export function FiscalView() {
       </div>
 
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-        <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 size-5 shrink-0" />
-          <div><p className="font-semibold">Integração de NF-e do Mercado Livre</p>
-            <p className="mt-1 text-sm">O Faturador Mercado Livre pode ser consultado por pedido nesta tela e permite baixar XML/DANFE de notas autorizadas. {data?.emissaoMercadoLivreHabilitada ? 'A emissão manual está habilitada e exige confirmação para cada venda.' : 'A emissão real está bloqueada até a validação das permissões fiscais e a liberação na Vercel.'} Site e Amazon continuam aguardando um emissor próprio. Nenhum rascunho equivale a uma nota válida.</p>
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
+          <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
+            <p className="mt-1 text-sm">O botão Emitir nota inicia um teste seguro de pendências, sem transmissão fiscal. O Mercado Livre possui integração de consulta e emissão condicionada a permissões. Site, Amazon e Hub precisam de emissor fiscal universal com API, certificado A1 e homologação. Varejo presencial pode exigir NFC-e e serviços exigem NFS-e. Nenhum rascunho equivale a uma nota válida.</p>
           </div>
         </div>
       </div>
-
+      <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div><p className="text-sm font-semibold">Emissor universal · Nuvem Fiscal</p>
+          <p className="text-xs text-muted-foreground">Autenticação de testes: nenhuma nota será transmitida. A contratação, os dados da empresa e o certificado precisam ser configurados.</p>
+        </div>
+        <Button variant="outline" size="sm" disabled={testandoProvedor} onClick={()=>void testarProvedor()}>
+          {testandoProvedor?<Loader2 className="mr-2 size-4 animate-spin"/>:<ShieldAlert className="mr-2 size-4"/>}
+          Testar conexão fiscal
+        </Button>
+      </CardContent></Card>
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           { label: 'Vendas sem registro fiscal', value: semNota, icon: ClipboardList },
