@@ -33,7 +33,7 @@ A variável `MERCADO_LIVRE_NFE_EMISSAO_HABILITADA` é **desativada por padrão**
 ## Limitações e precauções
 
 - O Faturador Mercado Livre não emite automaticamente pedidos externos do site ou Amazon.
-- Carrinhos/packs podem exigir emitir uma única nota para várias orders do mesmo seller: a emissão individual é bloqueada.
+- Carrinhos/packs com múltiplas orders exigem emitir uma única nota para todas as orders do vendedor: a emissão individual é bloqueada; packs com uma única order são aceitos.
 - O uso de XML para contabilidade exige armazenamento privado, backup e retenção apropriada; a API atual faz proxy do XML oficial sem persistir arquivo.
 - Cancelamento na SEFAZ ainda **não** foi implementado.
 - O botão de emissão real nunca deve ser disparado por efeito, cron, webhook ou abertura da tela. Sempre requer clique explícito.

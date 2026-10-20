@@ -26,6 +26,7 @@ export type MercadoLivreInvoice = {
 const prefix = 'https://api.mercadolibre.com'
 export function onlyOrderId(raw: string) {
   if (!/^\d{8,20}$/.test(raw)) throw new MercadoLivreFiscalError('Identificador de pedido Mercado Livre inválido.', 400)
+  if (!Number.isSafeInteger(Number(raw))) throw new MercadoLivreFiscalError('Identificador numérico do pedido excede o limite seguro. Emissão bloqueada.', 400)
   return raw
 }
 export function onlySellerId(raw: string) {
@@ -141,8 +142,15 @@ export async function consultarPedidoMeli(rawOrderId: string) {
   }
   if (String(order.seller?.id || '') !== sellerId)
     throw new MercadoLivreFiscalError('Este pedido não pertence à conta Mercado Livre conectada.', 403)
-  if (order.pack_id)
-    throw new MercadoLivreFiscalError('Pedido associado a carrinho/pack: confira e agrupe todas as orders do vendedor antes de emitir. A emissão individual foi bloqueada.', 409)
+  if (order.pack_id) {
+    const packId = String(order.pack_id)
+    if (!/^\\d{8,20}$/.test(packId)) throw new MercadoLivreFiscalError('Pack de pedido inválido.', 409)
+    const resPack = await meliFetch('/packs/' + packId, token)
+    if (!resPack.ok) throw new MercadoLivreFiscalError('Não foi possível conferir o pack de pedidos no Mercado Livre. Emissão bloqueada.')
+    const pack = await resPack.json() as { orders?: Array<{ id?: number | string }> }
+    if (!Array.isArray(pack.orders) || pack.orders.length !== 1 || String(pack.orders[0]?.id) !== orderId)
+      throw new MercadoLivreFiscalError('Carrinho com múltiplas orders: emita NF-e agrupada pelo Faturador Mercado Livre. Esta integração não fragmenta um carrinho.', 409)
+  }
   if (order.status !== 'paid' && !order.payments?.some(p => p.status === 'approved'))
     throw new MercadoLivreFiscalError('Pagamento do pedido não confirmado pelo Mercado Livre.', 409)
   return order
