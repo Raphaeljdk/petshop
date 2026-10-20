@@ -42,6 +42,7 @@ export async function GET() {
         select: {
           id: true, vendaId: true, modelo: true, status: true, numero: true,
           serie: true, chaveAcesso: true, protocolo: true, danfeUrl: true,
+          emissor: true, emissorDocumentoId: true, emissaoSolicitadaEm: true, consultadaEm: true,
           erro: true, autorizadaEm: true, canceladaEm: true, createdAt: true,
         },
       }),
@@ -52,14 +53,15 @@ export async function GET() {
           marketplaceOrderId: true, marketplaceBuyerName: true, mercadoPagoStatus: true,
           createdAt: true,
           cliente: { select: { nome: true, cpfCnpj: true } },
-          notaFiscal: { select: { id: true, status: true } },
+          notaFiscal: { select: { id: true, status: true, numero: true, chaveAcesso: true, emissor: true } },
         },
       }),
     ])
     return NextResponse.json({
       config, notas, vendas,
       emissaoConfigurada: false,
-      emissaoAviso: 'A emissão fiscal depende de integração homologada com um provedor de NF-e/SEFAZ, certificado e validação tributária. Esta versão prepara rascunhos e não transmite documentos.',
+      emissaoMercadoLivreHabilitada: process.env.MERCADO_LIVRE_NFE_EMISSAO_HABILITADA === 'true',
+      emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Site e Amazon seguem aguardando provedor de emissão.',
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('fiscal GET', error)

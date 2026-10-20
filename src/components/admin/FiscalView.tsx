@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ClipboardList, FileText, Loader2, Package, ReceiptText, RefreshCw, Save, Search, Settings2, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ClipboardList, FileText, Loader2, Package, ReceiptText, RefreshCw, Save, Search, Settings2, ShieldAlert, ExternalLink, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -35,14 +35,14 @@ type Sale = {
   marketplaceOrderId: string | null; marketplaceBuyerName: string | null
   mercadoPagoStatus: string | null; createdAt: string
   cliente: { nome: string; cpfCnpj: string | null } | null
-  notaFiscal: { id: string; status: string } | null
+  notaFiscal: { id: string; status: string; numero: number | null; chaveAcesso: string | null; emissor: string | null } | null
 }
 type Nota = {
   id: string; vendaId: string; modelo: string; status: string
   numero: number | null; chaveAcesso: string | null
   protocolo: string | null; danfeUrl: string | null; createdAt: string
 }
-type FiscalData = { config: Config | null; vendas: Sale[]; notas: Nota[]; emissaoConfigurada: boolean; emissaoAviso: string }
+type FiscalData = { config: Config | null; vendas: Sale[]; notas: Nota[]; emissaoConfigurada: boolean; emissaoMercadoLivreHabilitada: boolean; emissaoAviso: string }
 type Product = {
   id: string; nome: string; sku: string | null
   ncm: string | null; cest: string | null; cfop: string | null
@@ -66,6 +66,8 @@ export function FiscalView() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [preparando, setPreparando] = useState<string | null>(null)
+  const [consultando, setConsultando] = useState<string | null>(null)
+  const [emitindo, setEmitindo] = useState<string | null>(null)
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -127,6 +129,39 @@ export function FiscalView() {
     finally { setPreparando(null) }
   }
 
+  async function operacaoMeli(venda: Sale, acao: 'consultar' | 'emitir') {
+    if (acao === 'emitir') {
+      if (!data?.emissaoMercadoLivreHabilitada) {
+        toast.error('Emissão real não habilitada na integração. Confira as permissões fiscais antes de ativar.')
+        return
+      }
+      if (!window.confirm('ATENÇÃO: isso solicitará uma NF-e REAL no Mercado Livre para o pedido ' +
+        (venda.marketplaceOrderId || venda.id) +
+        '. Confirme apenas se a venda ainda não tem nota e os dados fiscais foram validados. Deseja emitir?')) return
+    }
+    if (acao === 'consultar') setConsultando(venda.id)
+    else setEmitindo(venda.id)
+    try {
+      const result = await jsonRes(await fetch('/api/admin/fiscal/mercado-livre', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendaId: venda.id, acao,
+          ...(acao === 'emitir' ? { confirmacao: 'EMITIR_NFE_REAL' } : {}),
+        }),
+      }))
+      toast.success(result.aviso || (acao === 'consultar' ? 'Consulta concluída.' : 'Solicitação enviada.'))
+      await carregar()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Falha na operação fiscal.') }
+    finally { setConsultando(null); setEmitindo(null) }
+  }
+
+  function baixarMeli(vendaId: string, tipo: 'xml' | 'danfe') {
+    const url = '/api/admin/fiscal/mercado-livre/documento?' +
+      new URLSearchParams({ vendaId, tipo }).toString()
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   async function salvarProduto() {
     if (!editandoProduto) return
     setSaving(true)
@@ -170,8 +205,8 @@ export function FiscalView() {
 
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
         <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 size-5 shrink-0" />
-          <div><p className="font-semibold">Emissão fiscal ainda não habilitada</p>
-            <p className="mt-1 text-sm">O ERP cria automaticamente um rascunho de NF-e por venda online concluída do site e dos marketplaces, além de permitir preparar pedidos online antigos manualmente. Vendas presenciais exigem o fluxo próprio de NFC-e (65). Para transmitir NF-e, cancelar uma nota autorizada ou baixar XML/DANFE oficial, falta conectar um emissor homologado à SEFAZ. Nenhum rascunho é uma nota fiscal válida.</p>
+          <div><p className="font-semibold">Integração de NF-e do Mercado Livre</p>
+            <p className="mt-1 text-sm">O Faturador Mercado Livre pode ser consultado por pedido nesta tela e permite baixar XML/DANFE de notas autorizadas. {data?.emissaoMercadoLivreHabilitada ? 'A emissão manual está habilitada e exige confirmação para cada venda.' : 'A emissão real está bloqueada até a validação das permissões fiscais e a liberação na Vercel.'} Site e Amazon continuam aguardando um emissor próprio. Nenhum rascunho equivale a uma nota válida.</p>
           </div>
         </div>
       </div>
@@ -211,19 +246,46 @@ export function FiscalView() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-medium text-sm">{v.cliente?.nome || v.marketplaceBuyerName || 'Consumidor não identificado'}</p>
                       <Badge variant="secondary" className="text-[10px]">{v.canal.replaceAll('_', ' ')}</Badge>
-                      {v.notaFiscal && <Badge variant="outline" className="text-[10px]">NF-e: {v.notaFiscal.status}</Badge>}
+                      {v.notaFiscal && <Badge variant="outline" className="text-[10px]">NF-e: {v.notaFiscal.status}{v.notaFiscal.numero ? ' · nº ' + v.notaFiscal.numero : ''}</Badge>}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{dataCurta(v.createdAt)} · Pedido {v.marketplaceOrderId || v.id.slice(-8)} · {v.status}</p>
                   </div>
                   <p className="font-semibold text-sm">{moeda(v.total)}</p>
-                  <Button size="sm" variant="outline" disabled={!!v.notaFiscal || v.status === 'cancelada' || v.canal === 'loja' || preparando === v.id} onClick={() => preparar(v.id)}>
-                    {preparando === v.id ? <Loader2 className="mr-2 size-4 animate-spin" /> : <FileText className="mr-2 size-4" />}
-                    {v.canal === 'loja' ? 'NFC-e: em breve' : v.notaFiscal ? 'Rascunho registrado' : 'Preparar NF-e'}
-                  </Button>
+                  {v.canal === 'mercadolivre' || v.canal === 'mercado_livre' ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button size="sm" variant="outline" disabled={consultando === v.id || emitindo === v.id}
+                        onClick={() => void operacaoMeli(v, 'consultar')}>
+                        {consultando === v.id ? <Loader2 className="mr-1 size-4 animate-spin"/> : <Search className="mr-1 size-4"/>}
+                        Consultar NF-e
+                      </Button>
+                      {v.notaFiscal?.status === 'autorizada' && v.notaFiscal?.chaveAcesso ? (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => baixarMeli(v.id, 'xml')}><Download className="mr-1 size-4"/>XML</Button>
+                          <Button size="sm" variant="outline" onClick={() => baixarMeli(v.id, 'danfe')}><Download className="mr-1 size-4"/>DANFE</Button>
+                        </>
+                      ) : (
+                        <Button size="sm" disabled={
+                          !data?.emissaoMercadoLivreHabilitada || v.status !== 'concluida' ||
+                          (v.notaFiscal?.status !== undefined && v.notaFiscal.status !== 'rascunho') ||
+                          emitindo === v.id || consultando === v.id
+                        } onClick={() => void operacaoMeli(v,'emitir')}>
+                          {emitindo === v.id ? <Loader2 className="mr-1 size-4 animate-spin"/> : <FileText className="mr-1 size-4"/>}
+                          Emitir NF-e
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled={!!v.notaFiscal || v.status === 'cancelada' || v.canal === 'loja' || preparando === v.id}
+                      onClick={() => void preparar(v.id)}>
+                      {preparando === v.id ? <Loader2 className="mr-2 size-4 animate-spin"/> : <FileText className="mr-2 size-4"/>}
+                      {v.canal === 'loja' ? 'NFC-e: em breve' : v.notaFiscal ? 'Rascunho registrado' : 'Preparar NF-e'}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
+          <div className="text-xs text-muted-foreground"><a href="https://developers.mercadolivre.com.br/pt_br/convivencia-me1-me2/obtendo-nota-fiscal" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline"><ExternalLink className="size-3"/>Documentação oficial das notas Mercado Livre</a></div>
           {!!data?.notas.length && <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Histórico: {data.notas.length} registro(s). Se a nota já foi emitida pelo Mercado Pago, concilie-a antes de qualquer transmissão pelo ERP. XML e DANFE oficiais somente após autorização fiscal.</div>}
         </CardContent></Card>
       )}
