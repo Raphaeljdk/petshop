@@ -55,6 +55,8 @@ type FiscalPreflight = {
   prontoParaSolicitar:boolean;habilitadoParaEmissao:boolean;
   checks:Array<{id:string;ok:boolean;texto:string}>;aviso:string;
 }
+type AmazonFiscalStatus = { apiConfigurada: boolean; aviso: string; emissaoNfeDisponivel: boolean }
+type EmissorStatus = { provedor: string; credenciais: { producao: boolean; homologacao: boolean }; aviso: string }
 type NotaAmazonFba = {
   id:string;numeroExterno:string|null;serie:string|null;
   status:string;data:string|null;pedido:string|null;tipo:string|null;
@@ -81,6 +83,8 @@ export function FiscalView() {
   const [inspecionando,setInspecionando] = useState<string|null>(null)
   const [preflights,setPreflights] = useState<Record<string,FiscalPreflight>>({})
   const [notasFba,setNotasFba] = useState<NotaAmazonFba[]|null>(null)
+  const [amazonStatus,setAmazonStatus] = useState<AmazonFiscalStatus|null>(null)
+  const [emissorStatus,setEmissorStatus] = useState<EmissorStatus|null>(null)
   const [consultandoFba,setConsultandoFba] = useState(false)
   const [testandoProvedor,setTestandoProvedor] = useState(false)
   const [buscaVenda, setBuscaVenda] = useState('')
@@ -109,6 +113,15 @@ export function FiscalView() {
   }, [])
 
   useEffect(() => { void carregar() }, [carregar])
+  useEffect(()=>{
+    let mounted=true
+    Promise.all([
+      fetch('/api/admin/fiscal/amazon/status',{cache:'no-store',credentials:'same-origin'}).then(jsonRes),
+      fetch('/api/admin/fiscal/provedor',{cache:'no-store',credentials:'same-origin'}).then(jsonRes),
+    ]).then(([a,p])=>{if(mounted){setAmazonStatus(a);setEmissorStatus(p)}})
+      .catch(()=>{if(mounted)toast.error('Não foi possível verificar as integrações fiscais.')})
+    return ()=>{mounted=false}
+  },[])
   useEffect(() => { if (aba === 'produtos') void carregarProdutos(pagina, buscaProduto) }, [aba, pagina, carregarProdutos, buscaProduto])
 
   const vendas = useMemo(() => {
@@ -252,17 +265,26 @@ export function FiscalView() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
           <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
-            <p className="mt-1 text-sm">O botão Emitir nota inicia um teste seguro de pendências, sem transmissão fiscal. O Mercado Livre possui integração de consulta e emissão condicionada a permissões. Site, Amazon e Hub precisam de emissor fiscal universal com API, certificado A1 e homologação. Varejo presencial pode exigir NFC-e e serviços exigem NFS-e. Nenhum rascunho equivale a uma nota válida.</p>
+            <p className="mt-1 text-sm">O botão Validar para emitir apresenta pendências sem transmitir nada à SEFAZ. O Mercado Livre possui integração de consulta e emissão condicionada a permissões. Site, Amazon e Hub precisam de emissor fiscal universal com API, certificado A1 e homologação. Varejo presencial pode exigir NFC-e e serviços exigem NFS-e. Nenhum rascunho equivale a uma nota válida.</p>
           </div>
         </div>
       </div>
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div><p className="text-sm font-semibold">Emissor universal · Nuvem Fiscal</p>
-          <p className="text-xs text-muted-foreground">Autenticação de testes: nenhuma nota será transmitida. A contratação, os dados da empresa e o certificado precisam ser configurados.</p>
+        <div><p className="text-sm font-semibold">Emissor universal · Focus NFe (alternativa atual)</p>
+          <p className="text-xs text-muted-foreground">A Nuvem Fiscal foi desativada. {emissorStatus?.credenciais.producao?'Token Focus NFe configurado para consulta.':'Token Focus NFe ainda não configurado na Vercel.'} O cadastro do certificado e a homologação da emissão ainda serão necessários.</p>
         </div>
         <Button variant="outline" size="sm" disabled={testandoProvedor} onClick={()=>void testarProvedor()}>
           {testandoProvedor?<Loader2 className="mr-2 size-4 animate-spin"/>:<ShieldAlert className="mr-2 size-4"/>}
-          Testar conexão fiscal
+          Testar Focus NFe
+        </Button>
+      </CardContent></Card>
+      <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div><p className="text-sm font-semibold">Amazon SP-API · {amazonStatus?.apiConfigurada?'Conexão configurada':'Configuração pendente'}</p>
+          <p className="text-xs text-muted-foreground">{amazonStatus?.aviso||'Verificando as credenciais Amazon...'}</p>
+        </div>
+        <Button size="sm" variant="outline" disabled={consultandoFba||!amazonStatus?.apiConfigurada}
+          onClick={()=>{setAba('notas');void carregarFba()}}>
+          {consultandoFba?<Loader2 className="mr-2 size-4 animate-spin"/>:<Search className="mr-2 size-4"/>}Testar notas Amazon FBA
         </Button>
       </CardContent></Card>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -324,7 +346,7 @@ export function FiscalView() {
                     <Button size="sm" onClick={()=>void testarEmissao(v.id)} disabled={testando===v.id || emitindo===v.id}
                       title="Primeiro valida sem transmitir à SEFAZ">
                       {testando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<FileText className="mr-1 size-4"/>}
-                      Emitir nota
+                      Validar para emitir
                     </Button>
                     {(v.canal==='mercadolivre'||v.canal==='mercado_livre')&&(<>
                       <Button size="sm" variant="outline" disabled={consultando===v.id} onClick={()=>void operacaoMeli(v,'consultar')}>
@@ -389,6 +411,12 @@ export function FiscalView() {
             {campo('uf', 'UF', 'SP')}
             {campo('cep', 'CEP', '00000-000')}
             {campo('codigoMunicipio', 'Código IBGE do município')}
+            {!config.codigoMunicipio&&config.cidade?.trim().toLowerCase()==='são paulo'&&config.uf?.trim().toUpperCase()==='SP'&&(
+              <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
+                <span>Código IBGE sugerido para São Paulo/SP: <strong>3550308</strong>. Confira os dados do emitente.</span>
+                <Button type="button" size="sm" variant="outline" onClick={()=>alterar('codigoMunicipio','3550308')}>Preencher município</Button>
+              </div>
+            )}
             {campo('serieNfe', 'Série de NF-e', '1')}
             <div className="space-y-1.5"><Label htmlFor="ambiente-fiscal">Ambiente</Label>
               <select id="ambiente-fiscal" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={config.ambiente} onChange={(e) => alterar('ambiente', e.target.value)}>
