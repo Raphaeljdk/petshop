@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { amazonAccessToken, amazonSpApiConfig, AmazonSpApiError } from '@/lib/amazon-sp-api'
+import { amazonAccessToken, amazonSpApiConfig, amazonSpApiConfigState, AmazonSpApiError } from '@/lib/amazon-sp-api'
 
 export const runtime='nodejs'
 export const dynamic='force-dynamic'
@@ -12,6 +12,10 @@ export async function GET(){
   if(!user)return NextResponse.json({error:'Não autenticado.'},{status:401})
   if(user.role!=='ADMIN')return NextResponse.json({error:'Acesso restrito.'},{status:403})
   try{
+    const state=amazonSpApiConfigState()
+    if(!state.configured)return NextResponse.json({
+      error:'Amazon SP-API não está corretamente configurada: '+state.missing.join(', ')
+    },{status:409})
     const config=amazonSpApiConfig()
     const token=await amazonAccessToken()
     const url=new URL('/tax/invoices/2024-06-19/invoices',config.endpoint)
@@ -23,7 +27,7 @@ export async function GET(){
       cache:'no-store',signal:AbortSignal.timeout(15000)
     })
     if(response.status===403)return NextResponse.json({
-      error:'A aplicação Amazon não tem a função de Invoices/Faturamento. Habilite o acesso na Seller Central e reautorize o aplicativo.',
+      error:'A conta Amazon está conectada, mas a aplicação não possui permissão restrita Tax Invoicing (FBA Invoices) ou acesso autorizado a notas. Configure a função no Developer Central e reautorize o aplicativo. A API não emite notas de pedidos FBM.',
     },{status:403})
     if(!response.ok)return NextResponse.json({
       error:'Consulta de notas FBA recusada pela Amazon (HTTP '+response.status+').',
