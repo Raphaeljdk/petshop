@@ -288,9 +288,24 @@ export function FiscalView() {
       {aba === 'notas' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="font-semibold">Vendas de todos os canais</h2><p className="text-xs text-muted-foreground">Últimos 150 pedidos. Rascunhos automáticos para vendas online concluídas; vendas presenciais exigem NFC-e.</p></div>
+            <div><h2 className="font-semibold">Pedidos e emissão centralizada</h2><p className="text-xs text-muted-foreground">Use o teste seguro para identificar pendências antes de emitir em qualquer canal.</p></div>
             <Badge variant="outline">NF-e 55</Badge>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 p-3">
+            <div><p className="text-sm font-semibold">Notas existentes Amazon FBA</p>
+              <p className="text-xs text-muted-foreground">Consulta somente leitura de notas FBA. Não cobre todos os pedidos Amazon.</p></div>
+            <Button size="sm" variant="outline" disabled={consultandoFba} onClick={()=>void carregarFba()}>
+              {consultandoFba?<Loader2 className="mr-2 size-4 animate-spin"/>:<Search className="mr-2 size-4"/>}
+              Consultar notas FBA
+            </Button>
+          </div>
+          {notasFba&&<div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border p-3">
+            {notasFba.length===0?<p className="text-xs text-muted-foreground">Nenhuma nota FBA retornada.</p>:
+              notasFba.map(n=><div key={n.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-1.5 text-xs">
+                <span>Pedido: {n.pedido||'—'} · NF-e: {n.numeroExterno||n.id} · Série: {n.serie||'—'}</span>
+                <Badge variant="outline">{n.status}</Badge>
+              </div>)}
+          </div>}
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
             <div className="divide-y rounded-xl border">
@@ -305,35 +320,45 @@ export function FiscalView() {
                     <p className="mt-1 text-xs text-muted-foreground">{dataCurta(v.createdAt)} · Pedido {v.marketplaceOrderId || v.id.slice(-8)} · {v.status}</p>
                   </div>
                   <p className="font-semibold text-sm">{moeda(v.total)}</p>
-                  {v.canal === 'mercadolivre' || v.canal === 'mercado_livre' ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Button size="sm" variant="outline" disabled={consultando === v.id || emitindo === v.id}
-                        onClick={() => void operacaoMeli(v, 'consultar')}>
-                        {consultando === v.id ? <Loader2 className="mr-1 size-4 animate-spin"/> : <Search className="mr-1 size-4"/>}
-                        Consultar NF-e
-                      </Button>
-                      {v.notaFiscal?.status === 'autorizada' && v.notaFiscal?.chaveAcesso ? (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => baixarMeli(v.id, 'xml')}><Download className="mr-1 size-4"/>XML</Button>
-                          <Button size="sm" variant="outline" onClick={() => baixarMeli(v.id, 'danfe')}><Download className="mr-1 size-4"/>DANFE</Button>
-                        </>
-                      ) : (
-                        <Button size="sm" disabled={
-                          !data?.emissaoMercadoLivreHabilitada || v.status !== 'concluida' ||
-                          (v.notaFiscal?.status !== undefined && v.notaFiscal.status !== 'rascunho') ||
-                          emitindo === v.id || consultando === v.id
-                        } onClick={() => void operacaoMeli(v,'emitir')}>
-                          {emitindo === v.id ? <Loader2 className="mr-1 size-4 animate-spin"/> : <FileText className="mr-1 size-4"/>}
-                          Emitir NF-e
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <Button size="sm" variant="outline" disabled={!!v.notaFiscal || v.status === 'cancelada' || v.canal === 'loja' || preparando === v.id}
-                      onClick={() => void preparar(v.id)}>
-                      {preparando === v.id ? <Loader2 className="mr-2 size-4 animate-spin"/> : <FileText className="mr-2 size-4"/>}
-                      {v.canal === 'loja' ? 'NFC-e: em breve' : v.notaFiscal ? 'Rascunho registrado' : 'Preparar NF-e'}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Button size="sm" onClick={()=>void testarEmissao(v.id)} disabled={testando===v.id || emitindo===v.id}
+                      title="Primeiro valida sem transmitir à SEFAZ">
+                      {testando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<FileText className="mr-1 size-4"/>}
+                      Emitir nota
                     </Button>
+                    {(v.canal==='mercadolivre'||v.canal==='mercado_livre')&&(<>
+                      <Button size="sm" variant="outline" disabled={consultando===v.id} onClick={()=>void operacaoMeli(v,'consultar')}>
+                        {consultando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<Search className="mr-1 size-4"/>}Consultar NF-e
+                      </Button>
+                      {v.notaFiscal?.status==='autorizada'&&v.notaFiscal.chaveAcesso&&(<>
+                        <Button size="sm" variant="outline" onClick={()=>baixarMeli(v.id,'xml')}><Download className="mr-1 size-4"/>XML</Button>
+                        <Button size="sm" variant="outline" onClick={()=>baixarMeli(v.id,'danfe')}><Download className="mr-1 size-4"/>DANFE</Button>
+                      </>)}
+                    </>)}
+                  </div>
+                  {inspecionando===v.id&&preflights[v.id]&&(
+                    <div className="w-full rounded-xl border bg-muted/30 p-3 text-sm">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold">Resultado do teste · {preflights[v.id].tipo} (modelo {preflights[v.id].modeloSugerido})</p>
+                        <Badge variant={preflights[v.id].habilitadoParaEmissao?'default':'outline'}>
+                          {preflights[v.id].habilitadoParaEmissao?'Apto a solicitar emissão':'Pendências a resolver'}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">{preflights[v.id].checks.map(c=>
+                        <p key={c.id} className={c.ok?'text-green-700 dark:text-green-400':'text-amber-800 dark:text-amber-300'}>
+                          {c.ok?'✓':'•'} {c.texto}
+                        </p>)}
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">{preflights[v.id].aviso}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {preflights[v.id].provedor==='mercado_livre'&&preflights[v.id].habilitadoParaEmissao&&(
+                          <Button size="sm" disabled={emitindo===v.id} onClick={()=>void operacaoMeli(v,'emitir')}>
+                            Confirmar emissão real no Mercado Livre
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={()=>setInspecionando(null)}>Fechar</Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}
