@@ -156,7 +156,7 @@ export async function consultarPedidoMeli(rawOrderId: string) {
   return order
 }
 export function allowedMeliDocumentPath(path: string | null | undefined, sellerId: string, tipo: 'xml' | 'danfe') {
-  if (!path || !path.startsWith('/users/' + onlySellerId(sellerId) + '/invoices/')) return null
+  if (!/^\d{5,20}$/.test(sellerId) || !path || !path.startsWith('/users/' + sellerId + '/invoices/')) return null
   if (path.includes('..') || path.includes('?') || path.includes('#') || path.includes('//')) return null
   if (tipo === 'xml' && !/^\/users\/\d+\/invoices\/documents\/xml\/[\w/-]+$/.test(path)) return null
   if (tipo === 'danfe' && !/^\/users\/\d+\/invoices\/sites\/MLB\/documents\/danfe\/[\w/-]+$/i.test(path)) return null
