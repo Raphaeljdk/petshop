@@ -19,7 +19,7 @@ export type AgendaCalendarEntry = {
 }
 
 type Vista = 'mes' | 'semana' | 'dia'
-const paleta: Record<Categoria, string> = {
+const paleta: Record<CategoriaAgenda, string> = {
   Cirurgias: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300',
   Clínicos: 'bg-amber-100 text-amber-900 border-amber-300',
   'Day Care': 'bg-lime-100 text-lime-900 border-lime-300',
@@ -52,7 +52,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
   const [truncado,setTruncado]=useState(false)
   const [busca,setBusca]=useState('')
   const [status,setStatus]=useState<'todos' | StatusAgendamento>('todos')
-  const [filtros,setFiltros]=useState<Categoria[]>([])
+  const [filtros,setFiltros]=useState<CategoriaAgenda[]>([])
   const [recarregar,setRecarregar]=useState(0)
 
   const {inicio,fim}=useMemo(()=>{
@@ -116,7 +116,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
   const mudar=(delta:number)=>{
     setReferencia(current=>vista==='mes'?addMonths(current,delta):addDays(current,delta*(vista==='semana'?7:1)))
   }
-  const toggle=(c:Categoria)=>setFiltros(prev=>prev.includes(c)?prev.filter(x=>x!==c):[...prev,c])
+  const toggle=(c:CategoriaAgenda)=>setFiltros(prev=>prev.includes(c)?prev.filter(x=>x!==c):[...prev,c])
 
   function chip(x:AgendaCalendarEntry){
     const cat=categoriaAgendamento(x.servico,x.categoria)
