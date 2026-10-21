@@ -228,7 +228,7 @@ test('prévia XML fiscal exige ADMIN, respeita origem e não altera a venda', as
   expect(regular.status).toBe(201)
   expect((await post(path,{vendaId:'inexistente'},cookieOf(regular))).status).toBe(403)
   const invitation=await invite('preview-admin')
-  const registered=await post('/api/auth/register',adminBody('preview-admin',invitation.code))
+  const registered=await post('/api/auth/register/admin',adminBody('preview-admin',invitation.code))
   expect(registered.status).toBe(201)
   const cookie=cookieOf(registered)
   expect((await post(path,{vendaId:'inexistente'},cookie,'https://example.invalid')).status).toBe(403)
