@@ -13,8 +13,9 @@ jobs:
       - name: Consultar fonte oficial
         run: |
           python3 - <<'PY'
-          import urllib.request,re
-          url='https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w%3D'
+          import urllib.request,re,http.cookiejar
+          urllib.request.install_opener(urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())))
+          url='https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?AspxAutoDetectCookieSupport=1&tipoConteudo=BMPFMBoln3w%3D'
           text=urllib.request.urlopen(url,timeout=30).read().decode('utf-8','replace')
           for line in text.splitlines():
             if any(k in line.lower() for k in ['exibirarquivo','010f','010e','2026.007']): print(line[:3000])
