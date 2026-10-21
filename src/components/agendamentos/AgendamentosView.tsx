@@ -148,7 +148,7 @@ export function AgendamentosView() {
   return <div className="space-y-5 pb-10">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-bold sm:text-2xl">Agenda Matilha Prado</h1><p className="text-sm text-muted-foreground">Agenda própria: reserve, remarque, cancele e acompanhe o histórico de cada pet.</p></div>
-      <div className="flex gap-2"><Button variant="outline" onClick={()=>void carregar()} disabled={loading}><RefreshCw className="mr-1.5 size-4" />Atualizar</Button><Button onClick={novo}><Plus className="mr-1.5 size-4" />Novo agendamento</Button></div>
+      <div className="flex gap-2"><Button variant="outline" onClick={()=>{setCalendarRefresh(n=>n+1);void carregar()}} disabled={loading}><RefreshCw className="mr-1.5 size-4" />Atualizar</Button><Button onClick={novo}><Plus className="mr-1.5 size-4" />Novo agendamento</Button></div>
     </div>
     <div className="grid grid-cols-3 gap-3">
       {[{name:'Hoje',value:todayCount},{name:'Ativos',value:openCount},{name:'Registros',value:total}].map(c=><Card key={c.name}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{c.name}</p><p className="mt-1 text-2xl font-bold">{c.value}</p></CardContent></Card>)}
@@ -196,7 +196,7 @@ export function AgendamentosView() {
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setFormOpen(false)}>Cancelar</Button><Button type="submit" disabled={saving}>{saving?'Salvando...':editId?'Salvar alterações':'Agendar'}</Button></div>
       </form>
     </CardContent></Card>}
-    <AgendaCalendar onEdit={editarDaAgenda} onCreateAt={novoNaData} refreshKey={calendarRefresh}/>
+    <AgendaCalendar onEdit={editarDaAgenda} onCreateAt={novoNaData} refreshKey={calendarRefresh} onChanged={()=>{void carregar()}}/>
     <details className="rounded-2xl border bg-card p-3 sm:p-4">
       <summary className="cursor-pointer rounded-md text-sm font-semibold hover:text-primary">
         Abrir lista de agendamentos e histórico detalhado
@@ -227,3 +227,4 @@ export function AgendamentosView() {
     </details>
   </div>
 }
+

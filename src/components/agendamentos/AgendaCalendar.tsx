@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { loadCalendarPages } from '@/lib/daily-agenda'
+import DailyAppointmentKanban from '@/components/agenda/daily-appointment-kanban'
 import { addDays, addMonths, eachDayOfInterval, endOfDay, endOfMonth, endOfWeek,
   format, isSameDay, isSameMonth, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -39,10 +41,11 @@ const statusLabel: Record<StatusAgendamento,string> = {
   agendado:'Agendado', confirmado:'Em andamento', concluido:'Concluído', cancelado:'Cancelado',
 }
 
-export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
+export function AgendaCalendar({onEdit,onCreateAt,refreshKey,onChanged}:{
   onEdit:(item:AgendaCalendarEntry)=>void
   onCreateAt:(day:Date)=>void
   refreshKey:number
+  onChanged:()=>void
 }) {
   const [referencia,setReferencia]=useState(()=>new Date())
   const [vista,setVista]=useState<Vista>('mes')
@@ -70,15 +73,8 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
       setLoading(true);setErro(null)
       try {
         const params=new URLSearchParams({inicio:de,fim:ate})
-        const res=await fetch('/api/agendamentos?'+params,{
-          credentials:'same-origin',cache:'no-store',signal:abort.signal,
-        })
-        const data=await res.json().catch(()=>({}))
-        if(!res.ok)throw new Error(data.error||'Falha ao consultar o calendário.')
-        if(!abort.signal.aborted){
-          setItems(data.items||[])
-          setTruncado(Boolean(data.truncado))
-        }
+        const data=await loadCalendarPages<AgendaCalendarEntry>('/api/agendamentos?'+params,abort.signal)
+        if(!abort.signal.aborted){setItems(data);setTruncado(false)}
       }catch(e){
         if(!abort.signal.aborted){
           const message=e instanceof Error?e.message:'Falha ao carregar agenda.'
@@ -131,7 +127,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
       <div>
         <h2 className="flex items-center gap-2 text-lg font-bold"><CalendarDays className="size-5 text-primary"/>Calendário de atendimentos</h2>
-        <p className="text-xs text-muted-foreground">Clique em um compromisso para editar; em um dia para criar.</p>
+        <p className="text-xs text-muted-foreground">Clique no dia para abrir o Kanban diário; use + para agendar.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={()=>setReferencia(new Date())}>Hoje</Button>
@@ -214,21 +210,26 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
               })}
             </div>
           </div>
-        </div> : <div className="min-h-64 space-y-2 rounded-xl border p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2">
-            <p className="text-sm font-semibold capitalize">{format(referencia,"EEEE, dd 'de' LLLL",{locale:ptBR})}</p>
-            <Button size="sm" variant="outline" onClick={()=>onCreateAt(referencia)}><Plus className="mr-1 size-4"/>Agendar neste dia</Button>
-          </div>
-          {(porDia.get(format(referencia,'yyyy-MM-dd'))||[]).length===0?
-            <p className="py-12 text-center text-sm text-muted-foreground">Nenhum compromisso neste dia com os filtros selecionados.</p>:
-            (porDia.get(format(referencia,'yyyy-MM-dd'))||[]).map(x=>
-              <button key={x.id} type="button" onClick={()=>onEdit(x)}
-                className={'flex w-full flex-wrap items-center gap-2 rounded-lg border p-3 text-left text-sm hover:brightness-95 '+paleta[categoriaAgendamento(x.servico,x.categoria)]}>
-                <strong>{format(parseISO(x.dataHora),'HH:mm')}</strong>
-                <span className="min-w-0 flex-1">{x.pet.nome} · {x.cliente.nome} · {x.servico}</span>
-                <span className="text-xs">{statusLabel[x.status]}</span>
-              </button>)}
-        </div>}
+        </div> : <DailyAppointmentKanban
+          showCalendar={false} selectedDate={format(referencia,'yyyy-MM-dd')} loading={loading || Boolean(erro)}
+          appointments={visiveis.map(x=>({id:x.id,startsAt:x.dataHora,status:x.status,customerName:x.cliente.nome,petName:x.pet.nome,serviceName:x.servico}))}
+          statusColumns={Object.entries(statusLabel).map(([id,label])=>({id,label}))}
+          allowedStatuses={x=>x.status==='cancelado'?['agendado']:Object.keys(statusLabel)}
+          onOpen={x=>{const item=items.find(i=>i.id===x.id);if(item)onEdit(item)}}
+          onCreate={()=>onCreateAt(referencia)}
+          onStatusChange={async (x,status)=>{
+            const original=items.find(i=>i.id===x.id)
+            if(!original)throw new Error('Atualize a agenda antes de continuar.')
+            const res=await fetch('/api/agendamentos/'+encodeURIComponent(x.id),{
+              method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({status,expectedUpdatedAt:original.updatedAt}),
+            })
+            const data=await res.json().catch(()=>({}))
+            if(!res.ok){setRecarregar(n=>n+1);throw new Error(data.error||'Não foi possível salvar o status.')}
+            setItems(current=>current.map(i=>i.id===x.id?data:i))
+            onChanged()
+          }}
+        />}
         <p className="mt-2 text-xs text-muted-foreground">
           {visiveis.length} agendamento(s) exibidos neste período. {truncado?'Exibição parcial por volume.':''}
         </p>
@@ -236,3 +237,4 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
     </div>
   </section>
 }
+

@@ -10,6 +10,7 @@ export const agendamentoSchema = z.object({
   observacoes: z.string().trim().max(1500).nullish(),
 }).strict()
 export const agendamentoPatchSchema = z.object({
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
   clienteId: z.string().min(1).optional(),
   petId: z.string().min(1).optional(),
   servico: z.string().trim().min(2).max(140).optional(),
@@ -18,3 +19,4 @@ export const agendamentoPatchSchema = z.object({
   observacoes: z.string().trim().max(1500).nullish(),
   status: statusAgenda.optional(),
 }).strict()
+

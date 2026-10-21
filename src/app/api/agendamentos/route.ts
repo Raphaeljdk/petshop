@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { calendarRange, calendarPage } from '@/lib/daily-agenda'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
@@ -22,21 +23,20 @@ export async function GET(req: NextRequest) {
     const fim = req.nextUrl.searchParams.get('fim')
     // Agenda de mês/semana/dia usa o intervalo completo, não uma página arbitrária de 100 eventos.
     if (inicio || fim) {
-      if (!inicio || !fim) return NextResponse.json({ error: 'Informe início e fim da agenda.' }, { status: 400 })
-      const de = new Date(inicio), ate = new Date(fim)
-      if (!Number.isFinite(de.getTime()) || !Number.isFinite(ate.getTime()) ||
-          ate <= de || ate.getTime() - de.getTime() > 47 * 86400_000)
-        return NextResponse.json({ error: 'Intervalo inválido; limite de 47 dias.' }, { status: 400 })
+      let range, page
+      try {range=calendarRange(inicio,fim);page=calendarPage(req.nextUrl.searchParams.get('pagina'))}
+      catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Intervalo inválido.'},{status:400})}
+      const {gte:de,lte:ate}=range
       const where = { dataHora: { gte: de, lte: ate }, ...(status && statusAgenda.safeParse(status).success ? { status } : {}) }
       const [items, total] = await Promise.all([
         db.agendamento.findMany({
-          where, orderBy: [{dataHora:'asc'}, {id:'asc'}], take: 500,
+          where, orderBy: [{dataHora:'asc'}, {id:'asc'}], take: 500, skip: (page-1)*500,
           include: { cliente: { select: { id: true, nome: true, telefone: true } },
             pet: { select: { id: true, nome: true, especie: true } } },
         }),
         db.agendamento.count({ where }),
       ])
-      return NextResponse.json({ items, total, truncado: total > items.length }, { headers: { 'Cache-Control': 'private, no-store' } })
+      return NextResponse.json({ items, total, truncado: total > (page-1)*500 + items.length }, { headers: { 'Cache-Control': 'private, no-store' } })
     }
     const page = Math.min(10000, Math.max(1, Number(req.nextUrl.searchParams.get('pagina')) || 1))
     const limit = 100
@@ -89,3 +89,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro ao criar agendamento.' }, { status: 500 })
   }
 }
+

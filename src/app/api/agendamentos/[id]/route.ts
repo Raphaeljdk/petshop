@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { assertSameOrigin } from '@/lib/auth-http'
+import { assertSameOrigin, AuthError } from '@/lib/auth-http'
 import { agendamentoPatchSchema } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
 type Params = { params: Promise<{ id: string }> }
@@ -22,6 +22,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (Object.keys(changes).length === 0) return NextResponse.json({ error: 'Nenhuma alteração informada.' }, { status: 400 })
     const existing = await db.agendamento.findUnique({ where: { id } })
     if (!existing) return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
+    if (changes.expectedUpdatedAt && new Date(changes.expectedUpdatedAt).getTime() !== existing.updatedAt.getTime()) {
+      return NextResponse.json({ error: 'Agendamento alterado por outro usuário. Atualize a agenda.' }, { status: 409 })
+    }
     if (existing.status === 'cancelado' && changes.status !== 'agendado') {
       return NextResponse.json({ error: 'O agendamento está cancelado. Para reabrir, altere o status para agendado.' }, { status: 409 })
     }
@@ -39,16 +42,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (conflito) return NextResponse.json({ error: 'Já existe atendimento reservado para esse pet nesse horário.' }, { status: 409 })
     }
     const item = await db.$transaction(async tx => {
-      const updated = await tx.agendamento.update({
-        where: { id },
+      const result = await tx.agendamento.updateMany({
+        where: { id, updatedAt: existing.updatedAt },
         data: {
           clienteId, petId, servico: changes.servico || existing.servico,
           categoria: changes.categoria || (changes.servico ? inferirCategoriaAgenda(changes.servico) : existing.categoria),
           dataHora, status,
           observacoes: changes.observacoes !== undefined ? changes.observacoes || null : existing.observacoes,
         },
-        include: { pet: true, cliente: true },
       })
+      if (!result.count) throw new AuthError('Agendamento alterado por outro usuário. Atualize a agenda.', 409)
+      const updated = await tx.agendamento.findUniqueOrThrow({ where: { id }, include: { pet: true, cliente: true } })
       const action = status === 'cancelado' && existing.status !== 'cancelado' ? 'cancelado'
         : changes.dataHora && dataHora.getTime() !== existing.dataHora.getTime() ? 'remarcado' : 'alterado'
       await tx.agendaEvento.create({
@@ -58,6 +62,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     return NextResponse.json(item)
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues[0]?.message }, { status: 400 })
     console.error('agenda PATCH:', error)
     return NextResponse.json({ error: 'Erro ao atualizar agendamento.' }, { status: 500 })
@@ -78,7 +83,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     })
     return NextResponse.json({ success: true, status: 'cancelado' })
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('agenda DELETE:', error)
     return NextResponse.json({ error: 'Erro ao cancelar o agendamento.' }, { status: 500 })
   }
 }
+
