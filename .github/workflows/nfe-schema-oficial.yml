@@ -20,7 +20,7 @@ jobs:
             from urllib.parse import urljoin
             try:
               script=urllib.request.urlopen(urljoin('https://dfe-portal.svrs.rs.gov.br',path),timeout=15).read().decode('utf8')
-              match=re.search('function download_arquivo_estatico',script)
-              if match: print(script[match.start():match.start()+2000])
+              match=re.search('download_arquivo_estatico',script)
+              if match: print(script[max(0,match.start()-100):match.start()+2000])
             except Exception as e: print(path,str(e))
           PY
