@@ -21,7 +21,7 @@ export const configSchema = z.object({
 
 export type FormEmitente = z.input<typeof configSchema>
 
-export function camposEditaveisEmitente(v: FormEmitente): FormEmitente {
+export function camposEditaveisEmitente(v: Omit<FormEmitente, 'regimeTributario'> & {regimeTributario?: string|null}) {
   return {
     razaoSocial: v.razaoSocial ?? null,
     nomeFantasia: v.nomeFantasia ?? null,
