@@ -1,0 +1,21 @@
+name: Schema oficial NF-e
+on:
+  push:
+    branches: [feat/xml-nfe-oficial]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Consultar fonte oficial
+        run: |
+          python3 - <<'PY'
+          import urllib.request,re
+          url='https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w%3D'
+          text=urllib.request.urlopen(url,timeout=30).read().decode('utf-8','replace')
+          for line in text.splitlines():
+            if any(k in line.lower() for k in ['exibirarquivo','010f','010e','2026.007']): print(line[:3000])
+          PY
