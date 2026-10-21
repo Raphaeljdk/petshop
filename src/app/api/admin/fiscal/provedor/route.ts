@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
       if (error instanceof SefazComunicacaoError) {
         return noStore({
           error: error.message, categoria: error.categoria,
+          codigoTecnico: error.codigoTecnico || 'NAO_IDENTIFICADO', versaoTLS: 'TLSv1.2',
           certificadoAberto: true, ambiente: 'homologacao',
           emissaoRealHabilitada: false,
         }, 502)

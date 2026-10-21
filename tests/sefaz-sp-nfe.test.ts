@@ -41,3 +41,20 @@ describe('diagnóstico seguro da conexão com SEFAZ-SP',()=>{
     }
   })
 })
+
+describe('erros TLS detalhados sem revelar materiais do A1',()=>{
+  test('distingue certificado rejeitado, CA, versao e codigo EPROTO',()=>{
+    const casos=[
+      [{code:'ERR_SSL_SSLV3_ALERT_BAD_CERTIFICATE',reason:'sslv3 alert bad certificate'},'certificado-rejeitado'],
+      [{code:'UNABLE_TO_VERIFY_LEAF_SIGNATURE'},'cadeia-confianca'],
+      [{code:'ERR_SSL_WRONG_VERSION_NUMBER',reason:'wrong version number'},'versao-tls'],
+      [{code:'EPROTO',reason:'unsupported protocol'},'versao-tls'],
+      [{code:'EPROTO',reason:'unknown reason'},'certificado-tls'],
+    ] as const
+    for(const [input,categoria] of casos)expect(classificarErroTransporteSefaz(input).categoria).toBe(categoria)
+  })
+  test('mensagem original e senha nunca retornam ao operador',()=>{
+    const result=classificarErroTransporteSefaz({code:'ERR_SSL_SSLV3_ALERT_BAD_CERTIFICATE',message:'A1 senha: segredo'})
+    expect(result.message).not.toContain('segredo')
+  })
+})
