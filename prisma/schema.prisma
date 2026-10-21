@@ -94,6 +94,7 @@ model Agendamento {
   petId     String
   clienteId String
   servico   String
+  categoria String @default("Gerais")
   dataHora  DateTime
   status    String   @default("agendado")
   observacoes String?
