@@ -11,13 +11,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { StatusAgendamento } from '@/lib/types'
+import { AgendaCalendar, type AgendaCalendarEntry } from './AgendaCalendar'
 
-type Entry = {
-  id: string; clienteId: string; petId: string; servico: string; dataHora: string
-  status: StatusAgendamento; observacoes: string | null; updatedAt: string
-  cliente: { id: string; nome: string; telefone: string }
-  pet: { id: string; nome: string; especie: string }
-}
+type Entry = AgendaCalendarEntry
 type Tutor = { id: string; nome: string; pets: Array<{ id: string; nome: string; especie: string }> }
 type Form = { clienteId: string; petId: string; servico: string; dataHora: string; observacoes: string; status: StatusAgendamento }
 const empty: Form = { clienteId: '', petId: '', servico: 'Banho', dataHora: '', observacoes: '', status: 'agendado' }
@@ -52,6 +48,7 @@ export function AgendamentosView() {
   const [form, setForm] = useState<Form>({ ...empty })
   const [historico, setHistorico] = useState<Array<{ id: string; acao: string; createdAt: string; detalhe: string | null }>>([])
   const [verHistoricoId, setVerHistoricoId] = useState<string | null>(null)
+  const [calendarRefresh, setCalendarRefresh] = useState(0)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -79,6 +76,18 @@ export function AgendamentosView() {
     setEditId(null)
     setForm({ ...empty, dataHora: dateInput(new Date(Date.now() + 60*60_000).toISOString()) })
     setFormOpen(true)
+  }
+  function novoNaData(day: Date) {
+    const selected = new Date(day)
+    selected.setHours(9, 0, 0, 0)
+    setEditId(null)
+    setForm({ ...empty, dataHora: dateInput(selected.toISOString()) })
+    setFormOpen(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  function editarDaAgenda(x: Entry) {
+    editar(x)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   function editar(x: Entry) {
     setEditId(x.id)
@@ -114,7 +123,7 @@ export function AgendamentosView() {
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }))
       toast.success(editId ? 'Agendamento atualizado.' : 'Agendamento criado.')
-      setFormOpen(false); setPagina(1); await carregar()
+      setFormOpen(false); setPagina(1); setCalendarRefresh(n=>n+1); await carregar()
     } catch(e) { toast.error(e instanceof Error ? e.message : 'Falha ao salvar agendamento.') }
     finally { setSaving(false) }
   }
@@ -124,6 +133,7 @@ export function AgendamentosView() {
     try {
       await parseResponse(await fetch('/api/agendamentos/' + x.id, { method: 'DELETE', credentials: 'same-origin' }))
       toast.success('Agendamento cancelado; histórico preservado.')
+      setCalendarRefresh(n=>n+1)
       await carregar()
     } catch(e) { toast.error(e instanceof Error ? e.message : 'Erro ao cancelar.') }
     finally { setSaving(false) }
@@ -159,6 +169,12 @@ export function AgendamentosView() {
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setFormOpen(false)}>Cancelar</Button><Button type="submit" disabled={saving}>{saving?'Salvando...':editId?'Salvar alterações':'Agendar'}</Button></div>
       </form>
     </CardContent></Card>}
+    <AgendaCalendar onEdit={editarDaAgenda} onCreateAt={novoNaData} refreshKey={calendarRefresh}/>
+    <details className="rounded-2xl border bg-card p-3 sm:p-4">
+      <summary className="cursor-pointer rounded-md text-sm font-semibold hover:text-primary">
+        Abrir lista de agendamentos e histórico detalhado
+      </summary>
+      <div className="mt-4 space-y-3">
     <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"/><Input className="pl-9" value={buscar} onChange={e=>setBuscar(e.target.value)} placeholder="Buscar pet, tutor, serviço..."/></div>
       <select aria-label="Período" className="h-10 rounded-md border bg-background px-3 text-sm" value={periodo} onChange={e=>setPeriodo(e.target.value)}>
@@ -180,6 +196,7 @@ export function AgendamentosView() {
         </div>
         {verHistoricoId===x.id && <div className="rounded-lg bg-muted p-3 text-xs"><p className="font-semibold">Movimentações do agendamento</p>{historico.length?historico.map(h=><p key={h.id} className="mt-1 text-muted-foreground">{format(parseISO(h.createdAt),'dd/MM/yyyy HH:mm')} · {h.acao}{h.detalhe?' — '+h.detalhe:''}</p>):<p>Sem eventos registrados.</p>}</div>}
       </CardContent></Card>)}</div>}
-    {total>100 && <div className="flex items-center justify-between gap-3"><Button variant="outline" disabled={pagina<=1} onClick={()=>setPagina(n=>n-1)}>Anterior</Button><span className="text-xs text-muted-foreground">Página {pagina} de {Math.ceil(total/100)}</span><Button variant="outline" disabled={pagina*100>=total} onClick={()=>setPagina(n=>n+1)}>Próximo</Button></div>}
+    {total>100 && <div className="flex items-center justify-between gap-3"><Button variant="outline" disabled={pagina<=1} onClick={()=>setPagina(n=>n-1)}>Anterior</Button><span className="text-xs text-muted-foreground">Página {pagina} de {Math.ceil(total/100)}</span><Button variant="outline" disabled={pagina*100>=total} onClick={()=>setPagina(n=>n+1)}>Próximo</Button></div>}      </div>
+    </details>
   </div>
 }
