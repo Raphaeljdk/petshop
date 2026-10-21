@@ -48,9 +48,9 @@ export function avaliarEmissaoFiscal(input:{
       'Documento do destinatário disponível para validação quando exigido.');
     if(!presencial)add('endereco',!!(venda.enderecoEntrega||venda.cliente?.endereco)&&
       !!(venda.cepEntrega||venda.cliente?.cep),'Endereço e CEP de entrega disponíveis.');
-    add('credenciais',input.emissorUniversalConfigurado,'Credenciais do provedor fiscal universal configuradas.');
-    add('homologacao',input.emissorUniversalHomologado,'Provedor universal validado e homologado.');
-    add('transmissao',false,'Emissão central ainda depende de payload fiscal MOC validado e conciliação de documentos existentes.');
+    add('emissor-manual',true,'O Sistema de Gestão Mercado Pago pode emitir manualmente vendas registradas nele, mediante conferência fiscal.');
+    add('integracao-automatica',false,'A API pública de pagamentos Mercado Pago não oferece emissão externa confirmada para esta venda. Sem transmissão automática pelo ERP.');
+    add('transmissao',false,'Abra o Mercado Pago e emita por lá, se a venda estiver disponível; depois registre no ERP a chave da nota já emitida. Não gere uma segunda cobrança.');
   }
   const ready=checks.every(c=>c.ok);
   return {canal:venda.canal,modeloSugerido:presencial?'65':'55',tipo:presencial?'NFC-e':'NF-e',
