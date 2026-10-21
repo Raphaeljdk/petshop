@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
 
 type Config = {
   razaoSocial: string | null
@@ -76,6 +77,7 @@ export function FiscalView() {
   const [config, setConfig] = useState<Config>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [emitenteSalvo, setEmitenteSalvo] = useState(false)
   const [preparando, setPreparando] = useState<string | null>(null)
   const [consultando, setConsultando] = useState<string | null>(null)
   const [emitindo, setEmitindo] = useState<string | null>(null)
@@ -97,7 +99,7 @@ export function FiscalView() {
     try {
       const result = await jsonRes(await fetch('/api/admin/fiscal', { cache: 'no-store' })) as FiscalData
       setData(result)
-      setConfig({ ...EMPTY, ...(result.config || {}) })
+      setConfig(camposEditaveisEmitente({ ...EMPTY, ...(result.config || {}) })) as Config)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao carregar fiscal.')
     } finally { setLoading(false) }
@@ -136,9 +138,10 @@ export function FiscalView() {
     try {
       await jsonRes(await fetch('/api/admin/fiscal', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config), credentials: 'same-origin',
+        body: JSON.stringify(camposEditaveisEmitente(config)), credentials: 'same-origin',
       }))
-      toast.success('Dados do emitente salvos no ERP próprio.')
+      setEmitenteSalvo(true)
+      toast.success('Dados do emitente salvos! A emissão real ainda depende do serviço fiscal.')
       await carregar()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao salvar emitente.') }
     finally { setSaving(false) }
@@ -236,6 +239,7 @@ export function FiscalView() {
   }
 
   const alterar = (key: keyof Config, value: string) => {
+    setEmitenteSalvo(false)
     setConfig((v) => ({ ...v, [key]: key === 'serieNfe' ? Number(value) : value }))
   }
   const campo = (key: keyof Config, titulo: string, placeholder = '') => (
@@ -328,6 +332,11 @@ export function FiscalView() {
                 <Badge variant="outline">{n.status}</Badge>
               </div>)}
           </div>}
+          <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
+            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado e a API de um emissor homologado (ex.: Focus NFe) e faça testes no ambiente de homologação. Somente após isso poderá ser liberada a emissão real do site.</p>
+            <p className="mt-1">O cadastro do CNPJ no ERP e o emissor do Mercado Livre não autorizam automaticamente a emissão das vendas do site ou da Amazon.</p>
+          </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
             <div className="divide-y rounded-xl border">
@@ -424,6 +433,9 @@ export function FiscalView() {
               </select>
             </div>
           </div>
+          {emitenteSalvo && <p role="status" className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+            Cadastro fiscal salvo com sucesso. Isso confirma apenas o registro no ERP, não o credenciamento junto à SEFAZ.
+          </p>}
           <p className="text-xs text-amber-700 dark:text-amber-300"><AlertTriangle className="mr-1 inline size-3" />Salvar estes dados não ativa a emissão em produção. A escolha do ambiente é apenas uma preferência cadastrada.</p>
           <Button onClick={salvarEmitente} disabled={saving}>{saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar dados fiscais</Button>
         </CardContent></Card>
