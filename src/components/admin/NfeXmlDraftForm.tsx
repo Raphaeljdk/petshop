@@ -34,6 +34,9 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
   const [nome,setNome]=useState('')
   const [documento,setDocumento]=useState('')
   const [endereco,setEndereco]=useState<Endereco>(vazio)
+  const [indicadorIE,setIndicadorIE]=useState('')
+  const [inscricaoEstadual,setInscricaoEstadual]=useState('')
+  const [consumidorFinal,setConsumidorFinal]=useState('1')
   const [pagamento,setPagamento]=useState('17')
   const [frete,setFrete]=useState('9')
   const [itens,setItens]=useState<FiscalItem[]>([])
@@ -59,7 +62,8 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
         method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           vendaId,numero:Number(numero),codigoNumerico:codigo,naturezaOperacao:natureza,
-          destinatario:{nome,documento:documento.replace(/\D/g,''),endereco:{
+          consumidorFinal,
+          destinatario:{nome,documento:documento.replace(/\D/g,''),indicadorIE,inscricaoEstadual,endereco:{
             ...endereco,codigoMunicipio:endereco.codigoMunicipio.replace(/\D/g,''),
             cep:endereco.cep.replace(/\D/g,''),
           }},pagamento,modalidadeFrete:frete,
@@ -121,7 +125,19 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
                   maxLength={k==='cep'?8:k==='codigoMunicipio'?7:k==='uf'?2:60}/></div>)}
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1"><Label>Inscrição estadual do destinatário</Label>
+            <select required className="h-10 w-full rounded-md border bg-background px-3" value={indicadorIE} onChange={e=>setIndicadorIE(e.target.value)}>
+              <option value="">Selecionar situação ICMS</option>
+              <option value="9">9 — Não contribuinte</option>
+              <option value="2">2 — Isento</option>
+              <option value="1">1 — Contribuinte ICMS</option>
+            </select></div>
+          {indicadorIE==='1'&&<div className="space-y-1"><Label>Inscrição estadual (IE)</Label><Input required value={inscricaoEstadual} onChange={e=>setInscricaoEstadual(e.target.value.replace(/\D/g,''))}/></div>}
+          <div className="space-y-1"><Label>Consumidor final</Label>
+            <select className="h-10 w-full rounded-md border bg-background px-3" value={consumidorFinal} onChange={e=>setConsumidorFinal(e.target.value)}>
+              <option value="1">Sim — consumidor final</option><option value="0">Não — revenda ou outra destinação</option>
+            </select></div>
           <div className="space-y-1"><Label>Pagamento registrado (conferir)</Label>
             <select className="h-10 w-full rounded-md border bg-background px-3" value={pagamento} onChange={e=>setPagamento(e.target.value)}>
               <option value="17">17 — Pix</option><option value="01">01 — Dinheiro</option><option value="18">18 — Transferência bancária</option>
