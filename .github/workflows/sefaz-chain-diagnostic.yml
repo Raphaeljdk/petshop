@@ -16,7 +16,7 @@ jobs:
         run: |
           timeout 20 openssl s_client -connect homologacao.nfe.fazenda.sp.gov.br:443 -servername homologacao.nfe.fazenda.sp.gov.br -showcerts -tls1_2 </dev/null > /tmp/sefaz-chain.txt 2>&1 || true
           sed -n '/Certificate chain/,/Server certificate/p' /tmp/sefaz-chain.txt
-          curl --fail --silent --show-error --max-time 20 https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv10.crt -o /tmp/root.crt
+          curl --fail --silent --show-error --max-time 20 http://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv10.crt -o /tmp/root.crt
           openssl x509 -inform DER -in /tmp/root.crt -out /tmp/root.pem || openssl x509 -in /tmp/root.crt -out /tmp/root.pem
           openssl x509 -in /tmp/root.pem -noout -subject -issuer -dates -fingerprint -sha256
           test "$(openssl x509 -in /tmp/root.pem -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')" = "6C155ED7271A904A0DC040F0C857FF53BF6DB290"
