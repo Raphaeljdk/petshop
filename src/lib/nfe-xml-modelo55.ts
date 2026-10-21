@@ -141,7 +141,7 @@ export function gerarRascunhoNfe55(
       && /^[0-8]$/.test(p.origem || '') && /^(102|103|300|400)$/.test(p.csosn || '')
       && !!p.unidadeFiscal?.trim(), 'Item ' + (index + 1) + ': classificação NCM, CFOP, origem, unidade e CSOSN inválida ou incompleta.')
     necessario(numerico(p.cfop).startsWith('5'), 'Item ' + (index+1) + ': CFOP para operação interna em SP precisa começar com 5; confira com o contador.')
-    necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\\d{8}|\\d{12}|\\d{13}|\\d{14})$/.test(fiscal.gtin),
+    necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(fiscal.gtin),
       'Item ' + (index+1) + ': confirme o GTIN/EAN ou informe SEM GTIN quando aplicável.')
     necessario(['04','05','06','07','08','09'].includes(fiscal.pisCst)
       && ['04','05','06','07','08','09'].includes(fiscal.cofinsCst),
