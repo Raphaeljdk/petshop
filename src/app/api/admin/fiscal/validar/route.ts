@@ -30,7 +30,7 @@ export async function POST(req:NextRequest){
     if(!venda)return NextResponse.json({error:'Pedido não encontrado.'},{status:404})
     return NextResponse.json(avaliarEmissaoFiscal({venda,empresa,
       meliHabilitado:process.env.MERCADO_LIVRE_NFE_EMISSAO_HABILITADA==='true',
-      emissorUniversalConfigurado:!!(process.env.NUVEM_FISCAL_CLIENT_ID&&process.env.NUVEM_FISCAL_CLIENT_SECRET),
+      emissorUniversalConfigurado:!!(process.env.FOCUS_NFE_TOKEN_PRODUCAO || process.env.FOCUS_NFE_TOKEN_HOMOLOGACAO),
       emissorUniversalHomologado:false,
     }),{headers:{'Cache-Control':'no-store'}})
   }catch(error){
