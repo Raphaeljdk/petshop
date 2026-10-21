@@ -103,6 +103,7 @@ export function FiscalView() {
   const [confirmadoFiscal,setConfirmadoFiscal] = useState(false)
   const [salvandoChave,setSalvandoChave] = useState(false)
   const [copiandoResumo,setCopiandoResumo] = useState<string|null>(null)
+  const [gerandoPrevia,setGerandoPrevia] = useState<string|null>(null)
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -242,6 +243,31 @@ export function FiscalView() {
       else toast.error(result.aviso||result.motivo||'SEFAZ não confirmou disponibilidade do serviço.')
     }catch(e){toast.error(e instanceof Error?e.message:'Erro no teste da conexão fiscal.')}
     finally{setTestandoProvedor(false)}
+  }
+
+  async function baixarPreviaXml(vendaId:string){
+    setGerandoPrevia(vendaId)
+    try{
+      const response=await fetch('/api/admin/fiscal/previa-xml',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({vendaId}),
+      })
+      if(!response.ok){
+        const body=await response.json().catch(()=>({}))
+        throw new Error(body.error||'Não foi possível gerar a prévia XML.')
+      }
+      if(!response.headers.get('content-type')?.includes('application/xml')) throw new Error('Resposta inválida ao gerar prévia. Atualize a página e tente novamente.')
+      const url=URL.createObjectURL(await response.blob())
+      const link=document.createElement('a')
+      link.href=url
+      link.download='PREVIA-SEM-VALIDADE-FISCAL-'+vendaId.replace(/[^a-zA-Z0-9_-]/g,'')+'.xml'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(()=>URL.revokeObjectURL(url),1000)
+      toast.success('Prévia XML gerada para conferência. Consulte as pendências no arquivo; não tem validade fiscal.')
+    }catch(e){toast.error(e instanceof Error?e.message:'Falha ao gerar prévia XML.')}
+    finally{setGerandoPrevia(null)}
   }
 
   async function copiarResumoFiscal(vendaId:string){
@@ -407,7 +433,7 @@ export function FiscalView() {
           <div className="rounded-lg border p-3 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
             <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. O ERP só poderá transmitir NF-e quando implementarmos o XML oficial completo, assinatura digital, consulta e aprovação da contabilidade.</p>
-            <p className="mt-1">A emissão direta pela SEFAZ ainda está bloqueada: não clique em emitir outra nota para pedidos que já tiveram NF-e no Mercado Livre, Amazon ou Mercado Pago. O teste do A1/serviço não habilita emissão em produção.</p>
+            <p className="mt-1">O botão Gerar XML de prévia baixa um documento interno com os dados reais e as pendências. Não segue ainda o XSD oficial, não calcula impostos e não é assinado ou transmitido. A emissão direta pela SEFAZ ainda está bloqueada: não clique em emitir outra nota para pedidos que já tiveram NF-e no Mercado Livre, Amazon ou Mercado Pago. O teste do A1/serviço não habilita emissão em produção.</p>
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
@@ -429,6 +455,14 @@ export function FiscalView() {
                       {testando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<FileText className="mr-1 size-4"/>}
                       Validar para emitir
                     </Button>
+                    {v.status==='concluida'&&['site','amazon','mercadolivre','mercado_livre'].includes(v.canal)&&(
+                      <Button size="sm" variant="outline" disabled={gerandoPrevia!==null}
+                        onClick={()=>void baixarPreviaXml(v.id)}
+                        title="Baixar XML de conferência interna com pendências; sem assinatura ou validade fiscal">
+                        {gerandoPrevia===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<Download className="mr-1 size-4"/>}
+                        Gerar XML de prévia
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" disabled={copiandoResumo===v.id}
                       onClick={()=>void copiarResumoFiscal(v.id)}>
                       {copiandoResumo===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<ClipboardList className="mr-1 size-4"/>}

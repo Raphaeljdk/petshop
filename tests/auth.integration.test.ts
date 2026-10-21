@@ -220,3 +220,38 @@ test('limita repetição de tentativas de login e informa quando tentar novament
   expect(limited.status).toBe(429)
   expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0)
 }, 20_000)
+
+test('prévia XML fiscal exige ADMIN, respeita origem e não altera a venda', async () => {
+  const path='/api/admin/fiscal/previa-xml'
+  expect((await post(path,{vendaId:'inexistente'})).status).toBe(401)
+  const regular=await post('/api/auth/register',client('preview-client'))
+  expect(regular.status).toBe(201)
+  expect((await post(path,{vendaId:'inexistente'},cookieOf(regular))).status).toBe(403)
+  const invitation=await invite('preview-admin')
+  const registered=await post('/api/auth/register/admin',adminBody('preview-admin',invitation.code))
+  expect(registered.status).toBe(201)
+  const cookie=cookieOf(registered)
+  expect((await post(path,{vendaId:'inexistente'},cookie,'https://example.invalid')).status).toBe(403)
+  expect((await post(path,{vendaId:'inexistente'},cookie)).status).toBe(404)
+  expect((await post(path,{vendaId:'x',transmitir:true},cookie)).status).toBe(400)
+  const product=await db.produto.create({data:{nome:'Produto de teste XML & <x>',categoria:'teste',preco:10,estoque:1}})
+  let saleId:string|undefined
+  try{
+    const sale=await db.venda.create({data:{canal:'site',status:'concluida',total:10,itens:{create:{produtoId:product.id,quantidade:1,precoUnit:10}}}})
+    saleId=sale.id
+    const response=await post(path,{vendaId:sale.id},cookie)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('application/xml')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('content-disposition')).toContain('PREVIA-SEM-VALIDADE-FISCAL')
+    expect(await response.text()).toContain('Produto de teste XML &amp; &lt;x&gt;')
+    expect(await db.notaFiscal.count({where:{vendaId:sale.id}})).toBe(0)
+    expect((await db.venda.findUnique({where:{id:sale.id}}))?.updatedAt.getTime()).toBe(sale.updatedAt.getTime())
+  }finally{
+    if(saleId){
+      await db.itemVenda.deleteMany({where:{vendaId:saleId}})
+      await db.venda.delete({where:{id:saleId}})
+    }
+    await db.produto.delete({where:{id:product.id}})
+  }
+})
