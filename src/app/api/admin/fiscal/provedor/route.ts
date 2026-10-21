@@ -2,76 +2,84 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { db } from '@/lib/db'
+import { SEFAZ_SP, lerA1DeVariaveis, consultarStatusHomologacaoSefazSp } from '@/lib/sefaz-sp-nfe'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 30
 
-// Nuvem Fiscal encerrou em 31/07/2026. Substituída por diagnóstico somente leitura
-// do provedor Focus NFe; nenhum endpoint de emissão é chamado nesta rota.
-function credentials(){
-  return {
-    producao: Boolean(process.env.FOCUS_NFE_TOKEN_PRODUCAO?.trim()),
-    homologacao: Boolean(process.env.FOCUS_NFE_TOKEN_HOMOLOGACAO?.trim()),
-  }
-}
-async function authorize(){
-  const u = await getUsuarioLogado()
-  if(!u)return NextResponse.json({error:'Não autenticado.'},{status:401})
-  if(u.role!=='ADMIN')return NextResponse.json({error:'Acesso restrito.'},{status:403})
+async function authorize() {
+  const user = await getUsuarioLogado()
+  if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Acesso restrito ao administrador.' }, { status: 403 })
   return null
 }
-export async function GET(){
-  const denied=await authorize(); if(denied)return denied
-  return NextResponse.json({
-    provedor:'Focus NFe',
-    credenciais:credentials(),
-    emissaoRealHabilitada:false,
-    aviso:'Focus NFe: API para NF-e, NFC-e e NFS-e. Teste de integração em modo leitura, sem emissão. É necessário credenciar CNPJ, certificado, tributação e homologação.',
-  },{headers:{'Cache-Control':'no-store'}})
+function noStore(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
 }
-export async function POST(req:NextRequest){
-  const denied=await authorize(); if(denied)return denied
-  try{
+async function company() {
+  return db.configuracaoFiscal.findUnique({
+    where: { id: 'matilha-prado' },
+    select: { cnpj: true, uf: true, codigoMunicipio: true, serieNfe: true, ambiente: true },
+  })
+}
+
+/** Diagnóstico seguro: mostra requisitos, não expõe arquivo PFX nem senha. */
+export async function GET() {
+  const denied = await authorize(); if (denied) return denied
+  const emitente = await company()
+  return noStore({
+    provedor: 'SEFAZ-SP (direto)',
+    uf: 'SP',
+    ambienteDeTeste: 'homologacao',
+    certificadoConfigurado: !!(process.env.SEFAZ_NFE_A1_PFX_BASE64?.trim() && process.env.SEFAZ_NFE_A1_SENHA),
+    emitenteSp: emitente?.uf?.toUpperCase() === 'SP',
+    municipioConfigurado: !!emitente?.codigoMunicipio,
+    enderecoServico: SEFAZ_SP.homologacao.status,
+    emissaoRealHabilitada: false,
+    aviso: 'Emissor próprio em implantação. Somente o teste de comunicação com a SEFAZ-SP em HOMOLOGAÇÃO está disponível. Nenhum XML de nota é enviado.',
+  })
+}
+
+/**
+ * Testa certificado e SOAP NFeStatusServico4 da SEFAZ-SP em tpAmb=2.
+ * Nunca utiliza as credenciais em produção, mesmo que o emitente tenha ambiente=producao.
+ */
+export async function POST(req: NextRequest) {
+  const denied = await authorize(); if (denied) return denied
+  try {
     assertSameOrigin(req)
-    const token=process.env.FOCUS_NFE_TOKEN_PRODUCAO?.trim()
-    if(!token)return NextResponse.json({ok:false,
-      error:'Cadastre FOCUS_NFE_TOKEN_PRODUCAO na Vercel para testar a consulta somente leitura das empresas. Não é possível testar usando as credenciais do Mercado Pago ou da Amazon.'},{status:409})
-    const emitente=await db.configuracaoFiscal.findUnique({
-      where:{id:'matilha-prado'},select:{cnpj:true}
+    const emitente = await company()
+    if (!emitente?.cnpj || !/^\d{14}$/.test(emitente.cnpj.replace(/\D/g, '')) ||
+      emitente.uf?.toUpperCase() !== 'SP') {
+      return noStore({error: 'Cadastre o CNPJ do emitente e UF SP em Dados do emitente.'}, 409)
+    }
+    const credentials = lerA1DeVariaveis({
+      SEFAZ_NFE_A1_PFX_BASE64: process.env.SEFAZ_NFE_A1_PFX_BASE64,
+      SEFAZ_NFE_A1_SENHA: process.env.SEFAZ_NFE_A1_SENHA,
     })
-    const cnpj=emitente?.cnpj?.replace(/\D/g,'')||''
-    if(!/^\d{14}$/.test(cnpj))return NextResponse.json({
-      error:'Cadastre um CNPJ válido em Dados do emitente antes de testar o provedor.'},{status:409})
-    // GET sem efeito fiscal, com URL e escopo de rede fixos, sem revelar token nem dados externos.
-    const url=new URL('https://api.focusnfe.com.br/v2/empresas')
-    url.searchParams.set('cnpj',cnpj)
-    const response=await fetch(url,{
-      headers:{'Authorization':'Basic '+Buffer.from(token+':').toString('base64'),
-        'Accept':'application/json'},
-      cache:'no-store',signal:AbortSignal.timeout(15000),
-    })
-    if(response.status===401||response.status===403)return NextResponse.json({
-      ok:false,error:'Focus NFe recusou o token para consultar empresas. Confira a credencial da conta (HTTP '+response.status+').'},{status:409})
-    if(!response.ok)return NextResponse.json({
-      ok:false,error:'Consulta de empresas Focus NFe indisponível (HTTP '+response.status+'). Nenhuma nota foi emitida.'},{status:502})
-    const entries=await response.json() as Array<{
-      cnpj?:string; habilita_nfe?:boolean; habilita_nfce?:boolean; habilita_nfse?:boolean;
-    }>
-    if(!Array.isArray(entries))return NextResponse.json({
-      error:'Retorno inesperado do provedor fiscal.'},{status:502})
-    const match=entries.find(e=>e.cnpj?.replace(/\D/g,'')===cnpj)
-    return NextResponse.json({
-      ok:Boolean(match),emitenteEncontrado:Boolean(match),
-      nfeHabilitada:Boolean(match?.habilita_nfe),
-      nfceHabilitada:Boolean(match?.habilita_nfce),
-      nfseHabilitada:Boolean(match?.habilita_nfse),
-      emissaoRealHabilitada:false,
-      aviso:match
-        ? 'CNPJ localizado no Focus NFe. Consulta autenticada; nenhuma nota foi emitida. Ainda faltam testes de homologação e habilitação da emissão.'
-        : 'Token aceito, mas o CNPJ da Matilha Prado ainda não foi encontrado entre as empresas do provedor.',
-    },{headers:{'Cache-Control':'no-store'}})
-  }catch(e){
-    console.error('Focus NFe read-only check:',e)
-    return NextResponse.json({error:'Falha ao validar a conexão somente leitura do emissor.'},{status:503})
+    try {
+      const resultado = await consultarStatusHomologacaoSefazSp(credentials)
+      return noStore({
+        ok: resultado.disponivel,
+        certificadoAberto: true,
+        ambiente: 'homologacao',
+        codigo: resultado.codigo,
+        motivo: resultado.motivo,
+        emissaoRealHabilitada: false,
+        aviso: resultado.disponivel
+          ? 'A1 aceito pela comunicação TLS e serviço de HOMOLOGAÇÃO ativo. Nenhuma NF-e emitida. A validade fiscal e o vínculo do CNPJ com o A1 ainda exigem conferência.'
+          : 'A1 aberto, porém a SEFAZ não retornou status operacional 107. Nenhuma nota foi enviada.',
+      })
+    } catch {
+      return noStore({
+        error: 'O A1 foi aberto localmente, mas não foi possível consultar o serviço de homologação da SEFAZ-SP. Confira credenciamento, validade, rede e certificado.',
+      }, 502)
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha de configuração.'
+    if (message.includes('A1') || message.includes('PFX') || message.includes('SEFAZ_NFE_A1'))
+      return noStore({error: message}, 409)
+    return noStore({error: 'Falha de configuração de homologação. Nenhuma nota emitida.'}, 500)
   }
 }

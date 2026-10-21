@@ -57,7 +57,15 @@ type FiscalPreflight = {
   checks:Array<{id:string;ok:boolean;texto:string}>;aviso:string;
 }
 type AmazonFiscalStatus = { apiConfigurada: boolean; aviso: string; emissaoNfeDisponivel: boolean }
-type EmissorStatus = { provedor: string; credenciais: { producao: boolean; homologacao: boolean }; aviso: string }
+type EmissorStatus = {
+  provedor:string
+  certificadoConfigurado:boolean
+  emitenteSp:boolean
+  municipioConfigurado:boolean
+  emissaoRealHabilitada:boolean
+  aviso:string
+  enderecoServico:string
+}
 type NotaAmazonFba = {
   id:string;numeroExterno:string|null;serie:string|null;
   status:string;data:string|null;pedido:string|null;tipo:string|null;
@@ -223,7 +231,8 @@ export function FiscalView() {
     setTestandoProvedor(true)
     try{
       const result=await jsonRes(await fetch('/api/admin/fiscal/provedor',{method:'POST',credentials:'same-origin'}))
-      toast.success(result.aviso||'Conexão fiscal validada sem emissão.')
+      if (result.ok) toast.success(result.aviso||'Serviço SEFAZ em operação, sem emissão.')
+      else toast.error(result.aviso||result.motivo||'SEFAZ não confirmou disponibilidade do serviço.')
     }catch(e){toast.error(e instanceof Error?e.message:'Erro no teste da conexão fiscal.')}
     finally{setTestandoProvedor(false)}
   }
@@ -299,10 +308,28 @@ export function FiscalView() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
           <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
-            <p className="mt-1 text-sm">O botão Validar para emitir apresenta pendências sem transmitir nada à SEFAZ. O Mercado Livre possui integração de consulta e emissão condicionada a permissões. Para site, Amazon e Hub, pode-se emitir manualmente no Sistema de Gestão Mercado Pago quando a venda estiver registrada; a API de pagamentos não autoriza transmissão fiscal externa. O ERP poderá copiar dados e conciliar a NF-e já emitida. Varejo presencial pode exigir NFC-e e serviços exigem NFS-e. Rascunhos não são notas válidas.</p>
+            <p className="mt-1 text-sm">Estamos construindo o emissor próprio de NF-e 55 diretamente com a SEFAZ-SP, inicialmente em homologação. A consulta de status do serviço não é uma emissão nem um credenciamento do CNPJ. Os pedidos do site e Amazon serão atendidos por este emissor quando concluirmos XML, assinatura, homologação e conferência fiscal. O Mercado Livre mantém seu Faturador para evitar notas duplicadas. Serviços e NFC-e exigem módulos específicos.</p>
           </div>
         </div>
       </div>
+      <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-sm font-semibold">SEFAZ-SP · Emissor próprio de NF-e modelo 55</p>
+          <p className="text-xs text-muted-foreground">
+            Certificado A1: {emissorStatus?.certificadoConfigurado?'configurado na Vercel (ainda não validado)':'pendente de configurar no servidor'}.
+            {' '}Emitente SP: {emissorStatus?.emitenteSp?'sim':'verificar'}. Município IBGE: {emissorStatus?.municipioConfigurado?'salvo':'pendente'}.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            O teste acessa apenas NFeStatusServico4 em <strong>homologação</strong>; não transmite nota fiscal nem ativa produção.
+            {' '}As credenciais do A1 devem ser adicionadas somente às variáveis protegidas de servidor.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" disabled={testandoProvedor||!emissorStatus?.emitenteSp}
+          onClick={()=>void testarProvedor()}>
+          {testandoProvedor?<Loader2 className="mr-2 size-4 animate-spin"/>:<ShieldAlert className="mr-2 size-4"/>}
+          Testar SEFAZ-SP (homologação)
+        </Button>
+      </CardContent></Card>
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Emissor Mercado Pago · fluxo manual sem outro provedor</p>
@@ -366,8 +393,8 @@ export function FiscalView() {
           </div>}
           <div className="rounded-lg border p-3 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
-            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Localize no Mercado Pago a venda já registrada e emita por lá, ou use futuramente uma API fiscal externa homologada para emissão automática. Após a emissão manual, registre a chave no ERP.</p>
-            <p className="mt-1">A API de pagamentos do Mercado Pago não comprova acesso ao emissor fiscal. Não gere uma segunda cobrança de um pedido já pago no site ou marketplace. Se a venda externa não aparecer no Mercado Pago, verifique com o suporte como lançá-la sem cobrar novamente.</p>
+            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. O ERP só poderá transmitir NF-e quando implementarmos o XML oficial completo, assinatura digital, consulta e aprovação da contabilidade.</p>
+            <p className="mt-1">A emissão direta pela SEFAZ ainda está bloqueada: não clique em emitir outra nota para pedidos que já tiveram NF-e no Mercado Livre, Amazon ou Mercado Pago. O teste do A1/serviço não habilita emissão em produção.</p>
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (

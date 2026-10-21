@@ -48,13 +48,18 @@ export function avaliarEmissaoFiscal(input:{
       'Documento do destinatário disponível para validação quando exigido.');
     if(!presencial)add('endereco',!!(venda.enderecoEntrega||venda.cliente?.endereco)&&
       !!(venda.cepEntrega||venda.cliente?.cep),'Endereço e CEP de entrega disponíveis.');
-    add('emissor-manual',true,'O Sistema de Gestão Mercado Pago pode emitir manualmente vendas registradas nele, mediante conferência fiscal.');
-    add('integracao-automatica',false,'A API pública de pagamentos Mercado Pago não oferece emissão externa confirmada para esta venda. Sem transmissão automática pelo ERP.');
-    add('transmissao',false,'Abra o Mercado Pago e emita por lá, se a venda estiver disponível; depois registre no ERP a chave da nota já emitida. Não gere uma segunda cobrança.');
+    add('uf-sefaz',empresa?.uf?.trim().toUpperCase()==='SP',
+      'O emissor próprio atual usa exclusivamente web services da SEFAZ-SP para NF-e modelo 55.');
+    add('certificado-a1',input.emissorUniversalConfigurado,
+      'Certificado A1 e senha protegidos configurados no servidor (ainda exigem validação mTLS).');
+    add('homologacao',input.emissorUniversalHomologado,
+      'Geração de XML, assinatura, schema 2026 e transmissão fiscal homologados pela contabilidade.');
+    add('transmissao',false,
+      'Emissão direta SEFAZ ainda NÃO habilitada: é necessário XML NF-e atualizado, assinatura e conciliação. O teste de status não emite notas.');
   }
   const ready=checks.every(c=>c.ok);
   return {canal:venda.canal,modeloSugerido:presencial?'65':'55',tipo:presencial?'NFC-e':'NF-e',
-    provedor:ml?'mercado_livre':'universal',checks,prontoParaSolicitar:ready,
+    provedor:ml?'mercado_livre':'sefaz_sp',checks,prontoParaSolicitar:ready,
     habilitadoParaEmissao:ml&&ready,simulado:true,transmitido:false,
     aviso:'Simulação segura: não foi transmitida uma nota à SEFAZ e não foi criado protocolo, XML ou DANFE.'};
 }
