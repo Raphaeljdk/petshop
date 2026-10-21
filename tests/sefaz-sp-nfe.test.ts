@@ -1,5 +1,6 @@
+import { X509Certificate } from 'node:crypto'
 import { describe, test, expect } from 'bun:test'
-import { SEFAZ_SP, soapStatusNfeSp, interpretarRespostaStatusSefaz, lerA1DeVariaveis, classificarErroTransporteSefaz } from '../src/lib/sefaz-sp-nfe'
+import { ICP_BRASIL_V10, SEFAZ_SP, soapStatusNfeSp, interpretarRespostaStatusSefaz, lerA1DeVariaveis, classificarErroTransporteSefaz } from '../src/lib/sefaz-sp-nfe'
 
 describe('SEFAZ-SP direto: homologação estritamente sem emissão', () => {
   test('usa os endereços oficiais de NF-e 55 sem host controlado pelo usuário', () => {
@@ -56,5 +57,17 @@ describe('erros TLS detalhados sem revelar materiais do A1',()=>{
   test('mensagem original e senha nunca retornam ao operador',()=>{
     const result=classificarErroTransporteSefaz({code:'ERR_SSL_SSLV3_ALERT_BAD_CERTIFICATE',message:'A1 senha: segredo'})
     expect(result.message).not.toContain('segredo')
+  })
+})
+
+describe('raiz oficial usada pela conexão SEFAZ',()=>{
+  test('material público é a CA ICP-Brasil v10 esperada, autoassinada e vigente',()=>{
+    const ca=new X509Certificate(ICP_BRASIL_V10)
+    expect(ca.fingerprint256.replaceAll(':','')).toBe('6E0BFF069A26994C15DE2C4888CC54AF84882E5495B7FBF66BE9CCFFEC7489F6')
+    expect(ca.ca).toBe(true)
+    expect(ca.subject).toBe(ca.issuer)
+    expect(ca.verify(ca.publicKey)).toBe(true)
+    expect(Date.parse(ca.validFrom)).toBeLessThan(Date.now())
+    expect(Date.parse(ca.validTo)).toBeGreaterThan(Date.now())
   })
 })
