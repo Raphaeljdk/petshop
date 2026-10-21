@@ -59,6 +59,29 @@ export function lerA1DeVariaveis(env: {SEFAZ_NFE_A1_PFX_BASE64?:string; SEFAZ_NF
   return { pfx, passphrase: senha }
 }
 
+export class SefazComunicacaoError extends Error {
+  constructor(readonly categoria: string, message: string) {
+    super(message)
+    this.name = 'SefazComunicacaoError'
+  }
+}
+/** Nunca devolve mensagens originais de OpenSSL ao navegador: podem ter detalhes locais. */
+export function classificarErroTransporteSefaz(error: unknown): SefazComunicacaoError {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? String((error as { code: unknown }).code) : ''
+  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT')
+    return new SefazComunicacaoError('tempo-esgotado', 'A conexão com a SEFAZ-SP demorou além do limite de 15 segundos. Tente novamente mais tarde.')
+  if (['ENOTFOUND', 'EAI_AGAIN'].includes(code))
+    return new SefazComunicacaoError('dns', 'O servidor não conseguiu localizar o endereço da SEFAZ-SP. Verifique DNS e disponibilidade.')
+  if (['ECONNRESET', 'EPIPE'].includes(code))
+    return new SefazComunicacaoError('conexao-encerrada', 'A comunicação foi encerrada durante a conexão. Pode ser incompatibilidade TLS, bloqueio de rede ou instabilidade da SEFAZ.')
+  if (['ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH'].includes(code))
+    return new SefazComunicacaoError('rede', 'Não foi possível alcançar o serviço SEFAZ-SP a partir da hospedagem. Confira rede e disponibilidade.')
+  if (/CERT_|CERTIFICATE|VERIFY|TLS|SSL|ERR_OSSL|X509/i.test(code))
+    return new SefazComunicacaoError('certificado-tls', 'Falha na negociação TLS ou validação de certificado com a SEFAZ-SP. O A1 abriu localmente; a comunicação mTLS deve ser analisada.')
+  return new SefazComunicacaoError('comunicacao', 'A SEFAZ-SP não respondeu normalmente à consulta de homologação. Verifique TLS, rede e credenciamento com o suporte técnico.')
+}
+
 export async function consultarStatusHomologacaoSefazSp(cred: {pfx: Buffer;passphrase: string}) {
   const endpoint = new URL(SEFAZ_SP.homologacao.status)
   const payload = soapStatusNfeSp()
@@ -89,15 +112,20 @@ export async function consultarStatusHomologacaoSefazSp(cred: {pfx: Buffer;passp
       res.on('error', reject)
       res.on('end', () => {
         if ((res.statusCode || 500) !== 200) {
-          reject(new Error('O serviço SEFAZ-SP retornou HTTP ' + (res.statusCode || 0) + '.'))
+          reject(new SefazComunicacaoError('http', 'A SEFAZ-SP retornou HTTP ' + (res.statusCode || 0) + ' ao consultar Status do Serviço em homologação. Verifique certificado e formato SOAP.'))
           return
         }
         resolve(Buffer.concat(parts).toString('utf8'))
       })
     })
-    req.on('timeout', () => req.destroy(new Error('Conexão com a SEFAZ excedeu 15 segundos.')))
-    req.on('error', reject)
+    req.on('timeout', () => req.destroy(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })))
+    req.on('error', e => reject(e instanceof SefazComunicacaoError ? e : classificarErroTransporteSefaz(e)))
     req.end(payload)
   })
-  return interpretarRespostaStatusSefaz(body)
+  const result = interpretarRespostaStatusSefaz(body)
+  if (result.codigo === null && !result.motivo.includes('falha SOAP'))
+    throw new SefazComunicacaoError('resposta', 'O serviço respondeu, mas não retornou um cStat reconhecível. Confira o envelope SOAP e a compatibilidade do serviço.')
+  if (result.codigo === null)
+    throw new SefazComunicacaoError('soap', 'A SEFAZ-SP respondeu com SOAP Fault. Confira versão 4.00, cabeçalhos e a requisição mTLS.')
+  return result
 }
