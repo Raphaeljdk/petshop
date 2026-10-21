@@ -18,7 +18,7 @@ export type NfeEntrada = {
   destinatario: { nome: string; documento: string; endereco: EnderecoNfe }
   pagamento: '01' | '17' | '18'
   modalidadeFrete: '0' | '1' | '2' | '9'
-  itens: Array<{ produtoId: string; pisCst: string; cofinsCst: string }>
+  itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string }>
 }
 export type NfeEmpresa = {
   cnpj: string | null; razaoSocial: string | null; nomeFantasia: string | null
@@ -70,6 +70,7 @@ export function gerarRascunhoNfe55(
     && end.municipio.trim() && /^\d{7}$/.test(numerico(end.codigoMunicipio))
     && /^[A-Z]{2}$/.test(end.uf.toUpperCase()) && numerico(end.cep).length === 8,
     'Endereço estruturado do destinatário está incompleto.')
+  necessario(end.uf.toUpperCase() === 'SP', 'Este primeiro rascunho suporta apenas vendas internas em SP. Fora do estado exige parametrização específica do contador.')
   necessario(Number.isSafeInteger(entrada.numero) && entrada.numero >= 1 && entrada.numero <= 999999999
     && Number.isSafeInteger(empresa.serieNfe) && empresa.serieNfe >= 1 && empresa.serieNfe <= 999
     && /^\d{8}$/.test(entrada.codigoNumerico),
@@ -92,6 +93,8 @@ export function gerarRascunhoNfe55(
   }, 0)
   const frete = cents(venda.valorFrete ?? 0)
   const desconto = cents(venda.descontoCupom)
+  necessario(desconto <= subtotal && (frete === 0 || entrada.modalidadeFrete !== '9'),
+    'Desconto não pode exceder produtos e frete cobrado exige modalidade de transporte.')
   necessario(subtotal + frete - desconto === cents(venda.total)
     && (venda.subtotalProdutos == null || cents(venda.subtotalProdutos) === subtotal),
     'Total divergente. Revise produtos, frete, desconto e total da venda.')
@@ -127,6 +130,8 @@ export function gerarRascunhoNfe55(
   const dest = campo(doc.length === 11 ? 'CPF' : 'CNPJ', doc) +
     campo('xNome','NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL') +
     '<enderDest>' + enderecoXml(end) + '</enderDest>' + campo('indIEDest','9')
+  let freteDistribuido = 0
+  let descontoDistribuido = 0
   const detalhes = venda.itens.map((item, index) => {
     const p = item.produto
     const fiscal = entrada.itens[index]
@@ -135,18 +140,28 @@ export function gerarRascunhoNfe55(
     necessario(/^\d{8}$/.test(numerico(p.ncm)) && /^\d{4}$/.test(numerico(p.cfop))
       && /^[0-8]$/.test(p.origem || '') && /^(102|103|300|400)$/.test(p.csosn || '')
       && !!p.unidadeFiscal?.trim(), 'Item ' + (index + 1) + ': classificação NCM, CFOP, origem, unidade e CSOSN inválida ou incompleta.')
+    necessario(numerico(p.cfop).startsWith('5'), 'Item ' + (index+1) + ': CFOP para operação interna em SP precisa começar com 5; confira com o contador.')
+    necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\\d{8}|\\d{12}|\\d{13}|\\d{14})$/.test(fiscal.gtin),
+      'Item ' + (index+1) + ': confirme o GTIN/EAN ou informe SEM GTIN quando aplicável.')
     necessario(['04','05','06','07','08','09'].includes(fiscal.pisCst)
       && ['04','05','06','07','08','09'].includes(fiscal.cofinsCst),
       'Item ' + (index + 1) + ': informe CST PIS/COFINS não tributável, validado pelo contador.')
     // Não presume alíquotas, IBS/CBS ou ICMS: cenários tributados exigem módulos específicos.
     const unit = p.unidadeFiscal as string
     const vProd = cents(item.precoUnit * item.quantidade)
+    const freteItem = index === venda.itens.length-1 ? frete-freteDistribuido : Math.floor(frete*vProd/subtotal)
+    const descontoItem = index === venda.itens.length-1 ? desconto-descontoDistribuido : Math.floor(desconto*vProd/subtotal)
+    freteDistribuido += freteItem
+    descontoDistribuido += descontoItem
     const prod = campo('cProd',(p.sku || item.produtoId).slice(0,60)) +
-      campo('cEAN','SEM GTIN') + campo('xProd',p.nome) + campo('NCM',numerico(p.ncm)) +
+      campo('cEAN',fiscal.gtin) + campo('xProd',p.nome) + campo('NCM',numerico(p.ncm)) +
       (p.cest ? campo('CEST',numerico(p.cest)) : '') +
       campo('CFOP',numerico(p.cfop)) + campo('uCom',unit) +
       campo('qCom',item.quantidade.toFixed(4)) + campo('vUnCom',item.precoUnit.toFixed(10)) +
-      campo('vProd',moeda(vProd)) + campo('cEANTrib','SEM GTIN') +
+      campo('vProd',moeda(vProd)) +
+      (freteItem ? campo('vFrete',moeda(freteItem)) : '') +
+      (descontoItem ? campo('vDesc',moeda(descontoItem)) : '') +
+      campo('cEANTrib',fiscal.gtin) +
       campo('uTrib',unit) + campo('qTrib',item.quantidade.toFixed(4)) +
       campo('vUnTrib',item.precoUnit.toFixed(10)) + campo('indTot','1')
     const imposto = '<ICMS><ICMSSN102>' + campo('orig',p.origem as string) +
