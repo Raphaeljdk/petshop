@@ -15,7 +15,9 @@ export type EnderecoNfe = {
 }
 export type NfeEntrada = {
   numero: number; codigoNumerico: string; naturezaOperacao: string
-  destinatario: { nome: string; documento: string; endereco: EnderecoNfe }
+  destinatario: { nome: string; documento: string; endereco: EnderecoNfe
+    indicadorIE: '1' | '2' | '9'; inscricaoEstadual?: string }
+  consumidorFinal: '0' | '1'
   pagamento: '01' | '17' | '18'
   modalidadeFrete: '0' | '1' | '2' | '9'
   itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string }>
@@ -66,6 +68,10 @@ export function gerarRascunhoNfe55(
   necessario(entrada.destinatario.nome.trim().length >= 2
     && [11,14].includes(numerico(entrada.destinatario.documento).length),
     'Informe nome e CPF/CNPJ do destinatário.')
+  necessario(['1','2','9'].includes(entrada.destinatario.indicadorIE) && ['0','1'].includes(entrada.consumidorFinal),
+    'Confirme se o destinatário é contribuinte e se é consumidor final.')
+  necessario(entrada.destinatario.indicadorIE !== '1' || /^\\d{2,14}$/.test(numerico(entrada.destinatario.inscricaoEstadual)),
+    'Destinatário contribuinte exige inscrição estadual.')
   necessario(end.logradouro.trim() && end.numero.trim() && end.bairro.trim()
     && end.municipio.trim() && /^\d{7}$/.test(numerico(end.codigoMunicipio))
     && /^[A-Z]{2}$/.test(end.uf.toUpperCase()) && numerico(end.cep).length === 8,
@@ -114,7 +120,7 @@ export function gerarRascunhoNfe55(
     campo('dhEmi',emissao as string) + campo('tpNF','1') + campo('idDest',idDest) +
     campo('cMunFG',numerico(empresa.codigoMunicipio)) + campo('tpImp','1') +
     campo('tpEmis','1') + campo('cDV',dv) + campo('tpAmb','2') +
-    campo('finNFe','1') + campo('indFinal','1') + campo('indPres','2') +
+    campo('finNFe','1') + campo('indFinal',entrada.consumidorFinal) + campo('indPres','2') +
     campo('procEmi','0') + campo('verProc','MatilhaPrado-rascunho-0.1')
   const emitEndereco: EnderecoNfe = {
     logradouro: empresa.logradouro as string, numero: empresa.numeroEndereco as string,
@@ -129,7 +135,9 @@ export function gerarRascunhoNfe55(
   // Em homologação, a SEFAZ exige o texto padronizado no xNome do destinatário.
   const dest = campo(doc.length === 11 ? 'CPF' : 'CNPJ', doc) +
     campo('xNome','NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL') +
-    '<enderDest>' + enderecoXml(end) + '</enderDest>' + campo('indIEDest','9')
+    '<enderDest>' + enderecoXml(end) + '</enderDest>' +
+    campo('indIEDest',entrada.destinatario.indicadorIE) +
+    (entrada.destinatario.indicadorIE==='1' ? campo('IE',numerico(entrada.destinatario.inscricaoEstadual)) : '')
   let freteDistribuido = 0
   let descontoDistribuido = 0
   const detalhes = venda.itens.map((item, index) => {
