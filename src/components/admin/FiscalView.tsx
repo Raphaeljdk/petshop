@@ -89,6 +89,11 @@ export function FiscalView() {
   const [emissorStatus,setEmissorStatus] = useState<EmissorStatus|null>(null)
   const [consultandoFba,setConsultandoFba] = useState(false)
   const [testandoProvedor,setTestandoProvedor] = useState(false)
+  const [conciliandoId,setConciliandoId] = useState<string|null>(null)
+  const [chaveFiscal,setChaveFiscal] = useState('')
+  const [confirmadoFiscal,setConfirmadoFiscal] = useState(false)
+  const [salvandoChave,setSalvandoChave] = useState(false)
+  const [copiandoResumo,setCopiandoResumo] = useState<string|null>(null)
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -223,6 +228,31 @@ export function FiscalView() {
     finally{setTestandoProvedor(false)}
   }
 
+  async function copiarResumoFiscal(vendaId:string){
+    setCopiandoResumo(vendaId)
+    try{
+      const result=await jsonRes(await fetch('/api/admin/fiscal/mercado-pago?vendaId='+encodeURIComponent(vendaId),{
+        credentials:'same-origin',cache:'no-store',
+      }))
+      await navigator.clipboard.writeText(result.resumo)
+      toast.success('Resumo fiscal do pedido copiado. Revise antes de emitir no Mercado Pago.')
+    }catch(e){toast.error(e instanceof Error?e.message:'Não foi possível copiar o resumo.')}
+    finally{setCopiandoResumo(null)}
+  }
+  async function registrarNotaMercadoPago(vendaId:string){
+    if(!confirmadoFiscal){toast.error('Confirme que a NF-e já foi emitida pelo Mercado Pago.');return}
+    setSalvandoChave(true)
+    try{
+      const result=await jsonRes(await fetch('/api/admin/fiscal/mercado-pago',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({vendaId,chaveAcesso:chaveFiscal,confirmacao:'JA_EMITIDA_FORA_DO_ERP'}),
+      }))
+      toast.success(result.aviso||'Chave registrada para conciliação.')
+      setConciliandoId(null);setChaveFiscal('');setConfirmadoFiscal(false)
+      await carregar()
+    }catch(e){toast.error(e instanceof Error?e.message:'Erro ao conciliar NF-e.')}
+    finally{setSalvandoChave(false)}
+  }
   async function salvarProduto() {
     if (!editandoProduto) return
     setSaving(true)
@@ -269,17 +299,19 @@ export function FiscalView() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
           <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
-            <p className="mt-1 text-sm">O botão Validar para emitir apresenta pendências sem transmitir nada à SEFAZ. O Mercado Livre possui integração de consulta e emissão condicionada a permissões. Site, Amazon e Hub precisam de emissor fiscal universal com API, certificado A1 e homologação. Varejo presencial pode exigir NFC-e e serviços exigem NFS-e. Nenhum rascunho equivale a uma nota válida.</p>
+            <p className="mt-1 text-sm">O botão Validar para emitir apresenta pendências sem transmitir nada à SEFAZ. O Mercado Livre possui integração de consulta e emissão condicionada a permissões. Para site, Amazon e Hub, pode-se emitir manualmente no Sistema de Gestão Mercado Pago quando a venda estiver registrada; a API de pagamentos não autoriza transmissão fiscal externa. O ERP poderá copiar dados e conciliar a NF-e já emitida. Varejo presencial pode exigir NFC-e e serviços exigem NFS-e. Rascunhos não são notas válidas.</p>
           </div>
         </div>
       </div>
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div><p className="text-sm font-semibold">Emissor universal · Focus NFe (alternativa atual)</p>
-          <p className="text-xs text-muted-foreground">A Nuvem Fiscal foi desativada. {emissorStatus?.credenciais.producao?'Token Focus NFe configurado para consulta.':'Token Focus NFe ainda não configurado na Vercel.'} O cadastro do certificado e a homologação da emissão ainda serão necessários.</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Emissor Mercado Pago · fluxo manual sem outro provedor</p>
+          <p className="mt-1 text-xs text-muted-foreground">O A1 já está configurado no Mercado Pago. Use o Sistema de Gestão para emitir notas de vendas ali registradas. Ainda não há API pública de emissão fiscal externa confirmada para pedidos do site/Amazon. O ERP copia os dados do pedido e registra a chave fiscal para conciliação, sem gerar cobrança duplicada.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Confirme as condições comerciais do Sistema de Gestão na conta: ausência de cobrança por nota não garante isenção da mensalidade.</p>
         </div>
-        <Button variant="outline" size="sm" disabled={testandoProvedor} onClick={()=>void testarProvedor()}>
-          {testandoProvedor?<Loader2 className="mr-2 size-4 animate-spin"/>:<ShieldAlert className="mr-2 size-4"/>}
-          Testar Focus NFe
+        <Button size="sm" type="button" variant="outline"
+          onClick={()=>window.open('https://www.mercadopago.com.br/','_blank','noopener,noreferrer')}>
+          <ExternalLink className="mr-2 size-4"/>Abrir Mercado Pago
         </Button>
       </CardContent></Card>
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -334,8 +366,8 @@ export function FiscalView() {
           </div>}
           <div className="rounded-lg border p-3 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
-            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado e a API de um emissor homologado (ex.: Focus NFe) e faça testes no ambiente de homologação. Somente após isso poderá ser liberada a emissão real do site.</p>
-            <p className="mt-1">O cadastro do CNPJ no ERP e o emissor do Mercado Livre não autorizam automaticamente a emissão das vendas do site ou da Amazon.</p>
+            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Localize no Mercado Pago a venda já registrada e emita por lá, ou use futuramente uma API fiscal externa homologada para emissão automática. Após a emissão manual, registre a chave no ERP.</p>
+            <p className="mt-1">A API de pagamentos do Mercado Pago não comprova acesso ao emissor fiscal. Não gere uma segunda cobrança de um pedido já pago no site ou marketplace. Se a venda externa não aparecer no Mercado Pago, verifique com o suporte como lançá-la sem cobrar novamente.</p>
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
@@ -357,6 +389,17 @@ export function FiscalView() {
                       {testando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<FileText className="mr-1 size-4"/>}
                       Validar para emitir
                     </Button>
+                    <Button size="sm" variant="outline" disabled={copiandoResumo===v.id}
+                      onClick={()=>void copiarResumoFiscal(v.id)}>
+                      {copiandoResumo===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<ClipboardList className="mr-1 size-4"/>}
+                      Copiar dados
+                    </Button>
+                    {!v.notaFiscal?.chaveAcesso&&v.status==='concluida'&&(
+                      <Button size="sm" variant="outline" onClick={()=>{
+                        setConciliandoId(conciliandoId===v.id?null:v.id)
+                        setChaveFiscal('');setConfirmadoFiscal(false)
+                      }}>Registrar NF-e emitida</Button>
+                    )}
                     {(v.canal==='mercadolivre'||v.canal==='mercado_livre')&&(<>
                       <Button size="sm" variant="outline" disabled={consultando===v.id} onClick={()=>void operacaoMeli(v,'consultar')}>
                         {consultando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<Search className="mr-1 size-4"/>}Consultar NF-e
@@ -367,6 +410,27 @@ export function FiscalView() {
                       </>)}
                     </>)}
                   </div>
+                  {conciliandoId===v.id&&(
+                    <div className="w-full space-y-3 rounded-xl border p-3">
+                      <p className="text-sm font-semibold">Registrar NF-e já emitida no Mercado Pago</p>
+                      <p className="text-xs text-muted-foreground">Use somente após conferir a autorização no emissor. Uma chave com dígito correto não prova autorização na SEFAZ. O registro ficará pendente de verificação e não transmite outra nota.</p>
+                      <Label htmlFor={'chave-fiscal-'+v.id}>Chave de acesso (44 dígitos)</Label>
+                      <Input id={'chave-fiscal-'+v.id} value={chaveFiscal} maxLength={55}
+                        placeholder="Chave da nota fiscal já emitida" onChange={e=>setChaveFiscal(e.target.value)}/>
+                      <label className="flex items-start gap-2 text-xs">
+                        <input type="checkbox" checked={confirmadoFiscal} onChange={e=>setConfirmadoFiscal(e.target.checked)} className="mt-0.5"/>
+                        Confirmei a emissão no Mercado Pago e conferi que não existe outra nota para esta venda.
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" disabled={salvandoChave||!confirmadoFiscal||chaveFiscal.replace(/\\s/g,'').length!==44}
+                          onClick={()=>void registrarNotaMercadoPago(v.id)}>
+                          {salvandoChave?<Loader2 className="mr-1 size-4 animate-spin"/>:<Save className="mr-1 size-4"/>}
+                          Registrar para conciliação
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={()=>setConciliandoId(null)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  )}
                   {inspecionando===v.id&&preflights[v.id]&&(
                     <div className="w-full rounded-xl border bg-muted/30 p-3 text-sm">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
