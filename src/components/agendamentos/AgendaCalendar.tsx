@@ -9,20 +9,16 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { StatusAgendamento } from '@/lib/types'
+import { CATEGORIAS_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
 
 export type AgendaCalendarEntry = {
-  id: string; clienteId: string; petId: string; servico: string; dataHora: string
+  id: string; clienteId: string; petId: string; servico: string; categoria?: CategoriaAgenda; dataHora: string
   status: StatusAgendamento; observacoes: string | null; updatedAt: string
   cliente: { id: string; nome: string; telefone: string }
   pet: { id: string; nome: string; especie: string }
 }
 
 type Vista = 'mes' | 'semana' | 'dia'
-const categorias = [
-  'Cirurgias', 'Clínicos', 'Day Care', 'Estéticos', 'Externos', 'Gerais',
-  'Hospedagens', 'Internações', 'Vacinas', 'Vermífugos',
-] as const
-type Categoria = typeof categorias[number]
 const paleta: Record<Categoria, string> = {
   Cirurgias: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300',
   Clínicos: 'bg-amber-100 text-amber-900 border-amber-300',
@@ -35,19 +31,10 @@ const paleta: Record<Categoria, string> = {
   Vacinas: 'bg-yellow-100 text-yellow-900 border-yellow-300',
   Vermífugos: 'bg-teal-100 text-teal-900 border-teal-300',
 }
-export function categoriaAgendamento(servico: string): Categoria {
-  const s=servico.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
-  if (/cirurg|castrac|procedimento cirurg/.test(s)) return 'Cirurgias'
-  if (/vacina|imunizac/.test(s)) return 'Vacinas'
-  if (/vermif|desparasit/.test(s)) return 'Vermífugos'
-  if (/internac|internad/.test(s)) return 'Internações'
-  if (/hosped|hotel|pernoite/.test(s)) return 'Hospedagens'
-  if (/day.?care|creche|recreac/.test(s)) return 'Day Care'
-  if (/banho|tosa|estetic|hidratac|embelez|unha/.test(s)) return 'Estéticos'
-  if (/externo|domicili|delivery/.test(s)) return 'Externos'
-  if (/clinico|consulta|retorno|exame|avaliac|ultrassom/.test(s)) return 'Clínicos'
-  return 'Gerais'
+export function categoriaAgendamento(servico: string, informada?: CategoriaAgenda): CategoriaAgenda {
+  return informada && CATEGORIAS_AGENDA.includes(informada) ? informada : inferirCategoriaAgenda(servico)
 }
+
 const statusLabel: Record<StatusAgendamento,string> = {
   agendado:'Agendado', confirmado:'Em andamento', concluido:'Concluído', cancelado:'Cancelado',
 }
@@ -107,7 +94,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
     const termo=busca.trim().toLowerCase()
     return items.filter(x=>{
       if(status!=='todos'&&x.status!==status)return false
-      if(filtros.length&&!filtros.includes(categoriaAgendamento(x.servico)))return false
+      if(filtros.length&&!filtros.includes(categoriaAgendamento(x.servico,x.categoria)))return false
       return !termo||[x.servico,x.cliente.nome,x.pet.nome,x.observacoes,x.cliente.telefone]
         .some(t=>String(t||'').toLowerCase().includes(termo))
     })
@@ -132,7 +119,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
   const toggle=(c:Categoria)=>setFiltros(prev=>prev.includes(c)?prev.filter(x=>x!==c):[...prev,c])
 
   function chip(x:AgendaCalendarEntry){
-    const cat=categoriaAgendamento(x.servico)
+    const cat=categoriaAgendamento(x.servico,x.categoria)
     return <button key={x.id} type="button" onClick={()=>onEdit(x)}
       title={format(parseISO(x.dataHora),'HH:mm')+' · '+x.pet.nome+' · '+x.cliente.nome+' · '+x.servico+' ('+statusLabel[x.status]+')'}
       className={'block w-full truncate rounded border px-1.5 py-1 text-left text-[11px] font-medium transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary '+paleta[cat]+(x.status==='cancelado'?' line-through opacity-55':'')}>
@@ -178,8 +165,8 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
           <p className="text-xs font-semibold">Tipos de atendimento</p>
           <button type="button" className="text-xs text-primary underline" onClick={()=>setFiltros([])}>Todos</button>
         </div>
-        {categorias.map(c=>{
-          const total=items.filter(x=>categoriaAgendamento(x.servico)===c).length
+        {CATEGORIAS_AGENDA.map(c=>{
+          const total=items.filter(x=>categoriaAgendamento(x.servico,x.categoria)===c).length
           const active=filtros.length===0||filtros.includes(c)
           return <button type="button" key={c} aria-pressed={filtros.includes(c)}
             onClick={()=>toggle(c)}
@@ -236,7 +223,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
             <p className="py-12 text-center text-sm text-muted-foreground">Nenhum compromisso neste dia com os filtros selecionados.</p>:
             (porDia.get(format(referencia,'yyyy-MM-dd'))||[]).map(x=>
               <button key={x.id} type="button" onClick={()=>onEdit(x)}
-                className={'flex w-full flex-wrap items-center gap-2 rounded-lg border p-3 text-left text-sm hover:brightness-95 '+paleta[categoriaAgendamento(x.servico)]}>
+                className={'flex w-full flex-wrap items-center gap-2 rounded-lg border p-3 text-left text-sm hover:brightness-95 '+paleta[categoriaAgendamento(x.servico,x.categoria)]}>
                 <strong>{format(parseISO(x.dataHora),'HH:mm')}</strong>
                 <span className="min-w-0 flex-1">{x.pet.nome} · {x.cliente.nome} · {x.servico}</span>
                 <span className="text-xs">{statusLabel[x.status]}</span>

@@ -12,11 +12,12 @@ import { Label } from '@/components/ui/label'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { StatusAgendamento } from '@/lib/types'
 import { AgendaCalendar, type AgendaCalendarEntry } from './AgendaCalendar'
+import { CATEGORIAS_AGENDA, SUGESTOES_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
 
 type Entry = AgendaCalendarEntry
 type Tutor = { id: string; nome: string; pets: Array<{ id: string; nome: string; especie: string }> }
-type Form = { clienteId: string; petId: string; servico: string; dataHora: string; observacoes: string; status: StatusAgendamento }
-const empty: Form = { clienteId: '', petId: '', servico: 'Banho', dataHora: '', observacoes: '', status: 'agendado' }
+type Form = { clienteId: string; petId: string; servico: string; categoria: CategoriaAgenda; dataHora: string; observacoes: string; status: StatusAgendamento }
+const empty: Form = { clienteId: '', petId: '', servico: 'Banho', categoria: 'Estéticos', dataHora: '', observacoes: '', status: 'agendado' }
 const statusMap: Record<StatusAgendamento, { label: string; className: string }> = {
   agendado: { label: 'Agendado', className: 'bg-blue-100 text-blue-800 border-blue-200' },
   confirmado: { label: 'Em andamento', className: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -91,7 +92,7 @@ export function AgendamentosView() {
   }
   function editar(x: Entry) {
     setEditId(x.id)
-    setForm({ clienteId: x.clienteId, petId: x.petId, servico: x.servico, dataHora: dateInput(x.dataHora), observacoes: x.observacoes || '', status: x.status })
+    setForm({ clienteId: x.clienteId, petId: x.petId, servico: x.servico, categoria: x.categoria || inferirCategoriaAgenda(x.servico), dataHora: dateInput(x.dataHora), observacoes: x.observacoes || '', status: x.status })
     setFormOpen(true)
   }
   const petsTutor = tutores.find(x => x.id === form.clienteId)?.pets || []
@@ -117,7 +118,7 @@ export function AgendamentosView() {
     setSaving(true)
     try {
       const payload = { ...form, dataHora: new Date(form.dataHora).toISOString() }
-      const body = editId ? payload : { clienteId: payload.clienteId, petId: payload.petId, servico: payload.servico, dataHora: payload.dataHora, observacoes: payload.observacoes }
+      const body = editId ? payload : { clienteId: payload.clienteId, petId: payload.petId, servico: payload.servico, categoria: payload.categoria, dataHora: payload.dataHora, observacoes: payload.observacoes }
       await parseResponse(await fetch('/api/agendamentos' + (editId ? '/' + editId : ''), {
         method: editId ? 'PATCH' : 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -160,7 +161,33 @@ export function AgendamentosView() {
             onChange={e=>setForm(f=>({...f,clienteId:e.target.value,petId:''}))}><option value="">Selecione o tutor</option>{tutores.map(c=><option value={c.id} key={c.id}>{c.nome}</option>)}</select></div>
           <div className="space-y-1.5"><Label htmlFor="agenda-pet">Pet *</Label><select id="agenda-pet" required className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.petId}
             onChange={e=>setForm(f=>({...f,petId:e.target.value}))}><option value="">Selecione o pet</option>{petsTutor.map(p=><option value={p.id} key={p.id}>{p.nome} · {p.especie}</option>)}</select></div>
-          <div className="space-y-1.5"><Label htmlFor="agenda-servico">Serviço *</Label><Input id="agenda-servico" required value={form.servico} maxLength={140} onChange={e=>setForm(f=>({...f,servico:e.target.value}))} placeholder="Banho, tosa, consulta..."/></div>
+          <div className="space-y-1.5">
+            <Label htmlFor="agenda-categoria">Tipo de atendimento *</Label>
+            <select id="agenda-categoria" required className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              value={form.categoria}
+              onChange={e=>{
+                const categoria=e.target.value as CategoriaAgenda
+                setForm(f=>({...f,categoria,servico:SUGESTOES_AGENDA[categoria][0]}))
+              }}>
+              {CATEGORIAS_AGENDA.map(c=><option value={c} key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="agenda-servico-opcao">Serviço sugerido</Label>
+            <select id="agenda-servico-opcao" className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              value={SUGESTOES_AGENDA[form.categoria].includes(form.servico)?form.servico:''}
+              onChange={e=>setForm(f=>({...f,servico:e.target.value||f.servico}))}>
+              <option value="">Descrição personalizada</option>
+              {SUGESTOES_AGENDA[form.categoria].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="agenda-servico">Descrição do serviço *</Label>
+            <Input id="agenda-servico" required value={form.servico} maxLength={140}
+              onChange={e=>setForm(f=>({...f,servico:e.target.value}))}
+              placeholder="Descreva o serviço que será realizado"/>
+            <p className="text-xs text-muted-foreground">Categorias clínicas, cirúrgicas, vacinas e internações são somente classificações administrativas. Agende apenas procedimentos que a empresa está habilitada a prestar.</p>
+          </div>
           <div className="space-y-1.5"><Label htmlFor="agenda-data">Data e horário *</Label><Input id="agenda-data" type="datetime-local" required value={form.dataHora} onChange={e=>setForm(f=>({...f,dataHora:e.target.value}))}/></div>
           {editId && <div className="space-y-1.5"><Label htmlFor="agenda-status">Status</Label><select id="agenda-status" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value as StatusAgendamento}))}>
             {Object.entries(statusMap).map(([k,v])=><option value={k} key={k}>{v.label}</option>)}</select></div>}
