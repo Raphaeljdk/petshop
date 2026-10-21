@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { configSchema, erroConfigEmitente } from '@/lib/fiscal-emitente'
+import { avaliarProntidaoNfeProducao } from '@/lib/fiscal-prontidao-producao'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
@@ -18,7 +19,7 @@ export async function GET() {
   const denied = await authorize()
   if (denied) return denied
   try {
-    const [config, notas, vendas] = await Promise.all([
+    const [config, notas, vendas, produtosAtivos, produtosSemClassificacao] = await Promise.all([
       db.configuracaoFiscal.findUnique({ where: { id: 'matilha-prado' } }),
       db.notaFiscal.findMany({
         orderBy: { createdAt: 'desc' },
@@ -40,9 +41,20 @@ export async function GET() {
           notaFiscal: { select: { id: true, status: true, numero: true, chaveAcesso: true, emissor: true } },
         },
       }),
+      db.produto.count({where:{ativo:true}}),
+      db.produto.count({where:{ativo:true, OR:[
+        {ncm:null},{ncm:''},{cfop:null},{cfop:''},
+        {unidadeFiscal:null},{unidadeFiscal:''},
+        {AND:[{OR:[{csosn:null},{csosn:''}]},{OR:[{cst:null},{cst:''}]}]},
+      ]}}),
     ])
+    const prontidaoNfeProducao = avaliarProntidaoNfeProducao({
+      empresa:config,
+      certificadoRegistrado:!!(process.env.SEFAZ_NFE_A1_PFX_BASE64?.trim() && process.env.SEFAZ_NFE_A1_SENHA),
+      produtosAtivos,produtosSemClassificacao,
+    })
     return NextResponse.json({
-      config, notas, vendas,
+      config, notas, vendas, prontidaoNfeProducao,
       emissaoConfigurada: false,
       emissaoMercadoLivreHabilitada: process.env.MERCADO_LIVRE_NFE_EMISSAO_HABILITADA === 'true',
       emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Site e Amazon seguem aguardando provedor de emissão.',
