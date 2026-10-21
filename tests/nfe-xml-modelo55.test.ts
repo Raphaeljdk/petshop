@@ -24,11 +24,11 @@ function dados() {
   const entrada:NfeEntrada = {
     numero:123,codigoNumerico:'12345678',naturezaOperacao:'Venda interna',
     destinatario:{
-      nome:'Cliente real',documento:'12345678909',
+      nome:'Cliente real',documento:'12345678909',indicadorIE:'9',
       endereco:{logradouro:'Rua B',numero:'123',bairro:'Bela Vista',municipio:'Sao Paulo',
         codigoMunicipio:'3550308',uf:'SP',cep:'01310000'},
     },
-    pagamento:'17',modalidadeFrete:'0',
+    consumidorFinal:'1',pagamento:'17',modalidadeFrete:'0',
     itens:[{produtoId:'prod-1',gtin:'SEM GTIN',pisCst:'07',cofinsCst:'07'},
       {produtoId:'prod-2',gtin:'SEM GTIN',pisCst:'07',cofinsCst:'07'}],
   }
