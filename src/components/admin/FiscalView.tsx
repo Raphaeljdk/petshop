@@ -99,7 +99,7 @@ export function FiscalView() {
     try {
       const result = await jsonRes(await fetch('/api/admin/fiscal', { cache: 'no-store' })) as FiscalData
       setData(result)
-      setConfig(camposEditaveisEmitente({ ...EMPTY, ...(result.config || {}) })) as Config)
+      setConfig(camposEditaveisEmitente({ ...EMPTY, ...(result.config || {}) }) as Config)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao carregar fiscal.')
     } finally { setLoading(false) }
