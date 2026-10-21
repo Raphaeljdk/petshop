@@ -9,11 +9,11 @@ import { Label } from '@/components/ui/label'
 type FiscalItem = {
   produtoId:string;nome:string;quantidade:number;
   ncm:string|null;cfop:string|null;csosn:string|null;
-  pisCst:string;cofinsCst:string
+  gtin:string;pisCst:string;cofinsCst:string
 }
 type DraftData = {
   serie:number;nome:string;documento:string;enderecoTexto:string;cep:string;
-  itens:Array<Omit<FiscalItem,'pisCst'|'cofinsCst'>>;aviso:string
+  itens:Array<Omit<FiscalItem,'gtin'|'pisCst'|'cofinsCst'>>;aviso:string
 }
 type Endereco = {logradouro:string;numero:string;bairro:string;municipio:string;codigoMunicipio:string;uf:string;cep:string}
 const vazio:Endereco = {logradouro:'',numero:'',bairro:'',municipio:'',codigoMunicipio:'',uf:'',cep:''}
@@ -43,14 +43,14 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
       .then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error||'Falha ao carregar pedido.');return body as DraftData})
       .then(d=>{if(!ativo)return;setDados(d);setNome(d.nome);setDocumento(d.documento.replace(/\D/g,''))
         setEndereco(p=>({...p,cep:(d.cep||'').replace(/\D/g,'')}))
-        setItens(d.itens.map(i=>({...i,pisCst:'',cofinsCst:''})))
+        setItens(d.itens.map(i=>({...i,gtin:'',pisCst:'',cofinsCst:''})))
       }).catch(e=>{if(ativo)setErro(e instanceof Error?e.message:'Falha de conexão.')})
       .finally(()=>{if(ativo)setLoading(false)})
     return ()=>{ativo=false}
   },[vendaId])
   const alterarEndereco=(chave:keyof Endereco,valor:string)=>
     setEndereco(e=>({...e,[chave]:chave==='uf'?valor.toUpperCase():valor}))
-  const alterarItem=(index:number,chave:'pisCst'|'cofinsCst',valor:string)=>
+  const alterarItem=(index:number,chave:'gtin'|'pisCst'|'cofinsCst',valor:string)=>
     setItens(lista=>lista.map((i,n)=>n===index?{...i,[chave]:valor}:i))
   async function baixar(e:React.FormEvent<HTMLFormElement>) {
     e.preventDefault();setErro('');setSaving(true)
@@ -63,7 +63,7 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
             ...endereco,codigoMunicipio:endereco.codigoMunicipio.replace(/\D/g,''),
             cep:endereco.cep.replace(/\D/g,''),
           }},pagamento,modalidadeFrete:frete,
-          itens:itens.map(i=>({produtoId:i.produtoId,pisCst:i.pisCst,cofinsCst:i.cofinsCst})),
+          itens:itens.map(i=>({produtoId:i.produtoId,gtin:i.gtin,pisCst:i.pisCst,cofinsCst:i.cofinsCst})),
         }),
       })
       if(!response.ok){
@@ -133,9 +133,11 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
             </select></div>
         </div>
         <div className="space-y-2"><p className="text-sm font-semibold">Tributação por item (confirmar com contador)</p>
-          {itens.map((i,index)=><div key={i.produtoId+'-'+index} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_160px_160px]">
+          {itens.map((i,index)=><div key={i.produtoId+'-'+index} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_150px_150px_150px]">
             <div><p className="text-sm font-medium">{i.nome} · {i.quantidade} un.</p>
               <p className="text-xs text-muted-foreground">NCM: {i.ncm||'PENDENTE'} · CFOP: {i.cfop||'PENDENTE'} · CSOSN: {i.csosn||'PENDENTE'}</p></div>
+            <div className="space-y-1"><Label>GTIN/EAN</Label>
+              <Input required value={i.gtin} placeholder="EAN ou SEM GTIN" onChange={e=>alterarItem(index,'gtin',e.target.value.trim().toUpperCase())}/></div>
             <div className="space-y-1"><Label>CST PIS</Label>
               <select required className="h-10 w-full rounded-md border bg-background px-2" value={i.pisCst} onChange={e=>alterarItem(index,'pisCst',e.target.value)}>
                 <option value="">Selecionar</option>{CST.map(c=><option key={c} value={c}>{c}</option>)}
