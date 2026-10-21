@@ -422,7 +422,7 @@ export function FiscalView() {
                         Confirmei a emissão no Mercado Pago e conferi que não existe outra nota para esta venda.
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" disabled={salvandoChave||!confirmadoFiscal||chaveFiscal.replace(/\\s/g,'').length!==44}
+                        <Button size="sm" disabled={salvandoChave||!confirmadoFiscal||chaveFiscal.replace(/\s/g,'').length!==44}
                           onClick={()=>void registrarNotaMercadoPago(v.id)}>
                           {salvandoChave?<Loader2 className="mr-1 size-4 animate-spin"/>:<Save className="mr-1 size-4"/>}
                           Registrar para conciliação
