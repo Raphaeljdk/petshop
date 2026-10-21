@@ -99,8 +99,8 @@ export function gerarRascunhoNfe55(
     && (venda.subtotalProdutos == null || cents(venda.subtotalProdutos) === subtotal),
     'Total divergente. Revise produtos, frete, desconto e total da venda.')
   const doc = numerico(entrada.destinatario.documento)
-  const emissao = Number.isNaN(dataEmissao.getTime()) ? null : dataEmissao.toISOString().replace('Z', '+00:00')
-  necessario(emissao, 'Data de emissão inválida.')
+  if (Number.isNaN(dataEmissao.getTime())) throw new NfeRascunhoError('Data de emissão inválida.')
+  const emissao = dataEmissao.toISOString().replace('Z', '+00:00')
   const aamm = emissao.slice(2,4) + emissao.slice(5,7)
   const base43 = '35' + aamm + numerico(empresa.cnpj) + '55' +
     String(empresa.serieNfe).padStart(3, '0') + String(entrada.numero).padStart(9, '0') +
