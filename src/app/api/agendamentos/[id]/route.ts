@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoPatchSchema } from '@/lib/agenda-validation'
+import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
 type Params = { params: Promise<{ id: string }> }
 async function admin() {
   const user = await getUsuarioLogado()
@@ -41,7 +42,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const updated = await tx.agendamento.update({
         where: { id },
         data: {
-          clienteId, petId, servico: changes.servico || existing.servico, dataHora, status,
+          clienteId, petId, servico: changes.servico || existing.servico,
+          categoria: changes.categoria || (changes.servico ? inferirCategoriaAgenda(changes.servico) : existing.categoria),
+          dataHora, status,
           observacoes: changes.observacoes !== undefined ? changes.observacoes || null : existing.observacoes,
         },
         include: { pet: true, cliente: true },

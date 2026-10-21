@@ -60,26 +60,36 @@ export function lerA1DeVariaveis(env: {SEFAZ_NFE_A1_PFX_BASE64?:string; SEFAZ_NF
 }
 
 export class SefazComunicacaoError extends Error {
-  constructor(readonly categoria: string, message: string) {
+  constructor(readonly categoria: string, message: string, readonly codigoTecnico?: string) {
     super(message)
-    this.name = 'SefazComunicacaoError'
+    this.name='SefazComunicacaoError'
   }
 }
-/** Nunca devolve mensagens originais de OpenSSL ao navegador: podem ter detalhes locais. */
+/** Exibe somente códigos técnicos padronizados, nunca OpenSSL raw, nomes de arquivos ou segredos. */
 export function classificarErroTransporteSefaz(error: unknown): SefazComunicacaoError {
-  const code = error && typeof error === 'object' && 'code' in error
-    ? String((error as { code: unknown }).code) : ''
-  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT')
-    return new SefazComunicacaoError('tempo-esgotado', 'A conexão com a SEFAZ-SP demorou além do limite de 15 segundos. Tente novamente mais tarde.')
-  if (['ENOTFOUND', 'EAI_AGAIN'].includes(code))
-    return new SefazComunicacaoError('dns', 'O servidor não conseguiu localizar o endereço da SEFAZ-SP. Verifique DNS e disponibilidade.')
-  if (['ECONNRESET', 'EPIPE'].includes(code))
-    return new SefazComunicacaoError('conexao-encerrada', 'A comunicação foi encerrada durante a conexão. Pode ser incompatibilidade TLS, bloqueio de rede ou instabilidade da SEFAZ.')
-  if (['ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH'].includes(code))
-    return new SefazComunicacaoError('rede', 'Não foi possível alcançar o serviço SEFAZ-SP a partir da hospedagem. Confira rede e disponibilidade.')
-  if (/CERT_|CERTIFICATE|VERIFY|TLS|SSL|ERR_OSSL|X509/i.test(code))
-    return new SefazComunicacaoError('certificado-tls', 'Falha na negociação TLS ou validação de certificado com a SEFAZ-SP. O A1 abriu localmente; a comunicação mTLS deve ser analisada.')
-  return new SefazComunicacaoError('comunicacao', 'A SEFAZ-SP não respondeu normalmente à consulta de homologação. Verifique TLS, rede e credenciamento com o suporte técnico.')
+  const obj=error && typeof error==='object' ? error as Record<string,unknown> : {}
+  const code=typeof obj.code==='string' && /^[A-Z0-9_]{2,75}$/.test(obj.code)?obj.code:''
+  const reason=typeof obj.reason==='string'?obj.reason.toLowerCase():''
+  const raw=typeof obj.message==='string'?obj.message.toLowerCase():''
+  const detalhes=reason+' '+raw
+  if(['ETIMEDOUT','ESOCKETTIMEDOUT'].includes(code))
+    return new SefazComunicacaoError('tempo-esgotado','Tempo de conexão com SEFAZ-SP excedido. Tente novamente depois.',code)
+  if(['ENOTFOUND','EAI_AGAIN'].includes(code))
+    return new SefazComunicacaoError('dns','Falha ao resolver o endereço oficial da SEFAZ-SP.',code)
+  if(['ECONNRESET','EPIPE'].includes(code))
+    return new SefazComunicacaoError('conexao-encerrada','A SEFAZ ou a rede encerrou a conexão. Verifique compatibilidade TLS 1.2 e disponibilidade.',code)
+  if(['ECONNREFUSED','ENETUNREACH','EHOSTUNREACH'].includes(code))
+    return new SefazComunicacaoError('rede','O serviço da SEFAZ-SP não pôde ser alcançado.',code)
+  if (/unknown ca|bad certificate|certificate required|unsupported certificate|alert certificate unknown|handshake failure/.test(detalhes))
+    return new SefazComunicacaoError('certificado-rejeitado','O certificado cliente foi rejeitado na negociação TLS 1.2 pela SEFAZ. Verifique cadeia ICP-Brasil, CNPJ, certificado e credenciamento.',code)
+  if (/unable to verify|unable to get local issuer|self.signed|certificate verify failed|certificate has expired/.test(detalhes) ||
+      ['UNABLE_TO_VERIFY_LEAF_SIGNATURE','UNABLE_TO_GET_ISSUER_CERT_LOCALLY','CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT'].includes(code))
+    return new SefazComunicacaoError('cadeia-confianca','O servidor não conseguiu validar a cadeia TLS da SEFAZ-SP. Confira as autoridades certificadoras confiáveis, sem desativar a validação.',code)
+  if (/wrong version|unsupported protocol|no shared cipher|protocol version/.test(detalhes))
+    return new SefazComunicacaoError('versao-tls','Falha de versão ou conjunto criptográfico TLS. O ERP força TLS 1.2 para homologação.',code)
+  if (/CERT_|CERTIFICATE|VERIFY|TLS|SSL|ERR_OSSL|X509/.test(code) || code==='EPROTO')
+    return new SefazComunicacaoError('certificado-tls','Falha na conexão TLS 1.2 da SEFAZ-SP. Analise o código técnico seguro e a cadeia de certificação.',code)
+  return new SefazComunicacaoError('comunicacao','A SEFAZ-SP não respondeu normalmente à consulta de homologação.',code)
 }
 
 export async function consultarStatusHomologacaoSefazSp(cred: {pfx: Buffer;passphrase: string}) {
@@ -92,6 +102,8 @@ export async function consultarStatusHomologacaoSefazSp(cred: {pfx: Buffer;passp
       pfx: cred.pfx,
       passphrase: cred.passphrase,
       minVersion: 'TLSv1.2',
+      maxVersion: 'TLSv1.2',
+      servername: endpoint.hostname,
       rejectUnauthorized: true,
       timeout: 15_000,
       headers: {

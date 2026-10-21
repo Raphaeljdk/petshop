@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoSchema, statusAgenda } from '@/lib/agenda-validation'
+import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
 
 export const dynamic = 'force-dynamic'
 async function admin() {
@@ -73,7 +74,9 @@ export async function POST(req: NextRequest) {
     if (conflito) return NextResponse.json({ error: 'Este pet já possui agendamento nesse horário.' }, { status: 409 })
     const item = await db.$transaction(async tx => {
       const created = await tx.agendamento.create({
-        data: { clienteId: data.clienteId, petId: data.petId, dataHora, servico: data.servico, observacoes: data.observacoes || null },
+        data: { clienteId: data.clienteId, petId: data.petId, dataHora, servico: data.servico,
+          categoria: data.categoria || inferirCategoriaAgenda(data.servico),
+          observacoes: data.observacoes || null },
         include: { pet: true, cliente: true },
       })
       await tx.agendaEvento.create({ data: { agendamentoId: created.id, acao: 'criado', autorId: auth.user!.id } })
