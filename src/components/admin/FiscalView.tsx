@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
+import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 
 type Config = {
   razaoSocial: string | null
@@ -104,6 +105,7 @@ export function FiscalView() {
   const [salvandoChave,setSalvandoChave] = useState(false)
   const [copiandoResumo,setCopiandoResumo] = useState<string|null>(null)
   const [gerandoPrevia,setGerandoPrevia] = useState<string|null>(null)
+  const [montandoNfe,setMontandoNfe] = useState<string|null>(null)
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -433,7 +435,7 @@ export function FiscalView() {
           <div className="rounded-lg border p-3 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
             <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. O ERP só poderá transmitir NF-e quando implementarmos o XML oficial completo, assinatura digital, consulta e aprovação da contabilidade.</p>
-            <p className="mt-1">O botão Gerar XML de prévia baixa um documento interno com os dados reais e as pendências. Não segue ainda o XSD oficial, não calcula impostos e não é assinado ou transmitido. A emissão direta pela SEFAZ ainda está bloqueada: não clique em emitir outra nota para pedidos que já tiveram NF-e no Mercado Livre, Amazon ou Mercado Pago. O teste do A1/serviço não habilita emissão em produção.</p>
+            <p className="mt-1">Gerar XML de prévia baixa um documento interno de pendências. Montar NF-e 55 abre o novo formulário para gerar um rascunho com a estrutura nacional XML 4.00 apenas em homologação, restrito a algumas operações do Simples Nacional e sem validação XSD 010f ou reforma tributária completa. Nenhum dos dois arquivos é uma NF-e assinada ou autorizada. Evite duplicidades com notas já emitidas nos marketplaces ou Mercado Pago.</p>
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
@@ -463,6 +465,12 @@ export function FiscalView() {
                         Gerar XML de prévia
                       </Button>
                     )}
+                    {v.status==='concluida'&&['site','amazon'].includes(v.canal)&&!v.notaFiscal?.chaveAcesso&&(
+                      <Button size="sm" variant="outline" onClick={()=>setMontandoNfe(montandoNfe===v.id?null:v.id)}
+                        aria-expanded={montandoNfe===v.id} title="Somente rascunho NF-e 55 em homologação. Não transmite à SEFAZ.">
+                        <FileText className="mr-1 size-4"/>Montar NF-e 55 (homologação)
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" disabled={copiandoResumo===v.id}
                       onClick={()=>void copiarResumoFiscal(v.id)}>
                       {copiandoResumo===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<ClipboardList className="mr-1 size-4"/>}
@@ -484,6 +492,7 @@ export function FiscalView() {
                       </>)}
                     </>)}
                   </div>
+                  {montandoNfe===v.id&&<NfeXmlDraftForm vendaId={v.id} onClose={()=>setMontandoNfe(null)}/>}
                   {conciliandoId===v.id&&(
                     <div className="w-full space-y-3 rounded-xl border p-3">
                       <p className="text-sm font-semibold">Registrar NF-e já emitida no Mercado Pago</p>
