@@ -15,6 +15,12 @@ jobs:
           python3 - <<'PY'
           import urllib.request,re
           data=urllib.request.urlopen('https://dfe-portal.svrs.rs.gov.br/Nfe/Documentos',timeout=30).read().decode('utf8')
-          for line in data.splitlines():
-            if any(k in line.lower() for k in ['download','010e','010f','schema','2025.002']): print(line[:2500])
+          for path in re.findall(r'<script[^>]+src="([^\"]+)"',data):
+            if path.startswith('http') and 'svrs' not in path: continue
+            from urllib.parse import urljoin
+            try:
+              script=urllib.request.urlopen(urljoin('https://dfe-portal.svrs.rs.gov.br',path),timeout=15).read().decode('utf8')
+              match=re.search('function download_arquivo_estatico',script)
+              if match: print(script[match.start():match.start()+2000])
+            except Exception as e: print(path,str(e))
           PY
