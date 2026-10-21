@@ -97,6 +97,7 @@ export function FiscalView() {
   const [emissorStatus,setEmissorStatus] = useState<EmissorStatus|null>(null)
   const [consultandoFba,setConsultandoFba] = useState(false)
   const [testandoProvedor,setTestandoProvedor] = useState(false)
+  const [diagnosticoSefaz,setDiagnosticoSefaz] = useState<{mensagem:string;codigo:string;categoria:string}|null>(null)
   const [conciliandoId,setConciliandoId] = useState<string|null>(null)
   const [chaveFiscal,setChaveFiscal] = useState('')
   const [confirmadoFiscal,setConfirmadoFiscal] = useState(false)
@@ -229,8 +230,14 @@ export function FiscalView() {
   }
   async function testarProvedor(){
     setTestandoProvedor(true)
+    setDiagnosticoSefaz(null)
     try{
-      const result=await jsonRes(await fetch('/api/admin/fiscal/provedor',{method:'POST',credentials:'same-origin'}))
+      const response=await fetch('/api/admin/fiscal/provedor',{method:'POST',credentials:'same-origin'})
+      const result=await response.json()
+      const codigo=typeof result.codigoTecnico==='string'&&/^[A-Z0-9_]{2,75}$/.test(result.codigoTecnico)?result.codigoTecnico:'NAO_INFORMADO'
+      const categoria=typeof result.categoria==='string'&&/^[a-z-]{2,50}$/.test(result.categoria)?result.categoria:'consulta'
+      setDiagnosticoSefaz({mensagem:result.error||result.aviso||result.motivo||'Consulta concluída.',codigo,categoria})
+      if(!response.ok) throw new Error(result.error||'Falha na consulta SEFAZ.')
       if (result.ok) toast.success(result.aviso||'Serviço SEFAZ em operação, sem emissão.')
       else toast.error(result.aviso||result.motivo||'SEFAZ não confirmou disponibilidade do serviço.')
     }catch(e){toast.error(e instanceof Error?e.message:'Erro no teste da conexão fiscal.')}
@@ -330,6 +337,12 @@ export function FiscalView() {
           Testar SEFAZ-SP (homologação)
         </Button>
       </CardContent></Card>
+      {diagnosticoSefaz&&<div role="status" className="space-y-2 rounded-xl border bg-muted/30 p-4 text-sm">
+        <p className="font-semibold">Resultado do teste SEFAZ-SP · homologação</p>
+        <p>{diagnosticoSefaz.mensagem}</p>
+        <p className="break-words text-xs">Categoria: {diagnosticoSefaz.categoria} · Código técnico: <strong>{diagnosticoSefaz.codigo}</strong></p>
+        <p className="text-xs text-muted-foreground">Envie este resultado ao suporte. O teste não emite nota fiscal.</p>
+      </div>}
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Emissor Mercado Pago · fluxo manual sem outro provedor</p>
