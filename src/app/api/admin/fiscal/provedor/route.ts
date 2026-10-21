@@ -54,7 +54,10 @@ export async function POST(req: NextRequest) {
       emitente.uf?.toUpperCase() !== 'SP') {
       return noStore({error: 'Cadastre o CNPJ do emitente e UF SP em Dados do emitente.'}, 409)
     }
-    const credentials = lerA1DeVariaveis(process.env)
+    const credentials = lerA1DeVariaveis({
+      SEFAZ_NFE_A1_PFX_BASE64: process.env.SEFAZ_NFE_A1_PFX_BASE64,
+      SEFAZ_NFE_A1_SENHA: process.env.SEFAZ_NFE_A1_SENHA,
+    })
     try {
       const resultado = await consultarStatusHomologacaoSefazSp(credentials)
       return noStore({
