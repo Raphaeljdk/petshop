@@ -581,7 +581,7 @@ export function FiscalView() {
               A opção Produção abaixo registra uma preferência cadastral. O teste de conexão A1/SEFAZ
               permanece no ambiente de homologação e não transmite NF-e.
             </p>
-          </div>
+          </div>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {campo('razaoSocial', 'Razão social')}
             {campo('nomeFantasia', 'Nome fantasia')}
