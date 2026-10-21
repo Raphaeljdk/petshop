@@ -27,5 +27,6 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bunx prisma generate --schema=prisma/schema.prisma
+      - run: bun test tests/fiscal-preview.test.ts
       - run: bun run test:customer-experience
       - run: bun run build
