@@ -44,7 +44,14 @@ type Nota = {
   numero: number | null; chaveAcesso: string | null
   protocolo: string | null; danfeUrl: string | null; createdAt: string
 }
-type FiscalData = { config: Config | null; vendas: Sale[]; notas: Nota[]; emissaoConfigurada: boolean; emissaoMercadoLivreHabilitada: boolean; emissaoAviso: string }
+type ProntidaoFiscal = {
+  ambienteSelecionado:string; modelo:string; emissaoRealHabilitada:boolean;
+  aviso:string; concluido:number; total:number;
+  requisitos:Array<{id:string;ok:boolean;titulo:string;detalhe:string}>
+}
+type FiscalData = { config: Config | null; vendas: Sale[]; notas: Nota[];
+  emissaoConfigurada: boolean; emissaoMercadoLivreHabilitada: boolean;
+  emissaoAviso: string; prontidaoNfeProducao: ProntidaoFiscal }
 type Product = {
   id: string; nome: string; sku: string | null
   ncm: string | null; cest: string | null; cfop: string | null
@@ -550,6 +557,31 @@ export function FiscalView() {
       {aba === 'emitente' && (
         <Card><CardContent className="space-y-5 p-4 sm:p-6">
           <div><h2 className="font-semibold">Cadastro do emitente</h2><p className="text-xs text-muted-foreground">Informe os dados da Matilha Prado conforme o cadastro na SEFAZ e confirme o regime com o contador. Nenhum certificado ou token é solicitado aqui.</p></div>
+          {data?.prontidaoNfeProducao && <div className="rounded-lg border p-4 space-y-3" role="status">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold text-sm">Verificação para NF-e real em produção</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {data.prontidaoNfeProducao.concluido} de {data.prontidaoNfeProducao.total} verificações concluídas ou pré-configuradas
+                </p>
+              </div>
+              <Badge variant="outline" className="text-amber-700 dark:text-amber-300">Emissão própria bloqueada</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">{data.prontidaoNfeProducao.aviso}</p>
+            <details className="text-sm">
+              <summary className="cursor-pointer font-medium">Ver requisitos e pendências</summary>
+              <div className="mt-3 space-y-3">
+                {data.prontidaoNfeProducao.requisitos.map(r=><div key={r.id} className="flex items-start gap-2">
+                  {r.ok?<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600"/>:<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600"/>}
+                  <div><p className="font-medium">{r.titulo}</p><p className="text-xs text-muted-foreground">{r.detalhe}</p></div>
+                </div>)}
+              </div>
+            </details>
+            <p className="text-xs text-muted-foreground">
+              A opção Produção abaixo registra uma preferência cadastral. O teste de conexão A1/SEFAZ
+              permanece no ambiente de homologação e não transmite NF-e.
+            </p>
+          </div>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {campo('razaoSocial', 'Razão social')}
             {campo('nomeFantasia', 'Nome fantasia')}
