@@ -39,7 +39,7 @@ export function interpretarRespostaStatusSefaz(xml: string) {
   return { disponivel: codigo === 107, codigo, motivo: m?.[1]?.trim() || 'Resposta da SEFAZ sem motivo identificado.' }
 }
 
-export function lerA1DeVariaveis(env: NodeJS.ProcessEnv) {
+export function lerA1DeVariaveis(env: {SEFAZ_NFE_A1_PFX_BASE64?:string; SEFAZ_NFE_A1_SENHA?:string}) {
   const encoded = env.SEFAZ_NFE_A1_PFX_BASE64?.trim() || ''
   const senha = env.SEFAZ_NFE_A1_SENHA
   if (!encoded || typeof senha !== 'string' || senha.length === 0)
