@@ -26,8 +26,11 @@ const schema = z.object({
   destinatario:z.object({
     nome:z.string().trim().min(2).max(60),
     documento:z.string().regex(/^\d{11}(\d{3})?$/),
+    indicadorIE:z.enum(['1','2','9']),
+    inscricaoEstadual:z.string().max(20).optional(),
     endereco,
   }).strict(),
+  consumidorFinal:z.enum(['0','1']),
   pagamento:z.enum(['01','17','18']),
   modalidadeFrete:z.enum(['0','1','2','9']),
   itens:z.array(z.object({
