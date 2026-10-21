@@ -13,10 +13,18 @@ jobs:
       - name: Consultar fonte oficial
         run: |
           python3 - <<'PY'
-          import urllib.request,re,http.cookiejar
+          import urllib.request,re,http.cookiejar,zipfile,io
           urllib.request.install_opener(urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())))
-          url='https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?AspxAutoDetectCookieSupport=1&tipoConteudo=BMPFMBoln3w%3D'
-          text=urllib.request.urlopen(url,timeout=30).read().decode('utf-8','replace')
-          for line in text.splitlines():
-            if any(k in line.lower() for k in ['exibirarquivo','010f','010e','2026.007']): print(line[:3000])
+          for host in ['www.nfe.fazenda.gov.br','hom.nfe.fazenda.gov.br','www.nfe.fazenda.gov.br']:
+            path='/portal/exibirArquivo.aspx?conteudo=akib2DRpJN4%3D' if host.startswith('www') else '/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w%3D'
+            url='https://'+host+path
+            try:
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+              data=urllib.request.urlopen(req,timeout=20).read()
+              if data[:2]==b'PK':
+                print('ZIP_OFICIAL',url,zipfile.ZipFile(io.BytesIO(data)).namelist()[:20])
+              else:
+                for line in data.decode('utf8','replace').splitlines():
+                  if any(k in line.lower() for k in ['exibirarquivo','010f','010e']): print(line[:3000])
+            except Exception as e: print(host,str(e))
           PY
