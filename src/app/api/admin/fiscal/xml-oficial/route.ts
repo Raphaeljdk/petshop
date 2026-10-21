@@ -32,6 +32,7 @@ const schema = z.object({
   modalidadeFrete:z.enum(['0','1','2','9']),
   itens:z.array(z.object({
     produtoId:z.string().min(1).max(100),
+    gtin:z.string().refine(s=>s==='SEM GTIN'||/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(s)),
     pisCst:z.enum(['04','05','06','07','08','09']),
     cofinsCst:z.enum(['04','05','06','07','08','09']),
   }).strict()).min(1).max(990),
