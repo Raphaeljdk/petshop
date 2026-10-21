@@ -70,7 +70,7 @@ export function gerarRascunhoNfe55(
     'Informe nome e CPF/CNPJ do destinatário.')
   necessario(['1','2','9'].includes(entrada.destinatario.indicadorIE) && ['0','1'].includes(entrada.consumidorFinal),
     'Confirme se o destinatário é contribuinte e se é consumidor final.')
-  necessario(entrada.destinatario.indicadorIE !== '1' || /^\\d{2,14}$/.test(numerico(entrada.destinatario.inscricaoEstadual)),
+  necessario(entrada.destinatario.indicadorIE !== '1' || /^\d{2,14}$/.test(numerico(entrada.destinatario.inscricaoEstadual)),
     'Destinatário contribuinte exige inscrição estadual.')
   necessario(end.logradouro.trim() && end.numero.trim() && end.bairro.trim()
     && end.municipio.trim() && /^\d{7}$/.test(numerico(end.codigoMunicipio))
