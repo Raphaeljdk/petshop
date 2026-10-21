@@ -535,15 +535,41 @@ export function FiscalView() {
       {aba === 'produtos' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div><h2 className="font-semibold">Classificação fiscal do catálogo</h2><p className="text-xs text-muted-foreground">NCM, CEST, CFOP, origem e CST/CSOSN precisam ser revisados com a contabilidade. O CFOP pode variar conforme o destino e a operação.</p></div>
-          <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input value={buscaProduto} onChange={(e) => { setBuscaProduto(e.target.value); setPagina(1) }} className="pl-9" placeholder="Buscar produto ou SKU..." /></div>
+          <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input value={buscaProduto} onChange={(e) => { setBuscaProduto(e.target.value); setPagina(1); setEditandoProduto(null) }} className="pl-9" placeholder="Buscar produto ou SKU..." /></div>
           {!produtos ? <p className="py-6 text-center text-sm text-muted-foreground">Carregando produtos...</p> : (
             <>
               <p className="text-xs text-muted-foreground">{produtos.total} produto(s) encontrado(s)</p>
               <div className="divide-y rounded-xl border">
                 {produtos.produtos.map((p) => (
-                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · NCM: {p.ncm || 'Pendente'}</p></div>
-                    <Button variant="outline" size="sm" onClick={() => setEditandoProduto({ ...p })}>Classificar</Button>
+                  <div key={p.id} className="p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · NCM: {p.ncm || 'Pendente'}</p></div>
+                      <Button variant="outline" size="sm"
+                        aria-expanded={editandoProduto?.id === p.id}
+                        aria-controls={'classificacao-' + p.id}
+                        onClick={() => setEditandoProduto(atual => atual?.id === p.id ? null : { ...p })}>
+                        {editandoProduto?.id === p.id ? 'Fechar classificação' : 'Classificar'}
+                      </Button>
+                    </div>
+                    {editandoProduto?.id === p.id && (
+                      <div id={'classificacao-' + p.id} className="mt-3 space-y-4 rounded-xl border border-primary/30 bg-muted/30 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div><p className="font-semibold">{editandoProduto.nome}</p><p className="text-xs text-muted-foreground">Preencha somente os códigos validados pelo contador. CFOP depende da operação.</p></div>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setEditandoProduto(null)}>Fechar</Button>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          {(['ncm', 'cest', 'cfop', 'origem', 'cst', 'csosn', 'unidadeFiscal'] as const).map(key => (
+                            <div key={key} className="space-y-1.5">
+                              <Label htmlFor={'tax-' + p.id + '-' + key}>{key === 'unidadeFiscal' ? 'Unidade' : key.toUpperCase()}</Label>
+                              <Input id={'tax-' + p.id + '-' + key} value={editandoProduto[key] || ''} onChange={(e) => alterarProduto(key, e.target.value)} />
+                            </div>
+                          ))}
+                        </div>
+                        <Button type="button" disabled={saving} onClick={salvarProduto}>
+                          {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar classificação
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {produtos.produtos.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhum produto encontrado.</p>}
@@ -555,17 +581,7 @@ export function FiscalView() {
               </div>
             </>
           )}
-          {editandoProduto && (
-            <div className="space-y-4 rounded-xl border border-primary/30 bg-muted/30 p-4">
-              <div className="flex items-start justify-between gap-2"><div><p className="font-semibold">{editandoProduto.nome}</p><p className="text-xs text-muted-foreground">Preencha somente códigos aprovados pelo contador.</p></div><Button variant="ghost" size="sm" onClick={() => setEditandoProduto(null)}>Fechar</Button></div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {(['ncm', 'cest', 'cfop', 'origem', 'cst', 'csosn', 'unidadeFiscal'] as const).map((key) => (
-                  <div key={key} className="space-y-1.5"><Label htmlFor={'tax-' + key}>{key === 'unidadeFiscal' ? 'Unidade' : key.toUpperCase()}</Label><Input id={'tax-' + key} value={editandoProduto[key] || ''} onChange={(e) => alterarProduto(key, e.target.value)} /></div>
-                ))}
-              </div>
-              <Button disabled={saving} onClick={salvarProduto}>{saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar classificação</Button>
-            </div>
-          )}
+
         </CardContent></Card>
       )}
     </div>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { db } from '@/lib/db'
-import { SEFAZ_SP, lerA1DeVariaveis, consultarStatusHomologacaoSefazSp } from '@/lib/sefaz-sp-nfe'
+import { SEFAZ_SP, lerA1DeVariaveis, consultarStatusHomologacaoSefazSp, SefazComunicacaoError } from '@/lib/sefaz-sp-nfe'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -71,9 +71,17 @@ export async function POST(req: NextRequest) {
           ? 'A1 aceito pela comunicação TLS e serviço de HOMOLOGAÇÃO ativo. Nenhuma NF-e emitida. A validade fiscal e o vínculo do CNPJ com o A1 ainda exigem conferência.'
           : 'A1 aberto, porém a SEFAZ não retornou status operacional 107. Nenhuma nota foi enviada.',
       })
-    } catch {
+    } catch (error) {
+      if (error instanceof SefazComunicacaoError) {
+        return noStore({
+          error: error.message, categoria: error.categoria,
+          certificadoAberto: true, ambiente: 'homologacao',
+          emissaoRealHabilitada: false,
+        }, 502)
+      }
       return noStore({
-        error: 'O A1 foi aberto localmente, mas não foi possível consultar o serviço de homologação da SEFAZ-SP. Confira credenciamento, validade, rede e certificado.',
+        error: 'O A1 foi aberto localmente, mas a consulta de homologação não pôde ser concluída.',
+        categoria: 'comunicacao', certificadoAberto: true, ambiente: 'homologacao',
       }, 502)
     }
   } catch (e) {

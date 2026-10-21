@@ -17,6 +17,26 @@ export async function GET(req: NextRequest) {
   if (auth.denied) return auth.denied
   try {
     const status = req.nextUrl.searchParams.get('status')
+    const inicio = req.nextUrl.searchParams.get('inicio')
+    const fim = req.nextUrl.searchParams.get('fim')
+    // Agenda de mês/semana/dia usa o intervalo completo, não uma página arbitrária de 100 eventos.
+    if (inicio || fim) {
+      if (!inicio || !fim) return NextResponse.json({ error: 'Informe início e fim da agenda.' }, { status: 400 })
+      const de = new Date(inicio), ate = new Date(fim)
+      if (!Number.isFinite(de.getTime()) || !Number.isFinite(ate.getTime()) ||
+          ate <= de || ate.getTime() - de.getTime() > 47 * 86400_000)
+        return NextResponse.json({ error: 'Intervalo inválido; limite de 47 dias.' }, { status: 400 })
+      const where = { dataHora: { gte: de, lte: ate }, ...(status && statusAgenda.safeParse(status).success ? { status } : {}) }
+      const [items, total] = await Promise.all([
+        db.agendamento.findMany({
+          where, orderBy: [{dataHora:'asc'}, {id:'asc'}], take: 500,
+          include: { cliente: { select: { id: true, nome: true, telefone: true } },
+            pet: { select: { id: true, nome: true, especie: true } } },
+        }),
+        db.agendamento.count({ where }),
+      ])
+      return NextResponse.json({ items, total, truncado: total > items.length }, { headers: { 'Cache-Control': 'private, no-store' } })
+    }
     const page = Math.min(10000, Math.max(1, Number(req.nextUrl.searchParams.get('pagina')) || 1))
     const limit = 100
     const where = status && statusAgenda.safeParse(status).success ? { status } : {}
