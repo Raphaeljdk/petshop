@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
+import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
 
 type Config = {
   razaoSocial: string | null
@@ -634,6 +635,7 @@ export function FiscalView() {
       {aba === 'produtos' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
+          <ImportarFiscalZetta onImported={()=>{setProdutos(null);setPagina(1);setEditandoProduto(null);setBuscaProduto('')}}/>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input value={buscaProduto} onChange={(e) => { setBuscaProduto(e.target.value); setPagina(1); setEditandoProduto(null) }} className="pl-9" placeholder="Buscar produto ou SKU..." /></div>
           {!produtos ? <p className="py-6 text-center text-sm text-muted-foreground">Carregando produtos...</p> : (
             <>
