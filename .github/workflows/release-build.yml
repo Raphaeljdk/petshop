@@ -30,5 +30,6 @@ jobs:
       - run: bun test tests/fiscal-preview.test.ts
       - run: bun test tests/nfe-xml-modelo55.test.ts
       - run: bun test tests/fiscal-prontidao-producao.test.ts
+      - run: bun test tests/fiscal-simples-produto.test.ts
       - run: bun run test:customer-experience
       - run: bun run build
