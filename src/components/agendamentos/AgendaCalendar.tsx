@@ -104,6 +104,7 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
   },[vista,referencia])
   async function atualizarStatus(item:AgendaCalendarEntry,proximo:StatusAgendamento){
     if(item.status===proximo)return
+    if(proximo==='cancelado'&&!window.confirm('Cancelar o atendimento de '+item.pet.nome+'? O registro ficará no histórico.'))return
     setAlterandoStatus(item.id)
     try{await onStatusChange(item,proximo)}
     catch(error){toast.error(error instanceof Error?error.message:'Não foi possível atualizar o status.')}
