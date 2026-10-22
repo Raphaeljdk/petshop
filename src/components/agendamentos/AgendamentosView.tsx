@@ -11,13 +11,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { StatusAgendamento } from '@/lib/types'
-import { AgendaCalendar, type AgendaCalendarEntry } from './AgendaCalendar'
+import { AgendaCalendar, type AgendaCalendarEntry, type AgendaProfessional } from './AgendaCalendar'
 import { CATEGORIAS_AGENDA, SUGESTOES_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
 
 type Entry = AgendaCalendarEntry
 type Tutor = { id: string; nome: string; pets: Array<{ id: string; nome: string; especie: string }> }
-type Form = { clienteId: string; petId: string; servico: string; categoria: CategoriaAgenda; dataHora: string; observacoes: string; status: StatusAgendamento }
-const empty: Form = { clienteId: '', petId: '', servico: 'Banho', categoria: 'Estéticos', dataHora: '', observacoes: '', status: 'agendado' }
+type Form = { clienteId: string; petId: string; servico: string; categoria: CategoriaAgenda; dataHora: string; observacoes: string; status: StatusAgendamento; profissionalId: string }
+const empty: Form = { clienteId: '', petId: '', servico: 'Banho', categoria: 'Estéticos', dataHora: '', observacoes: '', status: 'agendado', profissionalId: '' }
 const statusMap: Record<StatusAgendamento, { label: string; className: string }> = {
   agendado: { label: 'Agendado', className: 'bg-blue-100 text-blue-800 border-blue-200' },
   confirmado: { label: 'Em andamento', className: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -37,6 +37,10 @@ async function parseResponse(res: Response) {
 export function AgendamentosView() {
   const [items, setItems] = useState<Entry[]>([])
   const [tutores, setTutores] = useState<Tutor[]>([])
+  const [profissionais, setProfissionais] = useState<AgendaProfessional[]>([])
+  const [nomeProfissional, setNomeProfissional] = useState('')
+  const [especialidadesProfissional, setEspecialidadesProfissional] = useState('')
+  const [savingProfessional, setSavingProfessional] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [buscar, setBuscar] = useState('')
@@ -54,15 +58,18 @@ export function AgendamentosView() {
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const [res, resTut] = await Promise.all([
+      const [res, resTut, resProf] = await Promise.all([
         fetch('/api/agendamentos?pagina=' + pagina, { cache: 'no-store', credentials: 'same-origin' }),
         fetch('/api/clientes', { cache: 'no-store', credentials: 'same-origin' }),
+        fetch('/api/agenda/profissionais', { cache: 'no-store', credentials: 'same-origin' }),
       ])
       const dados = await parseResponse(res)
       const cs = await parseResponse(resTut)
+      const prof = await parseResponse(resProf)
       setItems(dados.items || [])
       setTotal(dados.total || 0)
       setTutores(Array.isArray(cs) ? cs : [])
+      setProfissionais(Array.isArray(prof.items) ? prof.items : [])
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível carregar agenda.') }
     finally { setLoading(false) }
   }, [pagina])
@@ -92,7 +99,7 @@ export function AgendamentosView() {
   }
   function editar(x: Entry) {
     setEditId(x.id)
-    setForm({ clienteId: x.clienteId, petId: x.petId, servico: x.servico, categoria: x.categoria || inferirCategoriaAgenda(x.servico), dataHora: dateInput(x.dataHora), observacoes: x.observacoes || '', status: x.status })
+    setForm({ clienteId: x.clienteId, petId: x.petId, servico: x.servico, categoria: x.categoria || inferirCategoriaAgenda(x.servico), dataHora: dateInput(x.dataHora), observacoes: x.observacoes || '', status: x.status, profissionalId: x.profissionalId || '' })
     setFormOpen(true)
   }
   const petsTutor = tutores.find(x => x.id === form.clienteId)?.pets || []
@@ -118,7 +125,7 @@ export function AgendamentosView() {
     setSaving(true)
     try {
       const payload = { ...form, dataHora: new Date(form.dataHora).toISOString() }
-      const body = editId ? payload : { clienteId: payload.clienteId, petId: payload.petId, servico: payload.servico, categoria: payload.categoria, dataHora: payload.dataHora, observacoes: payload.observacoes }
+      const body = editId ? { ...payload, profissionalId: payload.profissionalId || null } : { clienteId: payload.clienteId, petId: payload.petId, servico: payload.servico, categoria: payload.categoria, dataHora: payload.dataHora, observacoes: payload.observacoes, profissionalId: payload.profissionalId || null }
       await parseResponse(await fetch('/api/agendamentos' + (editId ? '/' + editId : ''), {
         method: editId ? 'PATCH' : 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -127,6 +134,40 @@ export function AgendamentosView() {
       setFormOpen(false); setPagina(1); setCalendarRefresh(n=>n+1); await carregar()
     } catch(e) { toast.error(e instanceof Error ? e.message : 'Falha ao salvar agendamento.') }
     finally { setSaving(false) }
+  }
+  async function alterarStatusDaAgenda(x: Entry, novoStatus: StatusAgendamento) {
+    await parseResponse(await fetch('/api/agendamentos/' + x.id, {
+      method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: novoStatus }),
+    }))
+    toast.success('Status atualizado.')
+    setCalendarRefresh(n => n + 1)
+    await carregar()
+  }
+  async function adicionarProfissional(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setSavingProfessional(true)
+    try {
+      await parseResponse(await fetch('/api/agenda/profissionais', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nomeProfissional, especialidades: especialidadesProfissional || null }),
+      }))
+      toast.success('Profissional cadastrado.')
+      setNomeProfissional(''); setEspecialidadesProfissional(''); await carregar()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao cadastrar profissional.') }
+    finally { setSavingProfessional(false) }
+  }
+  async function alternarProfissional(profissional: AgendaProfessional) {
+    setSavingProfessional(true)
+    try {
+      await parseResponse(await fetch('/api/agenda/profissionais', {
+        method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: profissional.id, ativo: !profissional.ativo }),
+      }))
+      toast.success(profissional.ativo ? 'Profissional desativado.' : 'Profissional reativado.')
+      await carregar()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar profissional.') }
+    finally { setSavingProfessional(false) }
   }
   async function cancelar(x: Entry) {
     if (!window.confirm('Cancelar agendamento de ' + x.pet.nome + '? Ele permanecerá no histórico.')) return
@@ -153,6 +194,22 @@ export function AgendamentosView() {
     <div className="grid grid-cols-3 gap-3">
       {[{name:'Hoje',value:todayCount},{name:'Ativos',value:openCount},{name:'Registros',value:total}].map(c=><Card key={c.name}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{c.name}</p><p className="mt-1 text-2xl font-bold">{c.value}</p></CardContent></Card>)}
     </div>
+    <details className="rounded-xl border bg-card p-3 sm:p-4">
+      <summary className="cursor-pointer text-sm font-semibold">Profissionais e agendas individuais ({profissionais.filter(x=>x.ativo).length} ativos)</summary>
+      <p className="mt-2 text-xs text-muted-foreground">Cadastre quem atende banho, tosa e os demais serviços. Agendamentos antigos sem profissional permanecem intactos.</p>
+      <form onSubmit={adicionarProfissional} className="mt-3 flex flex-wrap items-end gap-2">
+        <div className="min-w-44 flex-1 space-y-1"><Label htmlFor="profissional-nome">Nome *</Label><Input id="profissional-nome" required minLength={2} maxLength={80} value={nomeProfissional} onChange={e=>setNomeProfissional(e.target.value)} placeholder="Nome do profissional"/></div>
+        <div className="min-w-44 flex-1 space-y-1"><Label htmlFor="profissional-servicos">Especialidades</Label><Input id="profissional-servicos" maxLength={200} value={especialidadesProfissional} onChange={e=>setEspecialidadesProfissional(e.target.value)} placeholder="Ex.: Banho e tosa"/></div>
+        <Button type="submit" disabled={savingProfessional}>{savingProfessional?'Salvando...':'Adicionar profissional'}</Button>
+      </form>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {profissionais.map(p=><div key={p.id} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-xs">
+          <span><strong>{p.nome}</strong>{p.especialidades?' · '+p.especialidades:''}{!p.ativo?' (inativo)':''}</span>
+          <Button type="button" size="sm" variant="outline" disabled={savingProfessional} onClick={()=>void alternarProfissional(p)}>{p.ativo?'Desativar':'Reativar'}</Button>
+        </div>)}
+        {!profissionais.length&&<p className="text-xs text-muted-foreground">Nenhum profissional cadastrado ainda.</p>}
+      </div>
+    </details>
     {formOpen && <Card className="border-primary/30"><CardContent className="p-4 sm:p-6">
       <form onSubmit={salvar} className="space-y-4">
         <div className="flex justify-between items-center"><h2 className="font-semibold">{editId?'Editar / remarcar':'Novo agendamento'}</h2><Button variant="ghost" type="button" onClick={()=>setFormOpen(false)} aria-label="Fechar"><X className="size-4"/></Button></div>
@@ -188,6 +245,10 @@ export function AgendamentosView() {
               placeholder="Descreva o serviço que será realizado"/>
             <p className="text-xs text-muted-foreground">Categorias clínicas, cirúrgicas, vacinas e internações são somente classificações administrativas. Agende apenas procedimentos que a empresa está habilitada a prestar.</p>
           </div>
+          <div className="space-y-1.5"><Label htmlFor="agenda-profissional">Profissional responsável</Label><select id="agenda-profissional" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.profissionalId} onChange={e=>setForm(f=>({...f,profissionalId:e.target.value}))}>
+            <option value="">Atribuir depois / sem profissional</option>
+            {profissionais.filter(p=>p.ativo||p.id===form.profissionalId).map(p=><option key={p.id} value={p.id}>{p.nome}{p.especialidades?' · '+p.especialidades:''}{p.ativo?'':' (inativo)'}</option>)}
+          </select></div>
           <div className="space-y-1.5"><Label htmlFor="agenda-data">Data e horário *</Label><Input id="agenda-data" type="datetime-local" required value={form.dataHora} onChange={e=>setForm(f=>({...f,dataHora:e.target.value}))}/></div>
           {editId && <div className="space-y-1.5"><Label htmlFor="agenda-status">Status</Label><select id="agenda-status" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value as StatusAgendamento}))}>
             {Object.entries(statusMap).map(([k,v])=><option value={k} key={k}>{v.label}</option>)}</select></div>}
@@ -196,7 +257,7 @@ export function AgendamentosView() {
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setFormOpen(false)}>Cancelar</Button><Button type="submit" disabled={saving}>{saving?'Salvando...':editId?'Salvar alterações':'Agendar'}</Button></div>
       </form>
     </CardContent></Card>}
-    <AgendaCalendar onEdit={editarDaAgenda} onCreateAt={novoNaData} refreshKey={calendarRefresh}/>
+    <AgendaCalendar onEdit={editarDaAgenda} onCreateAt={novoNaData} onStatusChange={alterarStatusDaAgenda} profissionais={profissionais} refreshKey={calendarRefresh}/>
     <details className="rounded-2xl border bg-card p-3 sm:p-4">
       <summary className="cursor-pointer rounded-md text-sm font-semibold hover:text-primary">
         Abrir lista de agendamentos e histórico detalhado
