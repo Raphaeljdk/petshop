@@ -543,3 +543,26 @@ model RegraFiscalAprovada {
   @@unique([ncm, cfop, ufDestino, origem, indicadorIE])
   @@index([ncm, ufDestino, ativo])
 }
+
+model ImportacaoFiscalProduto {
+  id String @id @default(cuid())
+  produtoId String
+  sku String?
+  fonte String
+  arquivo String
+  hashArquivo String
+  linha Int
+  camposAlterados String
+  ncmAnterior String?
+  ncmNovo String?
+  cestAnterior String?
+  cestNovo String?
+  gtinAnterior String?
+  gtinNovo String?
+  origemAnterior String?
+  origemNova String?
+  criadoEm DateTime @default(now())
+
+  @@index([produtoId, criadoEm])
+  @@index([hashArquivo])
+}
