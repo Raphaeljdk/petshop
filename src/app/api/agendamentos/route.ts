@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
         db.agendamento.findMany({
           where, orderBy: [{dataHora:'asc'}, {id:'asc'}], take: 500,
           include: { cliente: { select: { id: true, nome: true, telefone: true } },
-            pet: { select: { id: true, nome: true, especie: true } } },
+            pet: { select: { id: true, nome: true, especie: true } }, profissional: { select: { id: true, nome: true, especialidades: true, ativo: true } } },
         }),
         db.agendamento.count({ where }),
       ])
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     const [items, total] = await Promise.all([
       db.agendamento.findMany({
         where, orderBy: { dataHora: 'desc' }, skip: (page - 1) * limit,
-        take: limit, include: { cliente: { select: { id: true, nome: true, telefone: true } }, pet: { select: { id: true, nome: true, especie: true } } },
+        take: limit, include: { cliente: { select: { id: true, nome: true, telefone: true } }, pet: { select: { id: true, nome: true, especie: true } }, profissional: { select: { id: true, nome: true, especialidades: true, ativo: true } } },
       }),
       db.agendamento.count({ where }),
     ])
@@ -72,11 +72,15 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     })
     if (conflito) return NextResponse.json({ error: 'Este pet já possui agendamento nesse horário.' }, { status: 409 })
+    if (data.profissionalId) {
+      const profissional = await db.profissionalAgenda.findFirst({ where: { id: data.profissionalId, ativo: true }, select: { id: true } })
+      if (!profissional) return NextResponse.json({ error: 'Profissional indisponível para novos agendamentos.' }, { status: 409 })
+    }
     const item = await db.$transaction(async tx => {
       const created = await tx.agendamento.create({
         data: { clienteId: data.clienteId, petId: data.petId, dataHora, servico: data.servico,
           categoria: data.categoria || inferirCategoriaAgenda(data.servico),
-          observacoes: data.observacoes || null },
+          observacoes: data.observacoes || null, profissionalId: data.profissionalId || null },
         include: { pet: true, cliente: true },
       })
       await tx.agendaEvento.create({ data: { agendamentoId: created.id, acao: 'criado', autorId: auth.user!.id } })
