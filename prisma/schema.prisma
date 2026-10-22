@@ -147,6 +147,14 @@ model Produto {
   cst         String?
   csosn       String?
   unidadeFiscal String? @default("UN")
+  // Classificação fiscal adicional: opcional, sem presumir valores ou tributação.
+  // O contador deve conferir CSTs, GTIN e tratamento por operação/destino.
+  gtinFiscal String?
+  pisCst String?
+  cofinsCst String?
+  ipiCst String?
+  ibsCbsCst String?
+  ibsCbsClassTrib String?
   itensVenda ItemVenda[]
   preferences CustomerPreference[]
   reviews ProductReview[]
