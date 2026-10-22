@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
+import { DashboardComercial } from '@/components/dashboard/DashboardComercial'
 
 type Metrics = {
   clientes: number; pets: number; produtos: number; atendimentos: number; agendamentosHoje: number
@@ -64,6 +65,7 @@ export function DashboardView({onIrParaKanban,onIrParaAgendamentos,onIrParaEcomm
       <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Wallet className="size-5 text-primary"/><p className="text-sm font-medium">Vendas concluídas no mês</p></div><p className="mt-3 text-3xl font-bold">{money(data?.receitaMes||0)}</p><p className="mt-1 text-xs text-muted-foreground">{data?.vendasMes||0} venda(s) concluída(s) · valor bruto, antes de custos e impostos</p></CardContent></Card>
       <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Users className="size-5 text-primary"/><p className="text-sm font-medium">Contas do portal</p></div><p className="mt-3 text-3xl font-bold">{data?.contasPortal||0}</p><p className="mt-1 text-xs text-muted-foreground">Acessos dos clientes ao portal Matilha Prado</p></CardContent></Card>
     </div>
+    <DashboardComercial />
     <div className="grid gap-4 lg:grid-cols-2">
       <Card><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Próximos agendamentos</h2><Button variant="ghost" size="sm" onClick={onIrParaAgendamentos}>Abrir agenda<ArrowUpRight className="ml-1 size-4"/></Button></div>
         {data?.proximosAgendamentos?.length?data.proximosAgendamentos.map(a=><div key={a.id} className="flex items-center justify-between gap-2 border-t py-2"><div className="min-w-0"><p className="truncate text-sm font-medium">{a.pet.nome} · {a.servico}</p><p className="text-xs text-muted-foreground">{a.cliente.nome} · {day(a.dataHora)}</p></div><Badge variant="outline">{a.status}</Badge></div>):<p className="py-5 text-sm text-muted-foreground">Sem agendamentos futuros.</p>}
