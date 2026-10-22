@@ -56,6 +56,8 @@ export function DashboardView({onIrParaKanban,onIrParaAgendamentos,onIrParaEcomm
       <Button type="button" variant="outline" size="sm" disabled={loading} onClick={()=>void fetchData()}><RefreshCw className={'mr-2 size-4 '+(loading?'animate-spin':'')}/>Atualizar</Button>
     </div>
     {error&&<p role="status" className="text-sm text-destructive">Falha na atualização: {error}. Exibindo últimos dados carregados.</p>}
+    <DashboardComercial />
+    <h2 className="text-lg font-semibold">Operação da loja</h2>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
       {kpis.map(({label,value,icon:Icon,onClick})=><button key={label} type="button" disabled={!onClick} onClick={onClick} className="text-left disabled:cursor-default">
         <Card className="h-full transition-shadow hover:shadow-md"><CardContent className="p-4"><Icon className="size-5 text-primary"/><p className="mt-3 text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></CardContent></Card>
@@ -65,7 +67,6 @@ export function DashboardView({onIrParaKanban,onIrParaAgendamentos,onIrParaEcomm
       <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Wallet className="size-5 text-primary"/><p className="text-sm font-medium">Vendas concluídas no mês</p></div><p className="mt-3 text-3xl font-bold">{money(data?.receitaMes||0)}</p><p className="mt-1 text-xs text-muted-foreground">{data?.vendasMes||0} venda(s) concluída(s) · valor bruto, antes de custos e impostos</p></CardContent></Card>
       <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Users className="size-5 text-primary"/><p className="text-sm font-medium">Contas do portal</p></div><p className="mt-3 text-3xl font-bold">{data?.contasPortal||0}</p><p className="mt-1 text-xs text-muted-foreground">Acessos dos clientes ao portal Matilha Prado</p></CardContent></Card>
     </div>
-    <DashboardComercial />
     <div className="grid gap-4 lg:grid-cols-2">
       <Card><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Próximos agendamentos</h2><Button variant="ghost" size="sm" onClick={onIrParaAgendamentos}>Abrir agenda<ArrowUpRight className="ml-1 size-4"/></Button></div>
         {data?.proximosAgendamentos?.length?data.proximosAgendamentos.map(a=><div key={a.id} className="flex items-center justify-between gap-2 border-t py-2"><div className="min-w-0"><p className="truncate text-sm font-medium">{a.pet.nome} · {a.servico}</p><p className="text-xs text-muted-foreground">{a.cliente.nome} · {day(a.dataHora)}</p></div><Badge variant="outline">{a.status}</Badge></div>):<p className="py-5 text-sm text-muted-foreground">Sem agendamentos futuros.</p>}
