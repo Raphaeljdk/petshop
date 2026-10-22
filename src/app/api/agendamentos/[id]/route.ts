@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const clienteId = changes.clienteId || existing.clienteId
     const pet = await db.pet.findFirst({ where: { id: petId, clienteId, ativo: true, cliente: { ativo: true } }, select: { id: true } })
     if (!pet) return NextResponse.json({ error: 'Pet não corresponde ao tutor selecionado.' }, { status: 409 })
-    if (changes.profissionalId) {
+    if (changes.profissionalId && changes.profissionalId !== existing.profissionalId) {
       const profissional = await db.profissionalAgenda.findFirst({ where: { id: changes.profissionalId, ativo: true }, select: { id: true } })
       if (!profissional) return NextResponse.json({ error: 'Profissional indisponível para novos agendamentos.' }, { status: 409 })
     }
