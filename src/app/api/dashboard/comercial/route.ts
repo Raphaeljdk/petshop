@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { paidSaleWhere } from '@/lib/customer-experience'
+import { paidSaleWhere } from '@/lib/sales-policy'
+import { arredondarMoeda, diaSaoPaulo, periodoComercial, proximosAniversarios } from '@/lib/dashboard-comercial'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -22,49 +23,6 @@ function canalNormalizado(canal: string): Canal {
   return 'outros'
 }
 
-function diaSaoPaulo(data: Date): string {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(data)
-}
-
-function proximosAniversarios(pets: Array<{
-  id: string
-  nome: string
-  nascimento: Date | null
-  cliente: { nome: string }
-}>, hoje: Date) {
-  const [ano, mes, dia] = diaSaoPaulo(hoje).split('-').map(Number)
-  const meiaNoiteUtc = Date.UTC(ano, mes - 1, dia)
-  return pets.flatMap((pet) => {
-    const nascimento = pet.nascimento
-    if (!nascimento || nascimento.getUTCFullYear() > ano) return []
-    const mesAniversario = nascimento.getUTCMonth()
-    const diaAniversario = nascimento.getUTCDate()
-    function ocorrencia(anoAlvo: number) {
-      // Para nascidos em 29/02, considerar 28/02 nos anos não bissextos.
-      const ultimoDia = new Date(Date.UTC(anoAlvo, mesAniversario + 1, 0)).getUTCDate()
-      return Date.UTC(anoAlvo, mesAniversario, Math.min(diaAniversario, ultimoDia))
-    }
-    let proximo = ocorrencia(ano)
-    let anoProximo = ano
-    if (proximo < meiaNoiteUtc) {
-      anoProximo += 1
-      proximo = ocorrencia(anoProximo)
-    }
-    const dias = Math.round((proximo - meiaNoiteUtc) / 86400000)
-    if (dias < 0 || dias > 30) return []
-    return [{
-      id: pet.id,
-      nome: pet.nome,
-      tutor: pet.cliente.nome,
-      data: new Date(proximo).toISOString().slice(0, 10),
-      dias,
-      idade: anoProximo - nascimento.getUTCFullYear(),
-    }]
-  }).sort((a, b) => a.dias - b.dias || a.nome.localeCompare(b.nome, 'pt-BR')).slice(0, 12)
-}
-
 export async function GET(request: NextRequest) {
   const usuario = await getUsuarioLogado()
   if (!usuario) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -76,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const agora = new Date()
-    const inicio = new Date(agora.getTime() - periodo * 86400000)
+    const { inicio, datas } = periodoComercial(periodo as 7 | 30 | 90, agora)
     const periodoVenda = {
       ...paidSaleWhere,
       createdAt: { gte: inicio, lte: agora },
@@ -92,26 +50,27 @@ export async function GET(request: NextRequest) {
       db.itemVenda.groupBy({
         by: ['produtoId'], where: { venda: periodoVenda },
         _sum: { quantidade: true },
-        orderBy: { _sum: { quantidade: 'desc' } }, take: 8,
+        orderBy: [{ _sum: { quantidade: 'desc' } }, { produtoId: 'asc' }], take: 8,
       }),
       db.venda.groupBy({
         by: ['clienteId'],
         where: { ...periodoVenda, clienteId: { not: null } },
         _sum: { total: true }, _count: { id: true },
-        orderBy: { _sum: { total: 'desc' } }, take: 8,
+        orderBy: [{ _sum: { total: 'desc' } }, { clienteId: 'asc' }], take: 8,
       }),
-      // Data fiscal: autorização da NF-e, não criação do pedido nem rascunho.
+      // A autorização fiscal independe do status de pagamento da venda.
+      // Apurar pela data da autorização, excluindo cancelamentos e outros modelos.
       db.notaFiscal.findMany({
         where: {
+          modelo: '55',
           status: 'autorizada',
           canceladaEm: null,
           autorizadaEm: { gte: inicio, lte: agora },
-          venda: paidSaleWhere,
         },
         select: { id: true, autorizadaEm: true, venda: { select: { canal: true, total: true } } },
       }),
       db.notaFiscal.count({
-        where: { status: 'autorizada', canceladaEm: null, autorizadaEm: null },
+        where: { modelo: '55', status: 'autorizada', canceladaEm: null, autorizadaEm: null },
       }),
       db.pet.findMany({
         where: { ativo: true, cliente: { ativo: true }, nascimento: { not: null } },
@@ -143,34 +102,29 @@ export async function GET(request: NextRequest) {
     for (const item of canaisVendas) {
       const canal = porCanal.find((x) => x.id === canalNormalizado(item.canal))!
       canal.pedidos += item._count.id
-      canal.vendido += item._sum.total || 0
+      canal.vendido = arredondarMoeda(canal.vendido + (item._sum.total || 0))
     }
     for (const nota of notas) {
       const canal = porCanal.find((x) => x.id === canalNormalizado(nota.venda.canal))!
       canal.notasAutorizadas += 1
-      canal.faturadoNfe += nota.venda.total
+      canal.faturadoNfe = arredondarMoeda(canal.faturadoNfe + nota.venda.total)
     }
 
-    const mapaDias = new Map<string, { dia: string; vendido: number; faturadoNfe: number }>()
-    for (let i = 0; i <= periodo; i++) {
-      const d = new Date(inicio.getTime() + i * 86400000)
-      const dia = diaSaoPaulo(d)
-      if (!mapaDias.has(dia)) mapaDias.set(dia, { dia, vendido: 0, faturadoNfe: 0 })
-    }
+    const mapaDias = new Map(datas.map((dia) => [dia, { dia, vendido: 0, faturadoNfe: 0 }]))
     for (const venda of vendasDia) {
       const dia = diaSaoPaulo(venda.createdAt)
       const item = mapaDias.get(dia)
-      if (item) item.vendido += venda.total
+      if (item) item.vendido = arredondarMoeda(item.vendido + venda.total)
     }
     for (const nota of notas) {
       if (!nota.autorizadaEm) continue
       const dia = diaSaoPaulo(nota.autorizadaEm)
       const item = mapaDias.get(dia)
-      if (item) item.faturadoNfe += nota.venda.total
+      if (item) item.faturadoNfe = arredondarMoeda(item.faturadoNfe + nota.venda.total)
     }
 
-    const faturadoNfe = notas.reduce((total, nota) => total + nota.venda.total, 0)
-    const valorVendido = vendas._sum.total || 0
+    const faturadoNfe = notas.reduce((total, nota) => arredondarMoeda(total + nota.venda.total), 0)
+    const valorVendido = arredondarMoeda(vendas._sum.total || 0)
     const quantidadeVendas = vendas._count.id
     return NextResponse.json({
       dias: periodo,
@@ -178,7 +132,7 @@ export async function GET(request: NextRequest) {
       indicadores: {
         vendido: valorVendido,
         pedidos: quantidadeVendas,
-        ticketMedio: quantidadeVendas ? valorVendido / quantidadeVendas : 0,
+        ticketMedio: quantidadeVendas ? arredondarMoeda(valorVendido / quantidadeVendas) : 0,
         faturadoNfe,
         notasAutorizadas: notas.length,
         notasAutorizadasSemData: semDataFiscal,
@@ -193,7 +147,7 @@ export async function GET(request: NextRequest) {
         id: x.clienteId,
         nome: (x.clienteId && nomeCliente.get(x.clienteId)) || 'Cliente não cadastrado',
         compras: x._count.id,
-        total: x._sum.total || 0,
+        total: arredondarMoeda(x._sum.total || 0),
       })),
       aniversarios: proximosAniversarios(pets, agora),
       evolucao: Array.from(mapaDias.values()).sort((a, b) => a.dia.localeCompare(b.dia)),

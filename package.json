@@ -13,6 +13,7 @@
     "db:reset": "prisma migrate reset",
     "admin:invite": "node --env-file=.env scripts/create-admin-invite.mjs",
     "test:auth": "bun test tests/auth.integration.test.ts",
+    "test:dashboard": "node --test tests/dashboard-comercial.test.cjs",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate --schema=prisma/schema.prisma",
     "test:customer-experience": "node --test tests/customer-experience.test.cjs && bun test tests/catalog-variants.test.mjs",

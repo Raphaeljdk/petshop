@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
+import { paidSaleWhere } from '@/lib/sales-policy'
+import { arredondarMoeda } from '@/lib/dashboard-comercial'
 
 export const dynamic = 'force-dynamic'
 export async function GET() {
@@ -24,15 +26,15 @@ export async function GET() {
       db.venda.count({ where: { status: 'pendente' } }),
       db.produto.count({ where: { ativo: true, estoqueIlimitado: false, estoque: { lt: 5 } } }),
       db.notaFiscal.count({ where: { status: { in: ['rascunho','pendente','erro'] } } }),
-      db.notaFiscal.count({ where: { status: 'autorizada' } }),
-      db.venda.aggregate({ where: { createdAt: { gte: inicioMes }, status: 'concluida' }, _sum: { total: true }, _count: { id: true } }),
+      db.notaFiscal.count({ where: { modelo: '55', status: 'autorizada', canceladaEm: null } }),
+      db.venda.aggregate({ where: { ...paidSaleWhere, createdAt: { gte: inicioMes, lte: new Date() } }, _sum: { total: true }, _count: { id: true } }),
       db.processo.findMany({ orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, status: true, servico: true, valorServico: true, createdAt: true, pet: { select: { nome: true, cliente: { select: { nome: true } } } } } }),
       db.agendamento.findMany({ where: { dataHora: { gte: new Date() }, status: { in: ['agendado','confirmado'] } }, orderBy: { dataHora: 'asc' }, take: 5, select: { id: true, status: true, dataHora: true, servico: true, pet: { select: { nome: true } }, cliente: { select: { nome: true } } } }),
       db.user.count({ where: { role: 'CLIENTE', ativo: true } }),
     ])
     return NextResponse.json({
       clientes,pets,produtos,atendimentos,agendamentosHoje,vendasPendentes,estoqueBaixo,
-      notasPendentes,notasEmitidas,receitaMes: receita._sum.total || 0,vendasMes: receita._count.id,
+      notasPendentes,notasEmitidas,receitaMes: arredondarMoeda(receita._sum.total || 0),vendasMes: receita._count.id,
       contasPortal,ultimosAtendimentos,proximosAgendamentos,
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {

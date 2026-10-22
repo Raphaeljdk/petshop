@@ -5,15 +5,9 @@ import type { NextRequest } from 'next/server'
 import { assertSameOrigin, AuthError } from '@/lib/auth-http'
 import { db } from '@/lib/db'
 import { getZettaProduct, zettaProductStock } from '@/lib/zetta-products'
+import { paidSaleWhere } from '@/lib/sales-policy'
 
-// Paid online sales or completed counter sales; pending/refunded orders never qualify.
-export const paidSaleWhere = {
-  status: 'concluida',
-  OR: [
-    { mercadoPagoStatus: 'approved' },
-    { mercadoPagoId: null, mercadoPagoStatus: null },
-  ],
-} satisfies Prisma.VendaWhereInput
+export { paidSaleWhere } from '@/lib/sales-policy'
 
 export function experienceError(error: unknown) {
   if (error instanceof AuthError)
