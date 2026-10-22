@@ -503,3 +503,43 @@ model AgendaEvento {
 
   @@index([agendamentoId, createdAt])
 }
+
+/**
+ * Regra fiscal de referência revisada para uma operação específica.
+ * NÃO é um cálculo oficial de tributos, nem autoriza emissão de notas.
+ * Inicialmente apenas revenda interna de SP a consumidor final não contribuinte.
+ */
+model RegraFiscalAprovada {
+  id String @id @default(cuid())
+  ncm String
+  cfop String
+  ufDestino String @default("SP")
+  origem String
+  indicadorIE String @default("9")
+  csosn String
+  cest String?
+  pisCst String
+  cofinsCst String
+  ipiCst String?
+  ibsCbsCst String?
+  ibsCbsClassTrib String?
+  aliquotaIcmsSt Float?
+  aliquotaPis Float?
+  aliquotaCofins Float?
+  aliquotaIpi Float?
+  aliquotaFcpSt Float?
+  aliquotaIbsUf Float?
+  aliquotaIbsMun Float?
+  aliquotaCbs Float?
+  contadorResponsavel String
+  referencia String
+  observacoes String?
+  vigenteDesde DateTime?
+  vigenteAte DateTime?
+  ativo Boolean @default(true)
+  aprovadoEm DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([ncm, cfop, ufDestino, origem, indicadorIE])
+  @@index([ncm, ufDestino, ativo])
+}
