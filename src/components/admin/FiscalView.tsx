@@ -56,6 +56,9 @@ type Product = {
   id: string; nome: string; sku: string | null
   ncm: string | null; cest: string | null; cfop: string | null
   origem: string | null; cst: string | null; csosn: string | null; unidadeFiscal: string | null
+  gtinFiscal: string | null; pisCst: string | null; cofinsCst: string | null
+  ipiCst: string | null; ibsCbsCst: string | null; ibsCbsClassTrib: string | null
+  pendencias: string[]
 }
 type ProductsData = { produtos: Product[]; total: number; pagina: number; porPagina: number }
 type Aba = 'notas' | 'emitente' | 'produtos'
@@ -310,7 +313,14 @@ export function FiscalView() {
     try {
       await jsonRes(await fetch('/api/admin/fiscal/produtos', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editandoProduto), credentials: 'same-origin',
+        body: JSON.stringify({
+          id:editandoProduto.id,ncm:editandoProduto.ncm,cest:editandoProduto.cest,cfop:editandoProduto.cfop,
+          origem:editandoProduto.origem,cst:editandoProduto.cst,csosn:editandoProduto.csosn,
+          unidadeFiscal:editandoProduto.unidadeFiscal,gtinFiscal:editandoProduto.gtinFiscal,
+          pisCst:editandoProduto.pisCst,cofinsCst:editandoProduto.cofinsCst,
+          ipiCst:editandoProduto.ipiCst,ibsCbsCst:editandoProduto.ibsCbsCst,
+          ibsCbsClassTrib:editandoProduto.ibsCbsClassTrib,
+        }), credentials: 'same-origin',
       }))
       toast.success('Classificação fiscal salva.')
       setEditandoProduto(null)
@@ -622,7 +632,7 @@ export function FiscalView() {
 
       {aba === 'produtos' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
-          <div><h2 className="font-semibold">Classificação fiscal do catálogo</h2><p className="text-xs text-muted-foreground">NCM, CEST, CFOP, origem e CST/CSOSN precisam ser revisados com a contabilidade. O CFOP pode variar conforme o destino e a operação.</p></div>
+          <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input value={buscaProduto} onChange={(e) => { setBuscaProduto(e.target.value); setPagina(1); setEditandoProduto(null) }} className="pl-9" placeholder="Buscar produto ou SKU..." /></div>
           {!produtos ? <p className="py-6 text-center text-sm text-muted-foreground">Carregando produtos...</p> : (
             <>
@@ -631,7 +641,7 @@ export function FiscalView() {
                 {produtos.produtos.map((p) => (
                   <div key={p.id} className="p-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · NCM: {p.ncm || 'Pendente'}</p></div>
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · NCM: {p.ncm || 'Pendente'} · {p.pendencias.length ? p.pendencias.length+' pendência(s) de classificação' : 'Códigos essenciais preenchidos (revisão pendente)'}</p></div>
                       <Button variant="outline" size="sm"
                         aria-expanded={editandoProduto?.id === p.id}
                         aria-controls={'classificacao-' + p.id}
@@ -646,13 +656,15 @@ export function FiscalView() {
                           <Button type="button" variant="ghost" size="sm" onClick={() => setEditandoProduto(null)}>Fechar</Button>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                          {(['ncm', 'cest', 'cfop', 'origem', 'cst', 'csosn', 'unidadeFiscal'] as const).map(key => (
+                          {(['ncm','cest','cfop','origem','cst','csosn','unidadeFiscal','gtinFiscal','pisCst','cofinsCst','ipiCst','ibsCbsCst','ibsCbsClassTrib'] as const).map(key => (
                             <div key={key} className="space-y-1.5">
-                              <Label htmlFor={'tax-' + p.id + '-' + key}>{key === 'unidadeFiscal' ? 'Unidade' : key.toUpperCase()}</Label>
+                              <Label htmlFor={'tax-' + p.id + '-' + key}>{key === 'unidadeFiscal' ? 'Unidade' : key === 'gtinFiscal' ? 'GTIN/EAN' : key === 'ibsCbsClassTrib' ? 'IBS/CBS cClassTrib' : key === 'ibsCbsCst' ? 'IBS/CBS CST' : key.toUpperCase()}</Label>
                               <Input id={'tax-' + p.id + '-' + key} value={editandoProduto[key] || ''} onChange={(e) => alterarProduto(key, e.target.value)} />
                             </div>
                           ))}
                         </div>
+                        {editandoProduto.pendencias.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Pendências anteriores: {editandoProduto.pendencias.join(' · ')}. Salve para atualizar a análise.</p>}
+                        <p className="text-xs text-muted-foreground">A classificação por produto não substitui cálculo fiscal por operação e não autoriza emissão de NF-e.</p>
                         <Button type="button" disabled={saving} onClick={salvarProduto}>
                           {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar classificação
                         </Button>
