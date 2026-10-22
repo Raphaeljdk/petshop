@@ -29,6 +29,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const clienteId = changes.clienteId || existing.clienteId
     const pet = await db.pet.findFirst({ where: { id: petId, clienteId, ativo: true, cliente: { ativo: true } }, select: { id: true } })
     if (!pet) return NextResponse.json({ error: 'Pet não corresponde ao tutor selecionado.' }, { status: 409 })
+    if (changes.profissionalId && changes.profissionalId !== existing.profissionalId) {
+      const profissional = await db.profissionalAgenda.findFirst({ where: { id: changes.profissionalId, ativo: true }, select: { id: true } })
+      if (!profissional) return NextResponse.json({ error: 'Profissional indisponível para novos agendamentos.' }, { status: 409 })
+    }
     const dataHora = changes.dataHora ? new Date(changes.dataHora) : existing.dataHora
     if (Number.isNaN(dataHora.getTime())) return NextResponse.json({ error: 'Data inválida.' }, { status: 400 })
     const status = changes.status || existing.status
@@ -45,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           clienteId, petId, servico: changes.servico || existing.servico,
           categoria: changes.categoria || (changes.servico ? inferirCategoriaAgenda(changes.servico) : existing.categoria),
           dataHora, status,
+          profissionalId: changes.profissionalId !== undefined ? changes.profissionalId : existing.profissionalId,
           observacoes: changes.observacoes !== undefined ? changes.observacoes || null : existing.observacoes,
         },
         include: { pet: true, cliente: true },

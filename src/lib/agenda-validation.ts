@@ -8,6 +8,7 @@ export const agendamentoSchema = z.object({
   categoria: z.enum(CATEGORIAS_AGENDA).optional(),
   dataHora: z.string().datetime({ offset: true }),
   observacoes: z.string().trim().max(1500).nullish(),
+  profissionalId: z.string().min(1).nullish(),
 }).strict()
 export const agendamentoPatchSchema = z.object({
   clienteId: z.string().min(1).optional(),
@@ -17,4 +18,5 @@ export const agendamentoPatchSchema = z.object({
   dataHora: z.string().datetime({ offset: true }).optional(),
   observacoes: z.string().trim().max(1500).nullish(),
   status: statusAgenda.optional(),
+  profissionalId: z.string().min(1).nullish(),
 }).strict()

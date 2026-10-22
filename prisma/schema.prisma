@@ -98,11 +98,25 @@ model Agendamento {
   dataHora  DateTime
   status    String   @default("agendado")
   observacoes String?
+  profissionalId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  profissional ProfissionalAgenda? @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
   pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   @@index([dataHora, status])
+  @@index([profissionalId, dataHora])
+}
+
+// Profissionais da agenda: independentes de contas de login; registros antigos continuam sem atribuição.
+model ProfissionalAgenda {
+  id String @id @default(cuid())
+  nome String
+  especialidades String?
+  ativo Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  agendamentos Agendamento[]
 }
 
 model Produto {

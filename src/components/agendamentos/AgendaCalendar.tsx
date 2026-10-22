@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfDay, endOfMonth, endOfWeek,
   format, isSameDay, isSameMonth, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -14,10 +14,13 @@ import { CATEGORIAS_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from 
 export type AgendaCalendarEntry = {
   id: string; clienteId: string; petId: string; servico: string; categoria?: CategoriaAgenda; dataHora: string
   status: StatusAgendamento; observacoes: string | null; updatedAt: string
+  profissionalId?: string | null
+  profissional?: { id: string; nome: string; especialidades: string | null; ativo: boolean } | null
   cliente: { id: string; nome: string; telefone: string }
   pet: { id: string; nome: string; especie: string }
 }
 
+export type AgendaProfessional = { id: string; nome: string; especialidades: string | null; ativo: boolean }
 type Vista = 'mes' | 'semana' | 'dia'
 const paleta: Record<CategoriaAgenda, string> = {
   Cirurgias: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300',
@@ -39,9 +42,11 @@ const statusLabel: Record<StatusAgendamento,string> = {
   agendado:'Agendado', confirmado:'Em andamento', concluido:'Concluído', cancelado:'Cancelado',
 }
 
-export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
+export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,refreshKey}:{
   onEdit:(item:AgendaCalendarEntry)=>void
   onCreateAt:(day:Date)=>void
+  onStatusChange:(item:AgendaCalendarEntry,status:StatusAgendamento)=>Promise<void>
+  profissionais:AgendaProfessional[]
   refreshKey:number
 }) {
   const [referencia,setReferencia]=useState(()=>new Date())
@@ -51,6 +56,10 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
   const [erro,setErro]=useState<string|null>(null)
   const [truncado,setTruncado]=useState(false)
   const [busca,setBusca]=useState('')
+  const [profissionalFiltro,setProfissionalFiltro]=useState('todos')
+  const [organizarPor,setOrganizarPor]=useState<'profissional'|'status'>('profissional')
+  const [alterandoStatus,setAlterandoStatus]=useState<string|null>(null)
+  const kanbanRef=useRef<HTMLDivElement>(null)
   const [status,setStatus]=useState<'todos' | StatusAgendamento>('todos')
   const [filtros,setFiltros]=useState<CategoriaAgenda[]>([])
   const [recarregar,setRecarregar]=useState(0)
@@ -90,15 +99,29 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
     return ()=>abort.abort()
   },[de,ate,refreshKey,recarregar])
 
+  useEffect(()=>{
+    if(vista==='dia')kanbanRef.current?.scrollIntoView({behavior:'smooth',block:'start'})
+  },[vista,referencia])
+  async function atualizarStatus(item:AgendaCalendarEntry,proximo:StatusAgendamento){
+    if(item.status===proximo)return
+    if(proximo==='cancelado'&&!window.confirm('Cancelar o atendimento de '+item.pet.nome+'? O registro ficará no histórico.'))return
+    setAlterandoStatus(item.id)
+    try{await onStatusChange(item,proximo)}
+    catch(error){toast.error(error instanceof Error?error.message:'Não foi possível atualizar o status.')}
+    finally{setAlterandoStatus(null)}
+  }
+  const abrirDia=(day:Date)=>{setReferencia(day);setVista('dia')}
   const visiveis=useMemo(()=>{
     const termo=busca.trim().toLowerCase()
     return items.filter(x=>{
       if(status!=='todos'&&x.status!==status)return false
+      if(profissionalFiltro==='sem-profissional'&&x.profissionalId)return false
+      if(profissionalFiltro!=='todos'&&profissionalFiltro!=='sem-profissional'&&x.profissionalId!==profissionalFiltro)return false
       if(filtros.length&&!filtros.includes(categoriaAgendamento(x.servico,x.categoria)))return false
       return !termo||[x.servico,x.cliente.nome,x.pet.nome,x.observacoes,x.cliente.telefone]
         .some(t=>String(t||'').toLowerCase().includes(termo))
     })
-  },[items,status,busca,filtros])
+  },[items,status,busca,filtros,profissionalFiltro])
   const porDia=useMemo(()=>{
     const map=new Map<string,AgendaCalendarEntry[]>()
     visiveis.forEach(x=>{
@@ -122,7 +145,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
     const cat=categoriaAgendamento(x.servico,x.categoria)
     return <button key={x.id} type="button" onClick={()=>onEdit(x)}
       title={format(parseISO(x.dataHora),'HH:mm')+' · '+x.pet.nome+' · '+x.cliente.nome+' · '+x.servico+' ('+statusLabel[x.status]+')'}
-      className={'block w-full truncate rounded border px-1.5 py-1 text-left text-[11px] font-medium transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary '+paleta[cat]+(x.status==='cancelado'?' line-through opacity-55':'')}>
+      className={'relative z-10 block w-full truncate rounded border px-1.5 py-1 text-left text-[11px] font-medium transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary '+paleta[cat]+(x.status==='cancelado'?' line-through opacity-55':'')}>
       {format(parseISO(x.dataHora),'HH:mm')} · {x.pet.nome} — {x.servico}
     </button>
   }
@@ -131,7 +154,7 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
       <div>
         <h2 className="flex items-center gap-2 text-lg font-bold"><CalendarDays className="size-5 text-primary"/>Calendário de atendimentos</h2>
-        <p className="text-xs text-muted-foreground">Clique em um compromisso para editar; em um dia para criar.</p>
+        <p className="text-xs text-muted-foreground">Clique em uma data para abrir o Kanban do dia. Use + para agendar e clique no atendimento para editar.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={()=>setReferencia(new Date())}>Hoje</Button>
@@ -149,6 +172,11 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
           <Button key={mode} size="sm" variant={vista===mode?'default':'outline'} onClick={()=>setVista(mode)}>{label}</Button>)}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <select aria-label="Filtrar profissional" className="h-9 max-w-[210px] rounded-md border bg-background px-2 text-xs" value={profissionalFiltro} onChange={e=>setProfissionalFiltro(e.target.value)}>
+          <option value="todos">Todos os profissionais</option>
+          <option value="sem-profissional">Sem profissional</option>
+          {profissionais.map(p=><option key={p.id} value={p.id}>{p.nome}{p.ativo?'':' (inativo)'}</option>)}
+        </select>
         <select aria-label="Filtrar status" className="h-9 rounded-md border bg-background px-2 text-xs" value={status}
           onChange={e=>setStatus(e.target.value as typeof status)}>
           <option value="todos">Todos os status</option>
@@ -195,39 +223,71 @@ export function AgendaCalendar({onEdit,onCreateAt,refreshKey}:{
                 const noMes=vista!=='mes'||isSameMonth(day,referencia)
                 return <div key={key} className={'relative min-h-[130px] border-r border-t p-1.5 last:border-r-0 '+(!noMes?'bg-muted/40':'')+
                   (isSameDay(day,new Date())?' bg-primary/5':'')}>
-                  <div className="mb-1 flex items-center justify-between">
+                  <button type="button" className="absolute inset-0 z-0 w-full cursor-pointer hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary" aria-label={'Abrir Kanban de '+format(day,'dd/MM/yyyy')} onClick={()=>abrirDia(day)}/>
+                  <div className="relative z-10 mb-1 flex items-center justify-between pointer-events-none">
                     <button type="button" title={'Ver agenda de '+format(day,'dd/MM/yyyy')}
-                      onClick={()=>{setReferencia(day);setVista('dia')}}
-                      className={'rounded px-1 text-xs font-semibold hover:bg-muted '+(noMes?'':'text-muted-foreground/60')+
+                      onClick={()=>abrirDia(day)}
+                      className={'pointer-events-auto rounded px-1 text-xs font-semibold hover:bg-muted '+(noMes?'':'text-muted-foreground/60')+
                         (isSameDay(day,new Date())?' bg-primary text-primary-foreground':'')}>{format(day,'d')}</button>
                     <button type="button" title={'Criar agendamento em '+format(day,'dd/MM/yyyy')}
                       aria-label={'Novo agendamento em '+format(day,'dd/MM/yyyy')}
                       onClick={()=>onCreateAt(day)}
-                      className="rounded p-0.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"><Plus className="size-3.5"/></button>
+                      className="pointer-events-auto rounded p-0.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"><Plus className="size-3.5"/></button>
                   </div>
-                  <div className="space-y-1">{events.slice(0,3).map(chip)}</div>
-                  {events.length>3&&<button type="button" onClick={()=>{setReferencia(day);setVista('dia')}}
-                    className="mt-1 w-full truncate rounded bg-muted px-1 py-1 text-left text-[11px] hover:bg-muted/80">
+                  <div className="relative z-10 space-y-1">{events.slice(0,3).map(chip)}</div>
+                  {events.length>3&&<button type="button" onClick={()=>abrirDia(day)}
+                    className="relative z-10 mt-1 w-full truncate rounded bg-muted px-1 py-1 text-left text-[11px] hover:bg-muted/80">
                     + {events.length-3} compromisso(s)
                   </button>}
                 </div>
               })}
             </div>
           </div>
-        </div> : <div className="min-h-64 space-y-2 rounded-xl border p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2">
-            <p className="text-sm font-semibold capitalize">{format(referencia,"EEEE, dd 'de' LLLL",{locale:ptBR})}</p>
-            <Button size="sm" variant="outline" onClick={()=>onCreateAt(referencia)}><Plus className="mr-1 size-4"/>Agendar neste dia</Button>
+
+        </div> : <div ref={kanbanRef} className="min-h-64 space-y-3 scroll-mt-4 rounded-xl border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+            <div><p className="text-sm font-semibold capitalize">{format(referencia,"EEEE, dd 'de' LLLL",{locale:ptBR})}</p>
+              <p className="text-xs text-muted-foreground">{(porDia.get(format(referencia,'yyyy-MM-dd'))||[]).length} atendimento(s) com os filtros atuais</p></div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select aria-label="Organizar Kanban" className="h-9 rounded-md border bg-background px-2 text-xs" value={organizarPor}
+                onChange={e=>setOrganizarPor(e.target.value as 'profissional'|'status')}>
+                <option value="profissional">Colunas por profissional</option>
+                <option value="status">Colunas por status</option>
+              </select>
+              <Button size="sm" variant="outline" onClick={()=>onCreateAt(referencia)}><Plus className="mr-1 size-4"/>Agendar neste dia</Button>
+            </div>
           </div>
-          {(porDia.get(format(referencia,'yyyy-MM-dd'))||[]).length===0?
-            <p className="py-12 text-center text-sm text-muted-foreground">Nenhum compromisso neste dia com os filtros selecionados.</p>:
-            (porDia.get(format(referencia,'yyyy-MM-dd'))||[]).map(x=>
-              <button key={x.id} type="button" onClick={()=>onEdit(x)}
-                className={'flex w-full flex-wrap items-center gap-2 rounded-lg border p-3 text-left text-sm hover:brightness-95 '+paleta[categoriaAgendamento(x.servico,x.categoria)]}>
-                <strong>{format(parseISO(x.dataHora),'HH:mm')}</strong>
-                <span className="min-w-0 flex-1">{x.pet.nome} · {x.cliente.nome} · {x.servico}</span>
-                <span className="text-xs">{statusLabel[x.status]}</span>
-              </button>)}
+          {(()=>{
+            const agendamentos=porDia.get(format(referencia,'yyyy-MM-dd'))||[]
+            const colunas=organizarPor==='profissional'
+              ? [...profissionais.filter(p=>p.ativo||agendamentos.some(a=>a.profissionalId===p.id)).map(p=>({id:p.id,label:p.nome,sub:p.especialidades||''})),{id:'sem-profissional',label:'Sem profissional',sub:'Aguardando atribuição'}]
+              : (Object.entries(statusLabel) as [StatusAgendamento,string][]).map(([id,label])=>({id,label,sub:''}))
+            return <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {colunas.map(coluna=>{
+                const eventos=agendamentos.filter(a=>organizarPor==='profissional'
+                  ? (coluna.id==='sem-profissional'?!a.profissionalId:a.profissionalId===coluna.id)
+                  : a.status===coluna.id)
+                return <section key={coluna.id} className="min-w-0 rounded-xl border bg-muted/30 p-3">
+                  <h3 className="flex items-center justify-between gap-2 text-sm font-semibold"><span className="truncate">{coluna.label}</span><span className="rounded-full bg-background px-2 py-0.5 text-xs tabular-nums">{eventos.length}</span></h3>
+                  {coluna.sub&&<p className="mt-0.5 text-[11px] text-muted-foreground">{coluna.sub}</p>}
+                  <div className="mt-3 space-y-2">
+                    {eventos.length===0&&<p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">Sem agendamentos</p>}
+                    {eventos.map(a=><article key={a.id} className={'space-y-2 rounded-lg border bg-card p-3 '+(a.status==='cancelado'?'opacity-60':'')}>
+                      <button type="button" className="block w-full text-left focus-visible:outline-2 focus-visible:outline-primary" onClick={()=>onEdit(a)} aria-label={'Editar atendimento de '+a.pet.nome}>
+                        <p className="text-xs font-semibold">{format(parseISO(a.dataHora),'HH:mm')} · {a.pet.nome}</p>
+                        <p className="mt-1 text-xs">{a.cliente.nome} · {a.servico}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">{a.profissional?.nome||'Sem profissional'} · {statusLabel[a.status]}</p>
+                      </button>
+                      <select aria-label={'Alterar status de '+a.pet.nome} className="h-8 w-full rounded-md border bg-background px-2 text-xs" value={a.status}
+                        disabled={alterandoStatus===a.id} onChange={e=>void atualizarStatus(a,e.target.value as StatusAgendamento)}>
+                        {Object.entries(statusLabel).map(([id,label])=><option key={id} value={id}>{label}</option>)}
+                      </select>
+                    </article>)}
+                  </div>
+                </section>
+              })}
+            </div>
+          })()}
         </div>}
         <p className="mt-2 text-xs text-muted-foreground">
           {visiveis.length} agendamento(s) exibidos neste período. {truncado?'Exibição parcial por volume.':''}
