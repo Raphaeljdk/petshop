@@ -62,7 +62,22 @@ type Product = {
   ipiCst: string | null; ibsCbsCst: string | null; ibsCbsClassTrib: string | null
   pendencias: string[]
 }
-type ProductsData = { produtos: Product[]; total: number; pagina: number; porPagina: number }
+type IndicadorFiscal = { preenchidos: number; faltando: number }
+type IndicadoresFiscais = {
+  total: number; ncm: IndicadorFiscal; gtin: IndicadorFiscal; cfop: IndicadorFiscal;
+  csosn: IndicadorFiscal; pisCofins: IndicadorFiscal; completosBasicos: number; pendentes: number
+}
+type FiltroFiscal = 'todos' | 'sem_ncm' | 'sem_gtin' | 'sem_cfop' | 'sem_csosn' | 'sem_pis_cofins' | 'pendentes'
+type ProductsData = { produtos: Product[]; total: number; pagina: number; porPagina: number; filtro: FiltroFiscal; indicadores: IndicadoresFiscais }
+const FILTROS_FISCAIS: {value: FiltroFiscal; label: string; contagem: keyof IndicadoresFiscais | null}[] = [
+  {value:'todos',label:'Todos',contagem:'total'},
+  {value:'pendentes',label:'Pendências de tributação',contagem:'pendentes'},
+  {value:'sem_ncm',label:'Sem NCM',contagem:'ncm'},
+  {value:'sem_gtin',label:'Sem GTIN',contagem:'gtin'},
+  {value:'sem_cfop',label:'Sem CFOP',contagem:'cfop'},
+  {value:'sem_csosn',label:'Sem CSOSN',contagem:'csosn'},
+  {value:'sem_pis_cofins',label:'Sem PIS/COFINS',contagem:'pisCofins'},
+]
 type Aba = 'notas' | 'emitente' | 'produtos'
 type FiscalPreflight = {
   canal:string;modeloSugerido:string;tipo:string;provedor:string;
@@ -121,6 +136,7 @@ export function FiscalView() {
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
+  const [filtroProduto, setFiltroProduto] = useState<FiltroFiscal>('todos')
   const [pagina, setPagina] = useState(1)
   const [editandoProduto, setEditandoProduto] = useState<Product | null>(null)
 
@@ -134,9 +150,9 @@ export function FiscalView() {
     } finally { setLoading(false) }
   }, [])
 
-  const carregarProdutos = useCallback(async (page: number, busca: string) => {
+  const carregarProdutos = useCallback(async (page: number, busca: string, filtro: FiltroFiscal) => {
     try {
-      const query = new URLSearchParams({ pagina: String(page), busca })
+      const query = new URLSearchParams({ pagina: String(page), busca, filtro })
       setProdutos(await jsonRes(await fetch('/api/admin/fiscal/produtos?' + query.toString(), { cache: 'no-store' })))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao carregar produtos.')
@@ -153,7 +169,7 @@ export function FiscalView() {
       .catch(()=>{if(mounted)toast.error('Não foi possível verificar as integrações fiscais.')})
     return ()=>{mounted=false}
   },[])
-  useEffect(() => { if (aba === 'produtos') void carregarProdutos(pagina, buscaProduto) }, [aba, pagina, carregarProdutos, buscaProduto])
+  useEffect(() => { if (aba === 'produtos') void carregarProdutos(pagina, buscaProduto, filtroProduto) }, [aba, pagina, carregarProdutos, buscaProduto, filtroProduto])
 
   const vendas = useMemo(() => {
     const term = buscaVenda.trim().toLocaleLowerCase('pt-BR')
@@ -326,7 +342,7 @@ export function FiscalView() {
       }))
       toast.success('Classificação fiscal salva.')
       setEditandoProduto(null)
-      await carregarProdutos(pagina, buscaProduto)
+      await carregarProdutos(pagina, buscaProduto, filtroProduto)
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Falha ao salvar produto.') }
     finally { setSaving(false) }
   }
@@ -635,16 +651,78 @@ export function FiscalView() {
       {aba === 'produtos' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
-          <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setEditandoProduto(null);void carregarProdutos(1,'')}}/>
+          <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);void carregarProdutos(1,'','todos')}}/>
+
+          {produtos?.indicadores && <div className="space-y-3 rounded-xl border bg-muted/20 p-4" aria-label="Progresso do preenchimento fiscal do catálogo">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><p className="text-sm font-semibold">Preenchimento fiscal do catálogo</p>
+                <p className="text-xs text-muted-foreground">{produtos.indicadores.total} anúncios cadastrados · dados reais do banco</p>
+              </div>
+              <Badge variant="outline" className="text-amber-700 dark:text-amber-300">NF-e própria não liberada</Badge>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {([
+                {rotulo:'NCM',dados:produtos.indicadores.ncm},
+                {rotulo:'GTIN/EAN',dados:produtos.indicadores.gtin},
+                {rotulo:'CFOP de referência',dados:produtos.indicadores.cfop},
+                {rotulo:'CSOSN (ICMS do Simples)',dados:produtos.indicadores.csosn},
+                {rotulo:'CST PIS + COFINS',dados:produtos.indicadores.pisCofins},
+              ]).map(item=><div key={item.rotulo} className="rounded-lg border bg-background p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">{item.rotulo}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">{item.dados.preenchidos}/{produtos.indicadores.total}</span>
+                </div>
+                <div className="my-2 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-green-600" style={{width:(produtos.indicadores.total?item.dados.preenchidos/produtos.indicadores.total*100:0)+'%'}}/>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-300">{item.dados.faltando} faltando</p>
+              </div>)}
+            </div>
+            <p className="text-xs font-medium">{produtos.indicadores.completosBasicos} produto(s) com os seis campos básicos registrados · {produtos.indicadores.pendentes} ainda com pendências</p>
+            <p className="text-xs text-muted-foreground">Indicadores de preenchimento, não de validação de imposto nem de autorização de NF-e. CEST, ICMS-ST, FCP, IPI e IBS/CBS só se aplicam conforme mercadoria, operação e vigência. Origem e unidade preenchidas também devem ser verificadas.</p>
+          </div>}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pendências fiscais">
+            {FILTROS_FISCAIS.map(item=><Button key={item.value} type="button" size="sm"
+              variant={filtroProduto===item.value?'default':'outline'}
+              aria-pressed={filtroProduto===item.value}
+              onClick={()=>{setFiltroProduto(item.value);setPagina(1);setEditandoProduto(null)}}>
+              {item.label}
+              {produtos?.indicadores && <span className="ml-1 opacity-80 tabular-nums">({
+                item.value==='todos'?produtos.indicadores.total:
+                item.value==='pendentes'?produtos.indicadores.pendentes:
+                item.value==='sem_ncm'?produtos.indicadores.ncm.faltando:
+                item.value==='sem_gtin'?produtos.indicadores.gtin.faltando:
+                item.value==='sem_cfop'?produtos.indicadores.cfop.faltando:
+                item.value==='sem_csosn'?produtos.indicadores.csosn.faltando:
+                produtos.indicadores.pisCofins.faltando
+              })</span>}
+            </Button>)}
+          </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input value={buscaProduto} onChange={(e) => { setBuscaProduto(e.target.value); setPagina(1); setEditandoProduto(null) }} className="pl-9" placeholder="Buscar produto ou SKU..." /></div>
           {!produtos ? <p className="py-6 text-center text-sm text-muted-foreground">Carregando produtos...</p> : (
             <>
-              <p className="text-xs text-muted-foreground">{produtos.total} produto(s) encontrado(s)</p>
+              <p className="text-xs text-muted-foreground">{produtos.total} produto(s) encontrado(s) no filtro selecionado</p>
               <div className="divide-y rounded-xl border">
                 {produtos.produtos.map((p) => (
                   <div key={p.id} className="p-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · NCM: {p.ncm || 'Pendente'} · {p.pendencias.length ? p.pendencias.length+' pendência(s) de classificação' : 'Códigos essenciais preenchidos (revisão pendente)'}</p></div>
+                      
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <p className="text-sm font-medium">{p.nome}</p>
+                        <p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · {p.pendencias.length} pendência(s) identificada(s) · Revenda CRT 1</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {([
+                            {k:'NCM',ok:!!p.ncm,desc:p.ncm||'pendente'},
+                            {k:'GTIN',ok:!!p.gtinFiscal,desc:p.gtinFiscal||'pendente'},
+                            {k:'CFOP',ok:!!p.cfop,desc:p.cfop||'por operação'},
+                            {k:'ICMS/CSOSN',ok:!!p.csosn,desc:p.csosn||'pendente'},
+                            {k:'PIS',ok:!!p.pisCst,desc:p.pisCst||'pendente'},
+                            {k:'COFINS',ok:!!p.cofinsCst,desc:p.cofinsCst||'pendente'},
+                          ]).map(item=><span key={item.k} className={'rounded border px-2 py-0.5 text-xs '+(item.ok?'border-green-700/25 text-green-700 dark:text-green-300':'border-amber-600/30 bg-amber-500/5 text-amber-700 dark:text-amber-300')}>
+                            {item.k}: {item.desc}
+                          </span>)}
+                        </div>
+                      </div>
                       <Button variant="outline" size="sm"
                         aria-expanded={editandoProduto?.id === p.id}
                         aria-controls={'classificacao-' + p.id}
@@ -658,13 +736,30 @@ export function FiscalView() {
                           <div><p className="font-semibold">{editandoProduto.nome}</p><p className="text-xs text-muted-foreground">Preencha somente os códigos validados pelo contador. CFOP depende da operação.</p></div>
                           <Button type="button" variant="ghost" size="sm" onClick={() => setEditandoProduto(null)}>Fechar</Button>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                          {(['ncm','cest','cfop','origem','cst','csosn','unidadeFiscal','gtinFiscal','pisCst','cofinsCst','ipiCst','ibsCbsCst','ibsCbsClassTrib'] as const).map(key => (
-                            <div key={key} className="space-y-1.5">
-                              <Label htmlFor={'tax-' + p.id + '-' + key}>{key === 'unidadeFiscal' ? 'Unidade' : key === 'gtinFiscal' ? 'GTIN/EAN' : key === 'ibsCbsClassTrib' ? 'IBS/CBS cClassTrib' : key === 'ibsCbsCst' ? 'IBS/CBS CST' : key.toUpperCase()}</Label>
-                              <Input id={'tax-' + p.id + '-' + key} value={editandoProduto[key] || ''} onChange={(e) => alterarProduto(key, e.target.value)} />
-                            </div>
-                          ))}
+                        
+                        <div className="rounded-lg border bg-background p-3 space-y-3">
+                          <p className="text-xs font-semibold">Identificação da mercadoria · documento do fornecedor</p>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            {(['ncm','gtinFiscal','origem','unidadeFiscal','cest'] as const).map(key=><div key={key} className="space-y-1.5">
+                              <Label htmlFor={'tax-'+p.id+'-'+key}>
+                                {{ncm:'NCM',gtinFiscal:'GTIN/EAN',origem:'Origem',unidadeFiscal:'Unidade',cest:'CEST (se aplicável)'}[key]}
+                              </Label>
+                              <Input id={'tax-'+p.id+'-'+key} value={editandoProduto[key]||''} onChange={e=>alterarProduto(key,e.target.value)} className={!editandoProduto[key]&&key!=='cest'?'border-amber-600/50':''}/>
+                            </div>)}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border bg-background p-3 space-y-3">
+                          <p className="text-xs font-semibold">Tributação da venda · Simples Nacional (CRT 1)</p>
+                          <p className="text-xs text-muted-foreground">A tributação depende da operação e do destinatário. Um imposto ausente não equivale a alíquota zero. Use as regras validadas pela contabilidade.</p>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            {(['cfop','csosn','pisCst','cofinsCst','ipiCst','ibsCbsCst','ibsCbsClassTrib'] as const).map(key=><div key={key} className="space-y-1.5">
+                              <Label htmlFor={'tax-'+p.id+'-'+key}>
+                                {{cfop:'CFOP de referência',csosn:'ICMS / CSOSN',pisCst:'CST PIS',cofinsCst:'CST COFINS',ipiCst:'CST IPI (se aplicável)',ibsCbsCst:'IBS/CBS CST (se aplicável)',ibsCbsClassTrib:'IBS/CBS cClassTrib (se aplicável)'}[key]}
+                              </Label>
+                              <Input id={'tax-'+p.id+'-'+key} value={editandoProduto[key]||''} onChange={e=>alterarProduto(key,e.target.value)} className={!editandoProduto[key]&&['cfop','csosn','pisCst','cofinsCst'].includes(key)?'border-amber-600/50':''}/>
+                            </div>)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">ICMS-ST, FCP e alíquotas exigem cálculo e regra específica da operação. CST de ICMS do regime normal não é utilizado como CSOSN no CRT 1.</p>
                         </div>
                         <ConsultaAutomaticaTributaria
                           key={editandoProduto.id}
