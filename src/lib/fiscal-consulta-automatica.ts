@@ -45,8 +45,8 @@ export function selecionarRegraFiscal<T extends RegraTributariaConsulta>(
   return {status:candidatas.length>1?'ambigua':'sem_regra',regra:null}
 }
 
-export const LABELS_ALIQUOTAS: Record<string,string> = {
+export const LABELS_ALIQUOTAS = {
   aliquotaIcmsSt:'ICMS-ST', aliquotaPis:'PIS', aliquotaCofins:'COFINS',
   aliquotaIpi:'IPI', aliquotaFcpSt:'FCP-ST',
   aliquotaIbsUf:'IBS estadual', aliquotaIbsMun:'IBS municipal', aliquotaCbs:'CBS',
-}
+} as const satisfies Record<string,string>
