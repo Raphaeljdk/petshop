@@ -40,7 +40,7 @@ export async function POST(req:NextRequest){
       linha:x.linha,status:x.status,motivo:x.motivo,sku:x.sku,descricao:x.descricao,
       registros:x.produtoIds.length,campos:x.alteracoes.flatMap(a=>Object.keys(a.campos)),
     })),aviso:'Simulação fiscal: somente NCM/CEST/GTIN/origem. Não importa CFOP/CSOSN/CST/alíquotas, nem controla estoque ou emite NF-e.'}
-    if(modo==='simular')return responder({...preview,aplicados:0})
+    if(modo==='simular')return responder(preview)
     if(payload.hash!==hash||payload.confirmacao!=='CONFIRMO_IMPORTACAO_FISCAL')
       return responder({error:'Primeiro confira a simulação e confirme o mesmo arquivo para gravar.'},400)
     const candidatos=analise.filter(x=>x.status==='apto').flatMap(x=>x.alteracoes.map(a=>({
