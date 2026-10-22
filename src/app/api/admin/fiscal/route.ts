@@ -45,7 +45,7 @@ export async function GET() {
       db.produto.count({where:{ativo:true, OR:[
         {ncm:null},{ncm:''},{cfop:null},{cfop:''},
         {unidadeFiscal:null},{unidadeFiscal:''},
-        {AND:[{OR:[{csosn:null},{csosn:''}]},{OR:[{cst:null},{cst:''}]}]},
+        {csosn:null},{csosn:''},{pisCst:null},{pisCst:''},{cofinsCst:null},{cofinsCst:''},{gtinFiscal:null},{gtinFiscal:''},
       ]}}),
     ])
     const prontidaoNfeProducao = avaliarProntidaoNfeProducao({
