@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
+import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 
 type Config = {
   razaoSocial: string | null
@@ -663,6 +664,14 @@ export function FiscalView() {
                             </div>
                           ))}
                         </div>
+                        <ConsultaAutomaticaTributaria
+                          key={editandoProduto.id}
+                          produto={editandoProduto}
+                          aoAplicar={campos=>{
+                            setEditandoProduto(p=>p?{...p,...campos}:null)
+                            toast.success('Códigos sugeridos aplicados no formulário. Confira e clique em Salvar classificação.')
+                          }}
+                        />
                         {editandoProduto.pendencias.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Pendências anteriores: {editandoProduto.pendencias.join(' · ')}. Salve para atualizar a análise.</p>}
                         <p className="text-xs text-muted-foreground">A classificação por produto não substitui cálculo fiscal por operação e não autoriza emissão de NF-e.</p>
                         <Button type="button" disabled={saving} onClick={salvarProduto}>
