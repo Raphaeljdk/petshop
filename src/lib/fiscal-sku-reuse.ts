@@ -52,7 +52,7 @@ export function planejarCompartilhamentoFiscal(produtos:ProdutoSkuFiscal[]):Plan
     )
     const atualizacoes=razoes.length?[]:g.anuncios.map(p=>{
       const campos:Partial<Record<CampoSku,string>>={}
-      for(const campo of CAMPOS_COMPARTILHAVEIS)if(!norm(p[campo])&&referencias[campo].length===1)
+      for(const campo of CAMPOS_COMPARTILHAVEIS)if((p[campo] == null || p[campo] === '') && referencias[campo].length===1)
         campos[campo]=referencias[campo][0]
       return {id:p.id,campos}
     }).filter(p=>Object.keys(p.campos).length>0)
