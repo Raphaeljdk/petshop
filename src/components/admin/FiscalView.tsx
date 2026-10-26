@@ -150,6 +150,7 @@ export function FiscalView() {
   const [pagina, setPagina] = useState(1)
   const [editandoProduto, setEditandoProduto] = useState<Product | null>(null)
   const [grupoEditando, setGrupoEditando] = useState<string | null>(null)
+  const [editandoAnuncioOriginal, setEditandoAnuncioOriginal] = useState(false)
 
   const carregar = useCallback(async () => {
     try {
@@ -354,6 +355,7 @@ export function FiscalView() {
       toast.success('Classificação fiscal salva no anúncio selecionado. Dados de outros anúncios não são sobrescritos.')
       setEditandoProduto(null)
       setGrupoEditando(null)
+      setEditandoAnuncioOriginal(false)
       await carregarProdutos(pagina, buscaProduto, filtroProduto)
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Falha ao salvar produto.') }
     finally { setSaving(false) }
@@ -743,8 +745,8 @@ export function FiscalView() {
                         aria-expanded={grupoEditando === p.id}
                         aria-controls={'classificacao-' + p.id}
                         onClick={() => {
-                          if(grupoEditando===p.id){setGrupoEditando(null);setEditandoProduto(null)}
-                          else{setGrupoEditando(p.id);setEditandoProduto({...p})}
+                          if(grupoEditando===p.id){setGrupoEditando(null);setEditandoProduto(null);setEditandoAnuncioOriginal(false)}
+                          else{setGrupoEditando(p.id);setEditandoProduto({...p});setEditandoAnuncioOriginal(false)}
                         }}>
                         {grupoEditando === p.id ? 'Fechar classificação' : 'Classificar SKU'}
                       </Button>
@@ -763,12 +765,12 @@ export function FiscalView() {
                             <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
                               {p.anunciosOriginais.map(a=><button key={a.id} type="button"
                                 className={'rounded border p-2 text-left text-xs hover:bg-muted '+(editandoProduto.id===a.id?'border-primary bg-primary/5':'')}
-                                onClick={()=>setEditandoProduto({...a,pendencias:p.pendencias})}>
+                                onClick={()=>{setEditandoProduto({...a,pendencias:p.pendencias});setEditandoAnuncioOriginal(true)}}>
                                 <span className="font-medium">{a.nome}</span>
                                 <span className="block text-muted-foreground">{a.mlItemId?'Mercado Livre':a.amazonAsin?'Amazon':a.zettaProCod!=null?'Zetta':'Loja'} · NCM {a.ncm||'pendente'} · CSOSN {a.csosn||'pendente'} · CFOP {a.cfop||'pendente'}</span>
                               </button>)}
                             </div>
-                            <Button type="button" size="sm" variant="outline" onClick={()=>setEditandoProduto({...p})}>
+                            <Button type="button" size="sm" variant="outline" onClick={()=>{setEditandoProduto({...p});setEditandoAnuncioOriginal(false)}}>
                               Ver cadastro unificado (somente referência)
                             </Button>
                           </div>
@@ -807,9 +809,9 @@ export function FiscalView() {
                         />
                         {editandoProduto.pendencias.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Pendências anteriores: {editandoProduto.pendencias.join(' · ')}. Salve para atualizar a análise.</p>}
                         <p className="text-xs text-muted-foreground">A classificação por produto não substitui cálculo fiscal por operação e não autoriza emissão de NF-e.</p>
-                        {p.camposDivergentes && p.camposDivergentes.length>0 && editandoProduto.id===p.id &&
+                        {p.camposDivergentes && p.camposDivergentes.length>0 && !editandoAnuncioOriginal &&
                           <p className="text-xs text-amber-700 dark:text-amber-300">Existem dados conflitantes no SKU. Selecione um anúncio original acima para editar sem apagar os valores dos demais.</p>}
-                        <Button type="button" disabled={saving || Boolean(p.camposDivergentes?.length && editandoProduto.id===p.id)} onClick={salvarProduto}>
+                        <Button type="button" disabled={saving || Boolean(p.camposDivergentes?.length && !editandoAnuncioOriginal)} onClick={salvarProduto}>
                           {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar classificação
                         </Button>
                       </div>
