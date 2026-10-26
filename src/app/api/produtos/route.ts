@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { isServiceProduct, isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
+import { codigoCompartilhado } from '@/lib/product-sku-groups'
+import { catalogVariantDetails } from '@/lib/product-variants'
 
 
 type ConsolidatableProduct = {
@@ -86,9 +88,29 @@ function consolidateAdminProducts<T extends ConsolidatableProduct>(products: T[]
     if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot
   }
 
+  // Só unificar o SKU entre títulos diferentes se não houver evidência de
+  // colisão (tamanho físico distinto, outro código Zetta ou outro GTIN).
+  // Não altera o cadastro nem o saldo físico; apenas remove espelhos da lista.
+  const skuRows=new Map<string,T[]>()
+  for(const p of products){
+    const sku=codigoCompartilhado(p.sku)
+    if(sku){const values=skuRows.get(sku)||[];values.push(p);skuRows.set(sku,values)}
+  }
+  const skusSeguros=new Set<string>()
+  for(const [sku,rows] of skuRows){
+    const zettas=new Set(rows.map(x=>x.zettaProCod).filter(x=>x!=null))
+    const gtins=new Set(rows.map(x=>(x as T & {gtinFiscal?:string|null}).gtinFiscal).filter(Boolean))
+    const tamanhos=new Set(rows.map(x=>catalogVariantDetails(x.nome).size).filter(Boolean))
+    const kits=new Set(rows.map(x=>/\b(?:kit|combo|pack|[2-9]\s?x)\b/i.test(x.nome)))
+    if(zettas.size<=1 && gtins.size<=1 && tamanhos.size<=1 && kits.size<=1){
+      skusSeguros.add(sku)
+    }
+  }
+
   const ownerByKey = new Map<string, number>()
   products.forEach((product, index) => {
-    for (const key of productMatchKeys(product)) {
+    const sku=codigoCompartilhado(product.sku)
+    for (const key of [...productMatchKeys(product), ...(sku && skusSeguros.has(sku)?['sku-compartilhado:'+sku]:[])]) {
       const owner = ownerByKey.get(key)
       if (owner == null) ownerByKey.set(key, index)
       else union(index, owner)
@@ -142,6 +164,14 @@ function consolidateAdminProducts<T extends ConsolidatableProduct>(products: T[]
       sku: primary.sku ?? rows.find((row) => row.sku)?.sku ?? null,
       imageUrl: primary.imageUrl ?? rows.find((row) => row.imageUrl)?.imageUrl ?? null,
       ativo: rows.some((row) => row.ativo),
+      anunciosVinculados: rows.length,
+      estoquesDivergentes: new Set(rows.map(row => Math.max(0, Number(row.estoque||0)))).size>1,
+      canaisVinculados: Array.from(new Set(rows.flatMap(row=>[
+        row.zettaProCod!=null?'Zetta':null,
+        row.mlItemId?'Mercado Livre':null,
+        row.amazonAsin?'Amazon':null,
+      ].filter((x):x is string=>x!==null)))),
+
     }
 
     return {
