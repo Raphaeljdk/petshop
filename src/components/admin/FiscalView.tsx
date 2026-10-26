@@ -74,7 +74,7 @@ type Product = {
 }
 type IndicadorFiscal = { preenchidos: number; faltando: number }
 type IndicadoresFiscais = {
-  total: number; ncm: IndicadorFiscal; gtin: IndicadorFiscal; cfop: IndicadorFiscal;
+  total: number; anuncios?: number; anunciosAdicionais?: number; gruposComMultiplosAnuncios?: number; gruposConflitantes?: number; ncm: IndicadorFiscal; gtin: IndicadorFiscal; cfop: IndicadorFiscal;
   csosn: IndicadorFiscal; pisCofins: IndicadorFiscal; completosBasicos: number; pendentes: number
 }
 type FiltroFiscal = 'todos' | 'sem_ncm' | 'sem_gtin' | 'sem_cfop' | 'sem_csosn' | 'sem_pis_cofins' | 'pendentes'
