@@ -61,7 +61,9 @@ function productMatchKeys(product: ConsolidatableProduct) {
 
   const nome = normalizeProductMatch(product.nome)
   if (nome.length >= 5 && nome !== 'produto sem titulo') {
-    keys.push(`nome:${nome}`)
+    // Nomes iguais com SKUs distintos podem representar tamanhos/cores reais.
+    // Não transitar um grupo de SKU por outro SKU via título comercial.
+    keys.push(sku ? `nome:${nome}:sku:${sku}` : `nome:${nome}`)
   }
 
   return keys
