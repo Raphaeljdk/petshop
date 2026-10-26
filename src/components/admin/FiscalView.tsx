@@ -12,6 +12,7 @@ import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
+import { ReaproveitarFiscalSku } from '@/components/admin/ReaproveitarFiscalSku'
 
 type Config = {
   razaoSocial: string | null
@@ -666,11 +667,12 @@ export function FiscalView() {
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
           <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);setGrupoEditando(null);void carregarProdutos(1,'','todos')}}/>
+          <ReaproveitarFiscalSku onApplied={()=>{setGrupoEditando(null);setEditandoProduto(null);void carregarProdutos(pagina,buscaProduto,filtroProduto)}}/>
 
           {produtos?.indicadores && <div className="space-y-3 rounded-xl border bg-muted/20 p-4" aria-label="Progresso do preenchimento fiscal do catálogo">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><p className="text-sm font-semibold">Preenchimento fiscal do catálogo</p>
-                <p className="text-xs text-muted-foreground">{produtos.indicadores.total} anúncios cadastrados · dados reais do banco</p>
+                <p className="text-xs text-muted-foreground">{produtos.indicadores.total} fichas por SKU, de {produtos.indicadores.anuncios ?? 0} anúncios originais · dados do banco</p>
               </div>
               <Badge variant="outline" className="text-amber-700 dark:text-amber-300">NF-e própria não liberada</Badge>
             </div>
@@ -692,7 +694,7 @@ export function FiscalView() {
                 <p className="text-xs text-amber-700 dark:text-amber-300">{item.dados.faltando} faltando</p>
               </div>)}
             </div>
-            <p className="text-xs font-medium">{produtos.indicadores.completosBasicos} produto(s) com os seis campos básicos registrados · {produtos.indicadores.pendentes} ainda com pendências</p>
+            <p className="text-xs font-medium">{produtos.indicadores.completosBasicos} SKU(s) com campos básicos informados · {produtos.indicadores.pendentes} fichas com pendências</p>
             <p className="text-xs text-muted-foreground">Indicadores de preenchimento, não de validação de imposto nem de autorização de NF-e. CEST, ICMS-ST, FCP, IPI e IBS/CBS só se aplicam conforme mercadoria, operação e vigência. Origem e unidade preenchidas também devem ser verificadas.</p>
           </div>}
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pendências fiscais">
@@ -727,7 +729,7 @@ export function FiscalView() {
                         {p.camposDivergentes && p.camposDivergentes.length>0 &&
                           <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Conflito entre anúncios: {p.camposDivergentes.join(', ')}. Confira antes de salvar.</p>}
                         {p.camposParciais && p.camposParciais.length>0 &&
-                          <p className="text-xs text-amber-700 dark:text-amber-300">Preenchimento parcial nos anúncios: {p.camposParciais.join(', ')}. A ficha reúne dados existentes, mas alguns anúncios continuam incompletos.</p>}
+                          <p className="text-xs text-amber-700 dark:text-amber-300">Já preenchido em outro anúncio: {p.camposParciais.join(', ')}. Para NCM/CEST/GTIN, use "Reaproveitar dados" acima. CFOP, CSOSN, PIS e COFINS devem ser revisados por operação.</p>}
                         <div className="flex flex-wrap gap-1.5">
                           {([
                             {k:'NCM',ok:!!p.ncm,desc:p.ncm||'pendente'},
@@ -809,9 +811,9 @@ export function FiscalView() {
                         />
                         {editandoProduto.pendencias.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Pendências anteriores: {editandoProduto.pendencias.join(' · ')}. Salve para atualizar a análise.</p>}
                         <p className="text-xs text-muted-foreground">A classificação por produto não substitui cálculo fiscal por operação e não autoriza emissão de NF-e.</p>
-                        {p.camposDivergentes && p.camposDivergentes.length>0 && !editandoAnuncioOriginal &&
-                          <p className="text-xs text-amber-700 dark:text-amber-300">Existem dados conflitantes no SKU. Selecione um anúncio original acima para editar sem apagar os valores dos demais.</p>}
-                        <Button type="button" disabled={saving || Boolean(p.camposDivergentes?.length && !editandoAnuncioOriginal)} onClick={salvarProduto}>
+                        {(p.anunciosVinculados||0)>1 && !editandoAnuncioOriginal &&
+                          <p className="text-xs text-amber-700 dark:text-amber-300">Esta é a ficha consolidada de {p.anunciosVinculados} anúncios. Selecione um anúncio original acima para editar; não é permitido salvar impostos consolidados como se fossem válidos para todas as operações.</p>}
+                        <Button type="button" disabled={saving || Boolean((p.anunciosVinculados||0)>1 && !editandoAnuncioOriginal)} onClick={salvarProduto}>
                           {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar classificação
                         </Button>
                       </div>
