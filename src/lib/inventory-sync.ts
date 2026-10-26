@@ -3,6 +3,7 @@ import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import { mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
 import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-api'
 import { safeStock } from '@/lib/product-stock'
+import { codigoCompartilhado } from '@/lib/product-sku-groups'
 import { notifyRestockSubscribers } from '@/lib/restock-notifications'
 
 export type InventorySyncResult = {
@@ -30,22 +31,26 @@ function amazonSubmissionHasError(payload: unknown) {
 export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResult> {
   // O Produto.estoque do ERP Matilha Prado é a única fonte física;
   // marketplaces recebem o saldo e nunca sobrescrevem o estoque local.
-  const products = await db.produto.findMany({
-    where: {
-      ativo: true,
-      OR: [{ mlItemId: { not: null } }, { amazonAsin: { not: null } }],
-    },
-    select: {
-      id: true,
-      nome: true,
-      sku: true,
-      estoque: true,
-      mlItemId: true,
-      amazonAsin: true,
-      estoqueMercadoLivre: true,
-      estoqueAmazon: true,
+  // Considera também a posição do Zetta/local no diagnóstico do saldo físico.
+  // Não cria sincronização se dois anúncios compartilham SKU e discordam sobre
+  // a quantidade: alguém precisa confirmar a posição real antes de enviar.
+  const allProducts = await db.produto.findMany({
+    where:{ativo:true},
+    select:{
+      id:true,nome:true,sku:true,estoque:true,zettaProCod:true,mlItemId:true,
+      amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true,
     },
   })
+  const products=allProducts.filter(p=>p.mlItemId||p.amazonAsin)
+  const estoquePorSku=new Map<string,Set<number>>()
+  for(const p of allProducts){
+    const sku=codigoCompartilhado(p.sku)
+    if(!sku)continue
+    const current=estoquePorSku.get(sku)||new Set<number>()
+    current.add(safeStock(p.estoque));estoquePorSku.set(sku,current)
+  }
+  const skusComDivergencia=new Set([...estoquePorSku.entries()]
+    .filter(([,saldos])=>saldos.size>1).map(([sku])=>sku))
 
   let mercadoLivreUpdated = 0
   let amazonUpdated = 0
@@ -63,7 +68,16 @@ export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResul
     }
   }
 
+  const divergenciasAvisadas=new Set<string>()
   for (const product of products) {
+    const sku=codigoCompartilhado(product.sku)
+    if(sku && skusComDivergencia.has(sku)){
+      if(!divergenciasAvisadas.has(sku)){
+        errors.push('SKU '+sku+': saldos físicos diferentes entre anúncios/canais; sincronização bloqueada até conferência do estoque real.')
+        divergenciasAvisadas.add(sku)
+      }
+      continue
+    }
     const quantity = safeStock(product.estoque)
 
     if (
