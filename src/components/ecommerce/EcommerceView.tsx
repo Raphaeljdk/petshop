@@ -378,6 +378,7 @@ function ProdutoCard({
           <Badge className={cn('text-[10px] border', estoqueMeta.className)}>
             {estoqueMeta.label}
           </Badge>
+          {(selecionado.anunciosVinculados||0)>1&&<Badge variant="outline" className="text-[10px]">{selecionado.anunciosVinculados} anúncios vinculados</Badge>}
         </div>
 
         {/* Quick edit: preço + estoque inline */}
@@ -490,6 +491,8 @@ function ProdutoListRow({
           <p className="truncate font-semibold">{produto.nome}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <Badge variant="secondary" className="text-[10px]">{produto.categoria}</Badge>
+            {(produto.anunciosVinculados||0)>1&&<Badge variant="outline" className="text-[10px]">{produto.anunciosVinculados} anúncios / 1 SKU</Badge>}
+            {produto.estoquesDivergentes&&<Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300">Saldos de canais divergentes</Badge>}
             {(produto.mlItemId || produto.amazonAsin) && (
               <Badge variant="outline" className="text-[9px]">Integrado</Badge>
             )}
@@ -1254,7 +1257,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Estoque unificado</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Produtos iguais e suas variações de tamanho aparecem em uma única ficha. Cada tamanho mantém seu próprio SKU e estoque.
+          Anúncios equivalentes do mesmo SKU aparecem agrupados, mesmo com títulos diferentes entre Mercado Livre, Amazon e Zetta. Quantidades espelhadas nunca são somadas. Variações físicas distintas precisam de controle próprio.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge variant="secondary">{resumoEstoque.total} produtos únicos</Badge>

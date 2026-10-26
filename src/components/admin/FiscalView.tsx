@@ -61,10 +61,20 @@ type Product = {
   gtinFiscal: string | null; pisCst: string | null; cofinsCst: string | null
   ipiCst: string | null; ibsCbsCst: string | null; ibsCbsClassTrib: string | null
   pendencias: string[]
+  anunciosVinculados?: number
+  grupoSku?: string | null
+  camposDivergentes?: string[]
+  camposParciais?: string[]
+  anunciosOriginais?: Array<{
+    id:string;nome:string;sku:string|null;mlItemId?:string|null;amazonAsin?:string|null;zettaProCod?:number|null;
+    ncm:string|null;cest:string|null;cfop:string|null;origem:string|null;cst:string|null;csosn:string|null;
+    unidadeFiscal:string|null;gtinFiscal:string|null;pisCst:string|null;cofinsCst:string|null;
+    ipiCst:string|null;ibsCbsCst:string|null;ibsCbsClassTrib:string|null;
+  }>
 }
 type IndicadorFiscal = { preenchidos: number; faltando: number }
 type IndicadoresFiscais = {
-  total: number; ncm: IndicadorFiscal; gtin: IndicadorFiscal; cfop: IndicadorFiscal;
+  total: number; anuncios?: number; anunciosAdicionais?: number; gruposComMultiplosAnuncios?: number; gruposConflitantes?: number; ncm: IndicadorFiscal; gtin: IndicadorFiscal; cfop: IndicadorFiscal;
   csosn: IndicadorFiscal; pisCofins: IndicadorFiscal; completosBasicos: number; pendentes: number
 }
 type FiltroFiscal = 'todos' | 'sem_ncm' | 'sem_gtin' | 'sem_cfop' | 'sem_csosn' | 'sem_pis_cofins' | 'pendentes'
@@ -139,6 +149,8 @@ export function FiscalView() {
   const [filtroProduto, setFiltroProduto] = useState<FiltroFiscal>('todos')
   const [pagina, setPagina] = useState(1)
   const [editandoProduto, setEditandoProduto] = useState<Product | null>(null)
+  const [grupoEditando, setGrupoEditando] = useState<string | null>(null)
+  const [editandoAnuncioOriginal, setEditandoAnuncioOriginal] = useState(false)
 
   const carregar = useCallback(async () => {
     try {
@@ -340,8 +352,10 @@ export function FiscalView() {
           ibsCbsClassTrib:editandoProduto.ibsCbsClassTrib,
         }), credentials: 'same-origin',
       }))
-      toast.success('Classificação fiscal salva.')
+      toast.success('Classificação fiscal salva no anúncio selecionado. Dados de outros anúncios não são sobrescritos.')
       setEditandoProduto(null)
+      setGrupoEditando(null)
+      setEditandoAnuncioOriginal(false)
       await carregarProdutos(pagina, buscaProduto, filtroProduto)
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Falha ao salvar produto.') }
     finally { setSaving(false) }
@@ -651,7 +665,7 @@ export function FiscalView() {
       {aba === 'produtos' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
-          <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);void carregarProdutos(1,'','todos')}}/>
+          <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);setGrupoEditando(null);void carregarProdutos(1,'','todos')}}/>
 
           {produtos?.indicadores && <div className="space-y-3 rounded-xl border bg-muted/20 p-4" aria-label="Progresso do preenchimento fiscal do catálogo">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -701,7 +715,7 @@ export function FiscalView() {
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input value={buscaProduto} onChange={(e) => { setBuscaProduto(e.target.value); setPagina(1); setEditandoProduto(null) }} className="pl-9" placeholder="Buscar produto ou SKU..." /></div>
           {!produtos ? <p className="py-6 text-center text-sm text-muted-foreground">Carregando produtos...</p> : (
             <>
-              <p className="text-xs text-muted-foreground">{produtos.total} produto(s) encontrado(s) no filtro selecionado</p>
+              <p className="text-xs text-muted-foreground">{produtos.total} SKU(s)/fichas encontrado(s) no filtro selecionado · {produtos.indicadores?.anuncios ?? 0} anúncios originais preservados · {produtos.indicadores?.anunciosAdicionais ?? 0} anúncios agrupados</p>
               <div className="divide-y rounded-xl border">
                 {produtos.produtos.map((p) => (
                   <div key={p.id} className="p-3">
@@ -709,7 +723,11 @@ export function FiscalView() {
                       
                       <div className="min-w-0 flex-1 space-y-1.5">
                         <p className="text-sm font-medium">{p.nome}</p>
-                        <p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · {p.pendencias.length} pendência(s) identificada(s) · Revenda CRT 1</p>
+                        <p className="text-xs text-muted-foreground">SKU: {p.sku || 'Não informado'} · {p.pendencias.length} pendência(s) identificada(s) · Revenda CRT 1 {p.anunciosVinculados && p.anunciosVinculados>1?' · '+p.anunciosVinculados+' anúncios vinculados':''}</p>
+                        {p.camposDivergentes && p.camposDivergentes.length>0 &&
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Conflito entre anúncios: {p.camposDivergentes.join(', ')}. Confira antes de salvar.</p>}
+                        {p.camposParciais && p.camposParciais.length>0 &&
+                          <p className="text-xs text-amber-700 dark:text-amber-300">Preenchimento parcial nos anúncios: {p.camposParciais.join(', ')}. A ficha reúne dados existentes, mas alguns anúncios continuam incompletos.</p>}
                         <div className="flex flex-wrap gap-1.5">
                           {([
                             {k:'NCM',ok:!!p.ncm,desc:p.ncm||'pendente'},
@@ -724,19 +742,39 @@ export function FiscalView() {
                         </div>
                       </div>
                       <Button variant="outline" size="sm"
-                        aria-expanded={editandoProduto?.id === p.id}
+                        aria-expanded={grupoEditando === p.id}
                         aria-controls={'classificacao-' + p.id}
-                        onClick={() => setEditandoProduto(atual => atual?.id === p.id ? null : { ...p })}>
-                        {editandoProduto?.id === p.id ? 'Fechar classificação' : 'Classificar'}
+                        onClick={() => {
+                          if(grupoEditando===p.id){setGrupoEditando(null);setEditandoProduto(null);setEditandoAnuncioOriginal(false)}
+                          else{setGrupoEditando(p.id);setEditandoProduto({...p});setEditandoAnuncioOriginal(false)}
+                        }}>
+                        {grupoEditando === p.id ? 'Fechar classificação' : 'Classificar SKU'}
                       </Button>
                     </div>
-                    {editandoProduto?.id === p.id && (
+                    {grupoEditando === p.id && editandoProduto && (
                       <div id={'classificacao-' + p.id} className="mt-3 space-y-4 rounded-xl border border-primary/30 bg-muted/30 p-4">
                         <div className="flex items-start justify-between gap-2">
                           <div><p className="font-semibold">{editandoProduto.nome}</p><p className="text-xs text-muted-foreground">Preencha somente os códigos validados pelo contador. CFOP depende da operação.</p></div>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => setEditandoProduto(null)}>Fechar</Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => {setEditandoProduto(null);setGrupoEditando(null)}}>Fechar</Button>
                         </div>
                         
+                        {p.anunciosOriginais && p.anunciosOriginais.length>1 && (
+                          <div className="rounded-lg border bg-background p-3 space-y-2">
+                            <p className="text-sm font-semibold">{p.anunciosOriginais.length} anúncios vinculados ao mesmo SKU</p>
+                            <p className="text-xs text-muted-foreground">Mercado Livre, Amazon e Zetta podem usar títulos diferentes. Nenhum anúncio foi excluído. Para corrigir dados divergentes, escolha o anúncio correspondente.</p>
+                            <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
+                              {p.anunciosOriginais.map(a=><button key={a.id} type="button"
+                                className={'rounded border p-2 text-left text-xs hover:bg-muted '+(editandoProduto.id===a.id?'border-primary bg-primary/5':'')}
+                                onClick={()=>{setEditandoProduto({...a,pendencias:p.pendencias});setEditandoAnuncioOriginal(true)}}>
+                                <span className="font-medium">{a.nome}</span>
+                                <span className="block text-muted-foreground">{a.mlItemId?'Mercado Livre':a.amazonAsin?'Amazon':a.zettaProCod!=null?'Zetta':'Loja'} · NCM {a.ncm||'pendente'} · CSOSN {a.csosn||'pendente'} · CFOP {a.cfop||'pendente'}</span>
+                              </button>)}
+                            </div>
+                            <Button type="button" size="sm" variant="outline" onClick={()=>{setEditandoProduto({...p});setEditandoAnuncioOriginal(false)}}>
+                              Ver cadastro unificado (somente referência)
+                            </Button>
+                          </div>
+                        )}
                         <div className="rounded-lg border bg-background p-3 space-y-3">
                           <p className="text-xs font-semibold">Identificação da mercadoria · documento do fornecedor</p>
                           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -771,7 +809,9 @@ export function FiscalView() {
                         />
                         {editandoProduto.pendencias.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Pendências anteriores: {editandoProduto.pendencias.join(' · ')}. Salve para atualizar a análise.</p>}
                         <p className="text-xs text-muted-foreground">A classificação por produto não substitui cálculo fiscal por operação e não autoriza emissão de NF-e.</p>
-                        <Button type="button" disabled={saving} onClick={salvarProduto}>
+                        {p.camposDivergentes && p.camposDivergentes.length>0 && !editandoAnuncioOriginal &&
+                          <p className="text-xs text-amber-700 dark:text-amber-300">Existem dados conflitantes no SKU. Selecione um anúncio original acima para editar sem apagar os valores dos demais.</p>}
+                        <Button type="button" disabled={saving || Boolean(p.camposDivergentes?.length && !editandoAnuncioOriginal)} onClick={salvarProduto}>
                           {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Salvar classificação
                         </Button>
                       </div>

@@ -33,6 +33,7 @@ jobs:
       - run: bun test tests/fiscal-simples-produto.test.ts
       - run: bun test tests/fiscal-consulta-automatica.test.ts
       - run: bun test tests/fiscal-importacao-zetta.test.ts
+      - run: bun test tests/product-sku-groups.test.ts
       - run: bun run test:customer-experience
       - run: bun run test:dashboard
       - run: bun run build

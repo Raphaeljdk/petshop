@@ -109,6 +109,10 @@ export interface Produto {
   estoqueMercadoLivre?: number
   estoqueAmazon?: number
   estoqueIlimitado?: boolean
+  /** Informação visual dos anúncios de um SKU: nunca significa estoque somado. */
+  anunciosVinculados?: number
+  estoquesDivergentes?: boolean
+  canaisVinculados?: string[]
   sku: string | null
   zettaProCod?: number | null
   mlItemId: string | null

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { pendenciasClassificacaoSimples, validarCamposFiscaisSimples } from '@/lib/fiscal-simples-produto'
+import { agruparFiscalPorSku } from '@/lib/product-sku-groups'
 
 async function authorize() {
   const user = await getUsuarioLogado()
@@ -17,58 +17,65 @@ export async function GET(req: NextRequest) {
   const denied = await authorize()
   if (denied) return denied
   try {
-    const search = (req.nextUrl.searchParams.get('busca') || '').trim().slice(0, 80)
+    const search = (req.nextUrl.searchParams.get('busca') || '').trim().slice(0,80).toLocaleLowerCase('pt-BR')
     const page = Math.max(1, Math.min(1000, Number(req.nextUrl.searchParams.get('pagina')) || 1))
     const filtro = req.nextUrl.searchParams.get('filtro') || 'todos'
-    const vazio = (campo: 'ncm' | 'gtinFiscal' | 'cfop' | 'csosn' | 'pisCst' | 'cofinsCst'): Prisma.ProdutoWhereInput => ({
-      OR: [{ [campo]: null }, { [campo]: '' }],
+    if (!['todos','sem_ncm','sem_gtin','sem_cfop','sem_csosn','sem_pis_cofins','pendentes'].includes(filtro))
+      return NextResponse.json({error:'Filtro fiscal inválido.'},{status:400})
+    // O mesmo SKU pode existir em 2+ anúncios ML/Amazon/Zetta, com títulos distintos.
+    // O agrupamento é visual; nenhum registro é apagado e os campos conflitantes
+    // permanecem para conferência, sem sobrescrita.
+    const rows=await db.produto.findMany({
+      select:{
+        id:true,nome:true,sku:true,estoque:true,mlItemId:true,amazonAsin:true,
+        zettaProCod:true,ncm:true,cest:true,cfop:true,origem:true,cst:true,
+        csosn:true,unidadeFiscal:true,gtinFiscal:true,pisCst:true,cofinsCst:true,
+        ipiCst:true,ibsCbsCst:true,ibsCbsClassTrib:true,
+      },
     })
-    const faltaPisCofins: Prisma.ProdutoWhereInput = {
-      OR: [vazio('pisCst'), vazio('cofinsCst')],
-    }
-    const pendencia: Prisma.ProdutoWhereInput = {
-      OR: [vazio('ncm'), vazio('gtinFiscal'), vazio('cfop'), vazio('csosn'), vazio('pisCst'), vazio('cofinsCst')],
-    }
-    const filtros: Record<string, Prisma.ProdutoWhereInput> = {
-      todos: {}, sem_ncm: vazio('ncm'), sem_gtin: vazio('gtinFiscal'),
-      sem_cfop: vazio('cfop'), sem_csosn: vazio('csosn'),
-      sem_pis_cofins: faltaPisCofins, pendentes: pendencia,
-    }
-    if (!(filtro in filtros)) return NextResponse.json({ error: 'Filtro fiscal inválido.' }, { status: 400 })
-    const busca: Prisma.ProdutoWhereInput = search ? {
-      OR: [
-        { nome: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
+    const grupos=agruparFiscalPorSku(rows).map(g=>({
+      ...g,
+      pendencias:[
+        ...pendenciasClassificacaoSimples(g),
+        ...g.camposDivergentes.map(c=>'Divergência no SKU: '+c+'. Revisar anúncios vinculados.'),
       ],
-    } : {}
-    const where: Prisma.ProdutoWhereInput = { AND: [busca, filtros[filtro]] }
-    const [total, produtos, totalCatalogo, faltandoNcm, faltandoGtin,
-      faltandoCfop, faltandoCsosn, faltandoPisCofins, incompletos] = await Promise.all([
-      db.produto.count({ where }),
-      db.produto.findMany({
-        where, orderBy: { nome: 'asc' }, skip: (page - 1) * 30, take: 30,
-        select: { id: true, nome: true, sku: true, ncm: true, cest: true, cfop: true, origem: true, cst: true, csosn: true, unidadeFiscal: true,
-          gtinFiscal: true, pisCst: true, cofinsCst: true, ipiCst: true, ibsCbsCst: true, ibsCbsClassTrib: true },
-      }),
-      db.produto.count(),
-      db.produto.count({ where: vazio('ncm') }),
-      db.produto.count({ where: vazio('gtinFiscal') }),
-      db.produto.count({ where: vazio('cfop') }),
-      db.produto.count({ where: vazio('csosn') }),
-      db.produto.count({ where: faltaPisCofins }),
-      db.produto.count({ where: pendencia }),
-    ])
-    const indicadores = {
-      total: totalCatalogo,
-      ncm: { preenchidos: totalCatalogo - faltandoNcm, faltando: faltandoNcm },
-      gtin: { preenchidos: totalCatalogo - faltandoGtin, faltando: faltandoGtin },
-      cfop: { preenchidos: totalCatalogo - faltandoCfop, faltando: faltandoCfop },
-      csosn: { preenchidos: totalCatalogo - faltandoCsosn, faltando: faltandoCsosn },
-      pisCofins: { preenchidos: totalCatalogo - faltandoPisCofins, faltando: faltandoPisCofins },
-      completosBasicos: totalCatalogo - incompletos,
-      pendentes: incompletos,
+    }))
+    const indicadores={
+      total:grupos.length,
+      anuncios:rows.length,
+      gruposComMultiplosAnuncios:grupos.filter(g=>g.anunciosVinculados>1).length,
+      anunciosAdicionais:rows.length-grupos.length,
+      gruposConflitantes:grupos.filter(g=>g.camposDivergentes.length>0).length,
+      ncm:{preenchidos:grupos.filter(g=>!!g.ncm).length,faltando:grupos.filter(g=>!g.ncm).length},
+      gtin:{preenchidos:grupos.filter(g=>!!g.gtinFiscal).length,faltando:grupos.filter(g=>!g.gtinFiscal).length},
+      cfop:{preenchidos:grupos.filter(g=>!!g.cfop).length,faltando:grupos.filter(g=>!g.cfop).length},
+      csosn:{preenchidos:grupos.filter(g=>!!g.csosn).length,faltando:grupos.filter(g=>!g.csosn).length},
+      pisCofins:{
+        preenchidos:grupos.filter(g=>!!g.pisCst&&!!g.cofinsCst).length,
+        faltando:grupos.filter(g=>!g.pisCst||!g.cofinsCst).length,
+      },
+      completosBasicos:grupos.filter(g=>g.pendencias.length===0).length,
+      pendentes:grupos.filter(g=>g.pendencias.length>0).length,
     }
-    return NextResponse.json({ produtos: produtos.map(p => ({ ...p, pendencias: pendenciasClassificacaoSimples(p) })), total, pagina: page, porPagina: 30, filtro, indicadores }, { headers: { 'Cache-Control': 'private, no-store' } })
+    const filtrados=grupos.filter(g=>{
+      if(search && !g.anunciosOriginais.some(a=>
+        a.nome.toLocaleLowerCase('pt-BR').includes(search)||
+        (a.sku||'').toLocaleLowerCase('pt-BR').includes(search)
+      ))return false
+      switch(filtro){
+        case 'sem_ncm':return !g.ncm
+        case 'sem_gtin':return !g.gtinFiscal
+        case 'sem_cfop':return !g.cfop
+        case 'sem_csosn':return !g.csosn
+        case 'sem_pis_cofins':return !g.pisCst||!g.cofinsCst
+        case 'pendentes':return g.pendencias.length>0
+        default:return true
+      }
+    }).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'))
+    const produtos=filtrados.slice((page-1)*30,page*30)
+    return NextResponse.json({produtos,total:filtrados.length,pagina:page,porPagina:30,filtro,indicadores},{
+      headers:{'Cache-Control':'private, no-store'},
+    })
   } catch (error) {
     console.error('fiscal produtos GET', error)
     return NextResponse.json({ error: 'Não foi possível listar a tributação dos produtos.' }, { status: 500 })
