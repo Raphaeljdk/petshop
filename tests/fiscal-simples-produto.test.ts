@@ -44,3 +44,20 @@ test('rejeita códigos malformados e não altera catálogo existente', () => {
   assert.ok(validarCamposFiscaisSimples(invalidos).length >= 7)
   assert.deepEqual(invalidos,copia)
 })
+
+
+test('auditoria de CFOP identifica entradas e códigos especiais sem alterar valores', async () => {
+  const { auditarCatalogoSaida } = await import('../src/lib/fiscal-auditoria-saida')
+  const registros = [
+    {id:'a',sku:'035585131214',nome:'KONG',ncm:'40169990',cfop:'5102',csosn:'102',pisCst:'49',cofinsCst:'49'},
+    {id:'b',sku:'035585131214',nome:'KONG Rosa',ncm:'40169990',cfop:'2102',csosn:'102',pisCst:'49',cofinsCst:'49'},
+    {id:'c',sku:'7899669611688',nome:'Jambo',ncm:'39269090',cfop:'5109',csosn:'102',pisCst:'49',cofinsCst:'49'},
+  ]
+  const antes=structuredClone(registros)
+  const r=auditarCatalogoSaida(registros)
+  assert.equal(r.entradaEmVenda,1)
+  assert.equal(r.especiaisRevisar,1)
+  assert.equal(r.comPis49,3)
+  assert.deepEqual(r.divergenciasCfop,[{sku:'035585131214',codigos:['2102','5102']}])
+  assert.deepEqual(registros,antes)
+})
