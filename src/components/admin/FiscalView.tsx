@@ -13,6 +13,7 @@ import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
 import { ReaproveitarFiscalSku } from '@/components/admin/ReaproveitarFiscalSku'
+import { PreparoHomologacaoNfe } from '@/components/admin/PreparoHomologacaoNfe'
 import { AuditoriaTributariaSaida } from '@/components/admin/AuditoriaTributariaSaida'
 
 type Config = {
@@ -468,6 +469,7 @@ export function FiscalView() {
             <div><h2 className="font-semibold">Pedidos e emissão centralizada</h2><p className="text-xs text-muted-foreground">Use o teste seguro para identificar pendências antes de emitir em qualquer canal.</p></div>
             <Badge variant="outline">NF-e 55</Badge>
           </div>
+          <PreparoHomologacaoNfe/>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 p-3">
             <div><p className="text-sm font-semibold">Notas existentes Amazon FBA</p>
               <p className="text-xs text-muted-foreground">Consulta somente leitura de notas FBA. Não cobre todos os pedidos Amazon.</p></div>
