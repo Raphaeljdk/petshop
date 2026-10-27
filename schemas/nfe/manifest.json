@@ -1,0 +1,40 @@
+{
+  "package": "PL_010g_v1.03",
+  "published": "2026-10-26",
+  "checked": "2026-10-27",
+  "sources": [
+    {
+      "url": "https://www.nfe.fazenda.gov.br/portal/exibirArquivo.aspx?conteudo=EQhOQMgipXY%3D",
+      "sha256": "b329ecbe7e4c05a41bfbc1527f105defb7047328acfeada7c77e1666da485eaf"
+    },
+    {
+      "url": "https://www.nfe.fazenda.gov.br/portal/exibirArquivo.aspx?conteudo=0qRvxtvKcj4%3D",
+      "sha256": "82a26d04a778fc214bf8c6c6e5c65ea577721e32ed5efa9a11a80098b8f9802f",
+      "files": [
+        "consReciNFe_v4.00.xsd",
+        "consSitNFe_v4.00.xsd",
+        "enviNFe_v4.00.xsd",
+        "leiauteConsSitNFe_v4.00.xsd",
+        "procNFe_v4.00.xsd",
+        "retConsReciNFe_v4.00.xsd",
+        "retConsSitNFe_v4.00.xsd",
+        "retEnviNFe_v4.00.xsd"
+      ]
+    }
+  ],
+  "files": {
+    "DFeTiposBasicos_v1.00.xsd": "2da0785a6c70db4f93571187a28514dde715cfd0b0f41e746176fbf3444549f2",
+    "consReciNFe_v4.00.xsd": "0520356a8ac619c8730f793ed2a955418ce5a138b6811f3a6f2c0e72017002c5",
+    "consSitNFe_v4.00.xsd": "44d816a725553a0c53508be919629c9235b42c5d41c358a05be8fdf61945f5c1",
+    "enviNFe_v4.00.xsd": "9ba17a12e3fd6e153bd8676450526ba3bcfc15b75ecb372823826ee827b8c3ef",
+    "leiauteConsSitNFe_v4.00.xsd": "e74e697bc033d8eec01ff75487eb649598250dd7715f6d120eec817fb2506e8e",
+    "leiauteNFe_v4.00.xsd": "e8470f5d85ded3d99010676087907214aef71c9626140b672abbafa72656c0f5",
+    "nfe_v4.00.xsd": "adce3646c13ceb54922ec3142fc1dc45bd4fb839ac35ad583e86c733c07d27df",
+    "procNFe_v4.00.xsd": "b7af3072ff7398aa557c42bc6d8198dd3c006b1a6ecaad66bc839a5c34cbcb84",
+    "retConsReciNFe_v4.00.xsd": "5cc8219feac16f43a21e168ec4cbf8d0dcf8dade5dccf3f07a42f538519129e9",
+    "retConsSitNFe_v4.00.xsd": "8b7188d6fe9e879ca057bfb68600746c7491d2e092e3dc5121a6cd5aa79272d5",
+    "retEnviNFe_v4.00.xsd": "d58b700f849ea7df9f1d35580ae0de425dfa1e295408c02609b81905b04ce4ce",
+    "tiposBasico_v4.00.xsd": "772619c85723e598840667ca66e7298a250442df47eeb94b397d2a333ce62047",
+    "xmldsig-core-schema_v1.01.xsd": "f56744a5f51c03f027de13f39f869307091781a9ef1d91b1ebe14719ce28e1ac"
+  }
+}
