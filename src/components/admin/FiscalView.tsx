@@ -13,6 +13,7 @@ import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
 import { ReaproveitarFiscalSku } from '@/components/admin/ReaproveitarFiscalSku'
+import { AuditoriaTributariaSaida } from '@/components/admin/AuditoriaTributariaSaida'
 
 type Config = {
   razaoSocial: string | null
@@ -668,6 +669,7 @@ export function FiscalView() {
           <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
           <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);setGrupoEditando(null);void carregarProdutos(1,'','todos')}}/>
           <ReaproveitarFiscalSku onApplied={()=>{setGrupoEditando(null);setEditandoProduto(null);void carregarProdutos(pagina,buscaProduto,filtroProduto)}}/>
+          <AuditoriaTributariaSaida/>
 
           {produtos?.indicadores && <div className="space-y-3 rounded-xl border bg-muted/20 p-4" aria-label="Progresso do preenchimento fiscal do catálogo">
             <div className="flex flex-wrap items-center justify-between gap-2">
