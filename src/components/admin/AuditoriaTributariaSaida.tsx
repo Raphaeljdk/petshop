@@ -71,7 +71,7 @@ export function AuditoriaTributariaSaida(){
         Mesmo SKU com CFOPs distintos: {r.divergenciasCfop.slice(0,8).map(x=>x.sku+' ('+x.codigos.join('/')+')').join(', ')}.
         Isso exige análise por operação e não deve ser copiado automaticamente.
       </p>}
-      {data?.alertas?.length>0&&<details className="text-xs" open>
+      {data && data.alertas.length>0 && <details className="text-xs" open>
         <summary className="cursor-pointer font-medium">Ver registros que precisam de revisão ({data.alertas.length})</summary>
         <div className="mt-2 space-y-2">
           {data.alertas.map(x=><div key={x.produtoId+x.codigo} className="rounded-lg border border-amber-600/30 bg-background p-3">
