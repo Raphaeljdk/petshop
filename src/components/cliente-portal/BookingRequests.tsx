@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { portalRequest } from './ExperienceProvider'
+import { SERVICOS_ESTETICOS_MATILHA } from '@/lib/agenda-servicos'
 import { toast } from 'sonner'
 
 export type Booking = {
@@ -188,8 +189,18 @@ export function BookingRequests() {
                 minLength={3}
                 maxLength={120}
                 value={service}
+                list="matilha-servicos-esteticos"
+                placeholder="Selecione uma sugestão ou descreva o cuidado"
                 onChange={(e) => setService(e.target.value)}
               />
+            )}
+            {!directMode && (
+              <>
+                <datalist id="matilha-servicos-esteticos">
+                  {SERVICOS_ESTETICOS_MATILHA.map((servico) => <option key={servico} value={servico} />)}
+                </datalist>
+                <p className="mt-1 text-xs text-muted-foreground">Sugestões: banho, tosa, hidratação, unhas, subpelos, desembolo e ouvidos. Pode descrever outro cuidado estético.</p>
+              </>
             )}
           </div>
 

@@ -18,6 +18,7 @@ import { GoogleReviews } from '@/components/landing/GoogleReviews'
 import { HeroCarousel } from '@/components/landing/HeroCarousel'
 import { PublicProducts } from '@/components/landing/PublicProducts'
 import { AtendimentoMenu } from '@/components/landing/AtendimentoMenu'
+import { ServicosEsteticos } from '@/components/landing/ServicosEsteticos'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 
 export function AuthScreen() {
@@ -78,6 +79,9 @@ export function AuthScreen() {
             <button onClick={() => scrollTo('produtos')} className="text-sm font-medium hover:text-primary transition-colors">
               Produtos
             </button>
+            <button onClick={() => scrollTo('servicos')} className="text-sm font-medium hover:text-primary transition-colors">
+              Serviços
+            </button>
             <button onClick={() => scrollTo('como-funciona')} className="text-sm font-medium hover:text-primary transition-colors">
               Como Funciona
             </button>
@@ -129,7 +133,7 @@ export function AuthScreen() {
           <SheetDescription className="sr-only">Conheça a Matilha Prado ou acesse sua conta.</SheetDescription>
           <Logo size="sm" />
           <nav aria-label="Navegação do site" className="flex-1 pt-4 space-y-2">
-            {[{ id: 'produtos', label: 'Produtos' }, { id: 'como-funciona', label: 'Como funciona' }, { id: 'depoimentos', label: 'Depoimentos' }, { id: 'nossa-historia', label: 'Nossa história' }].map(item => (
+            {[{ id: 'produtos', label: 'Produtos' }, { id: 'servicos', label: 'Serviços' }, { id: 'como-funciona', label: 'Como funciona' }, { id: 'depoimentos', label: 'Depoimentos' }, { id: 'nossa-historia', label: 'Nossa história' }].map(item => (
               <button key={item.id} onClick={() => scrollTo(item.id)} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted">{item.label}</button>
             ))}
             <div className="px-4 py-3">
@@ -188,6 +192,7 @@ export function AuthScreen() {
       </section>
 
       </HeroCarousel>
+      <ServicosEsteticos />
       <PublicProducts onBuy={abrirLogin} />
 
       {/* Stats */}

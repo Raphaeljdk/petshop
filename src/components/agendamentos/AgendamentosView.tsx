@@ -226,7 +226,7 @@ export function AgendamentosView() {
                 const categoria=e.target.value as CategoriaAgenda
                 setForm(f=>({...f,categoria,servico:SUGESTOES_AGENDA[categoria][0]}))
               }}>
-              {CATEGORIAS_AGENDA.map(c=><option value={c} key={c}>{c}</option>)}
+              {CATEGORIAS_AGENDA.filter(c => c !== 'Hospedagens' || (editId !== null && form.categoria === 'Hospedagens')).map(c=><option value={c} key={c}>{c}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">

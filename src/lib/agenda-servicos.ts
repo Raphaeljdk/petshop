@@ -5,12 +5,28 @@ export const CATEGORIAS_AGENDA = [
 ] as const
 export type CategoriaAgenda = typeof CATEGORIAS_AGENDA[number]
 
+/** Serviços estéticos confirmados pela Matilha Prado em 01/11/2026.
+ * Não define preço, duração, habilitação fiscal, disponibilidade nem agendamento automático.
+ * 'Tosa' inclui todas as modalidades oferecidas; confirmar modalidade no atendimento.
+ */
+export const SERVICOS_ESTETICOS_MATILHA = [
+  'Banho',
+  'Banho e tosa',
+  'Tosa (modalidade a definir)',
+  'Corte de unhas',
+  'Hidratação',
+  'Cronograma de hidratação',
+  'Remoção de subpelos e pelos mortos',
+  'Desembolo',
+  'Limpeza de ouvidos',
+] as const
+
 /** Exemplos editáveis pelo operador. Não atribuem preço ou disponibilidade comercial. */
 export const SUGESTOES_AGENDA: Record<CategoriaAgenda, readonly string[]> = {
   Cirurgias: ['Avaliação pré-cirúrgica','Procedimento cirúrgico','Retorno pós-cirúrgico'],
   Clínicos: ['Consulta clínica','Exames','Retorno clínico'],
   'Day Care': ['Day Care','Creche pet','Recreação'],
-  Estéticos: ['Banho','Tosa','Banho e tosa','Hidratação'],
+  Estéticos: SERVICOS_ESTETICOS_MATILHA,
   Externos: ['Atendimento externo','Busca e entrega','Atendimento domiciliar'],
   Gerais: ['Atendimento geral','Avaliação','Orientação ao tutor'],
   Hospedagens: ['Hospedagem','Entrada na hospedagem','Saída da hospedagem'],
@@ -27,7 +43,7 @@ export function inferirCategoriaAgenda(servico: string): CategoriaAgenda {
   if(/internac|internad/.test(s))return 'Internações'
   if(/hosped|hotel|pernoite/.test(s))return 'Hospedagens'
   if(/day.?care|creche|recreac/.test(s))return 'Day Care'
-  if(/banho|tosa|estetic|hidratac|embelez|unha/.test(s))return 'Estéticos'
+  if(/banho|tosa|estetic|hidratac|cronograma|embelez|unha|ouvido|desembol|subpelo|pelo morto/.test(s))return 'Estéticos'
   if(/externo|domicili|delivery|transporte/.test(s))return 'Externos'
   if(/clinico|consulta|retorno|exame|avaliac|ultrassom/.test(s))return 'Clínicos'
   return 'Gerais'
