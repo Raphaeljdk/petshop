@@ -465,6 +465,14 @@ export function FiscalView() {
 
       {aba === 'notas' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
+          <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+            <strong className="text-foreground">Histórico dos emissores:</strong> segundo a administração da Matilha Prado,
+            o Zetta não chegou a emitir notas fiscais antes da migração. Os XMLs de NFC-e antigos
+            recebidos vieram do Pet Moura; as NF-e de marketplace possuem emissores próprios.
+            A NFS-e nº 2 de 26/10/2026 foi emitida como teste pela empresa do novo sistema.
+            Esses documentos não devem ser reemitidos ou misturados entre modelos e séries.
+            A emissão fiscal própria continua pendente de homologação e aprovação contábil.
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div><h2 className="font-semibold">Pedidos e emissão centralizada</h2><p className="text-xs text-muted-foreground">Use o teste seguro para identificar pendências antes de emitir em qualquer canal.</p></div>
             <Badge variant="outline">NF-e 55</Badge>
