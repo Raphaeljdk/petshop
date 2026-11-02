@@ -566,3 +566,19 @@ model ImportacaoFiscalProduto {
   @@index([produtoId, criadoEm])
   @@index([hashArquivo])
 }
+
+
+/**
+ * Configuracao INTERNA dos servicos esteticos confirmados pela Matilha Prado.
+ * Campos opcionais ficam vazios ate a resposta da equipe; valores nao sao
+ * automaticamente publicados nem usados para calculo fiscal/agendamento.
+ */
+model ServicoEsteticoConfig {
+  chave String @id
+  precoCentavos Int?
+  duracaoMinutos Int?
+  regrasPreco String? @db.Text
+  observacoes String? @db.Text
+  confirmado Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
