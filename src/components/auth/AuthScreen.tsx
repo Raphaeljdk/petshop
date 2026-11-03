@@ -296,7 +296,7 @@ export function AuthScreen() {
                 A <strong >Matilha Prado</strong> nasceu de um sonho construído em família e, literalmente, com as próprias mãos.
               </p>
               <p>
-                <em>&ldquo;Matilha&rdquo;</em> representa aquilo que somos: uma família grande, unida e apaixonada por animais. Somos <strong >Aleksander e Karine</strong>, nossos filhos <strong >Sophia e Nicolas</strong>, e nossos três companheiros de quatro patas: <strong >Ragnar</strong>, nosso Husky Siberiano; <strong >Gyda</strong>, nossa Husky Siberiana; e <strong >Kira</strong>, nossa Pit Bull.
+                <em>&ldquo;Matilha&rdquo;</em> representa aquilo que somos: uma família grande, unida e apaixonada por animais. Somos <strong >Aleksander e Karine</strong>, nossos filhos <strong >Sophia e Nicolas</strong>, e nossos três companheiros de quatro patas: <strong >Ragnar</strong>, nosso Husky Siberiano; <strong >Gyda</strong>, nossa Husky Siberiano; e <strong >Kira</strong>, nossa Pit Bull.
               </p>
               <p>
                 E <em>&ldquo;Prado&rdquo;</em> é o nosso sobrenome, nossa família e a identidade que carregamos em tudo o que fazemos.
