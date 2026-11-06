@@ -59,3 +59,11 @@ test('um mesmo GTIN repetido na NF-e não atualiza duas vezes',()=>{
   const nota=lerNotaXmlEntrada(repetido)
   assert.deepEqual(planejarImportacaoXml(nota.itens,[produto]).map(p=>p.status),['apto','duplicado'])
 })
+
+test('aceita GTIN tributável quando cEAN está como SEM GTIN e bloqueia marcador zerado',()=>{
+  const trib=item.replace('7899732118403','SEM GTIN</cEAN><cEANTrib>7899732118403')
+  const nota=lerNotaXmlEntrada(xml(trib))
+  assert.equal(nota.itens[0].gtin,'7899732118403')
+  const zerado=lerNotaXmlEntrada(xml(item.replace('7899732118403','0000000000000')))
+  assert.equal(planejarImportacaoXml(zerado.itens,[produto])[0].status,'revisar')
+})
