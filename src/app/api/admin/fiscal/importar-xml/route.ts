@@ -105,6 +105,7 @@ export async function POST(req:NextRequest){
       }
     }
     if(tarefas.length>180)return resposta({error:'Muitos cadastros afetados. Divida em lotes menores.'},400)
+    if(!tarefas.length)return resposta({error:'Nenhum item apto ou selecionado para gravar. Revise a prévia.'},400)
     const resultado=await db.$transaction(async tx=>{
       // No banco PostgreSQL, bloqueia importações concorrentes da mesma chave enquanto grava.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${nota.chave}))`
@@ -114,7 +115,7 @@ export async function POST(req:NextRequest){
       for(const t of tarefas){
         const item=nota.itens[t.linha-1]
         if(t.criar){
-          if(!item.descricao||!/^\d{8}$/.test(item.ncm)||(item.gtin&&!gtinValido(item.gtin)))
+          if(!item.descricao||!/^\d{8}$/.test(item.ncm)||(item.gtin&&(!gtinValido(item.gtin)||/^0+$/.test(item.gtin))))
             throw new AuthError('Dados incompletos para novo cadastro: linha '+t.linha,400)
           if(item.gtin){
             const existentes=await tx.produto.count({where:{OR:[{sku:item.gtin},{gtinFiscal:item.gtin}]}})
