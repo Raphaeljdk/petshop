@@ -12,6 +12,7 @@ import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
+import { ImportarXmlNotasCompra } from '@/components/admin/ImportarXmlNotasCompra'
 import { ReaproveitarFiscalSku } from '@/components/admin/ReaproveitarFiscalSku'
 import { PreparoHomologacaoNfe } from '@/components/admin/PreparoHomologacaoNfe'
 import { AuditoriaTributariaSaida } from '@/components/admin/AuditoriaTributariaSaida'
@@ -677,6 +678,7 @@ export function FiscalView() {
       {aba === 'produtos' && (
         <Card><CardContent className="space-y-4 p-4 sm:p-6">
           <div><h2 className="font-semibold">Classificação fiscal do catálogo · Simples Nacional (CRT 1)</h2><p className="text-xs text-muted-foreground">Códigos por produto devem ser validados pelo contador. ICMS-ST, FCP, IPI, PIS, COFINS e IBS/CBS não recebem alíquotas automáticas; a incidência depende da operação e destino.</p></div>
+          <ImportarXmlNotasCompra onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);setGrupoEditando(null);void carregarProdutos(1,'','todos')}}/>
           <ImportarFiscalZetta onImported={()=>{setPagina(1);setBuscaProduto('');setFiltroProduto('todos');setEditandoProduto(null);setGrupoEditando(null);void carregarProdutos(1,'','todos')}}/>
           <ReaproveitarFiscalSku onApplied={()=>{setGrupoEditando(null);setEditandoProduto(null);void carregarProdutos(pagina,buscaProduto,filtroProduto)}}/>
           <AuditoriaTributariaSaida/>
