@@ -61,7 +61,7 @@ test('um mesmo GTIN repetido na NF-e não atualiza duas vezes',()=>{
 })
 
 test('aceita GTIN tributável quando cEAN está como SEM GTIN e bloqueia marcador zerado',()=>{
-  const trib=item.replace('7899732118403','SEM GTIN</cEAN><cEANTrib>7899732118403')
+  const trib=item.replace('<cEAN>7899732118403</cEAN>','<cEAN>SEM GTIN</cEAN><cEANTrib>7899732118403</cEANTrib>')
   const nota=lerNotaXmlEntrada(xml(trib))
   assert.equal(nota.itens[0].gtin,'7899732118403')
   const zerado=lerNotaXmlEntrada(xml(item.replace('7899732118403','0000000000000')))
