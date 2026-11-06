@@ -119,8 +119,9 @@ export function lerNotaXmlEntrada(xml:string):NotaXmlEntrada{
     if(!prod)throw Error('Produto ausente na NF-e.')
     const ncm=soDigitos(valor(prod,'NCM'))
     const cest=soDigitos(valor(prod,'CEST'))
-    const informado=valor(prod,'cEAN')||valor(prod,'cEANTrib')
-    const gtin=informado&&informado.toUpperCase()!=='SEM GTIN'?soDigitos(informado):null
+    const ean=valor(prod,'cEAN'),eanTrib=valor(prod,'cEANTrib')
+    const informado=[ean,eanTrib].find(g=>g&&g.toUpperCase()!=='SEM GTIN')||''
+    const gtin=informado?soDigitos(informado):null
     return {linha:index+1,codigoFornecedor:valor(prod,'cProd').slice(0,80),
       descricao:valor(prod,'xProd').slice(0,180),gtin,ncm,cest:cest||null,
       unidade:valor(prod,'uCom').slice(0,12),quantidade:valor(prod,'qCom'),
@@ -145,7 +146,7 @@ export function planejarImportacaoXml(itens:ItemXmlEntrada[],catalogo:ProdutoXml
     const ret=(status:PlanoLinhaXml['status'],motivo:string):PlanoLinhaXml=>({...base,status,motivo})
     if(!item.descricao||!/^\d{8}$/.test(item.ncm)||(item.cest&&!/^\d{7}$/.test(item.cest)))
       return ret('revisar','Descrição, NCM ou CEST incompleto/inválido na nota.')
-    if(item.gtin&&!gtinValido(item.gtin))
+    if(item.gtin&&(!gtinValido(item.gtin)||/^0+$/.test(item.gtin)))
       return ret('revisar','GTIN inválido no XML. Não associar automaticamente.')
     if(!item.gtin)return ret('sem_vinculo','Sem GTIN: selecione manualmente o produto existente ou cadastre como novo inativo.')
     if(vistos.has(item.gtin))return ret('duplicado','GTIN repetido nesta nota; revisar antes de gravar.')
