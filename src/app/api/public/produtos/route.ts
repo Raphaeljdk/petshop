@@ -59,7 +59,7 @@ const getPublicProducts = unstable_cache(
           const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
           if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
           return a.nome.localeCompare(b.nome, 'pt-BR')
-        })
+        }))
       } catch (schemaError) {
         console.warn(
           '[public/produtos] schema novo ainda não aplicado; usando leitura compatível:',
@@ -72,7 +72,7 @@ const getPublicProducts = unstable_cache(
             const bSemEstoque = b.estoque <= 0
             if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
             return a.nome.localeCompare(b.nome, 'pt-BR')
-          }))
+          })))
       }
     }
   },
