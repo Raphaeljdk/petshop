@@ -35,7 +35,7 @@ function normalize(value: string) {
 export function getProductBrand(product: BrandableProduct): string {
   const original = product.marca?.trim()
   if (original && original.length <= 80 && !/^(?:0|sem marca|nao informado|não informado|outros?|pet shop|generico|genérico)$/i.test(original)) {
-    return original
+    return BRANDS.find((brand) => normalize(brand) === normalize(original)) || original
   }
 
   const text = ` ${normalize([product.nome, product.descricao || ''].join(' '))} `
