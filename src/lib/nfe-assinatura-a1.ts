@@ -1,7 +1,7 @@
 import forge from 'node-forge'
 import { createPublicKey, X509Certificate } from 'node:crypto'
 import { SignedXml } from 'xml-crypto'
-import { DOMParser } from '@xmldom/xmldom'
+import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 
 const NFE_NS='http://www.portalfiscal.inf.br/nfe'
 const DS_NS='http://www.w3.org/2000/09/xmldsig#'
@@ -103,7 +103,7 @@ export function assinarXmlNfeHomologacao(xmlRascunho:string,chaves:ChavesA1){
  if(ref.length!==1||ref[0].getAttribute('URI')!=='#'+id)
   throw new AssinaturaNfeError('Referência da assinatura não confere.')
  const verificar=new SignedXml({publicCert:chaves.certificadoPem,getCertFromKeyInfo:()=>null})
- verificar.loadSignature(assinaturas[0])
+ verificar.loadSignature(new XMLSerializer().serializeToString(assinaturas[0]))
  if(!verificar.checkSignature(assinado)||verificar.getSignedReferences().length!==1)
   throw new AssinaturaNfeError('Verificação XMLDSig falhou.')
  const conteudo=verificar.getSignedReferences()[0].toString()
