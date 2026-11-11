@@ -5,7 +5,7 @@ import {db} from '@/lib/db'
 import {getUsuarioLogado} from '@/lib/auth-cookies'
 import {AuthError,readAuthBody} from '@/lib/auth-http'
 import {lerA1DeVariaveis,SefazComunicacaoError} from '@/lib/sefaz-sp-nfe'
-import {extrairCertificadoA1,assinarXmlNfeHomologacao,AssinaturaNfeError} from '@/lib/nfe-assinatura-a1'
+import {extrairCertificadoA1,assinarXmlNfeHomologacao,validarAssinaturaNfeHomologacao,AssinaturaNfeError} from '@/lib/nfe-assinatura-a1'
 import {validarXmlNfeXsdHomologacao,NfeXsdError} from '@/lib/nfe-validacao-xsd'
 import {gerarRascunhoNfe55,NfeRascunhoError} from '@/lib/nfe-xml-modelo55'
 import {montarLoteHomologacao,montarConsultaHomologacao,montarRetornoHomologacao,
@@ -125,7 +125,8 @@ async function transmitir(id:string){
  await configValidada()
  validarXmlNfeXsdHomologacao(nota.xmlAssinado)
  const cred=credenciais()
- extrairCertificadoA1(cred.pfx,cred.passphrase,'57199062000191')
+ const chaves=extrairCertificadoA1(cred.pfx,cred.passphrase,'57199062000191')
+ validarAssinaturaNfeHomologacao(nota.xmlAssinado,chaves.certificadoPem,nota.chave)
  const updated=await db.nfeHomologacao.updateMany({where:{id,status:'preparada',ambiente:2},
   data:{status:'enviando',enviadaEm:new Date()}})
  if(updated.count!==1)return fail('Documento processado por outra solicitação.',409)
