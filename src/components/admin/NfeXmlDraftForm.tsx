@@ -29,6 +29,7 @@ const nomes:Record<keyof Endereco,string> = {
 export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>void}) {
   const [dados,setDados]=useState<DraftData|null>(null)
   const [erro,setErro]=useState('')
+  const [resultadoValidacao,setResultadoValidacao]=useState('')
   const [loading,setLoading]=useState(true)
   const [saving,setSaving]=useState(false)
   const [numero,setNumero]=useState('')
@@ -60,9 +61,10 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
   const alterarItem=(index:number,chave:Exclude<keyof FiscalItem,'produtoId'|'nome'|'quantidade'|'ncm'|'cfop'|'csosn'>,valor:string)=>
     setItens(lista=>lista.map((i,n)=>n===index?{...i,[chave]:valor}:i))
   async function baixar(e:React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();setErro('');setSaving(true)
+    e.preventDefault();setErro('');setResultadoValidacao('');setSaving(true)
+    const validar=(e.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='validar'
     try {
-      const response=await fetch('/api/admin/fiscal/xml-oficial',{
+      const response=await fetch('/api/admin/fiscal/xml-oficial'+(validar?'?modo=validar':''),{
         method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           vendaId,numero:Number(numero),codigoNumerico:codigo,naturezaOperacao:natureza,
@@ -86,6 +88,11 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
         const body=await response.json().catch(()=>({}))
         throw new Error(body.error||'Não foi possível montar o XML.')
       }
+      if(validar){
+        const info=await response.json()
+        setResultadoValidacao('Certificado A1 conferido, assinatura XMLDSig verificada e XSD '+info.versaoSchema+' aprovado. Nenhuma NF-e foi transmitida ou autorizada.')
+        return
+      }
       const url=URL.createObjectURL(await response.blob())
       const a=document.createElement('a');a.href=url
       a.download='RASCUNHO-NFE55-HOMOLOGACAO-'+vendaId.replace(/[^a-zA-Z0-9_-]/g,'')+'.xml'
@@ -98,7 +105,7 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
         <h3 className="font-semibold">Rascunho XML no leiaute NF-e 4.00 (modelo 55)</h3>
-        <p className="text-xs text-muted-foreground">Somente homologação (tpAmb=2). Ainda não há assinatura digital, validação XSD do pacote vigente, IBS/CBS completo ou transmissão SEFAZ.</p>
+        <p className="text-xs text-muted-foreground">Somente homologação (tpAmb=2). Valide a assinatura A1 e o XSD 010g antes de prosseguir. Este formulário não envia notas à SEFAZ.</p>
       </div>
       <Button size="sm" variant="ghost" onClick={onClose} aria-label="Fechar formulário"><X className="size-4"/></Button>
     </div>
@@ -194,9 +201,11 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
         <p className="text-xs text-amber-700 dark:text-amber-300">O XML é somente um rascunho estrutural para conferência técnica. Não encaminhar ao autorizador enquanto XSD, assinatura, IBS/CBS e demais hipóteses fiscais não estiverem homologados.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={saving}>{saving?<Loader2 className="mr-2 size-4 animate-spin"/>:<Download className="mr-2 size-4"/>}Baixar rascunho XML NF-e 55</Button>
+          <Button type="submit" value="validar" variant="outline" disabled={saving}>Validar assinatura A1 e XSD</Button>
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
         </div>
       </form>}
+    {resultadoValidacao&&<p role="status" className="mt-3 text-sm text-emerald-600">{resultadoValidacao}</p>}
     {erro&&<p role="alert" className="mt-3 text-sm text-red-600">{erro}</p>}
   </div>
 }
