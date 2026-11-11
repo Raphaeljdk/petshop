@@ -74,6 +74,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
 import { catalogVariantDetails, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '@/lib/product-variants'
+import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -747,8 +748,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   // filtros produtos
   const [buscaProduto, setBuscaProduto] = useState('')
-  const [filtroCategoria, setFiltroCategoria] = useState<string>('todas')
+  const [filtroMarca, setFiltroMarca] = useState<string>('todas')
   const [estoqueBaixo, setEstoqueBaixo] = useState(false)
+  const [apenasSemFoto, setApenasSemFoto] = useState(false)
+  const [apenasAnunciosRepetidos, setApenasAnunciosRepetidos] = useState(false)
   const [mostrarDesativados, setMostrarDesativados] = useState(false)
   const [ordenacao, setOrdenacao] = useState<Ordenacao>('recente')
   const [faixaPreco, setFaixaPreco] = useState<[number, number]>([0, 1000])
@@ -857,13 +860,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   /* ---------------------- produtos: filtros + ordenação ---------------------- */
 
-  const categorias = useMemo(() => {
-    const set = new Set<string>()
-    produtos.forEach((p) => {
-      if (p.categoria) set.add(p.categoria)
-    })
-    return Array.from(set).sort()
-  }, [produtos])
+  const marcas = useMemo(() => [...new Set(produtos.map(getProductBrand))].sort((a, b) =>
+    a === SEM_MARCA ? 1 : b === SEM_MARCA ? -1 : a.localeCompare(b, 'pt-BR')
+  ), [produtos])
 
   const resumoEstoque = useMemo(
     () => ({
@@ -896,9 +895,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
           return false
         }
       }
-      if (filtroCategoria !== 'todas') {
-        if (p.categoria !== filtroCategoria) return false
-      }
+      if (filtroMarca !== 'todas' && getProductBrand(p) !== filtroMarca) return false
+      if (apenasSemFoto && p.imageUrl) return false
+      if (apenasAnunciosRepetidos && (p.anunciosVinculados || 0) <= 1) return false
       if (estoqueBaixo) {
         if (p.estoqueIlimitado || estoqueOficial(p) >= 5) return false
       }
@@ -936,8 +935,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   }, [
     produtos,
     buscaProduto,
-    filtroCategoria,
+    filtroMarca,
     estoqueBaixo,
+    apenasSemFoto,
+    apenasAnunciosRepetidos,
     mostrarDesativados,
     ordenacao,
     faixaPreco,
@@ -1020,8 +1021,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   const temFiltrosProduto =
     buscaProduto.trim() !== '' ||
-    filtroCategoria !== 'todas' ||
+    filtroMarca !== 'todas' ||
     estoqueBaixo ||
+    apenasSemFoto ||
+    apenasAnunciosRepetidos ||
     mostrarDesativados ||
     faixaPreco[0] > 0 ||
     faixaPreco[1] < 10000
@@ -1033,8 +1036,10 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   const limparFiltrosProduto = () => {
     setBuscaProduto('')
-    setFiltroCategoria('todas')
+    setFiltroMarca('todas')
     setEstoqueBaixo(false)
+    setApenasSemFoto(false)
+    setApenasAnunciosRepetidos(false)
     setMostrarDesativados(false)
     const max = Math.max(100, ...produtos.map((p) => Math.ceil(p.preco)))
     setFaixaPreco([0, max])
@@ -1262,6 +1267,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge variant="secondary">{resumoEstoque.total} produtos únicos</Badge>
           <Badge variant="secondary">{resumoEstoque.unidades} un. em estoque</Badge>
+          <Badge variant="outline">{produtos.filter((p) => !p.imageUrl).length} sem foto no cadastro</Badge>
+          <Badge variant="outline">{produtos.filter((p) => (p.anunciosVinculados || 0) > 1).length} grupos com anúncios vinculados</Badge>
           {resumoEstoque.ilimitados > 0 && (
             <Badge className="border-emerald-200 bg-emerald-100 text-emerald-700">
               {resumoEstoque.ilimitados} ilimitado(s)
@@ -1296,16 +1303,16 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                   </button>
                 )}
               </div>
-              <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+              <Select value={filtroMarca} onValueChange={setFiltroMarca}>
                 <SelectTrigger className="w-full sm:w-[180px] h-9">
                   <Filter className="size-3.5 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="Categoria" />
+                  <SelectValue placeholder="Marca" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todas">Todas as categorias</SelectItem>
-                  {categorias.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
+                  <SelectItem value="todas">Todas as marcas</SelectItem>
+                  {marcas.map((marca) => (
+                    <SelectItem key={marca} value={marca}>
+                      {marca}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1337,6 +1344,14 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                 >
                   Estoque baixo
                 </Label>
+              </div>
+              <div className="flex items-center gap-2 px-3 border border-border rounded-md h-9 bg-background">
+                <Switch id="apenas-sem-foto" checked={apenasSemFoto} onCheckedChange={setApenasSemFoto} />
+                <Label htmlFor="apenas-sem-foto" className="text-xs whitespace-nowrap cursor-pointer">Sem foto</Label>
+              </div>
+              <div className="flex items-center gap-2 px-3 border border-border rounded-md h-9 bg-background">
+                <Switch id="apenas-anuncios-repetidos" checked={apenasAnunciosRepetidos} onCheckedChange={setApenasAnunciosRepetidos} />
+                <Label htmlFor="apenas-anuncios-repetidos" className="text-xs whitespace-nowrap cursor-pointer">Anúncios vinculados</Label>
               </div>
               <div className="flex items-center gap-2 px-3 border border-border rounded-md h-9 bg-background">
                 <Switch
