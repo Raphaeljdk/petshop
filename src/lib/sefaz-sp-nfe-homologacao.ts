@@ -42,8 +42,9 @@ export function interpretarAutorizacaoHomologacao(xml:string,chaveEsperada:strin
  falha(xml)
  const retorno=campoXml(xml,'retEnviNFe')||campoXml(xml,'retConsReciNFe')||campoXml(xml,'retConsSitNFe')
  if(!retorno)throw new SefazComunicacaoError('resposta','Resposta SEFAZ não reconhecida.')
- if(campo(retorno,'tpAmb')!=='2')throw new SefazComunicacaoError('ambiente','Resposta não é de homologação.')
- const status=Number(campo(retorno,'cStat'))
+ const cabecalho=retorno.replace(/<(?:\w+:)?protNFe\b[^>]*>[\s\S]*?<\/(?:\w+:)?protNFe\s*>/g,'')
+ if(campo(cabecalho,'tpAmb')!=='2')throw new SefazComunicacaoError('ambiente','Resposta não é de homologação.')
+ const status=Number(campo(cabecalho,'cStat'))
  if(!Number.isInteger(status)||status<100||status>999)
   throw new SefazComunicacaoError('resposta','Código cStat inválido.')
  const protocoloXml=campoXml(retorno,'protNFe')
@@ -55,10 +56,10 @@ export function interpretarAutorizacaoHomologacao(xml:string,chaveEsperada:strin
  const numero=info?campo(info,'nProt'):null
  const protocolo=info&&codigo!==null&&Number.isInteger(codigo)?
   {status:codigo,chave:chave!,numero:numero||null,motivo:motivo(campo(info,'xMotivo'))}:null
- const recibo=campo(retorno,'nRec')
+ const recibo=campo(cabecalho,'nRec')
  if(recibo&&!/^\d{15}$/.test(recibo))
   throw new SefazComunicacaoError('recibo','Recibo SEFAZ inválido.')
- return {ambiente:2,statusLote:status,motivoLote:motivo(campo(retorno,'xMotivo')),
+ return {ambiente:2,statusLote:status,motivoLote:motivo(campo(cabecalho,'xMotivo')),
   recibo:recibo||null,protocolo,
   autorizada:!!(protocolo&&[100,150].includes(protocolo.status)&&/^\d{15}$/.test(protocolo.numero||''))}
 }
