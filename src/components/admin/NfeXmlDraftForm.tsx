@@ -182,29 +182,7 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
                 return <div key={tipo} className="space-y-2 rounded-md border p-3">
                   <p className="font-medium text-xs">{tipo==='pis'?'PISOutr':'COFINSOutr'} (CST 49) — informar valores conferidos</p>
                   <div className="grid grid-cols-3 gap-2">{campos.map((c,n)=><div key={c} className="space-y-1">
-                    <Label>{n===0?'Base R
-        </div>
-        <p className="text-xs text-amber-700 dark:text-amber-300">O XML é somente um rascunho estrutural para conferência técnica. Não encaminhar ao autorizador enquanto XSD, assinatura, IBS/CBS e demais hipóteses fiscais não estiverem homologados.</p>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={saving}>{saving?<Loader2 className="mr-2 size-4 animate-spin"/>:<Download className="mr-2 size-4"/>}Baixar rascunho XML NF-e 55</Button>
-          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-        </div>
-      </form>}
-    {erro&&<p role="alert" className="mt-3 text-sm text-red-600">{erro}</p>}
-  </div>
-}
-:n===1?'Alíquota %':'Valor R
-        </div>
-        <p className="text-xs text-amber-700 dark:text-amber-300">O XML é somente um rascunho estrutural para conferência técnica. Não encaminhar ao autorizador enquanto XSD, assinatura, IBS/CBS e demais hipóteses fiscais não estiverem homologados.</p>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={saving}>{saving?<Loader2 className="mr-2 size-4 animate-spin"/>:<Download className="mr-2 size-4"/>}Baixar rascunho XML NF-e 55</Button>
-          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-        </div>
-      </form>}
-    {erro&&<p role="alert" className="mt-3 text-sm text-red-600">{erro}</p>}
-  </div>
-}
-}</Label>
+                    <Label>{n===0?'Base (R$)':n===1?'Alíquota %':'Valor (R$)'}</Label>
                     <Input required type="number" min="0" max={n===1?'100':undefined} step={n===1?'0.0001':'0.01'}
                       value={i[c]} onChange={e=>alterarItem(index,c,e.target.value)} placeholder="Informar"/>
                   </div>)}</div>
