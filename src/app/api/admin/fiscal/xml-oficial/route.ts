@@ -36,8 +36,14 @@ const schema = z.object({
   itens:z.array(z.object({
     produtoId:z.string().min(1).max(100),
     gtin:z.string().refine(s=>s==='SEM GTIN'||/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(s)),
-    pisCst:z.enum(['04','05','06','07','08','09']),
-    cofinsCst:z.enum(['04','05','06','07','08','09']),
+    pisCst:z.enum(['04','05','06','07','08','09','49']),
+    cofinsCst:z.enum(['04','05','06','07','08','09','49']),
+    pis:z.object({base:z.number().finite().min(0).max(999999999),
+      aliquota:z.number().finite().min(0).max(100),
+      valor:z.number().finite().min(0).max(999999999)}).strict().optional(),
+    cofins:z.object({base:z.number().finite().min(0).max(999999999),
+      aliquota:z.number().finite().min(0).max(100),
+      valor:z.number().finite().min(0).max(999999999)}).strict().optional(),
   }).strict()).min(1).max(990),
 }).strict()
 
@@ -55,7 +61,7 @@ async function carregarVenda(id: string) {
       notaFiscal:{select:{status:true,chaveAcesso:true,numero:true,emissorDocumentoId:true}},
       itens:{orderBy:{id:'asc'},select:{
         produtoId:true,quantidade:true,precoUnit:true,
-        produto:{select:{nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,unidadeFiscal:true}},
+        produto:{select:{nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,unidadeFiscal:true,pisCst:true,cofinsCst:true,gtinFiscal:true}},
       }},
     },
   })
@@ -87,6 +93,7 @@ export async function GET(req:NextRequest) {
     itens:venda?.itens.map(i=>({
       produtoId:i.produtoId,nome:i.produto.nome,quantidade:i.quantidade,
       ncm:i.produto.ncm,cfop:i.produto.cfop,csosn:i.produto.csosn,
+      gtinFiscal:i.produto.gtinFiscal,pisCst:i.produto.pisCst,cofinsCst:i.produto.cofinsCst,
     })),
     aviso:'Dados fiscais devem ser conferidos pelo contador. Somente rascunho em homologação; não gera nota autorizada.',
   },{headers})
