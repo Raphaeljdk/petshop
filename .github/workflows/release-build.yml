@@ -27,6 +27,16 @@ jobs:
           bun-version: latest
       # Etapa temporária da PR: resolver dependências e recuperar bun.lock atualizado.
       - run: bun install
+      - name: Baixar pacote de schemas para conferência (temporário)
+        run: |
+          curl --fail --silent --show-error --location --retry 2 --max-time 45 'https://www.reformatributaria.com/wp-content/uploads/2026/10/PL_010g_v1.03.zip' --output /tmp/PL_010g_v1.03.zip
+          test "$(wc -c </tmp/PL_010g_v1.03.zip)" -lt 3000000
+          unzip -t /tmp/PL_010g_v1.03.zip >/dev/null
+          sha256sum /tmp/PL_010g_v1.03.zip
+          unzip -Z1 /tmp/PL_010g_v1.03.zip | grep -E '(enviNFe|nfe_v4|leiauteNFe|tiposBasico|xmldsig)' | head -30
+          echo 'FISCAL_SCHEMA_BEGIN'
+          base64 -w1000 /tmp/PL_010g_v1.03.zip | sed 's/^/FISCAL_SCHEMA|/'
+          echo 'FISCAL_SCHEMA_END'
       - name: Capturar lockfile resolvido (temporário)
         run: |
           echo 'FISCAL_LOCK_BEGIN'
