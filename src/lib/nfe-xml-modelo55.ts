@@ -199,11 +199,12 @@ export function gerarRascunhoNfe55(
       campo('CFOP',numerico(p.cfop)) + campo('uCom',unit) +
       campo('qCom',item.quantidade.toFixed(4)) + campo('vUnCom',item.precoUnit.toFixed(10)) +
       campo('vProd',moeda(vProd)) +
-      (freteItem ? campo('vFrete',moeda(freteItem)) : '') +
-      (descontoItem ? campo('vDesc',moeda(descontoItem)) : '') +
       campo('cEANTrib',fiscal.gtin) +
       campo('uTrib',unit) + campo('qTrib',item.quantidade.toFixed(4)) +
-      campo('vUnTrib',item.precoUnit.toFixed(10)) + campo('indTot','1')
+      campo('vUnTrib',item.precoUnit.toFixed(10)) +
+      (freteItem ? campo('vFrete',moeda(freteItem)) : '') +
+      (descontoItem ? campo('vDesc',moeda(descontoItem)) : '') +
+      campo('indTot','1')
     const imposto = '<ICMS><ICMSSN102>' + campo('orig',p.origem as string) +
       campo('CSOSN',p.csosn as string) + '</ICMSSN102></ICMS>' + pis.xml + cofins.xml
     return '<det nItem="' + (index+1) + '"><prod>' + prod +
