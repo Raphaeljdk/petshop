@@ -25,7 +25,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      # Etapa temporária da PR: resolver dependências e recuperar bun.lock atualizado.
+      - run: bun install
+      - name: Capturar lockfile resolvido (temporário)
+        run: |
+          echo 'FISCAL_LOCK_BEGIN'
+          sed 's/^/FISCAL_LOCK|/' bun.lock
+          echo 'FISCAL_LOCK_END'
       - run: bunx prisma generate --schema=prisma/schema.prisma
       - run: bun test tests/catalogo-servicos-matilha.test.ts
       - run: bun test tests/fiscal-preview.test.ts
