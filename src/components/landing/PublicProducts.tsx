@@ -181,9 +181,9 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                   {brand !== 'todas' ? brand : 'Todos os produtos'}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {selectedShortcut
-                    ? 'Mostrando itens relacionados à categoria selecionada.'
-                    : 'Selecione uma categoria acima para filtrar.'}
+                  {brand !== 'todas'
+                    ? 'Mostrando os produtos da marca selecionada.'
+                    : 'Selecione uma marca acima para filtrar.'}
                 </p>
               </div>
               {brand !== 'todas' && (
@@ -203,7 +203,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                 <CardContent className="p-7 text-center">
                   <Package className="mx-auto mb-2 size-8 text-muted-foreground/40" />
                   <p className="text-sm font-medium">
-                    Ainda não encontramos produtos nessa categoria.
+                    Ainda não encontramos produtos dessa marca.
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.
