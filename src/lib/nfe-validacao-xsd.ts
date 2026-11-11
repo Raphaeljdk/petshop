@@ -6,7 +6,7 @@ import { XmlDocument, XsdValidator, XmlBufferInputProvider, xmlRegisterInputProv
 
 const ROOT='file:///matilha-nfe-schemas/'
 const PACOTE='PL_010g_v1.03.zip'
-const ARQUIVO='enviNFe_v4.00.xsd'
+const ARQUIVO='nfe_v4.00.xsd'
 const LIMITE_ZIP=3_000_000
 const LIMITE_EXPANDIDO=15_000_000
 export class NfeXsdError extends Error{
@@ -43,12 +43,12 @@ function carregarSchemas(){
  return {buffers,sha256}
 }
 /**
- * Verificação de esquema nacional do lote assinado. Nunca gera autorização.
+ * Verificação de esquema nacional da NF-e assinada. Nunca gera autorização.
  * Respostas de erro não incluem XML do destinatário, certificado ou segredos.
  */
-export function validarLoteXsdHomologacao(xmlLote:string){
- if(xmlLote.length>500_000||/<\!DOCTYPE|<\!ENTITY/i.test(xmlLote))
-  throw new NfeXsdError('Lote de NF-e inválido ou excessivo.')
+export function validarXmlNfeXsdHomologacao(xmlNfe:string){
+ if(xmlNfe.length>500_000||/<\!DOCTYPE|<\!ENTITY/i.test(xmlNfe))
+  throw new NfeXsdError('XML NF-e inválido ou excessivo.')
  const {buffers,sha256}=carregarSchemas()
  if(!providerRegistered){
   xmlRegisterInputProvider(new XmlBufferInputProvider(buffers))
@@ -58,11 +58,11 @@ export function validarLoteXsdHomologacao(xmlLote:string){
  let validator:XsdValidator|null=null,doc:XmlDocument|null=null
  try{
   validator=XsdValidator.fromDoc(schema)
-  doc=XmlDocument.fromString(xmlLote)
+  doc=XmlDocument.fromString(xmlNfe)
   validator.validate(doc)
   return {valido:true as const,esquema:'010g v1.03',hashEsquema:sha256}
  }catch{
-  throw new NfeXsdError('O lote NF-e não passou na validação XSD oficial; transmissão bloqueada.')
+  throw new NfeXsdError('A NF-e não passou na validação XSD oficial; transmissão bloqueada.')
  }finally{
   doc?.dispose();validator?.dispose();schema.dispose()
  }
