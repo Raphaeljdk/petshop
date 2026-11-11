@@ -63,7 +63,7 @@ export async function GET() {
           if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
           return a.nome.localeCompare(b.nome, 'pt-BR')
         })
-        )
+        ))
       } catch (schemaError) {
         console.warn(
           '[cliente/produtos] schema novo ainda não aplicado; usando leitura compatível:',
@@ -78,7 +78,7 @@ export async function GET() {
               if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
               return a.nome.localeCompare(b.nome, 'pt-BR')
             })
-        )
+        ))
       }
     }
   } catch (error) {
