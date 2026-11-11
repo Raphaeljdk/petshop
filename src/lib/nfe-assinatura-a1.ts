@@ -111,3 +111,30 @@ export function assinarXmlNfeHomologacao(xmlRascunho:string,chaves:ChavesA1){
   throw new AssinaturaNfeError('Conteúdo assinado não corresponde à chave da NF-e.')
  return {xmlAssinado:assinado,chave:id.slice(3),assinaturaVerificada:true as const}
 }
+
+/** Verifica novamente o XML persistido ANTES de transmiti-lo. Protege contra
+ * alterações na base entre preparo e autorização, mantendo XMLDSig e chave intactos. */
+export function validarAssinaturaNfeHomologacao(xml:string,certificadoPem:string,chave:string){
+ if(!/^\d{44}$/.test(chave)||xml.length>500_000||/<!DOCTYPE|<!ENTITY/i.test(xml))
+  throw new AssinaturaNfeError('XML ou chave inválidos para conferência.')
+ const doc=new DOMParser({onError:()=>{throw new AssinaturaNfeError('XML malformado.')}})
+  .parseFromString(xml,'text/xml')
+ const raiz=doc.getElementsByTagNameNS(NFE_NS,'NFe')
+ const infos=doc.getElementsByTagNameNS(NFE_NS,'infNFe')
+ const assinaturas=doc.getElementsByTagNameNS(DS_NS,'Signature')
+ if(raiz.length!==1||raiz[0]!==doc.documentElement||infos.length!==1||
+  infos[0].parentNode!==raiz[0]||infos[0].getAttribute('Id')!=='NFe'+chave||
+  assinaturas.length!==1||assinaturas[0].parentNode!==raiz[0])
+  throw new AssinaturaNfeError('Estrutura XML ou chave de acesso divergente.')
+ const ambientes=infos[0].getElementsByTagNameNS(NFE_NS,'tpAmb')
+ if(ambientes.length!==1||ambientes[0].textContent!=='2')
+  throw new AssinaturaNfeError('Só é permitida NF-e de homologação.')
+ const refs=assinaturas[0].getElementsByTagNameNS(DS_NS,'Reference')
+ if(refs.length!==1||refs[0].getAttribute('URI')!=='#NFe'+chave)
+  throw new AssinaturaNfeError('Referência da assinatura difere da NF-e.')
+ const assinatura=new SignedXml({publicCert:certificadoPem,getCertFromKeyInfo:()=>null})
+ assinatura.loadSignature(new XMLSerializer().serializeToString(assinaturas[0]))
+ if(!assinatura.checkSignature(xml)||assinatura.getSignedReferences().length!==1)
+  throw new AssinaturaNfeError('Verificação criptográfica de XMLDSig inválida.')
+ return {assinaturaValida:true as const,chave}
+}
