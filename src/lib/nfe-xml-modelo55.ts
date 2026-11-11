@@ -5,7 +5,8 @@ import { xmlText } from './fiscal-preview'
  * Gera SOMENTE rascunho de NF-e 55 no namespace nacional, em tpAmb=2.
  * O leiaute é estrutural; ainda NÃO há validação XSD 010f, assinatura, autorização
  * nem implementação integral dos grupos IBS/CBS 2026. Nunca transmitir este XML.
- * Cenário deliberadamente restrito: CRT 1, CSOSN 102/103/300/400 e PIS/COFINS NT.
+ * Cenário deliberadamente restrito: CRT 1, CSOSN 102; PIS/COFINS NT (04–09)
+ * ou CST 49 com bases, alíquotas e valores expressamente informados. Não transmite.
  */
 export class NfeRascunhoError extends Error {}
 
@@ -13,6 +14,7 @@ export type EnderecoNfe = {
   logradouro: string; numero: string; bairro: string; municipio: string
   codigoMunicipio: string; uf: string; cep: string
 }
+export type TributoOutrasOperacoes = { base: number; aliquota: number; valor: number }
 export type NfeEntrada = {
   numero: number; codigoNumerico: string; naturezaOperacao: string
   destinatario: { nome: string; documento: string; endereco: EnderecoNfe
@@ -20,7 +22,8 @@ export type NfeEntrada = {
   consumidorFinal: '0' | '1'
   pagamento: '01' | '17' | '18'
   modalidadeFrete: '0' | '1' | '2' | '9'
-  itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string }>
+  itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string
+    pis?: TributoOutrasOperacoes; cofins?: TributoOutrasOperacoes }>
 }
 export type NfeEmpresa = {
   cnpj: string | null; razaoSocial: string | null; nomeFantasia: string | null
@@ -45,6 +48,32 @@ const cents = (n: number) => Math.round((n + Number.EPSILON) * 100)
 const moeda = (centavos: number) => (centavos / 100).toFixed(2)
 const necessario = (ok: unknown, descricao: string) => {
   if (!ok) throw new NfeRascunhoError(descricao)
+}
+/** CST 49 usa PISOutr/COFINSOutr. Não infere zero a partir do Simples Nacional. */
+function xmlTributo(campoTributo:'PIS'|'COFINS',cst:string,informado?:TributoOutrasOperacoes){
+  if (cst==='49') {
+    necessario(!!informado, campoTributo+': CST 49 exige base, alíquota e valor aprovados.')
+    const valores=informado as TributoOutrasOperacoes
+    necessario([valores.base,valores.aliquota,valores.valor].every(v=>Number.isFinite(v)&&v>=0)
+      && valores.aliquota<=100 && valores.base<=999999999 && valores.valor<=999999999
+      && Math.abs(valores.base*100-Math.round(valores.base*100))<0.00001
+      && Math.abs(valores.valor*100-Math.round(valores.valor*100))<0.00001,
+      campoTributo+': base, alíquota ou valor inválido para CST 49.')
+    const calculado=Math.round((valores.base*valores.aliquota/100+Number.EPSILON)*100)
+    necessario(calculado===cents(valores.valor),
+      campoTributo+': valor informado diverge da base e alíquota. Conferir arredondamento com a contadora.')
+    const grupo=campoTributo+'Outr'
+    return {xml:'<'+campoTributo+'><'+grupo+'>'+campo('CST',cst)+
+      campo('vBC',moeda(cents(valores.base)))+
+      campo(campoTributo==='PIS'?'pPIS':'pCOFINS',valores.aliquota.toFixed(4))+
+      campo(campoTributo==='PIS'?'vPIS':'vCOFINS',moeda(cents(valores.valor)))+
+      '</'+grupo+'></'+campoTributo+'>',centavos:cents(valores.valor)}
+  }
+  necessario(['04','05','06','07','08','09'].includes(cst),
+    campoTributo+': apenas CST 04–09 ou 49 é aceito neste rascunho.')
+  necessario(!informado,campoTributo+': CST '+cst+' não aceita valores de PISOutr/COFINSOutr.')
+  return {xml:'<'+campoTributo+'><'+campoTributo+'NT>'+campo('CST',cst)+
+    '</'+campoTributo+'NT></'+campoTributo+'>',centavos:0}
 }
 const enderecoXml = (e: EnderecoNfe) =>
   campo('xLgr', e.logradouro.trim()) + campo('nro', e.numero.trim()) +
@@ -140,20 +169,23 @@ export function gerarRascunhoNfe55(
     (entrada.destinatario.indicadorIE==='1' ? campo('IE',numerico(entrada.destinatario.inscricaoEstadual)) : '')
   let freteDistribuido = 0
   let descontoDistribuido = 0
+  let pisTotalCentavos = 0
+  let cofinsTotalCentavos = 0
   const detalhes = venda.itens.map((item, index) => {
     const p = item.produto
     const fiscal = entrada.itens[index]
     necessario(fiscal.produtoId === item.produtoId,
       'A lista de itens fiscais não corresponde à venda. Atualize o formulário.')
     necessario(/^\d{8}$/.test(numerico(p.ncm)) && /^\d{4}$/.test(numerico(p.cfop))
-      && /^[0-8]$/.test(p.origem || '') && /^(102|103|300|400)$/.test(p.csosn || '')
+      && /^[0-8]$/.test(p.origem || '') && p.csosn === '102'
       && !!p.unidadeFiscal?.trim(), 'Item ' + (index + 1) + ': classificação NCM, CFOP, origem, unidade e CSOSN inválida ou incompleta.')
     necessario(numerico(p.cfop).startsWith('5'), 'Item ' + (index+1) + ': CFOP para operação interna em SP precisa começar com 5; confira com o contador.')
     necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(fiscal.gtin),
       'Item ' + (index+1) + ': confirme o GTIN/EAN ou informe SEM GTIN quando aplicável.')
-    necessario(['04','05','06','07','08','09'].includes(fiscal.pisCst)
-      && ['04','05','06','07','08','09'].includes(fiscal.cofinsCst),
-      'Item ' + (index + 1) + ': informe CST PIS/COFINS não tributável, validado pelo contador.')
+    const pis=xmlTributo('PIS',fiscal.pisCst,fiscal.pis)
+    const cofins=xmlTributo('COFINS',fiscal.cofinsCst,fiscal.cofins)
+    pisTotalCentavos+=pis.centavos
+    cofinsTotalCentavos+=cofins.centavos
     // Não presume alíquotas, IBS/CBS ou ICMS: cenários tributados exigem módulos específicos.
     const unit = p.unidadeFiscal as string
     const vProd = cents(item.precoUnit * item.quantidade)
@@ -173,9 +205,7 @@ export function gerarRascunhoNfe55(
       campo('uTrib',unit) + campo('qTrib',item.quantidade.toFixed(4)) +
       campo('vUnTrib',item.precoUnit.toFixed(10)) + campo('indTot','1')
     const imposto = '<ICMS><ICMSSN102>' + campo('orig',p.origem as string) +
-      campo('CSOSN',p.csosn as string) + '</ICMSSN102></ICMS>' +
-      '<PIS><PISNT>' + campo('CST',fiscal.pisCst) + '</PISNT></PIS>' +
-      '<COFINS><COFINSNT>' + campo('CST',fiscal.cofinsCst) + '</COFINSNT></COFINS>'
+      campo('CSOSN',p.csosn as string) + '</ICMSSN102></ICMS>' + pis.xml + cofins.xml
     return '<det nItem="' + (index+1) + '"><prod>' + prod +
       '</prod><imposto>' + imposto + '</imposto></det>'
   }).join('')
@@ -184,8 +214,9 @@ export function gerarRascunhoNfe55(
       .map(k => campo(k,'0.00')).join('') +
     campo('vProd',moeda(subtotal)) + campo('vFrete',moeda(frete)) +
     campo('vSeg','0.00') + campo('vDesc',moeda(desconto)) +
-    ['vII','vIPI','vIPIDevol','vPIS','vCOFINS','vOutro']
-      .map(k => campo(k,'0.00')).join('') +
+    ['vII','vIPI','vIPIDevol'].map(k => campo(k,'0.00')).join('') +
+    campo('vPIS',moeda(pisTotalCentavos)) + campo('vCOFINS',moeda(cofinsTotalCentavos)) +
+    campo('vOutro','0.00') +
     campo('vNF',moeda(cents(venda.total))) + '</ICMSTot>'
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<!-- RASCUNHO EM HOMOLOGACAO: NAO ASSINADO, NAO VALIDADO EM XSD, NAO TRANSMITIDO; CHAVE E NUMERO NAO RESERVADOS -->\n' +
@@ -197,5 +228,5 @@ export function gerarRascunhoNfe55(
     campo('vPag',moeda(cents(venda.total))) + '</detPag></pag>' +
     '</infNFe></NFe>'
   return { xml, chaveApenasEstrutural: chave, ambiente: 'homologacao' as const,
-    aviso: 'Rascunho NF-e 55 (tpAmb=2). Numeração NÃO reservada. Assinatura, XSD 010f, IBS/CBS quando aplicável e autorização SEFAZ pendentes. NÃO transmitir.' }
+    aviso: 'Rascunho NF-e 55 (tpAmb=2). Numeração NÃO reservada. Assinatura, XSD oficial vigente, IBS/CBS quando aplicável e autorização SEFAZ pendentes. NÃO transmitir.' }
 }
