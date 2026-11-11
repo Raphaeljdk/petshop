@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, Bath, Bone, Cat, Check, Dumbbell, Grid2X2, Loader2, Package, PawPrint, ShoppingBag, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, Grid2X2, Loader2, Package, ShoppingBag, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { isClothingProduct } from '@/lib/product-variants'
+import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
 import {
   ProductDetailsDialog,
   type ProductPreview,
@@ -14,83 +15,16 @@ import {
 
 type PublicProduct = ProductPreview
 
-type ProductShortcut = {
-  id: string
-  label: string
-  emoji: string
-  keywords: string[]
-  accent: string
-  icon: typeof Cat
-}
-
-const PRODUCT_SHORTCUTS: ProductShortcut[] = [
-  {
-    id: 'banhos-cuidados',
-    label: 'Banhos e cuidados',
-    emoji: '🧴',
-    keywords: ['banho', 'higiene', 'shampoo', 'condicionador', 'perfume', 'hydra', 'pet society', 'escova'],
-    accent: 'bg-pink-100',
-    icon: Bath,
-  },
-  {
-    id: 'gatos',
-    label: 'Para gatos',
-    emoji: '🐱',
-    keywords: ['gato', 'gatos', 'felino', 'felinos', 'cat'],
-    accent: 'bg-emerald-100',
-    icon: Cat,
-  },
-  {
-    id: 'acessorios',
-    label: 'Acessórios',
-    emoji: '🦮',
-    keywords: ['acessorio', 'acessorios', 'coleira', 'guia', 'peitoral', 'roupa', 'cama', 'comedouro', 'bebedouro'],
-    accent: 'bg-lime-100',
-    icon: PawPrint,
-  },
-  {
-    id: 'treino',
-    label: 'Para treino',
-    emoji: '🎾',
-    keywords: ['treino', 'treinamento', 'adestramento', 'recompensa', 'clicker', 'training'],
-    accent: 'bg-orange-100',
-    icon: Dumbbell,
-  },
-  {
-    id: 'mordedores',
-    label: 'Mordedores',
-    emoji: '🦴',
-    keywords: ['mordedor', 'mordedores', 'brinquedo', 'brinquedos', 'kong', 'bola', 'osso'],
-    accent: 'bg-rose-100',
-    icon: Bone,
-  },
-]
-
-function normalizeText(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-}
-
-function matchesShortcut(product: PublicProduct, shortcut: ProductShortcut) {
-  const haystack = normalizeText(
-    [product.nome, product.descricao || '', product.categoria || ''].join(' ')
-  )
-
-  return shortcut.keywords.some((keyword) => haystack.includes(normalizeText(keyword)))
-}
-
 export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [products, setProducts] = useState<PublicProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [category, setCategory] = useState('todas')
+  const [brand, setBrand] = useState('todas')
   const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const resultsRef = useRef<HTMLHeadingElement>(null)
 
-  function selectCategory(nextCategory: string) {
-    setCategory(nextCategory)
+  function selectBrand(nextBrand: string) {
+    setBrand(nextBrand)
     window.requestAnimationFrame(() => {
       const heading = resultsRef.current
       if (!heading) return
@@ -136,15 +70,24 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
     }
   }, [])
 
-  const selectedShortcut = useMemo(
-    () => PRODUCT_SHORTCUTS.find((shortcut) => shortcut.id === category) || null,
-    [category]
-  )
+  const brandOptions = useMemo(() => {
+    const grouped = new Map<string, { label: string; count: number; imageUrl: string | null }>()
+    for (const product of products) {
+      const label = getProductBrand(product)
+      const current = grouped.get(label) || { label, count: 0, imageUrl: null }
+      current.count += 1
+      if (!current.imageUrl && product.imageUrl) current.imageUrl = product.imageUrl
+      grouped.set(label, current)
+    }
+    return [...grouped.values()].sort((a, b) =>
+      a.label === SEM_MARCA ? 1 : b.label === SEM_MARCA ? -1 : a.label.localeCompare(b.label, 'pt-BR')
+    )
+  }, [products])
 
   const visible = useMemo(() => {
-    const filtered = selectedShortcut
-      ? products.filter((product) => matchesShortcut(product, selectedShortcut))
-      : products
+    const filtered = brand === 'todas'
+      ? products
+      : products.filter((product) => getProductBrand(product) === brand)
 
     return [...filtered]
       .sort((a, b) => {
@@ -153,20 +96,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
         return aSemEstoque === bSemEstoque ? 0 : aSemEstoque ? 1 : -1
       })
       .slice(0, 12)
-  }, [products, selectedShortcut])
-
-  const shortcutImages = useMemo(() => {
-    const map = new Map<string, string>()
-
-    for (const shortcut of PRODUCT_SHORTCUTS) {
-      const product = products.find(
-        (item) => item.imageUrl && matchesShortcut(item, shortcut)
-      )
-      if (product?.imageUrl) map.set(shortcut.id, product.imageUrl)
-    }
-
-    return map
-  }, [products])
+  }, [products, brand])
 
   const money = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -188,7 +118,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
             Do cuidado à diversão, encontre o próximo favorito da sua matilha.
-            Escolha uma categoria e explore a vitrine.
+            Escolha uma marca e explore a vitrine.
           </p>
         </div>
 
@@ -214,72 +144,54 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
           </Card>
         ) : (
           <>
-            <div className="boutique-categories mb-8" role="group" aria-label="Filtrar vitrine por categoria">
-                <button type="button" className="boutique-category boutique-category-all" aria-pressed={category === 'todas'} aria-controls="boutique-results" onClick={() => selectCategory('todas')} style={{ '--category-order': 0 } as CSSProperties}>
-                  <span className="boutique-category-art"><Grid2X2 className="size-9 sm:size-11" aria-hidden="true" /></span>
-                  <span className="boutique-category-name">Toda a boutique</span>
-                  <span className="boutique-category-hint">Explore a coleção <ArrowRight className="size-3.5" aria-hidden="true" /></span>
-                  {category === 'todas' && <Check className="boutique-category-check size-5" aria-hidden="true" />}
+            <div className="mb-8 flex gap-3 overflow-x-auto pb-3" role="group" aria-label="Filtrar vitrine por marca">
+              <button type="button" className="boutique-category boutique-category-all min-w-36 shrink-0" aria-pressed={brand === 'todas'} aria-controls="boutique-results" onClick={() => selectBrand('todas')} style={{ '--category-order': 0 } as CSSProperties}>
+                <span className="boutique-category-art"><Grid2X2 className="size-9 sm:size-11" aria-hidden="true" /></span>
+                <span className="boutique-category-name">Todas as marcas</span>
+                <span className="boutique-category-hint">Toda a coleção <ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                {brand === 'todas' && <Check className="boutique-category-check size-5" aria-hidden="true" />}
+              </button>
+              {brandOptions.map((option, index) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  aria-pressed={brand === option.label}
+                  aria-controls="boutique-results"
+                  onClick={() => selectBrand(option.label)}
+                  className="group boutique-category min-w-36 shrink-0"
+                  style={{ '--category-order': index + 1 } as CSSProperties}
+                >
+                  <span className="boutique-category-art bg-muted">
+                    {option.imageUrl ? (
+                      <img src={option.imageUrl} alt="" loading="lazy" className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105" />
+                    ) : (
+                      <Package className="size-9 sm:size-11" strokeWidth={1.5} aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="boutique-category-name">{option.label}</span>
+                  <span className="boutique-category-hint">{option.count} {option.count === 1 ? 'produto' : 'produtos'} <ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                  {brand === option.label && <Check className="boutique-category-check size-5" aria-hidden="true" />}
                 </button>
-                {PRODUCT_SHORTCUTS.map((shortcut, index) => {
-                  const imageUrl = shortcutImages.get(shortcut.id)
-                  const selected = category === shortcut.id
-                  const Icon = shortcut.icon
-
-                  return (
-                    <button
-                      key={shortcut.id}
-                      type="button"
-                      aria-pressed={selected}
-                      aria-controls="boutique-results"
-                      onClick={() => selectCategory(shortcut.id)}
-                      className="group boutique-category"
-                      style={{ '--category-order': index + 1 } as CSSProperties}
-                    >
-                      <span
-                        className={[
-                          'boutique-category-art',
-                          shortcut.accent,
-                        ].join(' ')}
-                      >
-                        {imageUrl ? (
-                          <img
-                            src={imageUrl}
-                            alt=""
-                            loading="lazy"
-                            className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
-                          />
-                        ) : (
-                          <Icon className="size-9 sm:size-11" strokeWidth={1.5} aria-hidden="true" />
-                        )}
-                      </span>
-                      <span className="boutique-category-name">
-                        {shortcut.label}
-                      </span>
-                      <span className="boutique-category-hint">Ver produtos <ArrowRight className="size-3.5" aria-hidden="true" /></span>
-                      {selected && <Check className="boutique-category-check size-5" aria-hidden="true" />}
-                    </button>
-                  )
-                })}
+              ))}
             </div>
 
             <div className="mb-6 flex items-center justify-between gap-3">
               <div role="status" aria-live="polite">
                 <h3 ref={resultsRef} id="boutique-results" tabIndex={-1} className="scroll-mt-28 rounded-sm text-sm font-semibold">
-                  {selectedShortcut ? selectedShortcut.label : 'Todos os produtos'}
+                  {brand !== 'todas' ? brand : 'Todos os produtos'}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {selectedShortcut
-                    ? 'Mostrando itens relacionados à categoria selecionada.'
-                    : 'Selecione uma categoria acima para filtrar.'}
+                  {brand !== 'todas'
+                    ? 'Mostrando os produtos da marca selecionada.'
+                    : 'Selecione uma marca acima para filtrar.'}
                 </p>
               </div>
-              {selectedShortcut && (
+              {brand !== 'todas' && (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => selectCategory('todas')}
+                  onClick={() => selectBrand('todas')}
                 >
                   Ver todos
                 </Button>
@@ -291,13 +203,13 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                 <CardContent className="p-7 text-center">
                   <Package className="mx-auto mb-2 size-8 text-muted-foreground/40" />
                   <p className="text-sm font-medium">
-                    Ainda não encontramos produtos nessa categoria.
+                    Ainda não encontramos produtos dessa marca.
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => selectCategory('todas')}>
+                    <Button size="sm" variant="outline" onClick={() => selectBrand('todas')}>
                       Ver todos
                     </Button>
                     <Button asChild size="sm">

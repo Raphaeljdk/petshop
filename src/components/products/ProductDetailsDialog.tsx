@@ -24,6 +24,7 @@ export type ProductPreview = {
   nome: string
   descricao?: string | null
   categoria: string
+  marca?: string | null
   preco: number
   precoPromo: number | null
   estoque: number

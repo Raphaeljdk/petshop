@@ -253,8 +253,15 @@ export async function syncZettaProductsToLocal() {
       (categoryId ? categoryMap.get(Number(categoryId)) : null) || 'Pet Shop'
     const precoBase = zettaProductBasePrice(product)
     const precoPromo = zettaProductPromoPrice(product)
-    const imageUrl = product.galeria?.[0] || null
     const sku = zettaProductSku(product)
+    const peerPhotos = new Set(
+      (bySku.get(sku.trim().toLowerCase()) || [])
+        .filter((row) => normalizeProductName(row.nome) === normalizeProductName(product.nome))
+        .map((row) => row.imageUrl)
+        .filter((value): value is string => Boolean(value))
+    )
+    const imageUrl = product.galeria?.[0] ||
+      (peerPhotos.size === 1 ? [...peerPhotos][0] : null)
     const direct = byZettaId.get(product.id)
     const available = (row: (typeof existingProducts)[number]) =>
       !claimedExistingIds.has(row.id) &&
@@ -351,17 +358,23 @@ export async function syncZettaProductsToLocal() {
     )
   }
 
+  const brandsByZetta = new Map(valid.map((product) => [product.id, product.marca || null]))
+
   return {
     total: valid.length,
     categories: categories.length,
     linkedExisting,
-    products: await db.produto.findMany({
+    products: (await db.produto.findMany({
       where: {
         ativo: true,
         zettaProCod: { not: null },
         OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
       },
       orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
-    }),
+    })).map((row) => ({
+      ...row,
+      // Metadado apenas da resposta: sem migração nem alteração fiscal.
+      marca: row.zettaProCod == null ? null : brandsByZetta.get(row.zettaProCod) || null,
+    })),
   }
 }

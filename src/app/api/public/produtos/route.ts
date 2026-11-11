@@ -5,6 +5,7 @@ import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 import { legacyProducts } from '@/lib/product-compat'
 import { isServiceProduct, officialStockFromSources } from '@/lib/product-stock'
 import { groupCatalogProducts } from '@/lib/product-variants'
+import { getProductBrand, recoverCatalogImages } from '@/lib/product-brands'
 
 
 function uniqueProducts<T extends { id: string }>(products: T[]) {
@@ -20,14 +21,14 @@ const getPublicProducts = unstable_cache(
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 
-      return groupCatalogProducts(uniqueProducts([...synced.products, ...complementares])
+      return groupCatalogProducts(recoverCatalogImages(uniqueProducts([...complementares, ...synced.products])
         .map((produto) => ({
           ...produto,
           estoque: produto.estoqueIlimitado
             ? produto.estoque
             : officialStockFromSources(produto),
         }))
-        .filter((produto) => !isServiceProduct(produto)))
+        .filter((produto) => !isServiceProduct(produto))))
         .sort((a, b) => {
           const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
           const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
@@ -45,7 +46,7 @@ const getPublicProducts = unstable_cache(
           where: { ativo: true },
           orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
         })
-        return groupCatalogProducts(cached
+        return groupCatalogProducts(recoverCatalogImages(cached
           .map((produto) => ({
             ...produto,
             estoque: produto.estoqueIlimitado
@@ -58,24 +59,24 @@ const getPublicProducts = unstable_cache(
           const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
           if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
           return a.nome.localeCompare(b.nome, 'pt-BR')
-        })
+        }))
       } catch (schemaError) {
         console.warn(
           '[public/produtos] schema novo ainda não aplicado; usando leitura compatível:',
           schemaError instanceof Error ? schemaError.message : schemaError
         )
-        return groupCatalogProducts((await legacyProducts({ onlyActive: true }))
+        return groupCatalogProducts(recoverCatalogImages((await legacyProducts({ onlyActive: true }))
           .filter((produto) => !isServiceProduct(produto))
           .sort((a, b) => {
             const aSemEstoque = a.estoque <= 0
             const bSemEstoque = b.estoque <= 0
             if (aSemEstoque !== bSemEstoque) return aSemEstoque ? 1 : -1
             return a.nome.localeCompare(b.nome, 'pt-BR')
-          }))
+          })))
       }
     }
   },
-  ['public-products-v7-catalog-title-and-color-variants'],
+  ['public-products-v8-brands-and-image-recovery'],
   { revalidate: 300 }
 )
 
@@ -89,6 +90,7 @@ export async function GET() {
         nome: product.nome,
         descricao: product.descricao,
         categoria: product.categoria,
+        marca: getProductBrand(product),
         preco: product.preco,
         precoPromo: product.precoPromo,
         estoque: product.estoque,

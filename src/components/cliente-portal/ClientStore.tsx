@@ -32,6 +32,7 @@ import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { isClothingProduct } from '@/lib/product-variants'
+import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
 import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
 import { StoreHero } from '@/components/cliente-portal/StoreHero'
 import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
@@ -113,6 +114,7 @@ export function ClientStore({
   const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null)
   const [busca, setBusca] = useState('')
+  const [marcaSelecionada, setMarcaSelecionada] = useState('todas')
   const [buscaAberta, setBuscaAberta] = useState(false)
   const buscaInputRef = useRef<HTMLInputElement>(null)
   const [ordenacao, setOrdenacao] = useState<
@@ -152,8 +154,10 @@ export function ClientStore({
     return () => { active = false }
   }, [refreshKey])
 
-  const categorias = useMemo(
-    () => [...new Set(produtos.map((produto) => produto.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+  const marcas = useMemo(
+    () => [...new Set(produtos.map(getProductBrand))].sort((a, b) =>
+      a === SEM_MARCA ? 1 : b === SEM_MARCA ? -1 : a.localeCompare(b, 'pt-BR')
+    ),
     [produtos]
   )
 
@@ -164,9 +168,12 @@ export function ClientStore({
         !termo ||
         searchText(produto.nome).includes(termo) ||
         searchText(produto.categoria).includes(termo) ||
+        searchText(getProductBrand(produto)).includes(termo) ||
         searchText(produto.descricao || '').includes(termo)
 
-      return Boolean(bateBusca) && (!favoritesOnly || preferences.some(row => row.produtoId === produto.id && row.favorite))
+      return Boolean(bateBusca) &&
+        (marcaSelecionada === 'todas' || getProductBrand(produto) === marcaSelecionada) &&
+        (!favoritesOnly || preferences.some(row => row.produtoId === produto.id && row.favorite))
     })
 
     return [...filtrados].sort((a, b) => {
@@ -181,7 +188,7 @@ export function ClientStore({
       if (ordenacao === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR')
       return 0
     })
-  }, [produtos, busca, ordenacao, favoritesOnly, preferences])
+  }, [produtos, busca, ordenacao, favoritesOnly, preferences, marcaSelecionada])
 
   const subtotal = useMemo(
     () => carrinho.reduce(
@@ -387,9 +394,10 @@ export function ClientStore({
       <StoreHero
         whatsappUrl={whatsappLoja}
         productsCount={produtos.length}
-        categoriesCount={categorias.length}
+        brandsCount={marcas.filter((marca) => marca !== SEM_MARCA).length}
       />
       <StorePromoCarousel />
+
 
       {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
         <Card className="border-amber-200 bg-amber-50">
@@ -453,7 +461,7 @@ export function ClientStore({
                         buscaInputRef.current?.blur()
                       }
                     }}
-                    placeholder="Buscar produto ou categoria..."
+                    placeholder="Buscar produto, marca ou categoria..."
                     className="h-11 rounded-full bg-card pl-10 pr-10 shadow-inner"
                     aria-label="Buscar produtos"
                   />
@@ -494,6 +502,37 @@ export function ClientStore({
               </select>
             </div>
           </div>
+
+          {!loading && produtos.length > 0 && (
+            <div aria-label="Filtrar produtos por marca" className="mt-3 border-t border-border/70 pt-3">
+              <p className="mb-2 px-1 text-sm font-semibold">Marcas</p>
+              <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Marcas disponíveis">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={marcaSelecionada === 'todas' ? 'default' : 'outline'}
+                  aria-pressed={marcaSelecionada === 'todas'}
+                  className="shrink-0 rounded-full"
+                  onClick={() => setMarcaSelecionada('todas')}
+                >
+                  Todas
+                </Button>
+                {marcas.map((marca) => (
+                  <Button
+                    key={marca}
+                    type="button"
+                    size="sm"
+                    variant={marcaSelecionada === marca ? 'default' : 'outline'}
+                    aria-pressed={marcaSelecionada === marca}
+                    className="shrink-0 rounded-full"
+                    onClick={() => setMarcaSelecionada(marca)}
+                  >
+                    {marca}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -504,7 +543,7 @@ export function ClientStore({
             <strong className="text-foreground">{produtosFiltrados.length}</strong>{' '}
             {produtosFiltrados.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
           </p>
-          {(busca || favoritesOnly) && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setFavoritesOnly(false) }}>Limpar filtros</Button>}
+          {(busca || favoritesOnly || marcaSelecionada !== 'todas') && <Button variant="ghost" size="sm" onClick={() => { setBusca(''); setFavoritesOnly(false); setMarcaSelecionada('todas') }}>Limpar filtros</Button>}
         </div>
       )}
 
