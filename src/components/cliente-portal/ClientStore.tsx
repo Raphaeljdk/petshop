@@ -398,36 +398,6 @@ export function ClientStore({
       />
       <StorePromoCarousel />
 
-      {!loading && produtos.length > 0 && (
-        <section aria-label="Escolher marca" className="rounded-2xl border bg-card/70 px-3 py-4 sm:px-4">
-          <h2 className="mb-3 text-base font-bold tracking-tight sm:text-lg">Compre por marca</h2>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={marcaSelecionada === 'todas' ? 'default' : 'outline'}
-              aria-pressed={marcaSelecionada === 'todas'}
-              className="shrink-0 rounded-full"
-              onClick={() => setMarcaSelecionada('todas')}
-            >
-              Todas as marcas
-            </Button>
-            {marcas.map((marca) => (
-              <Button
-                key={marca}
-                type="button"
-                size="sm"
-                variant={marcaSelecionada === marca ? 'default' : 'outline'}
-                aria-pressed={marcaSelecionada === marca}
-                className="shrink-0 rounded-full"
-                onClick={() => setMarcaSelecionada(marca)}
-              >
-                {marca}
-              </Button>
-            ))}
-          </div>
-        </section>
-      )}
 
       {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
         <Card className="border-amber-200 bg-amber-50">
@@ -532,6 +502,37 @@ export function ClientStore({
               </select>
             </div>
           </div>
+
+          {!loading && produtos.length > 0 && (
+            <div aria-label="Filtrar produtos por marca" className="mt-3 border-t border-border/70 pt-3">
+              <p className="mb-2 px-1 text-sm font-semibold">Marcas</p>
+              <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Marcas disponíveis">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={marcaSelecionada === 'todas' ? 'default' : 'outline'}
+                  aria-pressed={marcaSelecionada === 'todas'}
+                  className="shrink-0 rounded-full"
+                  onClick={() => setMarcaSelecionada('todas')}
+                >
+                  Todas
+                </Button>
+                {marcas.map((marca) => (
+                  <Button
+                    key={marca}
+                    type="button"
+                    size="sm"
+                    variant={marcaSelecionada === marca ? 'default' : 'outline'}
+                    aria-pressed={marcaSelecionada === marca}
+                    className="shrink-0 rounded-full"
+                    onClick={() => setMarcaSelecionada(marca)}
+                  >
+                    {marca}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
