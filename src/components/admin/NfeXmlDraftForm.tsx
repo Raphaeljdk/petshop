@@ -10,14 +10,17 @@ type FiscalItem = {
   produtoId:string;nome:string;quantidade:number;
   ncm:string|null;cfop:string|null;csosn:string|null;
   gtin:string;pisCst:string;cofinsCst:string
+  pisBase:string;pisAliquota:string;pisValor:string
+  cofinsBase:string;cofinsAliquota:string;cofinsValor:string
 }
 type DraftData = {
   serie:number;nome:string;documento:string;enderecoTexto:string;cep:string;
-  itens:Array<Omit<FiscalItem,'gtin'|'pisCst'|'cofinsCst'>>;aviso:string
+  itens:Array<{produtoId:string;nome:string;quantidade:number;ncm:string|null;cfop:string|null;csosn:string|null
+    gtinFiscal:string|null;pisCst:string|null;cofinsCst:string|null}>;aviso:string
 }
 type Endereco = {logradouro:string;numero:string;bairro:string;municipio:string;codigoMunicipio:string;uf:string;cep:string}
 const vazio:Endereco = {logradouro:'',numero:'',bairro:'',municipio:'',codigoMunicipio:'',uf:'',cep:''}
-const CST = ['04','05','06','07','08','09']
+const CST = ['04','05','06','07','08','09','49']
 const nomes:Record<keyof Endereco,string> = {
   logradouro:'Rua / avenida',numero:'Número',bairro:'Bairro',municipio:'Cidade',
   codigoMunicipio:'Código IBGE (7 dígitos)',uf:'UF',cep:'CEP (8 dígitos)',
@@ -46,14 +49,15 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
       .then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error||'Falha ao carregar pedido.');return body as DraftData})
       .then(d=>{if(!ativo)return;setDados(d);setNome(d.nome);setDocumento(d.documento.replace(/\D/g,''))
         setEndereco(p=>({...p,cep:(d.cep||'').replace(/\D/g,'')}))
-        setItens(d.itens.map(i=>({...i,gtin:'',pisCst:'',cofinsCst:''})))
+        setItens(d.itens.map(i=>({...i,gtin:i.gtinFiscal||'',pisCst:i.pisCst||'',cofinsCst:i.cofinsCst||'',
+          pisBase:'',pisAliquota:'',pisValor:'',cofinsBase:'',cofinsAliquota:'',cofinsValor:''})))
       }).catch(e=>{if(ativo)setErro(e instanceof Error?e.message:'Falha de conexão.')})
       .finally(()=>{if(ativo)setLoading(false)})
     return ()=>{ativo=false}
   },[vendaId])
   const alterarEndereco=(chave:keyof Endereco,valor:string)=>
     setEndereco(e=>({...e,[chave]:chave==='uf'?valor.toUpperCase():valor}))
-  const alterarItem=(index:number,chave:'gtin'|'pisCst'|'cofinsCst',valor:string)=>
+  const alterarItem=(index:number,chave:Exclude<keyof FiscalItem,'produtoId'|'nome'|'quantidade'|'ncm'|'cfop'|'csosn'>,valor:string)=>
     setItens(lista=>lista.map((i,n)=>n===index?{...i,[chave]:valor}:i))
   async function baixar(e:React.FormEvent<HTMLFormElement>) {
     e.preventDefault();setErro('');setSaving(true)
@@ -67,7 +71,15 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
             ...endereco,codigoMunicipio:endereco.codigoMunicipio.replace(/\D/g,''),
             cep:endereco.cep.replace(/\D/g,''),
           }},pagamento,modalidadeFrete:frete,
-          itens:itens.map(i=>({produtoId:i.produtoId,gtin:i.gtin,pisCst:i.pisCst,cofinsCst:i.cofinsCst})),
+          itens:itens.map(i=>({
+            produtoId:i.produtoId,gtin:i.gtin,pisCst:i.pisCst,cofinsCst:i.cofinsCst,
+            ...(i.pisCst==='49'?{pis:{base:i.pisBase===''?null:Number(i.pisBase),
+              aliquota:i.pisAliquota===''?null:Number(i.pisAliquota),
+              valor:i.pisValor===''?null:Number(i.pisValor)}}:{}),
+            ...(i.cofinsCst==='49'?{cofins:{base:i.cofinsBase===''?null:Number(i.cofinsBase),
+              aliquota:i.cofinsAliquota===''?null:Number(i.cofinsAliquota),
+              valor:i.cofinsValor===''?null:Number(i.cofinsValor)}}:{}),
+          })),
         }),
       })
       if(!response.ok){
@@ -86,14 +98,14 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
         <h3 className="font-semibold">Rascunho XML no leiaute NF-e 4.00 (modelo 55)</h3>
-        <p className="text-xs text-muted-foreground">Somente homologação (tpAmb=2). Ainda não há assinatura digital, validação XSD 010f, IBS/CBS completo ou transmissão SEFAZ.</p>
+        <p className="text-xs text-muted-foreground">Somente homologação (tpAmb=2). Ainda não há assinatura digital, validação XSD do pacote vigente, IBS/CBS completo ou transmissão SEFAZ.</p>
       </div>
       <Button size="sm" variant="ghost" onClick={onClose} aria-label="Fechar formulário"><X className="size-4"/></Button>
     </div>
     {loading?<p className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin"/>Carregando dados fiscais...</p>:
       dados&&<form className="space-y-4" onSubmit={baixar}>
         <p className="rounded-md border p-3 text-xs"><AlertTriangle className="mr-1 inline size-3"/>
-          O contador deve confirmar que a operação usa CRT 1, CSOSN 102/103/300/400, CST PIS/COFINS não tributado, CFOP por UF e regras IBS/CBS. Este arquivo <strong>não é uma nota autorizada</strong> e não reserva número nem chave.</p>
+          Rascunho inicial limitado a CRT 1, CSOSN 102 e operação interna em SP. CST 49 exige base, alíquota e valor expressamente aprovados; não presumir zeros. IBS/CBS permanece pendente de leiaute completo. Este arquivo <strong>não é uma nota autorizada</strong> e não reserva número nem chave.</p>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1"><Label>Série cadastrada</Label>
             <Input value={String(dados.serie)} readOnly/></div>
@@ -162,6 +174,43 @@ export function NfeXmlDraftForm({vendaId,onClose}:{vendaId:string;onClose:()=>vo
               <select required className="h-10 w-full rounded-md border bg-background px-2" value={i.cofinsCst} onChange={e=>alterarItem(index,'cofinsCst',e.target.value)}>
                 <option value="">Selecionar</option>{CST.map(c=><option key={c} value={c}>{c}</option>)}
               </select></div>
+            {(i.pisCst==='49'||i.cofinsCst==='49')&&<div className="sm:col-span-4 grid gap-3 sm:grid-cols-2">
+              {(['pis','cofins'] as const).filter(tipo=>(tipo==='pis'?i.pisCst:i.cofinsCst)==='49').map(tipo=>{
+                const campos=(tipo==='pis'
+                  ?(['pisBase','pisAliquota','pisValor'] as const)
+                  :(['cofinsBase','cofinsAliquota','cofinsValor'] as const))
+                return <div key={tipo} className="space-y-2 rounded-md border p-3">
+                  <p className="font-medium text-xs">{tipo==='pis'?'PISOutr':'COFINSOutr'} (CST 49) — informar valores conferidos</p>
+                  <div className="grid grid-cols-3 gap-2">{campos.map((c,n)=><div key={c} className="space-y-1">
+                    <Label>{n===0?'Base R
+        </div>
+        <p className="text-xs text-amber-700 dark:text-amber-300">O XML é somente um rascunho estrutural para conferência técnica. Não encaminhar ao autorizador enquanto XSD, assinatura, IBS/CBS e demais hipóteses fiscais não estiverem homologados.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={saving}>{saving?<Loader2 className="mr-2 size-4 animate-spin"/>:<Download className="mr-2 size-4"/>}Baixar rascunho XML NF-e 55</Button>
+          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+        </div>
+      </form>}
+    {erro&&<p role="alert" className="mt-3 text-sm text-red-600">{erro}</p>}
+  </div>
+}
+:n===1?'Alíquota %':'Valor R
+        </div>
+        <p className="text-xs text-amber-700 dark:text-amber-300">O XML é somente um rascunho estrutural para conferência técnica. Não encaminhar ao autorizador enquanto XSD, assinatura, IBS/CBS e demais hipóteses fiscais não estiverem homologados.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={saving}>{saving?<Loader2 className="mr-2 size-4 animate-spin"/>:<Download className="mr-2 size-4"/>}Baixar rascunho XML NF-e 55</Button>
+          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+        </div>
+      </form>}
+    {erro&&<p role="alert" className="mt-3 text-sm text-red-600">{erro}</p>}
+  </div>
+}
+}</Label>
+                    <Input required type="number" min="0" max={n===1?'100':undefined} step={n===1?'0.0001':'0.01'}
+                      value={i[c]} onChange={e=>alterarItem(index,c,e.target.value)} placeholder="Informar"/>
+                  </div>)}</div>
+                </div>
+              })}
+            </div>}
           </div>)}
         </div>
         <p className="text-xs text-amber-700 dark:text-amber-300">O XML é somente um rascunho estrutural para conferência técnica. Não encaminhar ao autorizador enquanto XSD, assinatura, IBS/CBS e demais hipóteses fiscais não estiverem homologados.</p>
