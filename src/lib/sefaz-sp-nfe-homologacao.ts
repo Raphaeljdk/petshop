@@ -28,7 +28,7 @@ const campo=(xml:string,tag:string)=>{
 }
 const motivo=(v:string|null)=>(v||'Sem motivo informado').replace(/[^\p{L}\p{N} .,;:()\/-]/gu,'').slice(0,180)
 const falha=(xml:string)=>{
- if(xml.length>700_000||/<(?:\w+:)?Fault(?:\s|>)/i.test(xml))
+ if(xml.length>700_000||/<(?:\w+:)?Fault(?:\s|\/?>)/i.test(xml))
   throw new SefazComunicacaoError('soap','SOAP Fault ou resposta SEFAZ excessiva.')
 }
 export type ResultadoAutorizacao = {
@@ -74,7 +74,7 @@ export function montarRetornoHomologacao(recibo:string):string{
 }
 export function montarLoteHomologacao(xmlAssinado:string,idLote:string):string{
  if(!/^\d{1,15}$/.test(idLote))throw Error('Id de lote inválido.')
- if(!/(?:<|:)(?:Signature)(?:\s|>)/.test(xmlAssinado))throw Error('NF-e sem elemento de assinatura.')
+ if(!/(?:<|:)(?:Signature)(?:\s|\/?>)/.test(xmlAssinado))throw Error('NF-e sem elemento de assinatura.')
  if(!/<(?:\w+:)?tpAmb>2<\/(?:\w+:)?tpAmb>/.test(xmlAssinado))
   throw Error('Somente homologação é permitida.')
  if(/<\?xml|<!DOCTYPE|<!ENTITY|<enviNFe/i.test(xmlAssinado)||xmlAssinado.length>500_000)
