@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button'
 type StoreHeroProps = {
   whatsappUrl: string
   productsCount: number
-  categoriesCount: number
+  brandsCount: number
 }
 
 export function StoreHero({
   whatsappUrl,
   productsCount,
-  categoriesCount,
+  brandsCount,
 }: StoreHeroProps) {
   return (
     <section className="store-hero overflow-hidden rounded-[1.75rem] border px-5 py-6 sm:px-7 sm:py-8">
@@ -48,8 +48,8 @@ export function StoreHero({
             <span className="text-xs text-white/60">produtos disponíveis</span>
           </div>
           <div className="store-hero-stat">
-            <span className="text-2xl font-bold tabular-nums text-white">{categoriesCount}</span>
-            <span className="text-xs text-white/60">categorias</span>
+            <span className="text-2xl font-bold tabular-nums text-white">{brandsCount}</span>
+            <span className="text-xs text-white/60">marcas</span>
           </div>
           <div className="store-hero-stat col-span-2 flex-row items-center gap-3 text-left">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
