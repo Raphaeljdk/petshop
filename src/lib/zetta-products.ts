@@ -355,13 +355,17 @@ export async function syncZettaProductsToLocal() {
     total: valid.length,
     categories: categories.length,
     linkedExisting,
-    products: await db.produto.findMany({
+    products: (await db.produto.findMany({
       where: {
         ativo: true,
         zettaProCod: { not: null },
         OR: [{ estoque: { gt: 0 } }, { estoqueIlimitado: true }],
       },
       orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
-    }),
+    })).map((row) => ({
+      ...row,
+      // Metadado apenas da resposta: sem migração nem alteração fiscal.
+      marca: valid.find((item) => item.id === row.zettaProCod)?.marca || null,
+    })),
   }
 }
