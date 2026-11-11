@@ -4,6 +4,7 @@ import { syncZettaProductsToLocal } from '@/lib/zetta-products'
 import { legacyProducts } from '@/lib/product-compat'
 import { isServiceProduct, officialStockFromSources } from '@/lib/product-stock'
 import { groupCatalogProducts } from '@/lib/product-variants'
+import { getProductBrand, recoverCatalogImages } from '@/lib/product-brands'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,14 +21,14 @@ export async function GET() {
         orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
       })
 
-      const produtos = groupCatalogProducts(uniqueProducts([...official.products, ...complementares])
+      const produtos = groupCatalogProducts(recoverCatalogImages(uniqueProducts([...complementares, ...official.products])
         .map((produto) => ({
           ...produto,
           estoque: produto.estoqueIlimitado
             ? produto.estoque
             : officialStockFromSources(produto),
         }))
-        .filter((produto) => !isServiceProduct(produto)))
+        .filter((produto) => !isServiceProduct(produto))))
         .sort((a, b) => {
           const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
           const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
@@ -35,7 +36,7 @@ export async function GET() {
           return a.nome.localeCompare(b.nome, 'pt-BR')
         })
 
-      return NextResponse.json(produtos)
+      return NextResponse.json(produtos.map((produto) => ({ ...produto, marca: getProductBrand(produto) })))
     } catch (siggmaError) {
       console.error(
         '[cliente/produtos] API Siggma indisponível, usando cache local:',
@@ -48,7 +49,7 @@ export async function GET() {
           orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
         })
         return NextResponse.json(
-          groupCatalogProducts(cached
+          groupCatalogProducts(recoverCatalogImages(cached
             .map((produto) => ({
               ...produto,
               estoque: produto.estoqueIlimitado
@@ -69,7 +70,7 @@ export async function GET() {
           schemaError instanceof Error ? schemaError.message : schemaError
         )
         return NextResponse.json(
-          groupCatalogProducts((await legacyProducts({ onlyActive: true }))
+          groupCatalogProducts(recoverCatalogImages((await legacyProducts({ onlyActive: true }))
             .filter((produto) => !isServiceProduct(produto)))
             .sort((a, b) => {
               const aSemEstoque = a.estoque <= 0
