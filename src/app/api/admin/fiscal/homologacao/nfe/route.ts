@@ -106,7 +106,8 @@ function montarNfeProc(xml:string,soap:string){
 }
 async function registrarRetorno(id:string,soap:string,chave:string,assinado:string){
  const r=interpretarAutorizacaoHomologacao(soap,chave)
- const status=r.autorizada?'autorizada':r.recibo?'recebida':r.statusLote>=200?'rejeitada':'incerta'
+ const status=r.autorizada?'autorizada':r.recibo?'recebida':
+  (r.protocolo?.status||r.statusLote)>=200?'rejeitada':'incerta'
  const data={
   status,recibo:r.recibo,protocolo:r.protocolo?.numero||null,
   codigoSefaz:r.protocolo?.status||r.statusLote,
