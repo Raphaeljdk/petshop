@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { AuthError, assertSameOrigin, readAuthBody } from '@/lib/auth-http'
 import { gerarRascunhoNfe55, NfeRascunhoError } from '@/lib/nfe-xml-modelo55'
+import { lerA1DeVariaveis } from '@/lib/sefaz-sp-nfe'
+import { extrairCertificadoA1, assinarXmlNfeHomologacao, AssinaturaNfeError } from '@/lib/nfe-assinatura-a1'
+import { validarXmlNfeXsdHomologacao, NfeXsdError } from '@/lib/nfe-validacao-xsd'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,8 +39,14 @@ const schema = z.object({
   itens:z.array(z.object({
     produtoId:z.string().min(1).max(100),
     gtin:z.string().refine(s=>s==='SEM GTIN'||/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(s)),
-    pisCst:z.enum(['04','05','06','07','08','09']),
-    cofinsCst:z.enum(['04','05','06','07','08','09']),
+    pisCst:z.enum(['04','05','06','07','08','09','49']),
+    cofinsCst:z.enum(['04','05','06','07','08','09','49']),
+    pis:z.object({base:z.number().finite().min(0).max(999999999),
+      aliquota:z.number().finite().min(0).max(100),
+      valor:z.number().finite().min(0).max(999999999)}).strict().optional(),
+    cofins:z.object({base:z.number().finite().min(0).max(999999999),
+      aliquota:z.number().finite().min(0).max(100),
+      valor:z.number().finite().min(0).max(999999999)}).strict().optional(),
   }).strict()).min(1).max(990),
 }).strict()
 
@@ -55,7 +64,7 @@ async function carregarVenda(id: string) {
       notaFiscal:{select:{status:true,chaveAcesso:true,numero:true,emissorDocumentoId:true}},
       itens:{orderBy:{id:'asc'},select:{
         produtoId:true,quantidade:true,precoUnit:true,
-        produto:{select:{nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,unidadeFiscal:true}},
+        produto:{select:{nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,unidadeFiscal:true,pisCst:true,cofinsCst:true,gtinFiscal:true}},
       }},
     },
   })
@@ -87,6 +96,7 @@ export async function GET(req:NextRequest) {
     itens:venda?.itens.map(i=>({
       produtoId:i.produtoId,nome:i.produto.nome,quantidade:i.quantidade,
       ncm:i.produto.ncm,cfop:i.produto.cfop,csosn:i.produto.csosn,
+      gtinFiscal:i.produto.gtinFiscal,pisCst:i.produto.pisCst,cofinsCst:i.produto.cofinsCst,
     })),
     aviso:'Dados fiscais devem ser conferidos pelo contador. Somente rascunho em homologação; não gera nota autorizada.',
   },{headers})
@@ -105,6 +115,23 @@ export async function POST(req:NextRequest) {
     const bloqueio=podeMontar(venda); if (bloqueio) return fail(bloqueio,venda?409:404)
     if (!empresa || !venda) return fail('Cadastre primeiro o emitente e confirme a venda.',409)
     const {xml}=gerarRascunhoNfe55(venda,empresa,input)
+    const modo=req.nextUrl.searchParams.get('modo')
+    if(modo && modo!=='validar')return fail('Modo fiscal inválido.',400)
+    if(modo==='validar'){
+      const cred=lerA1DeVariaveis({
+        SEFAZ_NFE_A1_PFX_BASE64:process.env.SEFAZ_NFE_A1_PFX_BASE64,
+        SEFAZ_NFE_A1_SENHA:process.env.SEFAZ_NFE_A1_SENHA,
+      })
+      const chaves=extrairCertificadoA1(cred.pfx,cred.passphrase,empresa.cnpj||'')
+      const assinado=assinarXmlNfeHomologacao(xml,chaves)
+      const validacao=validarXmlNfeXsdHomologacao(assinado.xmlAssinado)
+      return NextResponse.json({
+        ok:true,ambiente:'homologacao',chaveEstrutural:assinado.chave,
+        cnpjCertificadoCorrespondente:true,assinaturaVerificada:true,
+        xsdValido:validacao.valido,versaoSchema:validacao.esquema,
+        aviso:'Assinatura e XSD conferidos localmente. Nenhuma nota foi transmitida, numerada ou autorizada.',
+      },{headers})
+    }
     const safeId=venda.id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,80) || 'venda'
     return new NextResponse(xml,{headers:{
       ...headers,'Content-Type':'application/xml; charset=utf-8',
@@ -113,6 +140,7 @@ export async function POST(req:NextRequest) {
   } catch (error) {
     if (error instanceof AuthError) return fail(error.message,error.status)
     if (error instanceof NfeRascunhoError) return fail(error.message,409)
+    if (error instanceof AssinaturaNfeError || error instanceof NfeXsdError) return fail(error.message,409)
     console.error('Falha ao montar rascunho NF-e 55 (sem transmissão).')
     return fail('Não foi possível montar o rascunho da NF-e.',500)
   }

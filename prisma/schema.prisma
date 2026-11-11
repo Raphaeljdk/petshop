@@ -466,6 +466,33 @@ model ConfiguracaoFiscal {
   updatedAt DateTime @updatedAt
 }
 
+// Primeira NF-e de teste, isolada de Venda/NotaFiscal de produção.
+// Nunca usar estes registros para movimentar estoque ou contabilizar receita.
+model NfeHomologacao {
+  id String @id @default(cuid())
+  serie Int
+  numero Int
+  chave String @unique
+  ambiente Int @default(2)
+  status String @default("preparada")
+  produtoId String
+  quantidade Int
+  valorUnitario Float
+  xmlAssinado String @db.Text
+  xmlAutorizado String? @db.Text
+  recibo String?
+  protocolo String?
+  codigoSefaz Int?
+  motivoSefaz String?
+  enviadaEm DateTime?
+  autorizadaEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([serie, numero])
+  @@index([status, createdAt])
+}
+
 model NotaFiscal {
   id String @id @default(cuid())
   vendaId String @unique

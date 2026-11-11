@@ -88,3 +88,31 @@ test('não modifica vendas nem configurações e não gera protocolo SEFAZ',()=>
   assert.deepEqual({empresa,venda,entrada},before)
   assert.doesNotMatch(xml,/<protNFe|<nProt|<Signature/)
 })
+
+test('CST 49 gera PISOutr/COFINSOutr e totalizadores somente com números explícitos',()=>{
+  const {empresa,venda,entrada}=dados()
+  entrada.itens[0].pisCst='49'
+  entrada.itens[0].cofinsCst='49'
+  entrada.itens[0].pis={base:20,aliquota:1.65,valor:0.33}
+  entrada.itens[0].cofins={base:20,aliquota:7.6,valor:1.52}
+  const {xml}=gerarRascunhoNfe55(venda,empresa,entrada)
+  assert.match(xml,/<PISOutr><CST>49<\/CST><vBC>20.00<\/vBC><pPIS>1.6500<\/pPIS><vPIS>0.33<\/vPIS><\/PISOutr>/)
+  assert.match(xml,/<COFINSOutr><CST>49<\/CST><vBC>20.00<\/vBC><pCOFINS>7.6000<\/pCOFINS><vCOFINS>1.52<\/vCOFINS><\/COFINSOutr>/)
+  assert.match(xml,/<ICMSTot>[\s\S]*?<vPIS>0.33<\/vPIS><vCOFINS>1.52<\/vCOFINS>/)
+  assert.doesNotMatch(xml,/<Signature|<protNFe/)
+})
+test('CST 49 não infere zeros ou outras bases sem aprovação',()=>{
+  const {empresa,venda,entrada}=dados()
+  entrada.itens[0].pisCst='49'
+  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/exige base/)
+  entrada.itens[0].pis={base:20,aliquota:1.65,valor:0}
+  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/diverge/)
+  entrada.itens[0].pis={base:0,aliquota:0,valor:0}
+  const r=gerarRascunhoNfe55(venda,empresa,entrada)
+  assert.match(r.xml,/<PISOutr><CST>49<\/CST><vBC>0.00<\/vBC>/)
+})
+test('bloqueia CSOSN diferente do grupo implementado em vez de emitir ICMSSN102 incorreto',()=>{
+  const {empresa,venda,entrada}=dados()
+  venda.itens[0].produto.csosn='500'
+  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/classificação/)
+})

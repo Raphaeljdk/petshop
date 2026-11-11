@@ -15,6 +15,7 @@ import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
 import { ImportarXmlNotasCompra } from '@/components/admin/ImportarXmlNotasCompra'
 import { ReaproveitarFiscalSku } from '@/components/admin/ReaproveitarFiscalSku'
 import { PreparoHomologacaoNfe } from '@/components/admin/PreparoHomologacaoNfe'
+import { PrimeiraNfeHomologacao } from '@/components/admin/PrimeiraNfeHomologacao'
 import { AuditoriaTributariaSaida } from '@/components/admin/AuditoriaTributariaSaida'
 
 type Config = {
@@ -479,6 +480,7 @@ export function FiscalView() {
             <Badge variant="outline">NF-e 55</Badge>
           </div>
           <PreparoHomologacaoNfe/>
+          <PrimeiraNfeHomologacao/>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 p-3">
             <div><p className="text-sm font-semibold">Notas existentes Amazon FBA</p>
               <p className="text-xs text-muted-foreground">Consulta somente leitura de notas FBA. Não cobre todos os pedidos Amazon.</p></div>
