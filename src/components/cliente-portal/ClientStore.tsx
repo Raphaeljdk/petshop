@@ -427,7 +427,7 @@ export function ClientStore({
             ))}
           </div>
         </section>
-      )
+      )}
 
       {!loading && produtos.some((produto) => produto.zettaProCod) && !siggmaOrderWriteConfigured && (
         <Card className="border-amber-200 bg-amber-50">
