@@ -128,6 +128,7 @@ export function PrimeiraNfeHomologacao(){
      {n.codigoSefaz?' · cStat '+n.codigoSefaz:''}</p>
     <p className="break-all text-muted-foreground">Chave: {n.chave}</p>
     {n.protocolo&&<p>Protocolo SEFAZ: {n.protocolo}</p>}
+    {n.status==='autorizada'&&<a className="text-blue-600 underline" href={'/api/admin/fiscal/homologacao/nfe/xml?id='+encodeURIComponent(n.id)} download>Baixar XML autorizado (somente homologação)</a>}
     {n.motivoSefaz&&<p>{n.motivoSefaz}</p>}
     <div className="flex gap-2 flex-wrap">
      {n.status==='preparada'&&<Button type="button" size="sm" disabled={loading||!aceitaEnvio}
