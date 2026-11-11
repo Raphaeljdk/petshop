@@ -61,8 +61,10 @@ export function validarXmlNfeXsdHomologacao(xmlNfe:string){
   doc=XmlDocument.fromString(xmlNfe)
   validator.validate(doc)
   return {valido:true as const,esquema:'010g v1.03',hashEsquema:sha256}
- }catch{
-  throw new NfeXsdError('A NF-e não passou na validação XSD oficial; transmissão bloqueada.')
+ }catch(error){
+  const detalhe=process.env.NODE_ENV==='test' && error instanceof Error
+    ? ' Detalhe sintético: '+error.message.slice(0,800) : ''
+  throw new NfeXsdError('A NF-e não passou na validação XSD oficial; transmissão bloqueada.'+detalhe)
  }finally{
   doc?.dispose();validator?.dispose();schema.dispose()
  }
