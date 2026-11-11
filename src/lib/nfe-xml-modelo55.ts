@@ -135,7 +135,8 @@ export function gerarRascunhoNfe55(
     'Total divergente. Revise produtos, frete, desconto e total da venda.')
   const doc = numerico(entrada.destinatario.documento)
   if (Number.isNaN(dataEmissao.getTime())) throw new NfeRascunhoError('Data de emissão inválida.')
-  const emissao = dataEmissao.toISOString().replace('Z', '+00:00')
+  // Horário local SP para 2026 (GMT-3), sem milissegundos conforme pattern do XSD NF-e.
+  const emissao = new Date(dataEmissao.getTime()-3*60*60*1000).toISOString().slice(0,19) + '-03:00'
   const aamm = emissao.slice(2,4) + emissao.slice(5,7)
   const base43 = '35' + aamm + numerico(empresa.cnpj) + '55' +
     String(empresa.serieNfe).padStart(3, '0') + String(entrada.numero).padStart(9, '0') +
@@ -150,7 +151,7 @@ export function gerarRascunhoNfe55(
     campo('cMunFG',numerico(empresa.codigoMunicipio)) + campo('tpImp','1') +
     campo('tpEmis','1') + campo('cDV',dv) + campo('tpAmb','2') +
     campo('finNFe','1') + campo('indFinal',entrada.consumidorFinal) + campo('indPres','2') +
-    campo('procEmi','0') + campo('verProc','MatilhaPrado-rascunho-0.1')
+    campo('procEmi','0') + campo('verProc','MatilhaPradoERP1.0')
   const emitEndereco: EnderecoNfe = {
     logradouro: empresa.logradouro as string, numero: empresa.numeroEndereco as string,
     bairro: empresa.bairro as string, municipio: empresa.cidade as string,
