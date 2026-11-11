@@ -1,7 +1,7 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import forge from 'node-forge'
-import {extrairCertificadoA1,assinarXmlNfeHomologacao} from '../src/lib/nfe-assinatura-a1'
+import {extrairCertificadoA1,assinarXmlNfeHomologacao,validarAssinaturaNfeHomologacao} from '../src/lib/nfe-assinatura-a1'
 
 const CNPJ='57199062000191'
 const CHAVE='35261157199062000191550020000000011123456789'
@@ -29,6 +29,8 @@ test('extrai chave A1 sintética e assina infNFe; verifica localmente sem transm
  const result=assinarXmlNfeHomologacao(xml,cred)
  assert.equal(result.chave,CHAVE)
  assert.equal(result.assinaturaVerificada,true)
+ assert.deepEqual(validarAssinaturaNfeHomologacao(result.xmlAssinado,cred.certificadoPem,CHAVE),{assinaturaValida:true,chave:CHAVE})
+ assert.throws(()=>validarAssinaturaNfeHomologacao(result.xmlAssinado.replace('<ide>','<ide modificado="1">'),cred.certificadoPem,CHAVE),/XMLDSig/)
  assert.match(result.xmlAssinado,/<Signature/)
  assert.match(result.xmlAssinado,/<X509Certificate>/)
  assert.doesNotMatch(result.xmlAssinado,/PRIVATE KEY|senha-teste/)
