@@ -719,8 +719,6 @@
   .boutique-category-name { font-size: .8rem; }
 }
 .boutique-product { border-radius: 1.25rem; background: var(--card); }
-@media (min-width: 640px) { .boutique-categories { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; } .boutique-category { padding: 1.5rem 1rem; } .boutique-category-art { width: 5.5rem; height: 5.5rem; } }
-@media (min-width: 1024px) { .boutique-categories { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .boutique-category:hover { transform: translateY(-3px); border-color: #c2cfd8; box-shadow: 0 10px 22px #18354b14; }
   .boutique-category:hover[aria-pressed='true'] { border-color: #b7470d; }
