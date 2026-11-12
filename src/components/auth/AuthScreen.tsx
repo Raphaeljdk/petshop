@@ -28,6 +28,8 @@ export function AuthScreen() {
   const [modo, setModo] = useState<AccountMode>('login')
   const [accountRole, setAccountRole] = useState<AccountRole>('CLIENTE')
   const [authBusy, setAuthBusy] = useState(false)
+  const [navigatingSection, setNavigatingSection] = useState(false)
+  const navigationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authTriggerRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -55,14 +57,29 @@ export function AuthScreen() {
   const abrirLogin = () => openAccount('login')
   const abrirCadastro = () => openAccount('cadastro')
 
+  useEffect(() => () => {
+    if (navigationTimer.current) clearTimeout(navigationTimer.current)
+  }, [])
+
   const scrollTo = (id: string) => {
     const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    if (!el) return
+    if (navigationTimer.current) clearTimeout(navigationTimer.current)
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setNavigatingSection(true)
+      navigationTimer.current = setTimeout(() => {
+        setNavigatingSection(false)
+        navigationTimer.current = null
+      }, 550)
+    }
+    el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
     setMobileNavOpen(false)
   }
 
   return (
-    <div className="landing min-h-screen">
+    <div className="landing landing-entry min-h-screen">
+      <div className="landing-navigation-indicator" data-active={navigatingSection}
+        aria-hidden="true"><span /></div>
       <a className="skip-link" href="#conteudo">Pular para o conteúdo</a>
       {/* Header */}
       <header
@@ -163,7 +180,7 @@ export function AuthScreen() {
       <HeroCarousel onShop={() => scrollTo('produtos')} onAccount={abrirLogin}>
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="container mx-auto px-6 sm:px-10 hero-grid">
-          <div className="animate-slide-up">
+          <div className="landing-hero-copy animate-slide-up">
             <p className="eyebrow text-cyan-200 flex items-center gap-2 mb-6"><PawPrint className="size-4" /> Matilha Prado · Pet shop</p>
             <h1 id="hero-title" className="hero-title">O melhor cuidado. <span>Para o seu melhor amigo.</span></h1>
             <p className="hero-description mt-6">Conheça os favoritos do seu pet, solicite atendimento e acompanhe os cuidados pela sua conta. Tudo em um só lugar, com o carinho da nossa família.</p>
