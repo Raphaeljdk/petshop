@@ -1,4 +1,4 @@
-import { ArrowUpRight, Heart, MessageCircle, PawPrint, Scissors, Sparkles } from 'lucide-react'
+import { ArrowUpRight, MessageCircle, PawPrint, Scissors, Sparkles } from 'lucide-react'
 import { SERVICOS_ESTETICOS_MATILHA } from '@/lib/agenda-servicos'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 
