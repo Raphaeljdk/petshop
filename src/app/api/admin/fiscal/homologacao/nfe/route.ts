@@ -199,7 +199,17 @@ export async function POST(req:NextRequest){
  try{
   const body=await readAuthBody(req)
   const p=preparar.safeParse(body)
-  if(p.success)return ok(await prepararTeste(p.data))
+  if(p.success){
+   for(const [nome,imposto] of [['PIS',p.data.pis],['COFINS',p.data.cofins]] as const){
+    if(Math.abs(imposto.base*100-Math.round(imposto.base*100))>0.00001 ||
+       Math.abs(imposto.valor*100-Math.round(imposto.valor*100))>0.00001)
+      return fail(nome+': base e valor devem ter no máximo duas casas decimais.')
+    const esperado=Math.round((imposto.base*imposto.aliquota/100+Number.EPSILON)*100)
+    if(esperado!==Math.round(imposto.valor*100))
+      return fail(nome+': o valor não corresponde à base e alíquota informadas. Use apenas valores fiscais aprovados pela contadora.')
+   }
+   return ok(await prepararTeste(p.data))
+  }
   const a=acao.safeParse(body)
   if(!a.success)return fail('Dados ou confirmação fiscal inválidos.')
   if(a.data.acao==='consultar')return consultar(a.data.id)
