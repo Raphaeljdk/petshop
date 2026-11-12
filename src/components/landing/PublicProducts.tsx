@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, Check, Grid2X2, Loader2, Package, ShoppingBag, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, Loader2, Package, ShoppingBag, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,6 +22,9 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const resultsRef = useRef<HTMLHeadingElement>(null)
+  const brandsScrollerRef = useRef<HTMLDivElement>(null)
+  const [canScrollBack, setCanScrollBack] = useState(false)
+  const [canScrollForward, setCanScrollForward] = useState(false)
 
   function selectBrand(nextBrand: string) {
     setBrand(nextBrand)
@@ -84,6 +87,35 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
     )
   }, [products])
 
+  useEffect(() => {
+    const el = brandsScrollerRef.current
+    if (!el) return
+    const update = () => {
+      setCanScrollBack(el.scrollLeft > 2)
+      setCanScrollForward(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+    }
+    update()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
+    observer?.observe(el)
+    window.addEventListener('resize', update)
+    el.addEventListener('scroll', update, { passive: true })
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', update)
+      el.removeEventListener('scroll', update)
+    }
+  }, [brandOptions.length])
+
+  function scrollBrands(direction: -1 | 1) {
+    const el = brandsScrollerRef.current
+    if (!el) return
+    const amount = Math.max(290, Math.min(el.clientWidth * 0.8, 720))
+    el.scrollBy({
+      left: amount * direction,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    })
+  }
+
   const visible = useMemo(() => {
     const filtered = brand === 'todas'
       ? products
@@ -144,35 +176,62 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
           </Card>
         ) : (
           <>
-            <div className="mb-8 flex gap-3 overflow-x-auto pb-3" role="group" aria-label="Filtrar vitrine por marca">
-              <button type="button" className="boutique-category boutique-category-all min-w-36 shrink-0" aria-pressed={brand === 'todas'} aria-controls="boutique-results" onClick={() => selectBrand('todas')} style={{ '--category-order': 0 } as CSSProperties}>
-                <span className="boutique-category-art"><Grid2X2 className="size-9 sm:size-11" aria-hidden="true" /></span>
-                <span className="boutique-category-name">Todas as marcas</span>
-                <span className="boutique-category-hint">Toda a coleção <ArrowRight className="size-3.5" aria-hidden="true" /></span>
-                {brand === 'todas' && <Check className="boutique-category-check size-5" aria-hidden="true" />}
-              </button>
-              {brandOptions.map((option, index) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  aria-pressed={brand === option.label}
-                  aria-controls="boutique-results"
-                  onClick={() => selectBrand(option.label)}
-                  className="group boutique-category min-w-36 shrink-0"
-                  style={{ '--category-order': index + 1 } as CSSProperties}
-                >
-                  <span className="boutique-category-art bg-muted">
-                    {option.imageUrl ? (
-                      <img src={option.imageUrl} alt="" loading="lazy" className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105" />
-                    ) : (
-                      <Package className="size-9 sm:size-11" strokeWidth={1.5} aria-hidden="true" />
-                    )}
-                  </span>
-                  <span className="boutique-category-name">{option.label}</span>
-                  <span className="boutique-category-hint">{option.count} {option.count === 1 ? 'produto' : 'produtos'} <ArrowRight className="size-3.5" aria-hidden="true" /></span>
-                  {brand === option.label && <Check className="boutique-category-check size-5" aria-hidden="true" />}
+            <div className="mb-7">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-[#18354b] sm:text-lg">Explore por marca</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Encontre seus favoritos com mais facilidade.</p>
+                </div>
+                <div className="hidden shrink-0 items-center gap-2 sm:flex" aria-label="Navegação das marcas">
+                  <button type="button" className="boutique-brand-nav" disabled={!canScrollBack}
+                    onClick={() => scrollBrands(-1)} aria-label="Ver marcas anteriores">
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  </button>
+                  <button type="button" className="boutique-brand-nav" disabled={!canScrollForward}
+                    onClick={() => scrollBrands(1)} aria-label="Ver próximas marcas">
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div ref={brandsScrollerRef} className="boutique-brands-scroller"
+                role="group" aria-label="Filtrar vitrine por marca" tabIndex={0}>
+                <button type="button" className="boutique-category boutique-category-all"
+                  aria-pressed={brand === 'todas'} aria-controls="boutique-results"
+                  onClick={() => selectBrand('todas')} style={{ '--category-order': 0 } as CSSProperties}>
+                  <span className="boutique-category-art"><Grid2X2 className="size-8" aria-hidden="true" /></span>
+                  <span className="boutique-category-name">Todas as marcas</span>
+                  <span className="boutique-category-hint">{products.length} {products.length === 1 ? 'produto' : 'produtos'}</span>
+                  {brand === 'todas' && <Check className="boutique-category-check size-4" aria-hidden="true" />}
                 </button>
-              ))}
+                {brandOptions.map((option, index) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    aria-pressed={brand === option.label}
+                    aria-controls="boutique-results"
+                    onClick={() => selectBrand(option.label)}
+                    className="boutique-category group"
+                    style={{ '--category-order': index + 1 } as CSSProperties}
+                  >
+                    <span className="boutique-category-art">
+                      {option.label === SEM_MARCA ? (
+                        <Package className="size-7 text-slate-500" strokeWidth={1.5} aria-hidden="true" />
+                      ) : option.imageUrl ? (
+                        <img src={option.imageUrl} alt="" loading="lazy"
+                          className="h-full w-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105" />
+                      ) : (
+                        <Package className="size-7 text-slate-500" strokeWidth={1.5} aria-hidden="true" />
+                      )}
+                    </span>
+                    <span className="boutique-category-name">{option.label}</span>
+                    <span className="boutique-category-hint">{option.count} {option.count === 1 ? 'produto' : 'produtos'}</span>
+                    {brand === option.label && <Check className="boutique-category-check size-4" aria-hidden="true" />}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2.5 text-center text-[11px] text-muted-foreground sm:hidden">
+                Deslize para o lado para ver mais marcas
+              </p>
             </div>
 
             <div className="mb-6 flex items-center justify-between gap-3">
