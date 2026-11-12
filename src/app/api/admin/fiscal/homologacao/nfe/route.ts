@@ -54,18 +54,31 @@ async function configValidada(){
   throw new NfeRascunhoError('Emitente, CRT, UF ou série 2 divergente.')
  return e
 }
+class NfeEtapaError extends Error {
+ constructor(readonly etapa:string){
+  super('Não foi possível concluir a etapa '+etapa+' da preparação. Nenhuma NF-e foi transmitida.')
+  this.name='NfeEtapaError'
+ }
+}
 async function prepararTeste(input:z.infer<typeof preparar>){
+ let etapa='cadastro do emitente'
+ try {
  const empresa=await configValidada()
+ etapa='carregamento do produto'
  const produto=await db.produto.findFirst({where:{sku:'7899669611657',ativo:true},
   select:{id:true,nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,
    unidadeFiscal:true,gtinFiscal:true,pisCst:true,cofinsCst:true}})
  if(!produto||produto.ncm!=='39269090'||produto.cfop!=='5102'||produto.csosn!=='102'
   ||produto.origem!=='0'||produto.pisCst!=='49'||produto.cofinsCst!=='49'||produto.cest)
   throw new NfeRascunhoError('Classificação do produto não corresponde à aprovada.')
+ etapa='leitura do certificado A1'
  const cred=credenciais()
+ etapa='verificação de CNPJ e validade do A1'
  const chaves=extrairCertificadoA1(cred.pfx,cred.passphrase,empresa.cnpj!)
  // A numeração de homologação NÃO altera NotaFiscal, Venda ou estoque.
- return db.$transaction(async tx=>{
+ etapa='transação de homologação'
+ return await db.$transaction(async tx=>{
+  etapa='bloqueio de numeração'
   await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(57199062000191)')
   const ultimo=await tx.nfeHomologacao.findFirst({where:{serie:2},orderBy:{numero:'desc'},select:{numero:true}})
   const numero=(ultimo?.numero||0)+1
@@ -77,6 +90,7 @@ async function prepararTeste(input:z.infer<typeof preparar>){
     produto:{nome:produto.nome,sku:produto.sku,ncm:produto.ncm,cest:produto.cest,
      cfop:produto.cfop,origem:produto.origem,csosn:produto.csosn,unidadeFiscal:produto.unidadeFiscal}}],
   }
+  etapa='montagem do XML fiscal'
   const {xml}=gerarRascunhoNfe55(venda,empresa,{
    numero,codigoNumerico:String(randomInt(0,100000000)).padStart(8,'0'),
    naturezaOperacao:'Venda de mercadoria adquirida de terceiros',
@@ -85,8 +99,11 @@ async function prepararTeste(input:z.infer<typeof preparar>){
    itens:[{produtoId:produto.id,gtin:produto.gtinFiscal||'SEM GTIN',
     pisCst:'49',cofinsCst:'49',pis:input.pis,cofins:input.cofins}],
   })
+  etapa='assinatura XMLDSig'
   const assinado=assinarXmlNfeHomologacao(xml,chaves)
+  etapa='validação XSD'
   validarXmlNfeXsdHomologacao(assinado.xmlAssinado)
+  etapa='gravação do teste'
   const registro=await tx.nfeHomologacao.create({data:{
    serie:2,numero,chave:assinado.chave,ambiente:2,status:'preparada',
    produtoId:produto.id,quantidade:input.quantidade,valorUnitario:input.valorUnitario,
@@ -95,6 +112,17 @@ async function prepararTeste(input:z.infer<typeof preparar>){
   return {...registro,assinaturaVerificada:true,xsdValido:true,
    aviso:'NF-e TESTE preparada e validada. Não foi transmitida à SEFAZ.'}
  },{timeout:20000,maxWait:5000})
+ }catch(err){
+  if(err instanceof NfeRascunhoError||err instanceof AssinaturaNfeError||
+     err instanceof NfeXsdError||err instanceof NfeEtapaError)throw err
+  const code=(err&&typeof err==='object'&&'code' in err&&
+   typeof err.code==='string'&&/^[A-Z0-9_]{1,24}$/.test(err.code))?err.code:null
+  // Loga exclusivamente a etapa, a classe e um código técnico padronizado. Nada de XML, senha ou PFX.
+  console.error('Falha técnica na preparação fiscal.',{
+   etapa,classe:err instanceof Error?err.name:'desconhecida',codigo:code,
+  })
+  throw new NfeEtapaError(etapa)
+ }
 }
 const semCabecalho=(xml:string)=>xml.replace(/^\s*<\?xml[^>]*\?>\s*/i,'')
  .replace(/^\s*<!--[\s\S]*?-->\s*/,'').trim()
@@ -171,7 +199,17 @@ export async function POST(req:NextRequest){
  try{
   const body=await readAuthBody(req)
   const p=preparar.safeParse(body)
-  if(p.success)return ok(await prepararTeste(p.data))
+  if(p.success){
+   for(const [nome,imposto] of [['PIS',p.data.pis],['COFINS',p.data.cofins]] as const){
+    if(Math.abs(imposto.base*100-Math.round(imposto.base*100))>0.00001 ||
+       Math.abs(imposto.valor*100-Math.round(imposto.valor*100))>0.00001)
+      return fail(nome+': base e valor devem ter no máximo duas casas decimais.')
+    const esperado=Math.round((imposto.base*imposto.aliquota/100+Number.EPSILON)*100)
+    if(esperado!==Math.round(imposto.valor*100))
+      return fail(nome+': o valor não corresponde à base e alíquota informadas. Use apenas valores fiscais aprovados pela contadora.')
+   }
+   return ok(await prepararTeste(p.data))
+  }
   const a=acao.safeParse(body)
   if(!a.success)return fail('Dados ou confirmação fiscal inválidos.')
   if(a.data.acao==='consultar')return consultar(a.data.id)
@@ -180,7 +218,7 @@ export async function POST(req:NextRequest){
   return transmitir(a.data.id)
  }catch(err){
   if(err instanceof AuthError)return fail(err.message,err.status)
-  if(err instanceof NfeRascunhoError||err instanceof AssinaturaNfeError||err instanceof NfeXsdError)
+  if(err instanceof NfeRascunhoError||err instanceof AssinaturaNfeError||err instanceof NfeXsdError||err instanceof NfeEtapaError)
    return fail(err.message,409)
   console.error('Falha de homologação fiscal: dados sensíveis omitidos.')
   return fail('Operação fiscal indisponível. Consulte o registro da nota de teste.',503)
