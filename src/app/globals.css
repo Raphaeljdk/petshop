@@ -1057,3 +1057,78 @@ img, video { max-width: 100%; }
     max-width: 1440px;
   }
 }
+
+
+/* Landing Matilha Prado — acabamento visual e transições de carregamento. */
+.landing-entry { animation: landing-page-in .48s ease-out both; }
+.landing-navigation-indicator {
+  position: fixed; inset: 0 0 auto; z-index: 60;
+  height: 3px; overflow: hidden; opacity: 0; pointer-events: none;
+  background: #173e5522; transition: opacity .15s ease;
+}
+.landing-navigation-indicator[data-active="true"] { opacity: 1; }
+.landing-navigation-indicator span {
+  display: block; height: 100%; width: 36%; border-radius: 999px;
+  background: linear-gradient(90deg, #1595a4, #f3a16e, #bc4b10);
+  animation: landing-nav-progress .7s ease-in-out infinite;
+}
+.landing-boot-screen {
+  position: relative; display: grid; place-items: center;
+  min-height: 100dvh; overflow: hidden;
+  background: linear-gradient(145deg,#f8fafb 12%,#eaf3f7 57%,#fff4eb);
+}
+.landing-boot-glow {
+  position: absolute; width: min(76vw,480px); aspect-ratio: 1;
+  border-radius: 999px; background: #72c7d82a; filter: blur(78px);
+}
+.landing-boot-content { position: relative; display: flex; flex-direction: column; align-items: center; padding: 2rem; text-align: center; animation: landing-page-in .5s ease-out both; }
+.landing-boot-progress { width: 180px; height: 4px; overflow: hidden; border-radius: 999px; background: #bfd3dc90; }
+.landing-boot-progress span { display: block; width: 42%; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#0f546b,#ca581b); animation: landing-nav-progress 1.25s ease-in-out infinite; }
+.landing .landing-hero {
+  background: radial-gradient(ellipse at 87% 20%, #15728440, transparent 56%), linear-gradient(115deg,#102c46,#16445e 72%,#155266);
+  box-shadow: 0 28px 58px -38px #07243a86;
+}
+.landing .hero-grid { gap: clamp(1.5rem,4vw,4rem); }
+.landing .hero-brand { display: grid; place-items: center; min-width: 0; }
+.landing .hero-brand-card {
+  width: min(100%, 370px); aspect-ratio: 1;
+  padding: clamp(1.5rem,4vw,3.25rem); border: 1px solid #ffffffd9;
+  border-radius: 3rem 1.5rem 3rem 1.5rem;
+  transform: rotate(1.5deg); box-shadow: 0 24px 60px -28px #00162899;
+  background: #fff;
+}
+.landing .hero-brand-card img { width: 100%; max-width: 260px; transform: none; object-fit: contain; }
+.landing .hero-note {
+  left: .2rem; bottom: -.35rem; border-radius: .9rem;
+  padding: .7rem .9rem; box-shadow: 0 12px 25px -16px #00182a80;
+}
+.landing .hero-note-icon { padding: .5rem; }
+.landing .hero-description { max-width: 31rem; line-height: 1.65; }
+.landing .hero-actions [data-slot="button"] { border-radius: .8rem; }
+.landing-services {
+  position: relative;
+  background: radial-gradient(ellipse at 50% 0%,#f6d8c527,transparent 58%),linear-gradient(#fbfcfd,#f4f8fa);
+}
+.landing-services-intro { animation: landing-page-in .65s ease-out both; }
+.landing-service-card {
+  box-shadow: 0 4px 16px -11px #123d5860;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.landing-service-card:hover {
+  transform: translateY(-3px); border-color: #e9bb9c;
+  box-shadow: 0 12px 28px -17px #123d5880;
+}
+.landing-service-card:focus-within { outline: 2px solid #b7470d; outline-offset: 2px; }
+@keyframes landing-page-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes landing-nav-progress { from { transform: translateX(-110%); } to { transform: translateX(350%); } }
+@media (max-width: 767px) {
+  .landing .hero-brand-card { width: min(100%, 265px); padding: 1.6rem; border-radius: 2.5rem 1.2rem; }
+  .landing .hero-brand-card img { max-width: 205px; }
+  .landing .hero-note { left: 0; bottom: -.55rem; }
+  .landing .hero-grid { gap: 1.7rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-entry, .landing-boot-content, .landing-services-intro,
+  .landing-navigation-indicator span, .landing-boot-progress span { animation: none !important; }
+  .landing-service-card:hover { transform: none; }
+}

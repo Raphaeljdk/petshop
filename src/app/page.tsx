@@ -19,14 +19,15 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-background">
-        <Logo size="xl" animated />
-        <div className="flex items-center gap-2">
-          <span className="size-2.5 rounded-full bg-primary animate-pulse" />
-          <span className="size-2.5 rounded-full bg-cyan-500 animate-pulse [animation-delay:150ms]" />
-          <span className="size-2.5 rounded-full bg-primary animate-pulse [animation-delay:300ms]" />
+      <main className="landing-boot-screen" role="status" aria-live="polite" aria-label="Abrindo Matilha Prado">
+        <div className="landing-boot-glow" aria-hidden="true" />
+        <div className="landing-boot-content">
+          <Logo size="xl" animated />
+          <p className="mt-5 text-sm font-semibold text-[#17374f]">Preparando sua experiência...</p>
+          <p className="mt-1 text-xs text-[#637987]">Matilha Prado</p>
+          <div className="landing-boot-progress mt-5" aria-hidden="true"><span /></div>
         </div>
-      </div>
+      </main>
     )
   }
 
