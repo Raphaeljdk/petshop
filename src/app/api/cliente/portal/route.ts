@@ -19,7 +19,7 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('preferences'), remindersInApp: z.boolean(),
     remindersEmail: z.boolean(), remindersWhatsapp: z.boolean(),
     marketingEmail: z.boolean(), marketingWhatsapp: z.boolean(),
-    groomingPhotoConsent: z.boolean() }).strict(),
+    groomingPhotoConsent: z.boolean(), publicPetConsent: z.boolean().optional() }).strict(),
   z.object({ action: z.literal('plan-request'), planId: z.string().min(1), petKey: petKeySchema }).strict(),
   z.object({ action: z.literal('referral-code') }).strict(),
   z.object({ action: z.literal('referral-claim'), code: z.string().trim().min(4).max(32) }).strict(),
@@ -104,7 +104,7 @@ export async function GET() {
       articles, favorites:favorites.map((x) => x.articleId),
       memories, preferences: preferences || {
         remindersInApp:true, remindersEmail:false, remindersWhatsapp:false,
-        marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false,
+        marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false, publicPetConsent:false,
       },
       features: {
         subscriptionsEnabled:process.env.PORTAL_SUBSCRIPTIONS_ENABLED === 'true',
@@ -158,10 +158,16 @@ export async function POST(req: NextRequest) {
         await tx.portalClientPreferences.upsert({ where: { clienteId },
           create: { clienteId, remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
             remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
-            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent,
+            publicPetConsent:data.publicPetConsent === true,
+            publicPetConsentAt:data.publicPetConsent === true ? new Date() : null },
           update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
             remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
-            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent,
+            ...(data.publicPetConsent !== undefined ? {
+              publicPetConsent:data.publicPetConsent,
+              publicPetConsentAt:data.publicPetConsent ? new Date() : null,
+            } : {}) },
         })
         // Revogação apaga as fotos anexadas pela equipe: não manter dados após retirada do consentimento.
         if (!data.groomingPhotoConsent) await tx.portalPetMemory.deleteMany({
