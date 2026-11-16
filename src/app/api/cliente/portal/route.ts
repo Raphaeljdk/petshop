@@ -70,6 +70,15 @@ export async function GET() {
         })
       } catch { /* A integração externa não deve derrubar o conteúdo local. */ }
     }
+    const couponIds=claims.flatMap((c)=>c.rewardCouponId?[c.rewardCouponId]:[])
+    const rewardCoupons=await db.cupom.findMany({where:{id:{in:couponIds},ativo:true},
+      select:{codigo:true,descricao:true,valor:true,fimEm:true}})
+    const notifications=await db.portalMessageDelivery.findMany({where:{
+      clienteId,channel:'app',status:'enviado'},
+      select:{id:true,text:true,sentAt:true},orderBy:{createdAt:'desc'},take:15})
+    const documents=await db.portalPetDocument.findMany({where:{clienteId},
+      select:{id:true,petKey:true,title:true,fileName:true,sizeBytes:true,createdAt:true},
+      orderBy:{createdAt:'desc'},take:40})
     const species = pets[0]?.especie || ''
     const size = pets[0]?.porte || ''
     const birthday = pets[0]?.nascimento ? new Date(pets[0].nascimento) : null
@@ -97,7 +106,7 @@ export async function GET() {
         remindersInApp:true, remindersEmail:false, remindersWhatsapp:false,
         marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false,
       },
-      pets, recommendations, plans, requests,
+      pets, recommendations, plans, requests, rewardCoupons,notifications,documents,
       referralCode:referral?.code || null, referrals:claims, gifts,
       outgoing, incoming:incoming.map((i) => ({ id:i.id, status:i.status, petKey:i.petKey, createdAt:i.createdAt })),
       sharedPets:shares.filter((x) => x !== null),
