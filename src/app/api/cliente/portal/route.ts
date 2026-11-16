@@ -38,7 +38,7 @@ export async function GET() {
   try {
     const { user, clienteId } = await portalCliente()
     const [articles, favorites, memories, preferences, plans, requests,
-      referral, claims, gifts, outgoing, incoming, localPets, products] = await Promise.all([
+      referral, claims, gifts, outgoing, incoming, localPets, products, likedProducts] = await Promise.all([
       db.portalArticle.findMany({ where: { published: true }, orderBy: { createdAt: 'desc' },
         take: 40, select: { id:true, title:true, category:true, summary:true, body:true, imageUrl:true, productId:true, createdAt:true } }),
       db.portalArticleFavorite.findMany({ where: { clienteId }, select: { articleId:true } }),
@@ -54,9 +54,11 @@ export async function GET() {
       db.portalPetFamilyInvite.findMany({ where: { ownerClienteId: clienteId }, orderBy: { createdAt: 'desc' }, take: 25 }),
       db.portalPetFamilyInvite.findMany({ where: { recipientEmail: cleanEmail(user.email) },
         orderBy: { createdAt: 'desc' }, take: 25 }),
-      db.pet.findMany({ where: { clienteId, ativo: true }, select: { id:true, nome:true, especie:true, porte:true, fotoUrl:true, raca:true } }),
+      db.pet.findMany({ where: { clienteId, ativo: true }, select: { id:true, nome:true, especie:true, porte:true, nascimento:true, fotoUrl:true, raca:true } }),
       db.produto.findMany({ where: { ativo:true, estoque: { gt:0 } },
         select: { id:true, nome:true, categoria:true, preco:true, precoPromo:true, imageUrl:true }, take: 75 }),
+      db.customerPreference.findMany({ where:{ clienteId, favorite:true },take:30,
+        select:{ produto:{select:{ categoria:true,nome:true }} } }),
     ])
     const pets = localPets.map((p) => ({ ...p, origem:'local' as const }))
     if (user.siggmaCliCod) {
@@ -64,14 +66,19 @@ export async function GET() {
         const linked = await getZettaAnimalsByClient(user.siggmaCliCod)
         for (const pet of linked) pets.push({
           id: 'zetta:' + pet.id, nome:pet.nome || 'Pet', especie:pet.especie || 'Pet',
-          porte:null, fotoUrl:null, raca:null, origem:'local' as const,
+          porte:null, nascimento:null, fotoUrl:null, raca:null, origem:'local' as const,
         })
       } catch { /* A integração externa não deve derrubar o conteúdo local. */ }
     }
     const species = pets[0]?.especie || ''
     const size = pets[0]?.porte || ''
+    const birthday = pets[0]?.nascimento ? new Date(pets[0].nascimento) : null
+    const age = birthday && !Number.isNaN(birthday.getTime())
+      ? Math.max(0, Math.floor((Date.now()-birthday.getTime())/31_557_600_000)) : null
+    const favoriteCategories = new Set(likedProducts.map((p)=>p.produto.categoria))
     const recommendations = products
-      .map((p) => ({ ...p, score:recommendationRank(p.nome,p.categoria,species,size) }))
+      .map((p) => ({ ...p, score:recommendationRank(p.nome,p.categoria,species,size,age)
+        + (favoriteCategories.has(p.categoria)?2:0) }))
       .filter((p) => p.score > 0).sort((a,b) => b.score-a.score).slice(0,8)
       .map(({ score, ...p }) => p)
     const shares = await Promise.all(incoming.filter((i) => i.status === 'aceito' && i.recipientClienteId === clienteId)
