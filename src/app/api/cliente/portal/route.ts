@@ -106,6 +106,10 @@ export async function GET() {
         remindersInApp:true, remindersEmail:false, remindersWhatsapp:false,
         marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false,
       },
+      features: {
+        subscriptionsEnabled:process.env.PORTAL_SUBSCRIPTIONS_ENABLED === 'true',
+        giftRedemptionEnabled:process.env.PORTAL_GIFT_REDEMPTION_ENABLED === 'true',
+      },
       pets, recommendations, plans, requests, rewardCoupons,notifications,documents,
       referralCode:referral?.code || null, referrals:claims, gifts,
       outgoing, incoming:incoming.map((i) => ({ id:i.id, status:i.status, petKey:i.petKey, createdAt:i.createdAt })),
