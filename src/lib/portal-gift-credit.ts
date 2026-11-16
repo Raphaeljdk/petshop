@@ -7,6 +7,8 @@ type GiftDb = Pick<Prisma.TransactionClient,'portalGiftRequest'|'portalGiftRedem
 export function moneyCents(n:number) { return Math.round(n*100) }
 export function giftCode(raw:string) {return raw.trim().toUpperCase()}
 export async function quoteGiftCredit(db:GiftDb,code:string,clienteId:string,clientEmail:string,totalCents:number) {
+  if(process.env.PORTAL_GIFT_REDEMPTION_ENABLED!=='true')
+    throw new GiftCreditError('Resgate de vale-presente aguardando homologação financeira.',503)
   const voucher=await db.portalGiftRequest.findUnique({where:{voucherCode:giftCode(code)}})
   if(!voucher||voucher.status!=='pago'||!voucher.paidAt||voucher.balanceCents<=0)
     throw new GiftCreditError('Vale-presente inválido ou sem saldo disponível.')
