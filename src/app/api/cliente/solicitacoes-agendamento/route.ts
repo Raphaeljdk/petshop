@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { assertSameOrigin } from '@/lib/auth-http'
+import { validarBloqueioProfissional, mensagemAgenda } from '@/lib/agenda-bloqueios'
 
 export async function GET() {
   try {
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
         service: z.string().trim().min(3).max(120),
         desiredAt: z.string().datetime(),
         notes: z.string().trim().max(1000).optional(),
+        profissionalId:z.string().min(1).nullable().optional(),
       })
       .strict()
       .parse(await experienceBody(req))
@@ -58,15 +60,23 @@ export async function POST(req: NextRequest) {
         })) >= 5
       )
         return null
+      if(input.profissionalId) {
+        const profissional=await tx.profissionalAgenda.findFirst({where:{id:input.profissionalId,ativo:true},select:{id:true}})
+        if(!profissional)return { error:'Profissional não encontrado ou inativo.' }
+        try {await validarBloqueioProfissional(tx,input.profissionalId,desired)}
+        catch(e){return {error:mensagemAgenda(e)||'Profissional indisponível.'}}
+      }
       return tx.bookingRequest.create({
         data: {
           ...input,
+          profissionalId:input.profissionalId||null,
           desiredAt: desired,
           clienteId: user.cliente!.id,
           petName: pet.nome,
         },
       })
     })
+    if(booking && 'error' in booking)return NextResponse.json({error:booking.error},{status:409})
     if (!booking)
       return NextResponse.json(
         { error: 'Você já tem cinco solicitações aguardando resposta.' },
