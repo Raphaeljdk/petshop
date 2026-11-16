@@ -111,6 +111,15 @@ export function ClientStore({
   const [giftInput,setGiftInput]=useState('')
   const [giftApplied,setGiftApplied]=useState<{code:string;availableCents:number;appliedCents:number}|null>(null)
   const [giftChecking,setGiftChecking]=useState(false)
+  const [giftRedemptionEnabled,setGiftRedemptionEnabled]=useState(false)
+  useEffect(()=>{
+    let live=true
+    fetch('/api/cliente/portal/capacidades',{credentials:'same-origin',cache:'no-store'})
+      .then(async(res)=>res.ok?res.json():null)
+      .then((result)=>{if(live)setGiftRedemptionEnabled(Boolean(result?.giftRedemptionEnabled))})
+      .catch(()=>{if(live)setGiftRedemptionEnabled(false)})
+    return ()=>{live=false}
+  },[])
   const [validandoCupom, setValidandoCupom] = useState(false)
   const [vendaEmPagamento, setVendaEmPagamento] = useState<Venda | null>(null)
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
@@ -764,7 +773,7 @@ export function ClientStore({
                       </div>
                     )}
                     <p className="text-[11px] text-muted-foreground">O desconto é aplicado aos produtos. O frete não entra no cálculo.</p>
-                    <div className="space-y-2 rounded-lg border p-3">
+                    {giftRedemptionEnabled && <div className="space-y-2 rounded-lg border p-3">
                       <p className="text-xs font-semibold">Vale-presente (crédito de pagamento)</p>
                       <div className="flex gap-2">
                         <Input className="h-11 min-w-0 uppercase" value={giftInput} maxLength={80}
@@ -778,7 +787,7 @@ export function ClientStore({
                         <Button size="sm" variant="ghost" onClick={()=>{setGiftApplied(null);setGiftInput('')}}>Remover</Button>
                       </div>}
                       <p className="text-[11px] text-muted-foreground">O crédito é descontado apenas do valor a pagar. O total fiscal da compra permanece inalterado.</p>
-                    </div>
+                    </div>}
                   </div>
 
                   <div className="border-t border-border pt-3">
