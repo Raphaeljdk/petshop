@@ -127,15 +127,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success:result.count > 0 })
     }
     if (data.action === 'preferences') {
-      await db.portalClientPreferences.upsert({ where: { clienteId },
-        create: { clienteId, remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
-          remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
-          marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
-        update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
-          remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
-          marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+      await db.$transaction(async (tx) => {
+        await tx.portalClientPreferences.upsert({ where: { clienteId },
+          create: { clienteId, remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
+            remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
+            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+          update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
+            remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
+            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+        })
+        // Revogação apaga as fotos anexadas pela equipe: não manter dados após retirada do consentimento.
+        if (!data.groomingPhotoConsent) await tx.portalPetMemory.deleteMany({
+          where: { clienteId, createdByAdmin:true, kind:{ in:['banho_antes','banho_depois'] } },
+        })
       })
-      return NextResponse.json({ success:true, note:'Preferências registradas. Canais externos dependem de integração habilitada.' })
+      return NextResponse.json({ success:true,
+        note:data.groomingPhotoConsent
+          ? 'Consentimento registrado. Canais externos dependem de integração habilitada.'
+          : 'Preferências salvas. Fotos da equipe removidas quando a autorização é retirada.' })
     }
     if (data.action === 'plan-request') {
       if (!await ownsPet(user,data.petKey)) return NextResponse.json({ error:'Pet não encontrado.' }, { status:404 })
