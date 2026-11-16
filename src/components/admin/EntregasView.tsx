@@ -98,6 +98,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
   const [vendas, setVendas] = useState<Venda[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const [pagina,setPagina]=useState(1)
   const [filtroTipo, setFiltroTipo] = useState<string>('todos')
   const [filtroStatus, setFiltroStatus] = useState<string>('em_aberto')
   const [filtroOrigem, setFiltroOrigem] = useState<string>('locais')
@@ -159,6 +160,10 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     })
   }, [vendas, busca, filtroTipo, filtroStatus, filtroOrigem])
 
+  const totalPaginas=Math.max(1,Math.ceil(filtradas.length/20))
+  const paginaAtual=Math.min(pagina,totalPaginas)
+  const entregasPagina=filtradas.slice((paginaAtual-1)*20,paginaAtual*20)
+
   const temFiltrosAtivos =
     busca.trim() !== '' || filtroTipo !== 'todos' || filtroStatus !== 'em_aberto' || filtroOrigem !== 'locais'
 
@@ -168,6 +173,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     setFiltroStatus('em_aberto')
     setFiltroOrigem('locais')
     setSelecionadas([])
+    setPagina(1)
   }
 
   const atualizarStatus = async (vendaId: string, statusAtual: StatusEntrega) => {
@@ -510,7 +516,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {!loading &&
-          filtradas.map((v) => {
+          entregasPagina.map((v) => {
             const statusEntrega = (v.status==='cancelada'?'cancelada':(v.statusEntrega || 'pendente')) as StatusEntrega
             const meta = STATUS_META[statusEntrega]
             const tipoMeta = String(v.tipoEntrega) === 'marketplace'
@@ -739,6 +745,17 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             )
           })}
       </div>
+      {!loading&&totalPaginas>1&&(
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
+          <span>Exibindo {(paginaAtual-1)*20+1}–{Math.min(filtradas.length,paginaAtual*20)} de {filtradas.length} entregas · Página {paginaAtual} de {totalPaginas}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={paginaAtual===1}
+              onClick={()=>setPagina(p=>Math.max(1,p-1))}>Anterior</Button>
+            <Button size="sm" variant="outline" disabled={paginaAtual===totalPaginas}
+              onClick={()=>setPagina(p=>Math.min(totalPaginas,p+1))}>Próxima</Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
