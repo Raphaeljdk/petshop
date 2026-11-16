@@ -16,7 +16,7 @@ type Memory = {
 }
 type Prefs = {
   remindersInApp:boolean; remindersEmail:boolean; remindersWhatsapp:boolean
-  marketingEmail:boolean; marketingWhatsapp:boolean; groomingPhotoConsent:boolean
+  marketingEmail:boolean; marketingWhatsapp:boolean; groomingPhotoConsent:boolean; publicPetConsent:boolean
 }
 type Plan = { id:string; title:string; description:string; sessions:number; priceCents:number; durationDays:number }
 type PlanRequest = {
@@ -43,7 +43,7 @@ const previewMoney = (n:number) => n.toLocaleString('pt-BR',{style:'currency',cu
 const date = (d:string) => new Date(d).toLocaleDateString('pt-BR')
 const defaultPrefs:Prefs = {
   remindersInApp:true,remindersEmail:false,remindersWhatsapp:false,
-  marketingEmail:false,marketingWhatsapp:false,groomingPhotoConsent:false,
+  marketingEmail:false,marketingWhatsapp:false,groomingPhotoConsent:false,publicPetConsent:false,
 }
 
 /** Reduz a imagem no aparelho; fotos são enviadas somente pela API autenticada. */
@@ -259,6 +259,15 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
           }}>Excluir</Button>
         </div>
       </div>)}
+    </Section>
+
+    <Section title="Autorização para divulgar imagens do pet" hint="Controla exclusivamente a possibilidade de aparecer em conteúdos públicos da Matilha Prado. Publicação não é automática e exige revisão; a recusa não prejudica agendamentos ou compras.">
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={prefs.publicPetConsent} onChange={e=>setPrefs(p=>({...p,publicPetConsent:e.target.checked}))}/>
+        Autorizo o uso de imagens do meu pet em conteúdos públicos da Matilha Prado. Posso revogar a autorização a qualquer momento.
+      </label>
+      <p className="text-xs text-muted-foreground">Fotos privadas de antes/depois dos banhos têm uma autorização independente abaixo. Para remover material já publicado, procure a equipe.</p>
+      <Button size="sm" disabled={busy} onClick={()=>void act({action:'preferences',...prefs},'Autorização atualizada.')}>Salvar autorização pública</Button>
     </Section>
 
     <Section title="Fotos e etapas do banho" hint="Fotos da equipe só ficam disponíveis com seu consentimento expresso; sem publicação pública.">
