@@ -65,7 +65,7 @@ export function ActivateClientAccount() {
         <label className="mt-3 flex items-start gap-2 text-xs">
           <input type="checkbox" checked={publicPetConsent} onChange={e=>setPublicPetConsent(e.target.checked)}
             className="mt-0.5 size-4 shrink-0 accent-primary"/>
-          Autorizo o uso de imagens do meu pet em conteúdos da Matilha Prado, após revisão da equipe.
+          Autorizo o uso de imagens do meu pet em páginas públicas do portal e blog da Matilha Prado, após revisão da equipe.
         </label>
       </div>
       <Button type="button" variant="ghost" aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? 'Ocultar senhas' : 'Mostrar senhas'}</Button>
