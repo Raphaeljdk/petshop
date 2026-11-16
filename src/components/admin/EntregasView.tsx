@@ -453,12 +453,12 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
         </p>
       )}
 
-      {!loading && elegiveisFiltradas.length>0 && (
+      {!loading && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
           <label className="flex cursor-pointer items-center gap-2">
             <Checkbox
               checked={todasSelecionadas}
-              disabled={concluindoLote}
+              disabled={concluindoLote||elegiveisFiltradas.length===0}
               aria-label="Selecionar todas as entregas locais em aberto nos filtros"
               onCheckedChange={(checked)=>{
                 if(checked) setSelecionadas(prev=>[...new Set([...prev,...elegiveisFiltradas])])
@@ -475,12 +475,15 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               Entregar selecionadas ({selecionadasValidas.length})
             </Button>
             <Button size="sm"
-              disabled={concluindoLote||elegiveisFiltradas.length>200}
+              disabled={concluindoLote||elegiveisFiltradas.length===0||elegiveisFiltradas.length>200}
               onClick={()=>void concluirSelecionadas(elegiveisFiltradas)}>
               {concluindoLote?<Loader2 className="size-4 animate-spin"/>:<PackageCheck className="size-4"/>}
               Entregar todas as filtradas
             </Button>
           </div>
+          {elegiveisFiltradas.length===0&&(
+            <p className="w-full text-xs text-muted-foreground">Nenhuma entrega local elegível nos filtros atuais. Pedidos cancelados e de marketplaces não são concluídos em lote.</p>
+          )}
           {elegiveisFiltradas.length>200&&(
             <p className="w-full text-xs text-amber-700">Refine os filtros: o limite seguro é 200 entregas por operação.</p>
           )}
