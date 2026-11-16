@@ -624,6 +624,8 @@ model PortalArticle {
   imageUrl String?
   productId String?
   published Boolean @default(false)
+  readMinutes Int @default(3)
+  publishAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   favorites PortalArticleFavorite[]
@@ -668,6 +670,8 @@ model PortalClientPreferences {
   marketingEmail Boolean @default(false)
   marketingWhatsapp Boolean @default(false)
   groomingPhotoConsent Boolean @default(false)
+  publicPetConsent Boolean @default(false)
+  publicPetConsentAt DateTime?
   updatedAt DateTime @updatedAt
 }
 
