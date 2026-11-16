@@ -20,11 +20,14 @@ import {
   Phone,
   MapPinned,
   Loader2,
+  CheckSquare2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { canCompleteLocalDelivery } from '@/lib/delivery-bulk-policy'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -95,8 +98,12 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
   const [vendas, setVendas] = useState<Venda[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const [pagina,setPagina]=useState(1)
   const [filtroTipo, setFiltroTipo] = useState<string>('todos')
-  const [filtroStatus, setFiltroStatus] = useState<string>('todos')
+  const [filtroStatus, setFiltroStatus] = useState<string>('em_aberto')
+  const [filtroOrigem, setFiltroOrigem] = useState<string>('locais')
+  const [selecionadas,setSelecionadas]=useState<string[]>([])
+  const [concluindoLote,setConcluindoLote]=useState(false)
   const [editandoRastreio, setEditandoRastreio] = useState<Record<string, string>>({})
   const [salvandoRastreio, setSalvandoRastreio] = useState<Record<string, boolean>>({})
   const [atualizandoStatus, setAtualizandoStatus] = useState<Record<string, boolean>>({})
@@ -123,11 +130,17 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     carregar()
   }, [carregar, refreshSignal])
 
+  useEffect(()=>{setPagina(1);setSelecionadas([])},[busca,filtroTipo,filtroStatus,filtroOrigem])
+
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return vendas.filter((v) => {
+      if (filtroOrigem==='locais' && !['site','loja'].includes(v.canal)) return false
+      if (filtroOrigem==='marketplaces' && !['mercado_livre','mercadolivre','amazon'].includes(v.canal)) return false
+      if (filtroStatus==='em_aberto' && (v.status==='cancelada'||!['pendente','enviada'].includes(v.statusEntrega||'pendente'))) return false
+      if (filtroStatus==='cancelada' && v.status!=='cancelada' && v.statusEntrega!=='cancelada') return false
       if (filtroTipo !== 'todos' && v.tipoEntrega !== filtroTipo) return false
-      if (filtroStatus !== 'todos' && (v.statusEntrega || 'pendente') !== filtroStatus)
+      if (!['todos','em_aberto','cancelada'].includes(filtroStatus) && (v.statusEntrega || 'pendente') !== filtroStatus)
         return false
       if (termo) {
         const nome = v.cliente?.nome?.toLowerCase() || ''
@@ -147,15 +160,22 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
       }
       return true
     })
-  }, [vendas, busca, filtroTipo, filtroStatus])
+  }, [vendas, busca, filtroTipo, filtroStatus, filtroOrigem])
+
+  const totalPaginas=Math.max(1,Math.ceil(filtradas.length/20))
+  const paginaAtual=Math.min(pagina,totalPaginas)
+  const entregasPagina=filtradas.slice((paginaAtual-1)*20,paginaAtual*20)
 
   const temFiltrosAtivos =
-    busca.trim() !== '' || filtroTipo !== 'todos' || filtroStatus !== 'todos'
+    busca.trim() !== '' || filtroTipo !== 'todos' || filtroStatus !== 'em_aberto' || filtroOrigem !== 'locais'
 
   const limparFiltros = () => {
     setBusca('')
     setFiltroTipo('todos')
-    setFiltroStatus('todos')
+    setFiltroStatus('em_aberto')
+    setFiltroOrigem('locais')
+    setSelecionadas([])
+    setPagina(1)
   }
 
   const atualizarStatus = async (vendaId: string, statusAtual: StatusEntrega) => {
@@ -188,6 +208,43 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     } finally {
       setAtualizandoStatus((p) => ({ ...p, [vendaId]: false }))
     }
+  }
+
+  const elegiveisFiltradas=useMemo(
+    ()=>filtradas.filter(canCompleteLocalDelivery).map(v=>v.id),[filtradas]
+  )
+  const elegiveisSet=new Set(elegiveisFiltradas)
+  const selecionadasValidas=selecionadas.filter(id=>elegiveisSet.has(id))
+  const todasSelecionadas=elegiveisFiltradas.length>0 && selecionadasValidas.length===elegiveisFiltradas.length
+
+  const concluirSelecionadas=async(ids:string[])=>{
+    if(concluindoLote||ids.length===0)return
+    if(ids.length>200){
+      toast.error('O limite é de 200 entregas por operação. Refine os filtros e tente novamente.')
+      return
+    }
+    if(!window.confirm(
+      'Confirmar como ENTREGUES '+ids.length+' entrega(s) LOCAL(IS)?\n\n'+
+      'A atualização será registrada em auditoria. Pedidos de Mercado Livre, Amazon, cancelados ou já entregues não podem ser incluídos.\n\n'+
+      'Esta ação NÃO confirma recebimento nas transportadoras.'
+    ))return
+    setConcluindoLote(true)
+    try{
+      const res=await fetch('/api/vendas/entregas/lote',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        credentials:'same-origin',
+        body:JSON.stringify({ids,confirmed:true}),
+      })
+      const data=await res.json().catch(()=>null)
+      if(!res.ok)throw new Error(data?.error||'Não foi possível concluir as entregas.')
+      setVendas(prev=>prev.map(v=>ids.includes(v.id)?{...v,statusEntrega:'entregue' as const}:v))
+      setSelecionadas([])
+      toast.success(data.delivered+' entrega(s) concluída(s) e registrada(s) na auditoria.')
+      await carregar()
+    }catch(e){
+      toast.error(e instanceof Error?e.message:'Falha ao entregar os pedidos selecionados.')
+      await carregar()
+    }finally{setConcluindoLote(false)}
   }
 
   const salvarRastreio = async (vendaId: string) => {
@@ -232,8 +289,11 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
 
   // Estatísticas rápidas
   const stats = useMemo(() => {
-    const s = { pendente: 0, enviada: 0, entregue: 0, total: vendas.length }
+    const s = { pendente: 0, enviada: 0, entregue: 0, total: 0, marketplace: 0, canceladas: 0 }
     for (const v of vendas) {
+      if (['mercado_livre','mercadolivre','amazon'].includes(v.canal)) { s.marketplace++; continue }
+      if (v.status==='cancelada' || v.statusEntrega==='cancelada') { s.canceladas++; continue }
+      s.total++
       const st = (v.statusEntrega || 'pendente') as StatusEntrega
       if (st === 'pendente') s.pendente++
       else if (st === 'enviada') s.enviada++
@@ -252,7 +312,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             Entregas
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Gerencie entregas por motoboy no Centro e nas zonas Norte, Leste e Sul de São Paulo
+            Acompanhe entregas locais separadas dos pedidos de Mercado Livre e Amazon.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -307,7 +367,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold leading-tight">{stats.total}</p>
-              <p className="text-[11px] text-muted-foreground">Total entregas</p>
+              <p className="text-[11px] text-muted-foreground">Entregas locais</p>
             </div>
           </CardContent>
         </Card>
@@ -316,6 +376,16 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
       {/* Filtros */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">
         <div className="flex flex-col sm:flex-row gap-2">
+          <Select value={filtroOrigem} onValueChange={(value)=>{setFiltroOrigem(value);setSelecionadas([])}}>
+            <SelectTrigger className="w-full sm:w-[190px] h-9">
+              <SelectValue placeholder="Origem"/>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="locais">Entregas locais</SelectItem>
+              <SelectItem value="marketplaces">Mercado Livre / Amazon</SelectItem>
+              <SelectItem value="todos">Todas as origens</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
@@ -345,6 +415,8 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               <SelectItem value="todos">Todos os tipos</SelectItem>
               <SelectItem value="entrega_propria">Entrega própria</SelectItem>
               <SelectItem value="sedex">Sedex</SelectItem>
+              <SelectItem value="melhor_envio">Melhor Envio</SelectItem>
+              <SelectItem value="marketplace">Marketplace</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filtroStatus} onValueChange={setFiltroStatus}>
@@ -353,11 +425,12 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="em_aberto">Em aberto (pendentes e enviadas)</SelectItem>
               <SelectItem value="todos">Todos os status</SelectItem>
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="enviada">Enviada</SelectItem>
               <SelectItem value="entregue">Entregue</SelectItem>
-              <SelectItem value="cancelada">Cancelada</SelectItem>
+              <SelectItem value="cancelada">Cancelados (inclusive testes)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -378,6 +451,53 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
         )}
       </div>
 
+      {/* O histórico dos marketplaces e pedidos cancelados permanece consultável,
+          mas não recebe baixa manual por lote. */}
+      {!loading && (
+        <p className="text-xs text-muted-foreground">
+          {stats.marketplace} pedido(s) de marketplaces disponíveis no filtro específico.
+          {stats.canceladas>0 && ' '+stats.canceladas+' pedido(s) local(is) cancelado(s), inclusive eventuais testes, aparecem no filtro Cancelada.'}
+          {' '}Marcar como entregue atualiza somente o controle interno, sem confirmar a entrega na transportadora.
+        </p>
+      )}
+
+      {!loading && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+          <label className="flex cursor-pointer items-center gap-2">
+            <Checkbox
+              checked={todasSelecionadas}
+              disabled={concluindoLote||elegiveisFiltradas.length===0}
+              aria-label="Selecionar todas as entregas locais em aberto nos filtros"
+              onCheckedChange={(checked)=>{
+                if(checked) setSelecionadas(prev=>[...new Set([...prev,...elegiveisFiltradas])])
+                else setSelecionadas(prev=>prev.filter(id=>!elegiveisSet.has(id)))
+              }}
+            />
+            Selecionar todas as filtradas ({elegiveisFiltradas.length})
+          </label>
+          <div className="flex flex-1 flex-wrap justify-end gap-2">
+            <Button size="sm" variant="outline"
+              disabled={concluindoLote||!selecionadasValidas.length}
+              onClick={()=>void concluirSelecionadas(selecionadasValidas)}>
+              <CheckSquare2 className="size-4"/>
+              Entregar selecionadas ({selecionadasValidas.length})
+            </Button>
+            <Button size="sm"
+              disabled={concluindoLote||elegiveisFiltradas.length===0||elegiveisFiltradas.length>200}
+              onClick={()=>void concluirSelecionadas(elegiveisFiltradas)}>
+              {concluindoLote?<Loader2 className="size-4 animate-spin"/>:<PackageCheck className="size-4"/>}
+              Entregar todas as filtradas
+            </Button>
+          </div>
+          {elegiveisFiltradas.length===0&&(
+            <p className="w-full text-xs text-muted-foreground">Nenhuma entrega local elegível nos filtros atuais. Pedidos cancelados e de marketplaces não são concluídos em lote.</p>
+          )}
+          {elegiveisFiltradas.length>200&&(
+            <p className="w-full text-xs text-amber-700">Refine os filtros: o limite seguro é 200 entregas por operação.</p>
+          )}
+        </div>
+      )}
+
       {/* Lista de entregas */}
       {loading && <SkeletonLoader type="cards" count={4} />}
 
@@ -388,7 +508,9 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             <p className="text-muted-foreground">
               {vendas.length === 0
                 ? 'Nenhuma entrega registrada ainda.'
-                : 'Nenhuma entrega encontrada com os filtros aplicados.'}
+                : filtroOrigem==='locais' && filtroStatus==='em_aberto'
+                  ? 'Nenhuma entrega local em aberto. Consulte os filtros para ver as canceladas, entregues ou dos marketplaces.'
+                  : 'Nenhuma entrega encontrada com os filtros aplicados.'}
             </p>
           </CardContent>
         </Card>
@@ -396,23 +518,35 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {!loading &&
-          filtradas.map((v) => {
-            const statusEntrega = (v.statusEntrega || 'pendente') as StatusEntrega
+          entregasPagina.map((v) => {
+            const statusEntrega = (v.status==='cancelada'?'cancelada':(v.statusEntrega || 'pendente')) as StatusEntrega
             const meta = STATUS_META[statusEntrega]
-            const tipoMeta = v.tipoEntrega
-              ? TIPO_META[v.tipoEntrega as TipoEntrega]
-              : null
+            const tipoMeta = String(v.tipoEntrega) === 'marketplace'
+              ? {label:'Marketplace',icon:Package}
+              : v.tipoEntrega ? TIPO_META[v.tipoEntrega as TipoEntrega] : null
             const TipoIcon = tipoMeta?.icon || Truck
             const StatusIcon = meta.icon
             const prox = proximoStatus(statusEntrega)
             const rastreioEditando = editandoRastreio[v.id] ?? v.codigoRastreio ?? ''
             const isSalvandoRastreio = !!salvandoRastreio[v.id]
             const isAtualizandoStatus = !!atualizandoStatus[v.id]
+            const podeEntregar=canCompleteLocalDelivery(v)
 
             return (
               <Card key={v.id} className="card-hover">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
+                    {podeEntregar&&(
+                      <Checkbox
+                        checked={selecionadasValidas.includes(v.id)}
+                        disabled={concluindoLote}
+                        aria-label={'Selecionar entrega '+v.id.slice(-8)}
+                        onCheckedChange={(checked)=>setSelecionadas(prev=>checked
+                          ? [...new Set([...prev,v.id])]
+                          : prev.filter(id=>id!==v.id))}
+                        className="mt-1"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <CardTitle className="text-sm sm:text-base flex items-center gap-2 flex-wrap">
                         <span className="truncate">
@@ -540,6 +674,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
                   )}
 
                   {/* Código de rastreio */}
+                  {!['mercado_livre','mercadolivre','amazon'].includes(v.canal) && v.status!=='cancelada' && (
                   <div className="space-y-1.5">
                     <Label
                       htmlFor={`rastreio-${v.id}`}
@@ -577,37 +712,54 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
                       </Button>
                     </div>
                   </div>
+                  )}
 
-                  {/* Ações de status */}
-                  <div className="flex items-center gap-2 pt-1 border-t border-border">
-                    <Button
-                      size="sm"
-                      variant={prox === 'enviada' ? 'default' : 'outline'}
-                      className="h-8 flex-1"
-                      disabled={!prox || isAtualizandoStatus}
-                      onClick={() => atualizarStatus(v.id, statusEntrega)}
-                    >
-                      {isAtualizandoStatus ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <>
-                          {prox === 'enviada' && <Send className="size-3.5" />}
-                          {prox === 'entregue' && (
-                            <CheckCircle2 className="size-3.5" />
-                          )}
-                          {!prox && <CheckCircle2 className="size-3.5" />}
-                          {prox
-                            ? `Marcar como ${STATUS_META[prox].label.toLowerCase()}`
-                            : 'Concluída'}
-                        </>
-                      )}
-                    </Button>
+                  {/* Ações: status da transportadora nunca é alterado aqui. */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
+                    {['mercado_livre','mercadolivre','amazon'].includes(v.canal)?(
+                      <p className="text-xs text-muted-foreground">
+                        Entrega do marketplace: acompanhe a confirmação no canal de origem.
+                      </p>
+                    ):v.status==='cancelada'||statusEntrega==='cancelada'?(
+                      <p className="text-xs text-muted-foreground">Pedido cancelado — não é possível marcar entregue.</p>
+                    ):podeEntregar?(
+                      <>
+                        {prox==='enviada' && (
+                          <Button size="sm" variant="outline" disabled={isAtualizandoStatus||concluindoLote}
+                            onClick={()=>void atualizarStatus(v.id,statusEntrega)}
+                            className="h-8 flex-1">
+                            {isAtualizandoStatus?<Loader2 className="size-4 animate-spin"/>:<Send className="size-4"/>}
+                            Marcar enviada
+                          </Button>
+                        )}
+                        <Button size="sm" disabled={isAtualizandoStatus||concluindoLote}
+                          onClick={()=>void concluirSelecionadas([v.id])}
+                          className="h-8 flex-1">
+                          <CheckCircle2 className="size-4"/> Marcar entregue
+                        </Button>
+                      </>
+                    ):(
+                      <p className="text-xs text-muted-foreground">
+                        {statusEntrega==='entregue'?'Entrega concluída.':'Pedido não elegível para conclusão.'}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             )
           })}
       </div>
+      {!loading&&totalPaginas>1&&(
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
+          <span>Exibindo {(paginaAtual-1)*20+1}–{Math.min(filtradas.length,paginaAtual*20)} de {filtradas.length} entregas · Página {paginaAtual} de {totalPaginas}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={paginaAtual===1}
+              onClick={()=>setPagina(p=>Math.max(1,p-1))}>Anterior</Button>
+            <Button size="sm" variant="outline" disabled={paginaAtual===totalPaginas}
+              onClick={()=>setPagina(p=>Math.min(totalPaginas,p+1))}>Próxima</Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
