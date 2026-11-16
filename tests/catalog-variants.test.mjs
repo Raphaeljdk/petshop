@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { catalogVariantDetails, catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '../src/lib/product-variants.ts'
+import { pickMarketplaceProduct } from '../src/lib/marketplace-product-match.ts'
+import { catalogVariantDetails, catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, groupMarketplaceListings, isClothingProduct } from '../src/lib/product-variants.ts'
 
 const make = (id, nome, estoque, extra = {}) => ({
   id, nome, estoque, preco: 189.9, precoPromo: null, ...extra,
@@ -201,4 +202,53 @@ test('SKU igual não torna cores diferentes a mesma variação física', () => {
   ])
   assert.equal(products[0].estoque, 5)
   assert.equal(products[0].variantes?.length, 2)
+})
+
+
+test('agrupa camas por porte e cor, sem somar anúncios espelhados da mesma variação',()=>{
+  const rows=groupCatalogProducts([
+    make('rosa-p','Cama Retangular para Cachorro Pequeno - Rosa',4,{sku:'SKU-P-ROSA'}),
+    make('azul-g','Cama Retangular para Cachorro Grande - Azul',2,{sku:'SKU-G-AZUL'}),
+    make('ml-rosa-p','Cama Retangular para Cachorro Pequeno - Rosa',4,{mlItemId:'MLB123'}),
+  ])
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].nome,'Cama Retangular para Cachorro')
+  assert.equal(rows[0].variantes?.length,2)
+  assert.equal(rows[0].estoque,6)
+  assert.deepEqual(new Set(rows[0].variantes?.map(x=>x.variacaoLabel)),new Set(['P','G']))
+  assert.deepEqual(new Set(rows[0].variantes?.map(x=>x.corLabel)),new Set(['Rosa','Azul']))
+})
+
+test('o mesmo produto com códigos de tamanho TG1/TG2 vira uma família',()=>{
+  const rows=groupCatalogProducts([
+    make('pequeno','KONG CLASSIC GOLD SM (TG1)',3,{sku:'KONG-SM'}),
+    make('medio','KONG CLASSIC GOLD MD (TG2)',2,{sku:'KONG-MD'}),
+  ])
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].variantes?.length,2)
+  assert.deepEqual(new Set(rows[0].variantes?.map(x=>x.variacaoLabel)),new Set(['P','M']))
+})
+
+test('listagens agrupadas mantêm todas as identidades dos canais, sem publicar ou fundir SKUs',()=>{
+  const rows=groupMarketplaceListings([
+    {id:'MLB123',title:'Cama Retangular para Cachorro Grande - Azul'},
+    {id:'MLB124',title:'Cama Retangular para Cachorro Pequeno - Rosa'},
+    {id:'MLB125',title:'Cama estilo Iglu Rosa'},
+  ])
+  assert.equal(rows.length,2)
+  assert.equal(rows[0].items.length,2)
+  assert.deepEqual(rows[0].items.map(x=>x.id),['MLB123','MLB124'])
+  assert.equal(rows[1].items[0].id,'MLB125')
+})
+
+
+test('pedido com item_id ML compartilhado baixa apenas o SKU da variação correta',()=>{
+  const products=[
+    {id:'rosa',sku:'ROSA-P',mlItemId:'MLB100',amazonAsin:null},
+    {id:'azul',sku:'AZUL-G',mlItemId:'MLB100',amazonAsin:null},
+  ]
+  assert.equal(pickMarketplaceProduct(products,'mercadolivre',
+    {sku:'AZUL-G',externalProductId:'MLB100'})?.id,'azul')
+  assert.equal(pickMarketplaceProduct(products,'mercadolivre',
+    {externalProductId:'MLB100'}),null)
 })

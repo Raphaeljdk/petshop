@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
+import { pickMarketplaceProduct } from '@/lib/marketplace-product-match'
 
 export type MarketplaceChannel = 'mercadolivre' | 'amazon'
 export type MarketplaceSaleItem = {
@@ -27,11 +28,7 @@ async function resolveProduct(channel: MarketplaceChannel, item: MarketplaceSale
   ]
   if (!where.length) return null
   const candidates = await db.produto.findMany({ where: { OR: where }, take: 10 })
-  return candidates.find((product) => channel === 'mercadolivre'
-    ? Boolean(item.externalProductId && product.mlItemId === item.externalProductId)
-    : Boolean(item.externalProductId && product.amazonAsin === item.externalProductId))
-    || candidates.find((product) => Boolean(item.sku && product.sku === item.sku))
-    || null
+  return pickMarketplaceProduct(candidates,channel,item)
 }
 
 export async function registerMarketplaceSale(input: MarketplaceSaleInput) {

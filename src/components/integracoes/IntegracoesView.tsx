@@ -34,6 +34,7 @@ import type {
   Integracao,
 } from '@/lib/types'
 import { toast } from 'sonner'
+import { groupMarketplaceListings } from '@/lib/product-variants'
 
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
@@ -97,6 +98,21 @@ type AmazonItems = {
   total: number
   truncated?: boolean
 }
+type AutoSyncState={
+  enabled:boolean
+  intervalMinutes:number
+  status:{
+    status:string
+    lastStartedAt:string|null
+    lastFinishedAt:string|null
+    lastSuccessAt:string|null
+    lastMlUpdated:number
+    lastAmazonUpdated:number
+    lastSalesImported:number
+    lastErrors:string|null
+  }|null
+  issues:Array<{channel:string;title:string;category:string;error:string;retryAfter:string|null}>
+}
 
 function mercadoLivreOAuthErrorMessage(
   code: string | null,
@@ -145,6 +161,19 @@ export function IntegracoesView() {
   const [amazonRefresh, setAmazonRefresh] = useState(0)
   const [amazonPublishingId, setAmazonPublishingId] = useState<string | null>(null)
   const [marketplaceSalesSyncing, setMarketplaceSalesSyncing] = useState(false)
+  const [autoSync,setAutoSync]=useState<AutoSyncState|null>(null)
+  const loadAutoSync=async()=>{
+    try{
+      const response=await fetch('/api/integracoes/marketplaces/vendas/sincronizar',{
+        credentials:'same-origin',cache:'no-store'})
+      if(response.ok)setAutoSync(await response.json())
+    }catch{ /* Mantém o catálogo disponível quando o diagnóstico está indisponível. */ }
+  }
+  useEffect(()=>{
+    void loadAutoSync()
+    const timer=setInterval(()=>void loadAutoSync(),60_000)
+    return ()=>clearInterval(timer)
+  },[])
   const amazonAutoSyncDone = useRef(false)
 
   useEffect(() => {
@@ -511,48 +540,23 @@ export function IntegracoesView() {
     if (marketplaceSalesSyncing) return
     setMarketplaceSalesSyncing(true)
     try {
-      const response = await fetch('/api/integracoes/marketplaces/vendas/sincronizar', {
-        method: 'POST',
-        credentials: 'same-origin',
+      const response=await fetch('/api/integracoes/marketplaces/vendas/sincronizar',{
+        method:'POST',credentials:'same-origin',
       })
-      const data = await response.json().catch(() => null)
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.error || 'Não foi possível sincronizar as vendas.')
-      }
-
-      const ml = data.mercadoLivre
-      const amazonResult = data.amazon
-      const imported = Number(ml?.imported || 0) + Number(amazonResult?.imported || 0)
-      const errors = [
-        data.mercadoLivreError,
-        data.amazonError,
-        ...(ml?.errors || []),
-        ...(amazonResult?.errors || []),
-      ].filter(Boolean)
-
-      const inventoryUpdated =
-        Number(data.inventory?.mercadoLivreUpdated || 0) +
-        Number(data.inventory?.amazonUpdated || 0)
-      const inventoryErrors = data.inventory?.errors || []
-
-      if (imported > 0 || inventoryUpdated > 0) {
-        toast.success(
-          `${imported} venda(s) registrada(s) no ERP próprio e ${inventoryUpdated} anúncio(s) com estoque atualizado.`
-        )
-      } else {
-        toast.info('Vendas e estoque já estavam sincronizados.')
-      }
-      const firstError = [...errors, ...inventoryErrors][0]
-      if (firstError) {
-        toast.warning(firstError)
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Falha ao sincronizar vendas dos marketplaces.'
-      )
-    } finally {
-      setMarketplaceSalesSyncing(false)
-    }
+      const data=await response.json().catch(()=>null)
+      if(!response.ok || !data)throw new Error(data?.error||'Falha ao sincronizar.')
+      if(data.busy)toast.info('Outra sincronização está em andamento. Os dados serão atualizados em breve.')
+      else if(data.errors?.length){
+        toast.warning('Sincronização parcial: '+String(data.errors[0]).slice(0,170))
+      }else if(data.imported||data.mercadoLivreUpdated||data.amazonUpdated){
+        toast.success((data.imported||0)+' pedido(s) importado(s); '+(data.mercadoLivreUpdated||0)+
+          ' anúncios ML e '+(data.amazonUpdated||0)+' anúncios Amazon atualizados/enviados.')
+      }else toast.info('Nenhum ajuste de estoque necessário nesta execução.')
+      await loadAutoSync()
+      setMlRefresh(v=>v+1);setAmazonRefresh(v=>v+1)
+    } catch(error){
+      toast.error(error instanceof Error?error.message:'Falha ao sincronizar marketplaces.')
+    }finally{setMarketplaceSalesSyncing(false)}
   }
 
   const motoboyAtivo = Boolean(estado.frete?.entregaPropriaAtiva)
@@ -576,7 +580,7 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              Catálogo e vendas ficam vinculados ao estoque unificado. Pedidos confirmados do Mercado Livre e da Amazon são registrados no ERP próprio, com baixa no estoque local e atualização dos canais conectados.
+              Sincronização automática a cada 30 minutos: pedidos pagos entram no ERP e o estoque físico local é enviado aos anúncios vinculados. Falhas de permissão ficam registradas para revisão.
             </p>
             <Button
               type="button"
@@ -587,8 +591,39 @@ export function IntegracoesView() {
               disabled={marketplaceSalesSyncing}
             >
               <RefreshCw className={`size-4 ${marketplaceSalesSyncing ? 'animate-spin' : ''}`} />
-              {marketplaceSalesSyncing ? 'Sincronizando vendas...' : 'Sincronizar vendas e estoque'}
+              {marketplaceSalesSyncing ? 'Sincronizando...' : 'Sincronizar agora'}
             </Button>
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-blue-800">
+                <strong>Atualização automática: a cada 30 minutos</strong>
+                {autoSync?.status?.lastFinishedAt
+                  ? ' · Última execução: '+new Date(autoSync.status.lastFinishedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})
+                  : ' · Aguardando primeira execução'}
+                {autoSync?.status?.status==='running'?' · Em andamento':''}
+              </p>
+              {autoSync?.status?.lastFinishedAt&&<p className="text-xs text-blue-800">
+                Última execução: {autoSync.status.lastSalesImported} pedido(s) novo(s),
+                {' '}{autoSync.status.lastMlUpdated} ajuste(s) Mercado Livre,
+                {' '}{autoSync.status.lastAmazonUpdated} envio(s) Amazon.
+              </p>}
+              {autoSync?.status?.status==='partial'&&
+                <p className="text-xs font-medium text-amber-800">Existem pendências de sincronização nos canais.</p>}
+              {autoSync?.issues?.length?(
+                <details className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 text-amber-950">
+                  <summary className="cursor-pointer text-xs font-semibold">
+                    {autoSync.issues.length} pendência(s) recentes de estoque — ver detalhes
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {autoSync.issues.map((issue,index)=><div key={issue.channel+'-'+issue.title+'-'+index}
+                      className="rounded border bg-background p-2 text-xs">
+                      <strong>{issue.channel==='mercadolivre'?'Mercado Livre':'Amazon'}: {issue.title}</strong>
+                      <p className="break-words">{issue.error}</p>
+                      {issue.category==='permission'&&<p className="mt-1 font-semibold">Revisar autorização do aplicativo, anúncio e política do canal antes de tentar novamente.</p>}
+                    </div>)}
+                  </div>
+                </details>
+              ):null}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -741,7 +776,13 @@ export function IntegracoesView() {
               )}
 
               <div className="grid gap-3 lg:grid-cols-2">
-                {mlItems?.items.map((item) => (
+                {groupMarketplaceListings(mlItems?.items || []).map((group,index) => (
+                  <div key={'ml-group-'+index} className="min-w-0 space-y-2 rounded-xl border border-muted p-2">
+                    {group.items.length>1 && <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm">
+                      <strong>{group.title}</strong>
+                      <Badge variant="outline">{group.items.length} opções de cor/tamanho</Badge>
+                    </div>}
+                    {group.items.map((item) => (
                   <div
                     key={item.id}
                     className="flex min-w-0 gap-3 rounded-xl border bg-background p-3"
@@ -766,6 +807,7 @@ export function IntegracoesView() {
                           </p>
                           <p className="mt-1 text-[11px] text-muted-foreground">
                             {item.id} · Estoque: {item.quantity}
+                            {group.items.length>1 && ' · '+[item.colorLabel,item.sizeLabel].filter(Boolean).join(' / ')}
                           </p>
                         </div>
                         <strong className="shrink-0 text-sm">
@@ -838,6 +880,8 @@ export function IntegracoesView() {
                         )}
                       </div>
                     </div>
+                  </div>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -997,7 +1041,13 @@ export function IntegracoesView() {
                 )}
 
               <div className="grid gap-3 lg:grid-cols-2">
-                {amazonItems?.items.map((item) => (
+                {groupMarketplaceListings(amazonItems?.items || []).map((group,index) => (
+                  <div key={'amazon-group-'+index} className="min-w-0 space-y-2 rounded-xl border border-muted p-2">
+                    {group.items.length>1 && <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm">
+                      <strong>{group.title}</strong>
+                      <Badge variant="outline">{group.items.length} opções de cor/tamanho</Badge>
+                    </div>}
+                    {group.items.map((item) => (
                   <div
                     key={`${item.asin || 'sem-asin'}-${item.sku}`}
                     className="flex min-w-0 gap-3 rounded-xl border bg-background p-3"
@@ -1024,6 +1074,7 @@ export function IntegracoesView() {
                             SKU: {item.sku}
                             {item.asin ? ` · ASIN: ${item.asin}` : ''}
                             {' · '}Estoque: {item.quantity}
+                            {group.items.length>1 && ' · '+[item.colorLabel,item.sizeLabel].filter(Boolean).join(' / ')}
                           </p>
                         </div>
                         <strong className="shrink-0 text-sm">
@@ -1106,6 +1157,8 @@ export function IntegracoesView() {
                         )}
                       </div>
                     </div>
+                  </div>
+                    ))}
                   </div>
                 ))}
               </div>

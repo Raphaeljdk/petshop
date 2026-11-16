@@ -1,32 +1,35 @@
 import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { syncMarketplaceSalesToLocal } from '@/lib/marketplace-sync'
-import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
+import { marketplaceSyncStatus,runMarketplacesSync } from '@/lib/marketplace-auto-sync'
+import { db } from '@/lib/db'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const runtime='nodejs'
+export const dynamic='force-dynamic'
+export const maxDuration=300
 
-export async function POST() {
-  const user = await getUsuarioLogado()
-  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-  if (user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+async function admin(){
+  const user=await getUsuarioLogado()
+  return user?.role==='ADMIN'
+}
+export async function GET(){
+  if(!await admin())return NextResponse.json({error:'Acesso negado'},{status:403})
+  const [status,issues]=await Promise.all([
+    marketplaceSyncStatus(),
+    db.marketplaceStockIssue.findMany({where:{resolvedAt:null},
+      orderBy:{updatedAt:'desc'},take:12,select:{channel:true,title:true,category:true,
+        error:true,retryAfter:true,updatedAt:true}}),
+  ])
+  return NextResponse.json({enabled:true,intervalMinutes:30,status,issues},
+    {headers:{'Cache-Control':'private, no-store'}})
+}
+export async function POST(){
+  if(!await admin())return NextResponse.json({error:'Acesso negado'},{status:403})
+  try{
+    const result=await runMarketplacesSync({force:true})
+    return NextResponse.json(result,{status:result.ok?200:207,
+      headers:{'Cache-Control':'private, no-store'}})
+  }catch(error){
+    console.error('[marketplace/sync] erro',error)
+    return NextResponse.json({error:'Falha na sincronização. Consulte o histórico da integração.'},{status:503})
   }
-
-  const result = await syncMarketplaceSalesToLocal()
-  // Registre pedidos no ERP próprio e publique o estoque local nos canais.
-  const inventory = await syncLocalStockToMarketplaces().catch((error) => ({
-    products: 0,
-    mercadoLivreUpdated: 0,
-    amazonUpdated: 0,
-    skippedUnlinked: 0,
-    errors: [
-      error instanceof Error
-        ? error.message
-        : 'Falha ao sincronizar o estoque unificado.',
-    ],
-  }))
-
-  return NextResponse.json({ success: true, ...result, inventory })
 }
