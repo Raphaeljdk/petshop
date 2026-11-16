@@ -75,11 +75,13 @@ export async function GET() {
       /^v[0-9]+\\.[0-9]+$/.test(process.env.META_WHATSAPP_GRAPH_VERSION?.trim() || ''))
     const integrations = {
       subscriptions: {
+        enabled:process.env.PORTAL_SUBSCRIPTIONS_ENABLED === 'true',
         configured: paymentTokenConfigured && mpConfig?.mercadoPagoAtivo === true &&
           Boolean(process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim()) &&
           Boolean(process.env.APP_URL?.startsWith('https://') || process.env.NEXTAUTH_URL?.startsWith('https://')),
         validatedEndToEnd:false,
       },
+      giftRedemption:{enabled:process.env.PORTAL_GIFT_REDEMPTION_ENABLED === 'true'},
       email: { configured: emailConfigured, domainVerification:'not_checked' },
       whatsapp: { configured: whatsappConfigured, templateVerification:'not_checked' },
       notifications: {
