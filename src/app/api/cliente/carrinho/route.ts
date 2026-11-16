@@ -15,6 +15,8 @@ import {
   validarCupom,
 } from '@/lib/cupons'
 import { officialStockFromSources } from '@/lib/product-stock'
+import { reserveGiftCredit,GiftCreditError,moneyCents } from '@/lib/portal-gift-credit'
+import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 
 class CheckoutError extends Error {
   constructor(
@@ -44,6 +46,7 @@ export async function POST(req: NextRequest) {
       enderecoEntrega,
       melhorEnvioServiceId,
       cupomCodigo,
+      valePresenteCodigo,
     } = body as {
       itens: Array<{ produtoId: string; quantidade: number }>
       observacoes?: string
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
       enderecoEntrega?: string
       melhorEnvioServiceId?: string | null
       cupomCodigo?: string | null
+      valePresenteCodigo?: string | null
     }
 
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
@@ -240,7 +244,8 @@ export async function POST(req: NextRequest) {
     // ---------- Venda ----------
     const venda = await db.$transaction(async (tx) => {
       // A personal loyalty benefit can be reserved by only one checkout at a time.
-      if (cupomCodigo?.trim().toUpperCase().startsWith('CLUBE-')) {
+      if (cupomCodigo?.trim().toUpperCase().startsWith('CLUBE-') ||
+          cupomCodigo?.trim().toUpperCase().startsWith('INDIQUE-')) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${cliente.id}))`
       }
       let subtotal = 0
@@ -313,6 +318,8 @@ export async function POST(req: NextRequest) {
       const descontoCupom = cupomAplicado?.desconto ?? 0
       const valorProdutosLiquido = Math.max(0, subtotal - descontoCupom)
       const total = valorProdutosLiquido + valorFrete
+      const totalCents = moneyCents(total)
+      if(!Number.isSafeInteger(totalCents)||totalCents<=0)throw new CheckoutError('Total inválido.')
 
       const novaVenda = await tx.venda.create({
         data: {
@@ -341,6 +348,16 @@ export async function POST(req: NextRequest) {
         },
       })
 
+      if(valePresenteCodigo?.trim()) {
+        const credit=await reserveGiftCredit(tx,valePresenteCodigo,cliente.id,cliente.email||'',totalCents,novaVenda.id)
+        await tx.venda.update({where:{id:novaVenda.id},data:{
+          creditoPresenteCentavos:credit,
+          ...(credit===totalCents ? {status:'concluida',mercadoPagoStatus:'paid_gift'} : {}),
+        }})
+        // Reflect committed credit in response without changing the gross fiscal total.
+        novaVenda.creditoPresenteCentavos=credit
+        if(credit===totalCents) {novaVenda.status='concluida';novaVenda.mercadoPagoStatus='paid_gift'}
+      }
       if (cupomAplicado) {
         await tx.cupomUso.create({
           data: {
@@ -360,6 +377,10 @@ export async function POST(req: NextRequest) {
       return novaVenda
     })
 
+    if(venda.status==='concluida' && venda.mercadoPagoStatus==='paid_gift'){
+      try {await ensureFiscalDraftForSale(venda.id)}
+      catch(err){console.error('[checkout] rascunho fiscal do vale-presente:',err)}
+    }
     await emitWebSocket('venda:nova', {
       id: venda.id,
       total: venda.total,
@@ -394,6 +415,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     )
   } catch (e) {
+    if(e instanceof GiftCreditError) return NextResponse.json({error:e.message},{status:e.status})
     if (e instanceof CupomValidationError) {
       return NextResponse.json({ error: e.message }, { status: e.status })
     }
