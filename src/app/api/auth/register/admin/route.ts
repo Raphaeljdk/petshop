@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { bcrypt, criarToken, setCookieAuth } from '@/lib/auth-cookies'
 import { adminRegistrationSchema, fieldErrors } from '@/lib/auth-validation'
 import { AuthError, authFailure, authJson, authReady, limitAuthAttempts, readAuthBody } from '@/lib/auth-http'
-import { ANDRE_OPERATIONS_EMAIL } from '@/lib/operational-access'
+import { roleForTeamInvitation } from '@/lib/operational-access'
 
 const PRIMARY_ADMIN_EMAIL = 'matilhaprado@gmail.com'
 
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       if (consumed.count !== 1) throw new AuthError('Este convite não está mais disponível.', 403)
       // Consumo e criação pertencem à mesma transação: falhas não gastam o convite.
       return tx.user.create({
-        data: { nome, email, senha: senhaHash, role: email === ANDRE_OPERATIONS_EMAIL ? 'KANBAN' : 'ADMIN' },
+        data: { nome, email, senha: senhaHash, role: roleForTeamInvitation(email) },
         select: { id: true, nome: true, email: true, role: true, clienteId: true },
       })
     })
