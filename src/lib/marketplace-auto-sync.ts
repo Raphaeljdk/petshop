@@ -14,7 +14,7 @@ export async function marketplaceSyncStatus() {
       lastMlUpdated:true,lastAmazonUpdated:true,lastSalesImported:true,lastErrors:true}})
 }
 
-export async function runMarketplacesSync() {
+export async function runMarketplacesSync(options: { force?: boolean } = {}) {
   const started=new Date()
   const token=randomUUID()
   await db.marketplaceSyncRun.createMany({data:[{id:JOB_ID}],skipDuplicates:true})
@@ -26,7 +26,7 @@ export async function runMarketplacesSync() {
   if(!acquired.count)return {ok:true,busy:true,status:await marketplaceSyncStatus()}
   try{
     const sales=await syncMarketplaceSalesToLocal()
-    const stock=await syncLocalStockToMarketplaces()
+    const stock=await syncLocalStockToMarketplaces({force:options.force})
     const errors=[
       ...(sales.mercadoLivreError?['Mercado Livre pedidos: '+sales.mercadoLivreError]:[]),
       ...(sales.amazonError?['Amazon pedidos: '+sales.amazonError]:[]),
