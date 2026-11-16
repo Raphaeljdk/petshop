@@ -34,6 +34,7 @@ import type {
   Integracao,
 } from '@/lib/types'
 import { toast } from 'sonner'
+import { groupMarketplaceListings } from '@/lib/product-variants'
 
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
@@ -741,7 +742,13 @@ export function IntegracoesView() {
               )}
 
               <div className="grid gap-3 lg:grid-cols-2">
-                {mlItems?.items.map((item) => (
+                {groupMarketplaceListings(mlItems?.items || []).map((group,index) => (
+                  <div key={'ml-group-'+index} className="min-w-0 space-y-2 rounded-xl border border-muted p-2">
+                    {group.items.length>1 && <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm">
+                      <strong>{group.title}</strong>
+                      <Badge variant="outline">{group.items.length} opções de cor/tamanho</Badge>
+                    </div>}
+                    {group.items.map((item) => (
                   <div
                     key={item.id}
                     className="flex min-w-0 gap-3 rounded-xl border bg-background p-3"
@@ -766,6 +773,7 @@ export function IntegracoesView() {
                           </p>
                           <p className="mt-1 text-[11px] text-muted-foreground">
                             {item.id} · Estoque: {item.quantity}
+                            {group.items.length>1 && ' · '+[item.colorLabel,item.sizeLabel].filter(Boolean).join(' / ')}
                           </p>
                         </div>
                         <strong className="shrink-0 text-sm">
@@ -838,6 +846,8 @@ export function IntegracoesView() {
                         )}
                       </div>
                     </div>
+                  </div>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -997,7 +1007,13 @@ export function IntegracoesView() {
                 )}
 
               <div className="grid gap-3 lg:grid-cols-2">
-                {amazonItems?.items.map((item) => (
+                {groupMarketplaceListings(amazonItems?.items || []).map((group,index) => (
+                  <div key={'amazon-group-'+index} className="min-w-0 space-y-2 rounded-xl border border-muted p-2">
+                    {group.items.length>1 && <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm">
+                      <strong>{group.title}</strong>
+                      <Badge variant="outline">{group.items.length} opções de cor/tamanho</Badge>
+                    </div>}
+                    {group.items.map((item) => (
                   <div
                     key={`${item.asin || 'sem-asin'}-${item.sku}`}
                     className="flex min-w-0 gap-3 rounded-xl border bg-background p-3"
@@ -1024,6 +1040,7 @@ export function IntegracoesView() {
                             SKU: {item.sku}
                             {item.asin ? ` · ASIN: ${item.asin}` : ''}
                             {' · '}Estoque: {item.quantity}
+                            {group.items.length>1 && ' · '+[item.colorLabel,item.sizeLabel].filter(Boolean).join(' / ')}
                           </p>
                         </div>
                         <strong className="shrink-0 text-sm">
@@ -1106,6 +1123,8 @@ export function IntegracoesView() {
                         )}
                       </div>
                     </div>
+                  </div>
+                    ))}
                   </div>
                 ))}
               </div>
