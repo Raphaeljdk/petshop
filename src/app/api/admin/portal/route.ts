@@ -62,7 +62,32 @@ export async function GET() {
         orderBy:{ createdAt:'desc' } }),
       db.portalReferralConfig.findUnique({where:{id:'default'}}),
     ])
-    return NextResponse.json({ articles,plans,requests,gifts,referrals,referralConfig },
+    // Diagnostic metadata only: never expose environment variable values, tokens or domains here.
+    const mpConfig = await db.configuracaoPagamento.findFirst({
+      select: { mercadoPagoAtivo:true, mercadoPagoAccessToken:true },
+    })
+    const paymentTokenConfigured = Boolean(mpConfig?.mercadoPagoAccessToken?.trim() || process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim())
+    const emailConfigured = Boolean(process.env.RESEND_API_KEY?.trim() &&
+      process.env.INVITATION_EMAIL_FROM?.trim())
+    const whatsappConfigured = Boolean(process.env.META_WHATSAPP_ACCESS_TOKEN?.trim() &&
+      process.env.META_WHATSAPP_PHONE_NUMBER_ID?.trim() &&
+      process.env.META_WHATSAPP_TEMPLATE_APPOINTMENT?.trim() &&
+      /^v[0-9]+\\.[0-9]+$/.test(process.env.META_WHATSAPP_GRAPH_VERSION?.trim() || ''))
+    const integrations = {
+      subscriptions: {
+        configured: paymentTokenConfigured && mpConfig?.mercadoPagoAtivo === true &&
+          Boolean(process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim()) &&
+          Boolean(process.env.APP_URL?.startsWith('https://') || process.env.NEXTAUTH_URL?.startsWith('https://')),
+        validatedEndToEnd:false,
+      },
+      email: { configured: emailConfigured, domainVerified:false },
+      whatsapp: { configured: whatsappConfigured, templateApproved:false },
+      notifications: {
+        enabled:process.env.PORTAL_NOTIFICATIONS_ENABLED === 'true',
+        cronConfigured:Boolean(process.env.CRON_SECRET?.trim()),
+      },
+    }
+    return NextResponse.json({ articles,plans,requests,gifts,referrals,referralConfig,integrations },
       { headers:{ 'Cache-Control':'private, no-store' } })
   } catch (error) { return experienceError(error) }
 }
