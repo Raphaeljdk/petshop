@@ -46,26 +46,28 @@ export async function POST(req:NextRequest) {
     !Number.isInteger(quantity)||Number(quantity)<0||Number(quantity)>100000||
     !Number.isInteger(expectedStock)||Number(expectedStock)<0)
     return NextResponse.json({error:'Preencha o estoque físico com um número inteiro válido.'},{status:400})
+  const verifiedQty=Number(quantity)
+  const expectedQty=Number(expectedStock)
   const product=await db.produto.findUnique({where:{id:data.productId},
     select:{id:true,nome:true,categoria:true,estoqueIlimitado:true,mlItemId:true,
       estoque:true,estoqueMercadoLivre:true}})
   if(!product||product.mlItemId!==data.mlItemId||isServiceProduct(product))
     return NextResponse.json({error:'Produto físico não encontrado ou vínculo alterado.'},{status:404})
-  if(product.estoque!==expectedStock)
+  if(product.estoque!==expectedQty)
     return NextResponse.json({error:'O estoque mudou desde a consulta. Atualize a página e confira novamente.'},{status:409})
   try{
     const result=await db.$transaction(async tx=>{
       const updated=await tx.produto.updateMany({
-        where:{id:product.id,estoque:expectedStock,mlItemId:data.mlItemId},
-        data:{estoque:Number(quantity),estoqueHub:Number(quantity),ativo:Number(quantity)>0},
+        where:{id:product.id,estoque:expectedQty,mlItemId:data.mlItemId},
+        data:{estoque:verifiedQty,estoqueHub:verifiedQty,ativo:verifiedQty>0},
       })
       if(!updated.count) return null
       await tx.marketplaceStockConfirmation.create({data:{
         productId:product.id,mlItemId:product.mlItemId!,adminId:user.id,
-        previousStock:product.estoque,confirmedStock:Number(quantity),
+        previousStock:product.estoque,confirmedStock:verifiedQty,
         marketplaceStockSeen:product.estoqueMercadoLivre,
       }})
-      return {productId:product.id,stock:Number(quantity),published:Number(quantity)>0}
+      return {productId:product.id,stock:verifiedQty,published:verifiedQty>0}
     })
     if(!result)return NextResponse.json({error:'O estoque foi alterado por outra operação. Atualize a lista.'},{status:409})
     return NextResponse.json({success:true,...result},
