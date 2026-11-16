@@ -26,7 +26,7 @@ export type CatalogGroup<T> = CatalogVariant<T> & {
   variantes?: CatalogVariant<T>[]
 }
 
-const SIZES = '(?:XXL|XGG|XXG|XL|XG|GG|PP|XS|SMALL|MEDIUM|LARGE|P|M|G)'
+const SIZES = '(?:XXL|XGG|XXG|XL|XG|GG|PP|XS|SMALL|MEDIUM|LARGE|SM|MD|LG|PEQUEN[OA]|M[EÉ]DI[OA]|GRANDE|P|M|G|[0-9]+(?:[.,][0-9]+)?\\s*(?:KG|G|ML|L))'
 const COLORS = '(?:rosa|azul|lil[aá]s|roxo|roxa|preto|preta|branco|branca|verde|amarelo|amarela|vermelho|vermelha|cinza|bege|marrom|laranja|pink|dourado|dourada|prata|caramelo|vinho|nude|coral|creme|grafite|chumbo)'
 const SIZE_PREFIX = '(?:(?:tamanhos?|tam\\.?|size)\\s*[:.]?\\s*)?'
 const SIZE_LIST = new RegExp(
@@ -65,6 +65,8 @@ function canonicalSize(value?: string | null) {
   const aliases: Record<string, string> = {
     XS: 'PP', SMALL: 'P', MEDIUM: 'M', LARGE: 'G',
     XL: 'GG', XG: 'GG', XXL: 'XGG', XXG: 'XGG',
+    PEQUENO: 'P', PEQUENA: 'P', 'MÉDIO': 'M', MEDIO: 'M', 'MÉDIA': 'M', MEDIA: 'M',
+    GRANDE: 'G', SM: 'P', MD: 'M', LG: 'G',
   }
   return aliases[size] || size
 }
@@ -139,8 +141,11 @@ function capitalizeModel(value: string) {
 export function catalogVariantDetails(nome: string) {
   const original = (nome || '').replace(/\s*\/\s*(PP|P|M|G|GG|XGG)\s*$/i, ' $1').replace(/\s+/g, ' ').trim()
   const parts = original.split(/\s+[-–—]\s+/)
-  const sizeFromEnd = original.match(END_SIZE)
-  const size = canonicalSize(sizeFromEnd?.[1])
+  // Em muitos títulos o tamanho vem antes da cor: 'Cama Grande - Rosa'.
+  // Remove somente a última cor para identificar o tamanho sem misturar SKUs.
+  const withoutFinalColor = original.replace(END_COLOR, '').replace(/\s+[-–—]\s*$/, '').trim()
+  const sizeFromEnd = withoutFinalColor.match(END_SIZE) || original.match(END_SIZE)
+  const size = canonicalSize(sizeFromEnd?.[1]?.replace(/\s+/g, ''))
   let title = parts[0] || original
   // Os anúncios podem colocar tamanho depois de /, - ou junto de uma lista.
   title = title.replace(SIZE_LIST, '').replace(SINGLE_SIZE, '')
@@ -190,6 +195,9 @@ export function catalogVariantDetails(nome: string) {
     title = title.replace(END_COLOR_MODEL, '').replace(END_COLOR, '')
     title = title.replace(COLOR_CHOICES, '')
     title = title.replace(SIZE_LIST, '').replace(SINGLE_SIZE, '')
+    // Se a cor encerrou o título depois de um hífen, o tamanho pode ter
+    // ficado dentro do prefixo; eliminar apenas o sufixo reconhecido.
+    if (size) title = title.replace(SINGLE_SIZE, '')
   }
 
   title = title.replace(/[\s,(/–—-]+$/, '').trim() || original
@@ -282,4 +290,27 @@ export function groupCatalogProducts<T extends CatalogVariantProduct>(products: 
       ...(variants.length > 1 ? { variantes: variants } : {}),
     }
   })
+}
+
+
+/**
+ * Agrupa a visualização das listagens de marketplaces por família de produto.
+ * NÃO altera anúncios originais da Amazon/ML, nem converte SKUs externos em
+ * variações API: essa operação exige permissões e regras do marketplace.
+ * Itens sem cor/tamanho detectáveis ficam separados para evitar falsos grupos.
+ */
+export function groupMarketplaceListings<T extends { title:string; id?:string|null; sku?:string|null }>(
+  items: T[]
+): Array<{title:string;items:Array<T & {sizeLabel:string|null;colorLabel:string|null}>}> {
+  const groups = new Map<string,{title:string;items:Array<T & {sizeLabel:string|null;colorLabel:string|null}>}>()
+  items.forEach((item,index)=>{
+    const d=catalogVariantDetails(item.title)
+    const hasVariant=Boolean(d.size||d.color)
+    const id=String(item.id||item.sku||index)
+    const k=hasVariant?'family:'+key(d.title):'single:'+id
+    const group=groups.get(k)||{title:d.title,items:[]}
+    group.items.push({...item,sizeLabel:d.size,colorLabel:d.color})
+    groups.set(k,group)
+  })
+  return [...groups.values()]
 }
