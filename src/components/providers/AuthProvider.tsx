@@ -36,6 +36,7 @@ export interface CadastroDados {
   endereco?: string
   cep?: string
   convite?: string
+  publicPetConsent?: boolean
 }
 export class AuthRequestError extends Error {
   constructor(message: string, public fields: Record<string, string> = {}) { super(message) }
