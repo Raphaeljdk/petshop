@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { pickMarketplaceProduct } from '../src/lib/marketplace-product-match.ts'
 import { catalogVariantDetails, catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, groupMarketplaceListings, isClothingProduct } from '../src/lib/product-variants.ts'
 
 const make = (id, nome, estoque, extra = {}) => ({
@@ -238,4 +239,16 @@ test('listagens agrupadas mantêm todas as identidades dos canais, sem publicar 
   assert.equal(rows[0].items.length,2)
   assert.deepEqual(rows[0].items.map(x=>x.id),['MLB123','MLB124'])
   assert.equal(rows[1].items[0].id,'MLB125')
+})
+
+
+test('pedido com item_id ML compartilhado baixa apenas o SKU da variação correta',()=>{
+  const products=[
+    {id:'rosa',sku:'ROSA-P',mlItemId:'MLB100',amazonAsin:null},
+    {id:'azul',sku:'AZUL-G',mlItemId:'MLB100',amazonAsin:null},
+  ]
+  assert.equal(pickMarketplaceProduct(products,'mercadolivre',
+    {sku:'AZUL-G',externalProductId:'MLB100'})?.id,'azul')
+  assert.equal(pickMarketplaceProduct(products,'mercadolivre',
+    {externalProductId:'MLB100'}),null)
 })
