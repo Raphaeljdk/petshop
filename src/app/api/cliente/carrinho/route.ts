@@ -17,6 +17,7 @@ import {
 import { officialStockFromSources } from '@/lib/product-stock'
 import { reserveGiftCredit,GiftCreditError,moneyCents } from '@/lib/portal-gift-credit'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
+import { awardReferralBySale } from '@/lib/portal-referral-awards'
 
 class CheckoutError extends Error {
   constructor(
@@ -378,6 +379,8 @@ export async function POST(req: NextRequest) {
     })
 
     if(venda.status==='concluida' && venda.mercadoPagoStatus==='paid_gift'){
+      try {await awardReferralBySale(venda.id)}
+      catch(err){console.error('[checkout] benefício de indicação pendente:',err)}
       try {await ensureFiscalDraftForSale(venda.id)}
       catch(err){console.error('[checkout] rascunho fiscal do vale-presente:',err)}
     }
