@@ -52,6 +52,8 @@ jobs:
           bun run typecheck
       - name: Authentication integration tests
         run: bun run test:auth
+      - name: Customer portal financial privacy tests
+        run: bun test tests/portal-financeiro.integration.test.ts
       - name: Install browser test runner
         run: |
           npm install --prefix "$RUNNER_TEMP/matilha-browser" playwright@1.58.2
