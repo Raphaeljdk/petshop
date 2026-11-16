@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
           id: true,
           mlItemId: true,
           ativo: true,
+          estoque: true,
         },
       }),
     ])
@@ -86,6 +87,8 @@ export async function GET(req: NextRequest) {
             currency: item.currency,
             quantity: item.quantity,
             status: item.status,
+            subStatus: item.subStatus,
+            localStock: local?.estoque ?? null,
             permalink: item.permalink,
             thumbnail: item.thumbnail,
             imported: Boolean(local),
