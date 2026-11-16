@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado } from '@/lib/auth-helpers'
+import { getClienteLogado, getUsuarioLogado } from '@/lib/auth-helpers'
 import { getOpcaoFrete, normalizarCep, validarCep } from '@/lib/frete'
 import {
   cotarMelhorEnvio,
@@ -350,7 +350,10 @@ export async function POST(req: NextRequest) {
       })
 
       if(valePresenteCodigo?.trim()) {
-        const credit=await reserveGiftCredit(tx,valePresenteCodigo,cliente.id,cliente.email||'',totalCents,novaVenda.id)
+        const logged=await getUsuarioLogado()
+        if(!logged || logged.role!=='CLIENTE' || logged.clienteId!==cliente.id)
+          throw new CheckoutError('Conta não autorizada para resgatar este vale.',403)
+        const credit=await reserveGiftCredit(tx,valePresenteCodigo,cliente.id,logged.email,totalCents,novaVenda.id)
         await tx.venda.update({where:{id:novaVenda.id},data:{
           creditoPresenteCentavos:credit,
           ...(credit===totalCents ? {status:'concluida',mercadoPagoStatus:'paid_gift'} : {}),
