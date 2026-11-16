@@ -32,6 +32,7 @@ export const clientRegistrationSchema = z.object({
   cpfCnpj: z.string().max(18).transform(value => value.replace(/\D/g, ''))
     .refine(value => value.length === 11 || value.length === 14, 'Informe CPF ou CNPJ válido.'),
   endereco: z.string().trim().max(240, 'Use até 240 caracteres.').optional(),
+  publicPetConsent: z.boolean().optional().default(false),
   cep: z.string().max(10).transform(value => value.replace(/\D/g, ''))
     .refine(value => !value || value.length === 8, 'Informe os 8 números do CEP.').optional(),
 }).strict().refine(passwordsMatch, confirmationError)
