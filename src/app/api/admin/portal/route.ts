@@ -145,6 +145,7 @@ export async function POST(req: NextRequest) {
       await db.portalGiftRequest.updateMany({
         where:{ id:voucher.id, status:{ in:['solicitado','aguardando_pagamento'] } },
         data:{ status:data.status, paidAt:data.status==='pago'?new Date():null, voucherCode:code,
+          balanceCents:data.status==='pago'?voucher.amountCents:0,
           paymentReference:data.status==='pago'?data.paymentReference:null,approvedByUserId:staff.id },
       })
       return NextResponse.json({ success:true, note:data.status==='pago'?'Código gerado após verificação manual. O resgate no checkout ainda precisa de integração.':'Status registrado.' })
