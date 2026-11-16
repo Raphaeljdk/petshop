@@ -41,6 +41,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where: { id: { not: id }, petId, dataHora, status: { in: ['agendado', 'confirmado'] } }, select: { id: true },
       })
       if (conflito) return NextResponse.json({ error: 'Já existe atendimento reservado para esse pet nesse horário.' }, { status: 409 })
+      const profissionalId = changes.profissionalId !== undefined ? changes.profissionalId : existing.profissionalId
+      if (profissionalId) {
+        const ocupado = await db.agendamento.findFirst({
+          where: { id: { not: id }, profissionalId, dataHora, status: { in: ['agendado', 'confirmado'] } },
+          select: { id: true },
+        })
+        if (ocupado) return NextResponse.json({ error: 'Este profissional já possui agendamento nesse horário.' }, { status: 409 })
+      }
     }
     const item = await db.$transaction(async tx => {
       const updated = await tx.agendamento.update({

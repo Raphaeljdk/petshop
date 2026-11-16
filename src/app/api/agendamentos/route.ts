@@ -75,6 +75,11 @@ export async function POST(req: NextRequest) {
     if (data.profissionalId) {
       const profissional = await db.profissionalAgenda.findFirst({ where: { id: data.profissionalId, ativo: true }, select: { id: true } })
       if (!profissional) return NextResponse.json({ error: 'Profissional indisponível para novos agendamentos.' }, { status: 409 })
+      const horarioOcupado = await db.agendamento.findFirst({
+        where: { profissionalId: data.profissionalId, dataHora, status: { in: ['agendado', 'confirmado'] } },
+        select: { id: true },
+      })
+      if (horarioOcupado) return NextResponse.json({ error: 'Este profissional já possui agendamento nesse horário.' }, { status: 409 })
     }
     const item = await db.$transaction(async tx => {
       const created = await tx.agendamento.create({
