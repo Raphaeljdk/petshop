@@ -55,6 +55,7 @@ CREATE TABLE "PortalCarePlanRequest" (
   "id" TEXT NOT NULL, "clienteId" TEXT NOT NULL, "planId" TEXT NOT NULL,
   "petKey" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'solicitado',
   "sessionsUsed" INTEGER NOT NULL DEFAULT 0,
+  "paymentReference" TEXT, "approvedByUserId" TEXT, "approvedAt" TIMESTAMP(3),
   "startsAt" TIMESTAMP(3), "expiresAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "PortalCarePlanRequest_pkey" PRIMARY KEY ("id")
@@ -75,7 +76,7 @@ CREATE TABLE "PortalReferralClaim" (
   "id" TEXT NOT NULL, "inviterId" TEXT NOT NULL, "invitedId" TEXT NOT NULL,
   "code" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'aguardando_compra',
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "verifiedAt" TIMESTAMP(3),
+  "verifiedAt" TIMESTAMP(3), "verifiedByUserId" TEXT,
   CONSTRAINT "PortalReferralClaim_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX "PortalReferralClaim_invitedId_key" ON "PortalReferralClaim"("invitedId");
@@ -86,6 +87,7 @@ CREATE TABLE "PortalGiftRequest" (
   "recipientEmail" TEXT, "message" TEXT,
   "amountCents" INTEGER NOT NULL, "status" TEXT NOT NULL DEFAULT 'solicitado',
   "voucherCode" TEXT, "paidAt" TIMESTAMP(3),
+  "paymentReference" TEXT, "approvedByUserId" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "PortalGiftRequest_pkey" PRIMARY KEY ("id")
 );
@@ -102,3 +104,14 @@ CREATE TABLE "PortalPetFamilyInvite" (
 );
 CREATE UNIQUE INDEX "PortalPetFamilyInvite_ownerClienteId_petKey_recipientEmail_key" ON "PortalPetFamilyInvite"("ownerClienteId","petKey","recipientEmail");
 CREATE INDEX "PortalPetFamilyInvite_recipientEmail_status_idx" ON "PortalPetFamilyInvite"("recipientEmail","status");
+
+
+CREATE TABLE "PortalCarePlanUse" (
+  "id" TEXT NOT NULL, "requestId" TEXT NOT NULL, "processoId" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "PortalCarePlanUse_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "PortalCarePlanUse_processoId_key" ON "PortalCarePlanUse"("processoId");
+CREATE INDEX "PortalCarePlanUse_requestId_idx" ON "PortalCarePlanUse"("requestId");
+ALTER TABLE "PortalCarePlanUse" ADD CONSTRAINT "PortalCarePlanUse_requestId_fkey"
+ FOREIGN KEY ("requestId") REFERENCES "PortalCarePlanRequest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
