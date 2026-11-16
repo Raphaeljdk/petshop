@@ -49,7 +49,7 @@ export async function GET() {
         include: { plan: { select: { title:true, sessions:true, priceCents:true } } } }),
       db.portalReferral.findUnique({ where: { clienteId } }),
       db.portalReferralClaim.findMany({ where: { inviterId: clienteId }, orderBy: { createdAt: 'desc' }, take: 30,
-        select: { id:true, status:true, createdAt:true } }),
+        select: { id:true, status:true, createdAt:true, rewardCouponId:true } }),
       db.portalGiftRequest.findMany({ where: { clienteId }, orderBy: { createdAt:'desc' }, take: 25 }),
       db.portalPetFamilyInvite.findMany({ where: { ownerClienteId: clienteId }, orderBy: { createdAt: 'desc' }, take: 25 }),
       db.portalPetFamilyInvite.findMany({ where: { recipientEmail: cleanEmail(user.email) },
