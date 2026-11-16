@@ -15,7 +15,7 @@ let server:Subprocess
 let a='',b='',petId=''
 function email(s:string){return prefix+'-'+s+'@example.test'}
 function cpfFor(name:string) {
-  const baseDigits=Array.from((prefix+name).split('').map(x=>x.charCodeAt(0)%10).join('').padEnd(9,'2').slice(0,9)).map(Number)
+  const baseDigits=Array.from((name+prefix).split('').map(x=>x.charCodeAt(0)%10).join('').padEnd(9,'2').slice(0,9)).map(Number)
   const digit=(size:number)=>{
     let sum=0
     for(let i=0;i<size;i++)sum+=(baseDigits[i]||0)*(size+1-i)
