@@ -155,18 +155,24 @@ export async function POST(req: NextRequest) {
     }
     if (data.action === 'preferences') {
       await db.$transaction(async (tx) => {
+        const previous = await tx.portalClientPreferences.findUnique({
+          where:{clienteId},select:{publicPetConsent:true,publicPetConsentAt:true},
+        })
+        const consentAt = data.publicPetConsent === true
+          ? (previous?.publicPetConsentAt || new Date())
+          : null
         await tx.portalClientPreferences.upsert({ where: { clienteId },
           create: { clienteId, remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
             remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
             marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent,
             publicPetConsent:data.publicPetConsent === true,
-            publicPetConsentAt:data.publicPetConsent === true ? new Date() : null },
+            publicPetConsentAt:consentAt },
           update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
             remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
             marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent,
             ...(data.publicPetConsent !== undefined ? {
               publicPetConsent:data.publicPetConsent,
-              publicPetConsentAt:data.publicPetConsent ? new Date() : null,
+              publicPetConsentAt:consentAt,
             } : {}) },
         })
         // Revogação apaga as fotos anexadas pela equipe: não manter dados após retirada do consentimento.
