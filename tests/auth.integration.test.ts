@@ -81,6 +81,20 @@ test('cadastro de cliente normaliza os dados, cria sessão e não retorna a senh
   expect(me.headers.get('cache-control')).toBe('no-store')
 })
 
+test('cadastro permite negar ou autorizar opcionalmente a divulgação de imagem do pet', async () => {
+  const no = await post('/api/auth/register', client('sem-consentimento'))
+  expect(no.status).toBe(201)
+  const noUser = await db.user.findUnique({ where:{email:email('sem-consentimento')} })
+  expect(await db.portalClientPreferences.findUnique({where:{clienteId:noUser!.clienteId!}})).toBeNull()
+
+  const yes = await post('/api/auth/register', {...client('com-consentimento'),publicPetConsent:true})
+  expect(yes.status).toBe(201)
+  const yesUser = await db.user.findUnique({ where:{email:email('com-consentimento')} })
+  const consent = await db.portalClientPreferences.findUnique({where:{clienteId:yesUser!.clienteId!}})
+  expect(consent?.publicPetConsent).toBe(true)
+  expect(consent?.publicPetConsentAt).toBeInstanceOf(Date)
+})
+
 test('cadastro público rejeita tentativa de elevar o papel e campos malformados', async () => {
   expect((await post('/api/auth/register', { ...client('elevate'), role: 'ADMIN' })).status).toBe(400)
   expect((await post('/api/auth/register', { ...client('type'), email: { invalid: true } })).status).toBe(400)
