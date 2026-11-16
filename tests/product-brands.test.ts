@@ -30,3 +30,12 @@ test('fotos conflitantes ficam pendentes sem substituicao automatica', () => {
   ]
   assert.equal(recoverCatalogImages(rows)[0].imageUrl, null)
 })
+
+test('reconhece marcas nas camas, roupas, areias, bolinhas e banho a seco', () => {
+  assert.equal(getProductBrand({ nome: 'Cama Retangular - Bonito Pra Cachorro M' }), 'Bonito Pra Cachorro')
+  assert.equal(getProductBrand({ nome: 'Casinhas Bonito Para Cachorro' }), 'Bonito Pra Cachorro')
+  assert.equal(getProductBrand({ nome: 'Areia Sílica Grossa 1,6kg Great Pets' }), 'Great Pets')
+  assert.equal(getProductBrand({ nome: 'Bola Strong Ball Roxa Jambo' }), 'Jambo Pet')
+  assert.equal(getProductBrand({ nome: 'Banho A Seco Espuma De Limpeza P/ Cachorros Arm And Hammer' }), 'Arm & Hammer')
+  assert.equal(getProductBrand({ nome: 'Camiseta sem identificação' }), SEM_MARCA)
+})
