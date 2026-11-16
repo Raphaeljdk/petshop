@@ -98,15 +98,15 @@ function catalogFamilyName(nome: string): string | null {
   const normalized = key(nome)
   // Variações de título do mesmo item vistas no catálogo da Matilha Prado;
   // outras cores/tamanhos continuam disponíveis como variações reais.
-  if (/^jaqueta maxi puffer camuflado laranja cachorro porte\\b/.test(normalized))
+  if (/^jaqueta maxi puffer camuflado laranja cachorro porte\b/.test(normalized))
     return 'Jaqueta Maxi Puffer Camuflado/Laranja Cachorro Porte'
-  if (/^granulado de tofu areia (?:p|para) gatos 2kg great pets biodegradavel\\b/.test(normalized)
-      && !/\\b(?:lavanda|perfumado|carvao)\\b/.test(normalized))
+  if (/^granulado de tofu areia (?:p|para) gatos 2kg great pets biodegradavel\b/.test(normalized)
+      && !/\b(?:lavanda|perfumado|carvao)\b/.test(normalized))
     return 'Granulado de Tofu Great Pets Natural 2 kg'
-  if (/^comedouro (?:interativo )?sodapup mandala etray\\b/.test(normalized) ||
-      /^comedouro interativo sodapup mandala etray\\b/.test(normalized))
+  if (/^comedouro (?:interativo )?sodapup mandala etray\b/.test(normalized) ||
+      /^comedouro interativo sodapup mandala etray\b/.test(normalized))
     return 'Comedouro Sodapup Mandala Etray'
-  if (/^cama (?:com babado )?grace linen\\b/.test(normalized))
+  if (/^cama (?:com babado )?grace linen\b/.test(normalized))
     return 'Cama Grace Linen'
   if (/^coleira de passeio azul\b/.test(normalized)) return 'Coleira de Passeio Azul'
   if (/^vestido pet luxo tweed laco lilas\b/.test(normalized)) {
