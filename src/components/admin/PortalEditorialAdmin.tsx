@@ -155,7 +155,7 @@ export function PortalEditorialAdmin() {
       <details className="rounded-lg border p-3">
         <summary className="cursor-pointer font-semibold">Vales-presente e indicações</summary>
         <div className="mt-3 space-y-3">
-          <label className="block space-y-1 text-xs">Referência do pagamento conferido<Input value={reference} onChange={(e)=>setReference(e=>e.target.value)}/></label>
+          <label className="block space-y-1 text-xs">Referência do pagamento conferido<Input value={reference} onChange={(e)=>setReference(e.target.value)}/></label>
           {data?.gifts.map((g)=><div key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
             <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p></div>
             <div className="flex flex-wrap gap-2">
