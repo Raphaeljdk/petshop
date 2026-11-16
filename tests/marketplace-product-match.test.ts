@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { pickMarketplaceProduct } from '../src/lib/marketplace-product-match.ts'
+import { pickMarketplaceProduct } from '../src/lib/marketplace-product-match'
 
 const candidates=[
   {id:'P',sku:'P-ROSA',mlItemId:'MLB100',amazonAsin:'ASIN-P'},
