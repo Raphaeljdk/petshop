@@ -133,7 +133,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     const termo = busca.trim().toLowerCase()
     return vendas.filter((v) => {
       if (filtroOrigem==='locais' && !['site','loja'].includes(v.canal)) return false
-      if (filtroOrigem==='marketplaces' && !['mercado_livre','amazon'].includes(v.canal)) return false
+      if (filtroOrigem==='marketplaces' && !['mercado_livre','mercadolivre','amazon'].includes(v.canal)) return false
       if (filtroStatus==='em_aberto' && !['pendente','enviada'].includes(v.statusEntrega||'pendente')) return false
       if (filtroTipo !== 'todos' && v.tipoEntrega !== filtroTipo) return false
       if (filtroStatus !== 'todos' && filtroStatus !== 'em_aberto' && (v.statusEntrega || 'pendente') !== filtroStatus)
@@ -282,7 +282,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
   const stats = useMemo(() => {
     const s = { pendente: 0, enviada: 0, entregue: 0, total: 0, marketplace: 0, canceladas: 0 }
     for (const v of vendas) {
-      if (['mercado_livre','amazon'].includes(v.canal)) { s.marketplace++; continue }
+      if (['mercado_livre','mercadolivre','amazon'].includes(v.canal)) { s.marketplace++; continue }
       if (v.status==='cancelada' || v.statusEntrega==='cancelada') { s.canceladas++; continue }
       s.total++
       const st = (v.statusEntrega || 'pendente') as StatusEntrega
@@ -509,7 +509,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
           filtradas.map((v) => {
             const statusEntrega = (v.statusEntrega || 'pendente') as StatusEntrega
             const meta = STATUS_META[statusEntrega]
-            const tipoMeta = v.tipoEntrega === 'marketplace'
+            const tipoMeta = String(v.tipoEntrega) === 'marketplace'
               ? {label:'Marketplace',icon:Package}
               : v.tipoEntrega ? TIPO_META[v.tipoEntrega as TipoEntrega] : null
             const TipoIcon = tipoMeta?.icon || Truck
@@ -702,7 +702,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
 
                   {/* Ações: status da transportadora nunca é alterado aqui. */}
                   <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
-                    {['mercado_livre','amazon'].includes(v.canal)?(
+                    {['mercado_livre','mercadolivre','amazon'].includes(v.canal)?(
                       <p className="text-xs text-muted-foreground">
                         Entrega do marketplace: acompanhe a confirmação no canal de origem.
                       </p>
