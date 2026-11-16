@@ -11,6 +11,7 @@ export type InventorySyncResult = {
   mercadoLivreUpdated: number
   amazonUpdated: number
   skippedUnlinked: number
+  blockedListings: number
   restockNotifications: {
     configured: boolean
     sent: number
@@ -28,7 +29,7 @@ function amazonSubmissionHasError(payload: unknown) {
   )
 }
 
-export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResult> {
+export async function syncLocalStockToMarketplaces(options: { force?: boolean } = {}): Promise<InventorySyncResult> {
   // O Produto.estoque do ERP Matilha Prado é a única fonte física;
   // marketplaces recebem o saldo e nunca sobrescrevem o estoque local.
   // Considera também a posição do Zetta/local no diagnóstico do saldo físico.
@@ -42,6 +43,26 @@ export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResul
     },
   })
   const products=allProducts.filter(p=>p.mlItemId||p.amazonAsin)
+  const pendingIssues=await db.marketplaceStockIssue.findMany({
+    where:{resolvedAt:null,retryAfter:{gt:new Date()}},
+    select:{id:true,error:true,retryAfter:true},
+  })
+  const blockedIds=new Set(pendingIssues.map(p=>p.id))
+  let blockedListings=0
+  const markIssue=async (channel:'mercadolivre'|'amazon',key:string,productId:string,title:string,error:unknown)=>{
+    const msg=error instanceof Error?error.message:String(error)
+    const unauthorized=/UNAUTHORIZED|not authorized|access.denied|access_denied|permission|policy|HTTP 40[13]/i.test(msg)
+    const waitMs=unauthorized?6*60*60*1000:30*60*1000
+    await db.marketplaceStockIssue.upsert({where:{id:channel+':'+key},create:{
+      id:channel+':'+key,channel,productId,title,category:unauthorized?'permission':'remote_error',
+      error:msg.slice(0,700),retryAfter:new Date(Date.now()+waitMs),
+    },update:{productId,title,category:unauthorized?'permission':'remote_error',
+      error:msg.slice(0,700),retryAfter:new Date(Date.now()+waitMs),resolvedAt:null}})
+  }
+  const markOk=async(channel:'mercadolivre'|'amazon',key:string)=>{
+    await db.marketplaceStockIssue.updateMany({where:{id:channel+':'+key,resolvedAt:null},
+      data:{resolvedAt:new Date(),retryAfter:null}})
+  }
   const estoquePorSku=new Map<string,Set<number>>()
   for(const p of allProducts){
     const sku=codigoCompartilhado(p.sku)
@@ -80,31 +101,35 @@ export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResul
     }
     const quantity = safeStock(product.estoque)
 
-    if (
-      product.mlItemId &&
-      mlToken &&
-      safeStock(product.estoqueMercadoLivre) !== quantity
-    ) {
+    if (product.mlItemId && mlToken && safeStock(product.estoqueMercadoLivre)!==quantity
+    && (options.force || !blockedIds.has('mercadolivre:'+product.mlItemId))) {
       try {
         await mercadoLivreUpdateStock(product.mlItemId, quantity, mlToken)
         await db.produto.update({
           where: { id: product.id },
           data: { estoqueMercadoLivre: quantity },
         })
+        await markOk('mercadolivre',product.mlItemId!)
         mercadoLivreUpdated += 1
       } catch (error) {
+        await markIssue('mercadolivre',product.mlItemId!,product.id,product.nome,error).catch(console.error)
         errors.push(
           `${product.nome} / Mercado Livre: ${
             error instanceof Error ? error.message : 'falha ao atualizar estoque'
           }`
         )
       }
+    } else if (product.mlItemId && mlToken && !options.force &&
+      blockedIds.has('mercadolivre:'+product.mlItemId) &&
+      safeStock(product.estoqueMercadoLivre)!==quantity) {
+      blockedListings+=1
     }
 
     if (
       product.amazonAsin &&
       product.sku &&
-      safeStock(product.estoqueAmazon) !== quantity
+      safeStock(product.estoqueAmazon) !== quantity &&
+      (options.force || !blockedIds.has('amazon:'+product.sku))
     ) {
       try {
         const submission = await amazonUpdateListingQuantity(product.sku, quantity)
@@ -115,14 +140,20 @@ export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResul
           where: { id: product.id },
           data: { estoqueAmazon: quantity },
         })
+        await markOk('amazon',product.sku!)
         amazonUpdated += 1
       } catch (error) {
+        await markIssue('amazon',product.sku!,product.id,product.nome,error).catch(console.error)
         const message =
           error instanceof AmazonSpApiError || error instanceof Error
             ? error.message
             : 'falha ao atualizar estoque'
         errors.push(`${product.nome} / Amazon: ${message}`)
       }
+    } else if (product.amazonAsin && product.sku && !options.force &&
+      blockedIds.has('amazon:'+product.sku) &&
+      safeStock(product.estoqueAmazon)!==quantity) {
+      blockedListings+=1
     } else if (product.amazonAsin && !product.sku) {
       errors.push(
         `${product.nome} / Amazon: SKU ausente; não é possível sincronizar a quantidade.`
@@ -148,7 +179,10 @@ export async function syncLocalStockToMarketplaces(): Promise<InventorySyncResul
     mercadoLivreUpdated,
     amazonUpdated,
     skippedUnlinked,
+    blockedListings,
     restockNotifications,
-    errors: [...errors, ...restockNotifications.errors].slice(0, 50),
+    errors: [...errors, ...restockNotifications.errors,
+      ...(blockedListings?[blockedListings+' anúncio(s) aguardando correção de permissão ou nova tentativa.']:[])
+    ].slice(0, 50),
   }
 }
