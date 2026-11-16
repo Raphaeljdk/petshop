@@ -31,6 +31,7 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('family-invite'), petKey: petKeySchema, email: z.string().email().max(200) }).strict(),
   z.object({ action: z.literal('family-response'), id: z.string().min(1), accepted: z.boolean() }).strict(),
   z.object({ action: z.literal('family-revoke'), id: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('family-approve'), id: z.string().min(1) }).strict(),
 ])
 
 export async function GET() {
@@ -113,6 +114,8 @@ export async function POST(req: NextRequest) {
     if (data.action === 'memory') {
       if (!await ownsPet(user,data.petKey))
         return NextResponse.json({ error:'Pet não encontrado na sua conta.' }, { status:404 })
+      if (data.kind === 'vacina_documento' && !data.imageData)
+        return NextResponse.json({ error:'Anexe uma foto do comprovante para registrar o documento.' }, { status:400 })
       const item = await db.portalPetMemory.create({ data: {
         clienteId, petKey:data.petKey, kind:data.kind, title:data.title,
         notes:data.notes || null, imageData:data.imageData || null,
@@ -202,10 +205,18 @@ export async function POST(req: NextRequest) {
       const updated = await db.portalPetFamilyInvite.updateMany({ where:{
         id:data.id, recipientEmail:cleanEmail(user.email), status:'pendente',
         ownerClienteId: { not:clienteId },
-      }, data: { status:data.accepted ? 'aceito':'recusado',
+      }, data: { status:data.accepted ? 'aguardando_aprovacao':'recusado',
         recipientClienteId:data.accepted ? clienteId:null, respondedAt:new Date() } })
       if (!updated.count) return NextResponse.json({ error:'Convite não encontrado.' }, { status:404 })
       return NextResponse.json({ success:true })
+    }
+    if (data.action === 'family-approve') {
+      const changed = await db.portalPetFamilyInvite.updateMany({ where: {
+        id:data.id, ownerClienteId:clienteId,status:'aguardando_aprovacao',
+        recipientClienteId:{ not:null },
+      }, data:{ status:'aceito',respondedAt:new Date() } })
+      if (!changed.count) return NextResponse.json({ error:'Aceite pendente não encontrado.' }, { status:404 })
+      return NextResponse.json({ success:true, note:'Acesso à agenda compartilhada foi autorizado por você.' })
     }
     if (data.action === 'family-revoke') {
       const updated = await db.portalPetFamilyInvite.updateMany({ where:{ id:data.id, ownerClienteId:clienteId },
