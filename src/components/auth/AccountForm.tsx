@@ -220,11 +220,11 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
         </details>}
         {isRegister && !isAdmin && <div className="rounded-xl border p-3 text-xs leading-relaxed">
           <p className="font-semibold">Autorização de imagem do pet (opcional)</p>
-          <p className="mt-1 text-muted-foreground">Seu pet poderá aparecer em fotos no portal e em conteúdos públicos da Matilha Prado somente se você autorizar. A autorização não é obrigatória para criar conta, comprar ou agendar; pode ser retirada em Meus Pets. Fotos privadas do banho têm autorização separada.</p>
+          <p className="mt-1 text-muted-foreground">Seu pet poderá aparecer em fotos no portal e em páginas públicas do portal e blog da Matilha Prado somente se você autorizar. A autorização não é obrigatória para criar conta, comprar ou agendar; pode ser retirada em Meus Pets. Fotos privadas do banho têm autorização separada.</p>
           <label className="mt-3 flex items-start gap-2">
             <input type="checkbox" name="publicPetConsent" checked={publicPetConsent}
               onChange={(e)=>setPublicPetConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary"/>
-            <span>Autorizo a utilização de imagens do meu pet em conteúdos da Matilha Prado, sujeitos à revisão da equipe.</span>
+            <span>Autorizo a utilização de imagens do meu pet em páginas públicas do portal e blog da Matilha Prado, após revisão da equipe.</span>
           </label>
           <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-medium text-primary underline">Ler informações de privacidade</a>
         </div>}
