@@ -40,7 +40,8 @@ async function register(name:string){
 }
 beforeAll(async()=>{
   server=Bun.spawn(['bun',resolve('.next/standalone/server.js')],{
-    env:{...process.env,PORT:'3103',HOSTNAME:'127.0.0.1',NODE_ENV:'production'},
+    env:{...process.env,PORT:'3103',HOSTNAME:'127.0.0.1',NODE_ENV:'production',
+      PORTAL_SUBSCRIPTIONS_ENABLED:'true',PORTAL_GIFT_REDEMPTION_ENABLED:'true'},
     stdout:'ignore',stderr:'inherit',
   })
   for(let n=0;n<100;n++){
