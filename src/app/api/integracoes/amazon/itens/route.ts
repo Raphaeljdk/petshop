@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
             amazonAsin: true,
             sku: true,
             ativo: true,
+            estoque: true,
           },
         })
       : []
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
 
           return {
             ...item,
+            localStock: local?.estoque ?? null,
             imported: Boolean(local),
             published: Boolean(local?.ativo),
             productId: local?.id || null,
