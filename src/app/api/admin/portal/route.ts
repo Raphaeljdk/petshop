@@ -50,8 +50,8 @@ export async function GET() {
     const [articles,plans,requests,gifts,referrals] = await Promise.all([
       db.portalArticle.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
       db.portalCarePlan.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
-      db.portalCarePlanRequest.findMany({ where:{ status:'solicitado' }, take:100,
-        orderBy:{ createdAt:'desc' }, include:{ plan:{ select:{ title:true } } } }),
+      db.portalCarePlanRequest.findMany({ where:{ status:{ in:['solicitado','ativo'] } }, take:100,
+        orderBy:{ createdAt:'desc' }, include:{ plan:{ select:{ title:true,sessions:true } } } }),
       db.portalGiftRequest.findMany({ where:{ status:{ in:['solicitado','aguardando_pagamento'] } }, take:100,
         orderBy:{ createdAt:'desc' } }),
       db.portalReferralClaim.findMany({ where:{ status:'aguardando_compra' }, take:100,
