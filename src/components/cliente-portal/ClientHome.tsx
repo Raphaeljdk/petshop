@@ -148,7 +148,14 @@ export function ClientHome({
           fetch('/api/cliente/dashboard', { credentials: 'same-origin' }),
           fetch('/api/cliente/portal/planos-resumo', { cache:'no-store',credentials:'same-origin' }),
         ])
-        if (planoRes.ok && !cancelado) setBanhos(await planoRes.json())
+        if (planoRes.ok && !cancelado) {
+          const summary: unknown = await planoRes.json()
+          if (summary && typeof summary === 'object' && 'items' in summary &&
+            Array.isArray(summary.items) && 'totalRemaining' in summary &&
+            typeof summary.totalRemaining === 'number') {
+            setBanhos(summary as BanhoResumo)
+          }
+        }
         if (res.ok && !cancelado) {
           setData(await res.json())
         }
@@ -260,7 +267,7 @@ export function ClientHome({
             <p className="text-sm text-muted-foreground">Saldo atualizado após confirmação do pagamento e conclusão dos atendimentos.</p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={onIrParaPets}>
-            {banhos?.items.length ? 'Gerenciar meus planos' : 'Conhecer os planos'}
+            {banhos?.items?.length ? 'Gerenciar meus planos' : 'Conhecer os planos'}
           </Button>
         </div>
         <div className="mt-3 flex items-baseline gap-2">
