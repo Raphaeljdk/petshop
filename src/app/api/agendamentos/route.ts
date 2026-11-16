@@ -5,12 +5,13 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoSchema, statusAgenda } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
+import { canViewAppointments, canScheduleBath, isAndreOperator } from '@/lib/operational-access'
 
 export const dynamic = 'force-dynamic'
 async function admin() {
   const user = await getUsuarioLogado()
   if (!user) return { denied: NextResponse.json({ error: 'Não autenticado.' }, { status: 401 }), user: null }
-  if (user.role !== 'ADMIN') return { denied: NextResponse.json({ error: 'Acesso negado.' }, { status: 403 }), user: null }
+  if (!canViewAppointments(user)) return { denied: NextResponse.json({ error: 'Acesso negado.' }, { status: 403 }), user: null }
   return { denied: null, user }
 }
 export async function GET(req: NextRequest) {
@@ -57,9 +58,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await admin()
   if (auth.denied) return auth.denied
+  if (!canScheduleBath(auth.user)) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
   try {
     assertSameOrigin(req)
     const data = agendamentoSchema.parse(await req.json())
+    if (isAndreOperator(auth.user) && (data.servico.toLowerCase() !== 'banho' ||
+      (data.categoria && data.categoria !== 'Estéticos') || data.profissionalId)) {
+      return NextResponse.json({ error: 'Esta conta pode agendar somente banho, sem alterar a equipe.' }, { status: 403 })
+    }
     const dataHora = new Date(data.dataHora)
     if (Number.isNaN(dataHora.getTime())) return NextResponse.json({ error: 'Data/hora inválida.' }, { status: 400 })
     const pet = await db.pet.findFirst({
