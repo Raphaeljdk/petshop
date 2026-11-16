@@ -245,6 +245,7 @@ function AdminPanelImpl() {
                 onIrParaEntregas={() => setTab('entregas')}
                 onIrParaPagamentos={() => setTab('pagamentos')}
                 onIrParaFiscal={() => setTab('fiscal')}
+                onIrParaRelacionamento={() => setTab('relacionamento')}
               />
             )}
             {tab === 'kanban' && <KanbanBoard onCountsChange={(c) => setCounts((prev) => ({ ...prev, novo: c.novo, andamento: c.andamento }))} />}
