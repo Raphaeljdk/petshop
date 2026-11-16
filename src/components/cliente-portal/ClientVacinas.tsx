@@ -65,15 +65,18 @@ export function ClientVacinas() {
     return [...map.entries()]
   }, [vacinas])
 
+  const [pdfs,setPdfs] = useState<Array<{id:string;petKey:string;title:string;fileName:string;sizeBytes:number}>>([])
   const [docs,setDocs] = useState<Array<{id:string;petKey:string;title:string;notes:string|null;
     imageData:string|null;eventAt:string;nextAt:string|null}>>([])
   const [names,setNames] = useState<Record<string,string>>({})
   useEffect(()=>{
     let active=true
     portalRequest<{memories:Array<{id:string;petKey:string;kind:string;title:string;notes:string|null;imageData:string|null;eventAt:string;nextAt:string|null}>;
-      pets:Array<{id:string;nome:string}>}>('/api/cliente/portal')
+      pets:Array<{id:string;nome:string}>;
+      documents:Array<{id:string;petKey:string;title:string;fileName:string;sizeBytes:number}>}>('/api/cliente/portal')
       .then((data)=>{if(!active)return
         setDocs(data.memories.filter((item)=>item.kind==='vacina_documento'))
+        setPdfs(data.documents||[])
         setNames(Object.fromEntries(data.pets.map((p)=>[p.id,p.nome])))
       }).catch(()=>{/* Módulo particular opcional: o histórico oficial continua disponível. */})
     return ()=>{active=false}
@@ -116,6 +119,18 @@ export function ClientVacinas() {
         </Card>
       )}
 
+      {pdfs.length>0&&<Card>
+        <CardHeader><CardTitle className="text-base">Comprovantes em PDF guardados no portal</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {pdfs.map((doc)=><div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
+            <div><strong>{names[doc.petKey]||'Pet'} · {doc.title}</strong>
+              <p className="text-muted-foreground">{doc.fileName} · {Math.round(doc.sizeBytes/1024)} KB</p></div>
+            <a className="inline-flex min-h-10 items-center rounded-md border px-3 font-medium"
+              href={'/api/cliente/portal/documentos/'+encodeURIComponent(doc.id)}>Baixar PDF privado</a>
+          </div>)}
+          <p className="text-xs text-muted-foreground">Anexe e exclua documentos em Meus Pets. Downloads exigem seu login.</p>
+        </CardContent>
+      </Card>}
       {docs.length>0 && <Card>
         <CardHeader><CardTitle className="text-base">Minha carteirinha digital — documentos adicionados por mim</CardTitle></CardHeader>
         <CardContent className="space-y-3">
