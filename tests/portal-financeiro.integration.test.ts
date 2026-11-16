@@ -14,6 +14,17 @@ const password='Matilha9-'+randomBytes(10).toString('hex')
 let server:Subprocess
 let a='',b='',petId=''
 function email(s:string){return prefix+'-'+s+'@example.test'}
+function cpfFor(name:string) {
+  const baseDigits=Array.from((prefix+name).split('').map(x=>x.charCodeAt(0)%10).join('').padEnd(9,'2').slice(0,9)).map(Number)
+  const digit=(size:number)=>{
+    let sum=0
+    for(let i=0;i<size;i++)sum+=(baseDigits[i]||0)*(size+1-i)
+    const value=(sum*10)%11
+    return value===10?0:value
+  }
+  baseDigits.push(digit(9));baseDigits.push(digit(10))
+  return baseDigits.join('')
+}
 async function post(path:string,data:unknown,cookie?:string){
   return fetch(base+path,{method:'POST',headers:{
     'Content-Type':'application/json',Origin:base,...(cookie?{Cookie:cookie}:{})
@@ -21,7 +32,7 @@ async function post(path:string,data:unknown,cookie?:string){
 }
 async function register(name:string){
   const response=await post('/api/auth/register',{
-    nome:'Tutor '+name,email:email(name),telefone:name==='a'?'11911111111':'11922222222',
+    nome:'Tutor '+name,email:email(name),cpfCnpj:cpfFor(name),telefone:name==='a'?'11911111111':'11922222222',
     senha:password,confirmarSenha:password,role:'CLIENTE',
   })
   expect(response.status).toBe(201)
