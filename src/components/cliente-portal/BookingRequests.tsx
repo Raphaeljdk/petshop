@@ -18,6 +18,7 @@ export type Booking = {
   confirmedAt: string | null
   confirmationRef: string | null
   reply: string | null
+  profissionalId?:string|null
   cliente?: { nome: string }
 }
 
@@ -49,6 +50,8 @@ export function BookingRequests() {
   const [petKey, setPetKey] = useState('')
   const [service, setService] = useState('Banho')
   const [serviceId, setServiceId] = useState('')
+  const [profissionais,setProfissionais] = useState<Array<{id:string;nome:string}>>([])
+  const [profissionalId,setProfissionalId] = useState('')
   const [desired, setDesired] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -58,8 +61,10 @@ export function BookingRequests() {
         portalRequest<Booking[]>('/api/cliente/solicitacoes-agendamento'),
         portalRequest<{ id: string; nome: string }[]>('/api/cliente/pets'),
         portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos'),
+        portalRequest<{items:Array<{id:string;nome:string}>}>('/api/cliente/agenda/profissionais'),
       ])
-        .then(([rows, animals, bookingConfig]) => {
+        .then(([rows, animals, bookingConfig, team]) => {
+          setProfissionais(team.items||[])
           setBookings(rows)
           setPets(animals)
           setDirect(bookingConfig)
@@ -86,7 +91,7 @@ export function BookingRequests() {
   if (!ready) return null
 
   const directMode =
-    direct.configured && pets.some((pet) => pet.id.startsWith('zetta:'))
+    direct.configured && direct.writeConfigured && pets.some((pet) => pet.id.startsWith('zetta:'))
 
   return (
     <Card>
@@ -135,6 +140,8 @@ export function BookingRequests() {
                     service,
                     desiredAt: new Date(desired + ':00-03:00').toISOString(),
                     notes,
+                    profissionalId:profissionalId||null,
+                    profissionalId:profissionalId||null,
                   }),
                 })
                 toast.success(
@@ -205,6 +212,15 @@ export function BookingRequests() {
           </div>
 
           <div>
+            <label htmlFor="request-profissional" className="text-sm font-medium">Profissional desejado</label>
+            <select id="request-profissional" className="mt-1 h-11 w-full rounded-md border bg-background px-3"
+              value={profissionalId} onChange={e=>setProfissionalId(e.target.value)}>
+              <option value="">Sem preferência / equipe define</option>
+              {profissionais.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">A escolha depende de disponibilidade e confirmação da equipe.</p>
+          </div>
+          <div>
             <label htmlFor="request-date" className="text-sm font-medium">
               Data e horário desejados (Brasília)
             </label>
@@ -264,6 +280,7 @@ export function BookingRequests() {
                   Confirmado para {dateLabel(b.confirmedAt)}
                 </p>
               )}
+              {b.profissionalId && <p className="text-xs text-muted-foreground">Profissional solicitado: {profissionais.find(p=>p.id===b.profissionalId)?.nome||'Equipe'}</p>}
               {b.reply && (
                 <p className="mt-2 break-words text-sm">Resposta da loja: {b.reply}</p>
               )}
