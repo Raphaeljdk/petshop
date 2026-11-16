@@ -5,7 +5,8 @@ import { AlertTriangle, CalendarClock, CheckCircle2, FileWarning, ImageOff, Pack
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { calcularMargem, type DadosMargem } from '@/lib/operational-insights'
+import { calcularMargem, orientarErroFiscal, type DadosMargem } from '@/lib/operational-insights'
+import { toast } from 'sonner'
 
 type Diagnostico = {
   atualizadoEm: string
@@ -23,7 +24,7 @@ type Diagnostico = {
     recentes: Array<{ id: string; status: string; serie: number | null; numero: number | null; erro: string | null }>
   }
   agenda: { totalDaSemana: number; conflitos: Array<{ id: string; dataHora: string; pets: string[] }> }
-  relacionamento: { lembretesVencidos: number; favoritosSalvos: number }
+  relacionamento: { lembretesVencidos: number; favoritosSalvos: number; aniversarios: Array<{ id: string; nome: string; tutor: string; dias: number }> }
   integracoes: Array<{ plataforma: string; ativo: boolean; ultimaSync: string | null }>
 }
 
@@ -174,7 +175,7 @@ export function PainelMelhoriasOperacionais(destinos: Destinos) {
           <div className="flex gap-3 text-sm"><span><strong>{dados.pendencias.notasPendentes}</strong> pendentes</span><span><strong>{dados.pendencias.notasComErro}</strong> com erro</span></div>
           {dados.fiscal.recentes.length ? dados.fiscal.recentes.map((n) => <div key={n.id} className="rounded-lg border p-2 text-xs">
             <p className="font-medium">NF-e {n.numero != null ? n.numero : 'sem numeração'} · {n.status}</p>
-            {n.erro && <p className="mt-1 break-words text-muted-foreground">{n.erro}</p>}
+            {n.erro && <><p className="mt-1 break-words text-muted-foreground">{n.erro}</p><p className="mt-1 text-amber-700 dark:text-amber-300">Próximo passo: {orientarErroFiscal(n.erro)}</p></>}
             {!n.erro && <p className="text-muted-foreground">Consultar validações e histórico antes da emissão.</p>}
           </div>) : <p className="flex items-center gap-2 text-sm text-muted-foreground"><CheckCircle2 className="size-4"/>Nenhuma nota pendente ou com erro encontrada.</p>}
           <p className="text-xs text-muted-foreground">Este painel não autoriza notas, não transmite XML e não altera a numeração fiscal.</p>
@@ -195,6 +196,19 @@ export function PainelMelhoriasOperacionais(destinos: Destinos) {
             <div><strong>{dados.relacionamento.lembretesVencidos}</strong> lembretes de recompra vencidos · <strong>{dados.relacionamento.favoritosSalvos}</strong> favoritos de clientes.
               <p className="mt-1 text-muted-foreground">Aniversários dos pets aparecem no painel comercial. Para campanhas externas é necessária autorização do cliente e integração de mensagens.</p>
             </div>
+          </div>
+          <div className="space-y-2 border-t pt-2">
+            <p className="text-xs font-semibold">Próximos aniversários — mensagens sugeridas</p>
+            {dados.relacionamento.aniversarios.length === 0 && <p className="text-xs text-muted-foreground">Nenhum aniversário nos próximos 30 dias.</p>}
+            {dados.relacionamento.aniversarios.map((pet) => <div key={pet.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-2 text-xs">
+              <p className="min-w-0 truncate"><strong>{pet.nome}</strong> · {pet.tutor} · {pet.dias === 0 ? 'hoje' : 'em ' + pet.dias + ' dias'}</p>
+              <Button size="sm" variant="outline" onClick={() => {
+                const mensagem = 'Olá, ' + pet.tutor + '! A Matilha Prado deseja um feliz aniversário para ' + pet.nome + '! 🐾 Estamos à disposição para cuidar do seu pet.'
+                if (!navigator.clipboard) { toast.error('A cópia não está disponível neste navegador.'); return }
+                void navigator.clipboard.writeText(mensagem).then(() => toast.success('Mensagem copiada para revisão.')).catch(() => toast.error('Não foi possível copiar a mensagem.'))
+              }}>Copiar mensagem</Button>
+            </div>)}
+            <p className="text-xs text-muted-foreground">Envio manual após conferir os dados e a autorização de contato do tutor. Nenhuma mensagem é disparada pelo sistema.</p>
           </div>
           <Button size="sm" variant="outline" onClick={destinos.onIrParaRelacionamento}>Ver relacionamento</Button>
         </CardContent></Card>}
