@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { recommendationRank, imageData } from '../src/lib/portal-care'
+import { recommendationRank, imageData } from '../src/lib/portal-care-rules'
 
 test('recomendações consideram espécie, porte e idade sem indicar ração', () => {
   const pet = recommendationRank('Brinquedo para cachorro filhote pequeno', 'Brinquedos', 'cachorro', 'pequeno', 0)
