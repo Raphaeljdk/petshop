@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
+import { pickMarketplaceProduct } from '@/lib/marketplace-product-match'
 
 export type MarketplaceChannel = 'mercadolivre' | 'amazon'
 export type MarketplaceSaleItem = {
@@ -27,18 +28,7 @@ async function resolveProduct(channel: MarketplaceChannel, item: MarketplaceSale
   ]
   if (!where.length) return null
   const candidates = await db.produto.findMany({ where: { OR: where }, take: 10 })
-  // O mesmo item_id do Mercado Livre pode possuir várias variações físicas.
-  // Sempre resolva primeiro o SKU específico; item_id/ASIN só é seguro se
-  // houver exatamente um produto correspondente.
-  if (item.sku) {
-    const skuMatches = candidates.filter((product) => product.sku === item.sku)
-    if (skuMatches.length === 1) return skuMatches[0]
-    if (skuMatches.length > 1) return null
-  }
-  const byExternalId = candidates.filter((product) => channel === 'mercadolivre'
-    ? Boolean(item.externalProductId && product.mlItemId === item.externalProductId)
-    : Boolean(item.externalProductId && product.amazonAsin === item.externalProductId))
-  return byExternalId.length === 1 ? byExternalId[0] : null
+  return pickMarketplaceProduct(candidates,channel,item)
 }
 
 export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
