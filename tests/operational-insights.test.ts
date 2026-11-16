@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { calcularMargem, diagnosticarCatalogo, identificarChoquesAgenda, type ProdutoOperacional } from '../src/lib/operational-insights'
+import { calcularMargem, diagnosticarCatalogo, identificarChoquesAgenda, orientarErroFiscal, type ProdutoOperacional } from '../src/lib/operational-insights'
 
 function produto(id: string, extras: Partial<ProdutoOperacional> = {}): ProdutoOperacional {
   return {
@@ -60,4 +60,11 @@ test('margem só é calculada com dados completos, explícitos e válidos', () =
   assert.deepEqual(calcularMargem({
     receita: 0, custoProdutos: 0, taxasMarketplace: 0, freteOperacao: 0, impostos: 0, outrosCustos: 0,
   }), { lucro: 0, margemPercentual: null })
+})
+
+
+test('orientação fiscal não autoriza retransmissão nem altera tributação', () => {
+  assert.match(orientarErroFiscal('Rejeição: Duplicidade de NF-e (539)'), /Consultar a chave/)
+  assert.match(orientarErroFiscal('Erro CST PIS/COFINS'), /contabilidade/)
+  assert.match(orientarErroFiscal('Falha XSD schema'), /pacote XSD oficial/)
 })
