@@ -130,6 +130,8 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     carregar()
   }, [carregar, refreshSignal])
 
+  useEffect(()=>{setPagina(1);setSelecionadas([])},[busca,filtroTipo,filtroStatus,filtroOrigem])
+
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return vendas.filter((v) => {
@@ -672,6 +674,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
                   )}
 
                   {/* Código de rastreio */}
+                  {!['mercado_livre','mercadolivre','amazon'].includes(v.canal) && v.status!=='cancelada' && (
                   <div className="space-y-1.5">
                     <Label
                       htmlFor={`rastreio-${v.id}`}
@@ -709,6 +712,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
                       </Button>
                     </div>
                   </div>
+                  )}
 
                   {/* Ações: status da transportadora nunca é alterado aqui. */}
                   <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
