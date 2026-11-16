@@ -255,3 +255,41 @@ test('prévia XML fiscal exige ADMIN, respeita origem e não altera a venda', as
     await db.produto.delete({where:{id:product.id}})
   }
 })
+
+
+test('convite de André cria KANBAN com agenda e endereços, sem privilégios de administrador', async () => {
+  const andreEmail = 'andre.matilhaprado@gmail.com'
+  const code = randomBytes(32).toString('hex')
+  await db.adminInvitation.create({
+    data: {
+      email: andreEmail,
+      tokenHash: createHash('sha256').update(code).digest('hex'),
+      expiresAt: new Date(Date.now() + 60_000),
+    },
+  })
+  const registered = await post('/api/auth/register/admin', {
+    nome: 'André Operacional', email: 'Andre.MatilhaPrado@gmail.com',
+    senha: password, confirmarSenha: password, role: 'ADMIN', convite: code,
+  })
+  expect(registered.status).toBe(201)
+  expect((await registered.json()).user.role).toBe('KANBAN')
+  const cookie = cookieOf(registered)
+  const headers = { Cookie: cookie }
+  expect((await fetch(base + '/api/agendamentos', { headers })).status).toBe(200)
+  expect((await fetch(base + '/api/operacional/entregas', { headers })).status).toBe(200)
+  expect((await fetch(base + '/api/operacional/clientes?busca=Ma', { headers })).status).toBe(200)
+  expect((await fetch(base + '/api/clientes', { headers })).status).toBe(403)
+  expect((await fetch(base + '/api/vendas', { headers })).status).toBe(403)
+  expect((await fetch(base + '/api/agendamentos/nao-existe', {
+    method: 'PATCH', headers: { ...headers, Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'cancelado' }),
+  })).status).toBe(403)
+  const otherService = await fetch(base + '/api/agendamentos', {
+    method: 'POST', headers: { ...headers, Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      clienteId: 'teste', petId: 'teste', servico: 'Tosa',
+      categoria: 'Estéticos', dataHora: new Date(Date.now() + 86400_000).toISOString(),
+    }),
+  })
+  expect(otherService.status).toBe(403)
+})
