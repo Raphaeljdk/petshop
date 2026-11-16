@@ -20,11 +20,14 @@ import {
   Phone,
   MapPinned,
   Loader2,
+  CheckSquare2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { canCompleteLocalDelivery } from '@/lib/delivery-bulk-policy'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -96,7 +99,10 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<string>('todos')
-  const [filtroStatus, setFiltroStatus] = useState<string>('todos')
+  const [filtroStatus, setFiltroStatus] = useState<string>('em_aberto')
+  const [filtroOrigem, setFiltroOrigem] = useState<string>('locais')
+  const [selecionadas,setSelecionadas]=useState<string[]>([])
+  const [concluindoLote,setConcluindoLote]=useState(false)
   const [editandoRastreio, setEditandoRastreio] = useState<Record<string, string>>({})
   const [salvandoRastreio, setSalvandoRastreio] = useState<Record<string, boolean>>({})
   const [atualizandoStatus, setAtualizandoStatus] = useState<Record<string, boolean>>({})
@@ -126,6 +132,9 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return vendas.filter((v) => {
+      if (filtroOrigem==='locais' && !['site','loja'].includes(v.canal)) return false
+      if (filtroOrigem==='marketplaces' && !['mercado_livre','amazon'].includes(v.canal)) return false
+      if (filtroStatus==='em_aberto' && !['pendente','enviada'].includes(v.statusEntrega||'pendente')) return false
       if (filtroTipo !== 'todos' && v.tipoEntrega !== filtroTipo) return false
       if (filtroStatus !== 'todos' && (v.statusEntrega || 'pendente') !== filtroStatus)
         return false
@@ -147,15 +156,17 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
       }
       return true
     })
-  }, [vendas, busca, filtroTipo, filtroStatus])
+  }, [vendas, busca, filtroTipo, filtroStatus, filtroOrigem])
 
   const temFiltrosAtivos =
-    busca.trim() !== '' || filtroTipo !== 'todos' || filtroStatus !== 'todos'
+    busca.trim() !== '' || filtroTipo !== 'todos' || filtroStatus !== 'em_aberto' || filtroOrigem !== 'locais'
 
   const limparFiltros = () => {
     setBusca('')
     setFiltroTipo('todos')
-    setFiltroStatus('todos')
+    setFiltroStatus('em_aberto')
+    setFiltroOrigem('locais')
+    setSelecionadas([])
   }
 
   const atualizarStatus = async (vendaId: string, statusAtual: StatusEntrega) => {
@@ -188,6 +199,43 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     } finally {
       setAtualizandoStatus((p) => ({ ...p, [vendaId]: false }))
     }
+  }
+
+  const elegiveisFiltradas=useMemo(
+    ()=>filtradas.filter(canCompleteLocalDelivery).map(v=>v.id),[filtradas]
+  )
+  const elegiveisSet=new Set(elegiveisFiltradas)
+  const selecionadasValidas=selecionadas.filter(id=>elegiveisSet.has(id))
+  const todasSelecionadas=elegiveisFiltradas.length>0 && selecionadasValidas.length===elegiveisFiltradas.length
+
+  const concluirSelecionadas=async(ids:string[])=>{
+    if(concluindoLote||ids.length===0)return
+    if(ids.length>200){
+      toast.error('O limite é de 200 entregas por operação. Refine os filtros e tente novamente.')
+      return
+    }
+    if(!window.confirm(
+      'Confirmar como ENTREGUES '+ids.length+' entrega(s) LOCAL(IS)?\n\n'+
+      'A atualização será registrada em auditoria. Pedidos de Mercado Livre, Amazon, cancelados ou já entregues não podem ser incluídos.\n\n'+
+      'Esta ação NÃO confirma recebimento nas transportadoras.'
+    ))return
+    setConcluindoLote(true)
+    try{
+      const res=await fetch('/api/vendas/entregas/lote',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        credentials:'same-origin',
+        body:JSON.stringify({ids,confirmed:true}),
+      })
+      const data=await res.json().catch(()=>null)
+      if(!res.ok)throw new Error(data?.error||'Não foi possível concluir as entregas.')
+      setVendas(prev=>prev.map(v=>ids.includes(v.id)?{...v,statusEntrega:'entregue' as const}:v))
+      setSelecionadas([])
+      toast.success(data.delivered+' entrega(s) concluída(s) e registrada(s) na auditoria.')
+      await carregar()
+    }catch(e){
+      toast.error(e instanceof Error?e.message:'Falha ao entregar os pedidos selecionados.')
+      await carregar()
+    }finally{setConcluindoLote(false)}
   }
 
   const salvarRastreio = async (vendaId: string) => {
