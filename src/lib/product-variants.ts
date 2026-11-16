@@ -160,12 +160,12 @@ export function catalogVariantDetails(nome: string) {
   if (lastColorModel) {
     color = canonicalColor(lastColorModel[1])
     model = capitalizeModel(lastColorModel[2])
-    body = body.slice(0, lastColorModel.index).trim()
+    body = body.slice(0, lastColorModel.index).replace(/\s+[-–—]\s*$/, '').trim()
   } else {
     const lastColor = body.match(END_COLOR)
     if (lastColor) {
       color = canonicalColor(lastColor[1])
-      body = body.slice(0, lastColor.index).trim()
+      body = body.slice(0, lastColor.index).replace(/\s+[-–—]\s*$/, '').trim()
     }
   }
 
