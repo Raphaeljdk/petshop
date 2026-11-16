@@ -20,3 +20,24 @@ test('SKU duplicado nao vira baixa fisica ambigua',()=>{
   const withDuplicates=[...candidates,{id:'clone',sku:'P-ROSA',mlItemId:'MLB200',amazonAsin:null}]
   assert.equal(pickMarketplaceProduct(withDuplicates,'mercadolivre',{sku:'P-ROSA'}),null)
 })
+
+
+test('SKU repetido entre ML e Amazon usa ASIN específico para baixar produto correto',()=>{
+ const mirrors=[
+  {id:'ML-1',sku:'7899732118397',mlItemId:'MLB5433492057',amazonAsin:null},
+  {id:'AMZ-1',sku:'7899732118397',mlItemId:null,amazonAsin:'B0FMYTB1DX'},
+  {id:'ML-2',sku:'7899732118397',mlItemId:'MLB5433492089',amazonAsin:null},
+ ]
+ assert.equal(pickMarketplaceProduct(mirrors,'amazon',{
+  sku:'7899732118397',externalProductId:'B0FMYTB1DX'
+ })?.id,'AMZ-1')
+ assert.equal(pickMarketplaceProduct(mirrors,'mercadolivre',{
+  sku:'7899732118397',externalProductId:'MLB5433492089'
+ })?.id,'ML-2')
+ assert.equal(pickMarketplaceProduct(mirrors,'amazon',{
+  sku:'7899732118397',externalProductId:'B000000000'
+ }),null)
+ assert.equal(pickMarketplaceProduct(mirrors,'amazon',{
+  sku:'7899732118397'
+ }),null)
+})
