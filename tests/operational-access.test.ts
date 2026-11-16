@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isAndreOperator, canViewAppointments, canScheduleBath, canViewDeliveryAddresses } from '../src/lib/operational-access'
+import { isAndreOperator, canViewAppointments, canScheduleBath, canViewDeliveryAddresses, roleForTeamInvitation } from '../src/lib/operational-access'
 
 describe('permissões individuais do André', () => {
   const andre = { email: 'Andre.MatilhaPrado@gmail.com', role: 'KANBAN' }
@@ -17,6 +17,10 @@ describe('permissões individuais do André', () => {
     expect(canScheduleBath(cliente)).toBe(false)
     expect(isAndreOperator(cliente)).toBe(false)
     expect(canViewAppointments(null)).toBe(false)
+  })
+  test('convite do André nunca cria administrador, inclusive com letras maiúsculas', () => {
+    expect(roleForTeamInvitation('Andre.MatilhaPrado@gmail.com')).toBe('KANBAN')
+    expect(roleForTeamInvitation(' matilhaprado@gmail.com ')).toBe('ADMIN')
   })
   test('ADMIN continua com acesso administrativo normal', () => {
     expect(canViewAppointments({ role: 'ADMIN', email: 'qualquer@empresa.com' })).toBe(true)
