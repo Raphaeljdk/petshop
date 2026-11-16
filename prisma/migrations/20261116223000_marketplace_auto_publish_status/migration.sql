@@ -1,0 +1,4 @@
+ALTER TABLE "MarketplaceSyncRun" ADD COLUMN "lastMlActivated" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "MarketplaceSyncRun" ADD COLUMN "lastLocalPublished" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "MarketplaceSyncRun" ADD COLUMN "lastLocalHidden" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "MarketplaceSyncRun" ADD COLUMN "lastBlockedListings" INTEGER NOT NULL DEFAULT 0;
