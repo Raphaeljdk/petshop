@@ -53,7 +53,8 @@ type MlBillingResponse = {
 
 function lookback(lastSync?: Date | null) {
   const now = Date.now()
-  const initial = now - 24 * 60 * 60 * 1000
+  // Permite recuperar pedidos atrasados apos indisponibilidade do provedor.
+  const initial = now - 7 * 24 * 60 * 60 * 1000
   if (!lastSync) return new Date(initial)
   return new Date(Math.max(initial, lastSync.getTime() - 6 * 60 * 60 * 1000))
 }
@@ -185,12 +186,12 @@ async function syncMercadoLivre() {
       ativo: true,
       sellerId,
       domain: 'mercadolivre.com.br',
-      ultimaSync: new Date(),
+      ultimaSync: errors.length ? since : new Date(),
     },
     update: {
       ativo: true,
       sellerId,
-      ultimaSync: new Date(),
+      ...(errors.length ? {} : { ultimaSync: new Date() }),
     },
   })
 
@@ -250,12 +251,12 @@ async function syncAmazon() {
       ativo: true,
       sellerId: catalog.sellerId,
       domain: 'amazon.com.br',
-      ultimaSync: new Date(),
+      ultimaSync: errors.length ? since : new Date(),
     },
     update: {
       ativo: true,
       sellerId: catalog.sellerId,
-      ultimaSync: new Date(),
+      ...(errors.length ? {} : { ultimaSync: new Date() }),
     },
   })
 
