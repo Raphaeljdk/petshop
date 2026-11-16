@@ -48,6 +48,7 @@ export async function POST(req:NextRequest) {
     return NextResponse.json({error:'Preencha o estoque físico com um número inteiro válido.'},{status:400})
   const verifiedQty=Number(quantity)
   const expectedQty=Number(expectedStock)
+  const verifiedMlId=String(data.mlItemId)
   const product=await db.produto.findUnique({where:{id:data.productId},
     select:{id:true,nome:true,categoria:true,estoqueIlimitado:true,mlItemId:true,
       estoque:true,estoqueMercadoLivre:true}})
@@ -58,7 +59,7 @@ export async function POST(req:NextRequest) {
   try{
     const result=await db.$transaction(async tx=>{
       const updated=await tx.produto.updateMany({
-        where:{id:product.id,estoque:expectedQty,mlItemId:data.mlItemId},
+        where:{id:product.id,estoque:expectedQty,mlItemId:verifiedMlId},
         data:{estoque:verifiedQty,estoqueHub:verifiedQty,ativo:verifiedQty>0},
       })
       if(!updated.count) return null
