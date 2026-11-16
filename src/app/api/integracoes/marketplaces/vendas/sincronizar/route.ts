@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { marketplaceSyncStatus,runMarketplacesSync } from '@/lib/marketplace-auto-sync'
+import { db } from '@/lib/db'
 
 export const runtime='nodejs'
 export const dynamic='force-dynamic'
@@ -12,13 +13,19 @@ async function admin(){
 }
 export async function GET(){
   if(!await admin())return NextResponse.json({error:'Acesso negado'},{status:403})
-  return NextResponse.json({enabled:true,intervalMinutes:30,
-    status:await marketplaceSyncStatus()},{headers:{'Cache-Control':'private, no-store'}})
+  const [status,issues]=await Promise.all([
+    marketplaceSyncStatus(),
+    db.marketplaceStockIssue.findMany({where:{resolvedAt:null},
+      orderBy:{updatedAt:'desc'},take:12,select:{channel:true,title:true,category:true,
+        error:true,retryAfter:true,updatedAt:true}}),
+  ])
+  return NextResponse.json({enabled:true,intervalMinutes:30,status,issues},
+    {headers:{'Cache-Control':'private, no-store'}})
 }
 export async function POST(){
   if(!await admin())return NextResponse.json({error:'Acesso negado'},{status:403})
   try{
-    const result=await runMarketplacesSync()
+    const result=await runMarketplacesSync({force:true})
     return NextResponse.json(result,{status:result.ok?200:207,
       headers:{'Cache-Control':'private, no-store'}})
   }catch(error){
