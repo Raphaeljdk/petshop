@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import type { Notificacao } from '@/lib/types'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 import { CustomerExperienceAdmin } from './CustomerExperienceAdmin'
+import { PortalEditorialAdmin } from './PortalEditorialAdmin'
 import { SalesInsights } from '@/components/dashboard/SalesInsights'
 
 function AdminPanelImpl() {
@@ -260,6 +261,7 @@ function AdminPanelImpl() {
             {tab === 'cupons' && <CuponsView />}
             {tab === 'dashboard' && <SalesInsights />}
             {tab === 'relacionamento' && <CustomerExperienceAdmin />}
+            {tab === 'relacionamento' && <PortalEditorialAdmin />}
           </div>
         </main>
       </div>

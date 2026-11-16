@@ -141,10 +141,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Boleto desativado' }, { status: 400 })
     }
 
+    const valorRestante = Math.round((venda.total - venda.creditoPresenteCentavos / 100) * 100) / 100
+    if (valorRestante <= 0) return NextResponse.json({ error:'Venda já coberta por vale-presente; não gere outra cobrança.' },{status:409})
     const resultado = await criarOrderMercadoPago(
       {
         vendaId: venda.id,
-        total: venda.total,
+        total: valorRestante,
         metodo,
         payerEmail:
           card?.payer?.email ||

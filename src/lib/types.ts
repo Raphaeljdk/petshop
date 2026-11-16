@@ -147,6 +147,7 @@ export interface Venda {
   id: string
   clienteId: string | null
   total: number
+  creditoPresenteCentavos?: number
   subtotalProdutos: number | null
   cupomId: string | null
   cupomCodigo: string | null

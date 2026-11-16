@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, MessageCircle, Syringe } from 'lucide-react'
+import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, MessageCircle, Syringe, BookOpen } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { Confetti } from '@/components/brand/Confetti'
 import { ClientStore } from '@/components/cliente-portal/ClientStore'
@@ -11,6 +11,8 @@ import { ClientAgendamentos } from '@/components/cliente-portal/ClientAgendament
 import { ClientMeusPets } from '@/components/cliente-portal/ClientMeusPets'
 import { ClientMinhasCompras } from '@/components/cliente-portal/ClientMinhasCompras'
 import { ClientVacinas } from '@/components/cliente-portal/ClientVacinas'
+import { ClientBlog } from '@/components/cliente-portal/ClientBlog'
+import { ClientCareHub } from '@/components/cliente-portal/ClientCareHub'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/components/providers/AuthProvider'
@@ -23,7 +25,7 @@ import { ExperienceProvider, portalRequest } from './ExperienceProvider'
 import { CustomerClub } from './CustomerClub'
 import type { CarrinhoItem, ClientCartUiState } from './ClientStore'
 
-type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'vacinas' | 'compras'
+type TabClient = 'inicio' | 'loja' | 'agendamentos' | 'pets' | 'vacinas' | 'compras' | 'blog'
 
 const TABS: { id: TabClient; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'inicio', label: 'Início', icon: Home },
@@ -32,6 +34,7 @@ const TABS: { id: TabClient; label: string; icon: React.ComponentType<{ classNam
   { id: 'pets', label: 'Meus Pets', icon: Dog },
   { id: 'vacinas', label: 'Vacinas', icon: Syringe },
   { id: 'compras', label: 'Minhas Compras', icon: ShoppingBag },
+  { id: 'blog', label: 'Blog', icon: BookOpen },
 ]
 
 export function ClientPortal() {
@@ -150,7 +153,7 @@ function ClientPortalContent() {
                 >
                   <Icon className="size-4" />
                   <span className="hidden md:inline">{t.label}</span>
-                  <span className="md:hidden">{{ inicio: 'Início', loja: 'Loja', agendamentos: 'Agenda', pets: 'Pets', vacinas: 'Vacinas', compras: 'Compras' }[t.id]}</span>
+                  <span className="md:hidden">{{ inicio: 'Início', loja: 'Loja', agendamentos: 'Agenda', pets: 'Pets', vacinas: 'Vacinas', compras: 'Compras', blog: 'Blog' }[t.id]}</span>
                 </button>
               )
             })}
@@ -171,6 +174,7 @@ function ClientPortalContent() {
             />
           )}
           {tab === 'inicio' && <CustomerClub onShop={() => setTab('loja')} />}
+          {tab === 'inicio' && <ClientBlog compact onOpenBlog={() => setTab('blog')} />}
           {tab === 'loja' && (
             <ClientStore
               onCompraFinalizada={onCompraFinalizada}
@@ -180,9 +184,10 @@ function ClientPortalContent() {
             />
           )}
           {tab === 'agendamentos' && <ClientAgendamentos />}
-          {tab === 'pets' && <ClientMeusPets />}
+          {tab === 'pets' && <><ClientMeusPets /><ClientCareHub onShop={() => setTab('loja')} /></>}
           {tab === 'vacinas' && <ClientVacinas />}
           {tab === 'compras' && <ClientMinhasCompras onRepeat={repeatPurchase} repeating={repeating} />}
+          {tab === 'blog' && <ClientBlog onShop={() => setTab('loja')} />}
         </div>
       </main>
 

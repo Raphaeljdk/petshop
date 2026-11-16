@@ -108,6 +108,18 @@ export function ClientStore({
   const [freteSelecionado, setFreteSelecionado] = useState<SelecaoFrete | null>(null)
   const [cupomCodigo, setCupomCodigo] = useState('')
   const [cupomAplicado, setCupomAplicado] = useState<CupomAplicado | null>(null)
+  const [giftInput,setGiftInput]=useState('')
+  const [giftApplied,setGiftApplied]=useState<{code:string;availableCents:number;appliedCents:number}|null>(null)
+  const [giftChecking,setGiftChecking]=useState(false)
+  const [giftRedemptionEnabled,setGiftRedemptionEnabled]=useState(false)
+  useEffect(()=>{
+    let live=true
+    fetch('/api/cliente/portal/capacidades',{credentials:'same-origin',cache:'no-store'})
+      .then(async(res)=>res.ok?res.json():null)
+      .then((result)=>{if(live)setGiftRedemptionEnabled(Boolean(result?.giftRedemptionEnabled))})
+      .catch(()=>{if(live)setGiftRedemptionEnabled(false)})
+    return ()=>{live=false}
+  },[])
   const [validandoCupom, setValidandoCupom] = useState(false)
   const [vendaEmPagamento, setVendaEmPagamento] = useState<Venda | null>(null)
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
@@ -202,6 +214,7 @@ export function ClientStore({
   const carrinhoTemZetta = carrinho.some((item) => Boolean(item.produto.zettaProCod))
   const checkoutZettaBloqueado = carrinhoTemZetta && !siggmaOrderWriteConfigured
   const total = Math.max(0, subtotal - descontoCupom) + valorFrete
+  const totalToPay = Math.max(0,total-(giftApplied?.appliedCents||0)/100)
   const cartItemCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0)
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -228,6 +241,7 @@ export function ClientStore({
 
     cartRevision.current += 1
     setCupomAplicado(null)
+    setGiftApplied(null)
     setCarrinho((prev) => {
       const exists = prev.find((i) => i.produto.id === produto.id)
 
@@ -256,6 +270,7 @@ export function ClientStore({
   const alterarQtd = (produtoId: string, delta: number) => {
     cartRevision.current += 1
     setCupomAplicado(null)
+    setGiftApplied(null)
     setCarrinho((prev) => prev
       .map((i) => {
         if (i.produto.id !== produtoId) return i
@@ -272,6 +287,7 @@ export function ClientStore({
   const removerItem = (produtoId: string) => {
     cartRevision.current += 1
     setCupomAplicado(null)
+    setGiftApplied(null)
     if (carrinho.length === 1) setFreteSelecionado(null)
     setCarrinho((prev) => prev.filter((i) => i.produto.id !== produtoId))
   }
@@ -299,6 +315,7 @@ export function ClientStore({
       }
       setCupomCodigo(data.cupom.codigo)
       setCupomAplicado(data.cupom)
+      setGiftApplied(null)
       toast.success(`Cupom ${data.cupom.codigo} aplicado: ${fmtMoeda(data.cupom.desconto)} de desconto.`)
     } catch (e) {
       setCupomAplicado(null)
@@ -311,6 +328,23 @@ export function ClientStore({
   const removerCupom = () => {
     setCupomAplicado(null)
     setCupomCodigo('')
+    setGiftApplied(null)
+  }
+
+  const aplicarValePresente = async () => {
+    if(giftChecking) return
+    setGiftChecking(true)
+    try {
+      const response=await fetch('/api/cliente/portal/vale-validar',{method:'POST',
+        credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code:giftInput,totalCents:Math.round(total*100)}),
+      })
+      const json=await response.json().catch(()=>({}))
+      if(!response.ok) throw new Error(json.error||'Vale-presente indisponível.')
+      setGiftApplied(json)
+      toast.success('Vale-presente validado. O saldo será reservado ao finalizar o pedido.')
+    }catch(e){setGiftApplied(null);toast.error(e instanceof Error?e.message:'Erro ao validar vale.')}
+    finally{setGiftChecking(false)}
   }
 
   const finalizarCompra = async () => {
@@ -341,13 +375,19 @@ export function ClientStore({
           enderecoEntrega: freteSelecionado.tipoEntrega === 'retirada' ? null : enderecoEntrega.trim(),
           melhorEnvioServiceId: freteSelecionado.melhorEnvioServiceId || null,
           cupomCodigo: cupomAplicado?.codigo || null,
+          valePresenteCodigo: giftApplied?.code || null,
         }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         throw new Error(d?.error || 'Erro ao finalizar')
       }
-      setVendaEmPagamento(await res.json())
+      const created=await res.json()
+      if(created.status==='concluida'&&created.mercadoPagoStatus==='paid_gift') {
+        onPagamentoAprovado()
+        return
+      }
+      setVendaEmPagamento(created)
       toast.info('Pedido criado! Escolha a forma de pagamento abaixo.')
     } catch (e: any) {
       toast.error(e.message || 'Erro ao finalizar compra')
@@ -364,6 +404,8 @@ export function ClientStore({
     setFreteSelecionado(null)
     setCupomAplicado(null)
     setCupomCodigo('')
+    setGiftInput('')
+    setGiftApplied(null)
     setVendaEmPagamento(null)
     setCheckoutOpen(false)
     onCompraFinalizada?.()
@@ -672,7 +714,7 @@ export function ClientStore({
               ) : vendaEmPagamento ? (
                 <>
                   <Button variant="ghost" size="sm" className="h-11 text-sm mb-1" onClick={() => { setVendaEmPagamento(null); setFreteSelecionado(null) }}><ArrowLeft className="size-4" /> Voltar ao carrinho</Button>
-                  <PagamentoCheckout vendaId={vendaEmPagamento.id} total={vendaEmPagamento.total} onAprovado={onPagamentoAprovado} onCancelar={cancelarPagamento} />
+                  <PagamentoCheckout vendaId={vendaEmPagamento.id} total={Math.max(0,vendaEmPagamento.total-(vendaEmPagamento.creditoPresenteCentavos||0)/100)} onAprovado={onPagamentoAprovado} onCancelar={cancelarPagamento} />
                 </>
               ) : carrinho.length === 0 ? (
                 <div className="py-12 text-center space-y-4"><ShoppingCart className="size-12 mx-auto text-primary/50" /><p className="text-lg font-semibold">Seu carrinho está vazio</p><p className="text-sm text-muted-foreground">Escolha algo especial para o seu pet.</p><Button variant="outline" className="h-11" onClick={() => setCheckoutOpen(false)}>Continuar comprando</Button></div>
@@ -731,6 +773,21 @@ export function ClientStore({
                       </div>
                     )}
                     <p className="text-[11px] text-muted-foreground">O desconto é aplicado aos produtos. O frete não entra no cálculo.</p>
+                    {giftRedemptionEnabled && <div className="space-y-2 rounded-lg border p-3">
+                      <p className="text-xs font-semibold">Vale-presente (crédito de pagamento)</p>
+                      <div className="flex gap-2">
+                        <Input className="h-11 min-w-0 uppercase" value={giftInput} maxLength={80}
+                          onChange={(e)=>{setGiftInput(e.target.value.toUpperCase());setGiftApplied(null)}}
+                          placeholder="MP-PRES-..." aria-label="Código do vale-presente"/>
+                        <Button variant="outline" disabled={giftChecking||giftInput.trim().length<6}
+                          onClick={()=>void aplicarValePresente()}>{giftChecking?'Conferindo...':'Validar'}</Button>
+                      </div>
+                      {giftApplied&&<div className="text-xs text-green-700">
+                        Saldo disponível: {fmtMoeda(giftApplied.availableCents/100)} · Crédito previsto: {fmtMoeda(Math.min(total,giftApplied.availableCents/100))}
+                        <Button size="sm" variant="ghost" onClick={()=>{setGiftApplied(null);setGiftInput('')}}>Remover</Button>
+                      </div>}
+                      <p className="text-[11px] text-muted-foreground">O crédito é descontado apenas do valor a pagar. O total fiscal da compra permanece inalterado.</p>
+                    </div>}
                   </div>
 
                   <div className="border-t border-border pt-3">
@@ -748,8 +805,10 @@ export function ClientStore({
                   <div className="border-t border-border pt-3 space-y-1.5">
                     <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{fmtMoeda(subtotal)}</span></div>
                     {descontoCupom > 0 && <div className="flex items-center justify-between text-sm text-green-700"><span>Desconto ({cupomAplicado?.codigo})</span><span>- {fmtMoeda(descontoCupom)}</span></div>}
+                    {giftApplied&&<div className="flex items-center justify-between text-sm text-green-700"><span>Crédito do vale</span><span>- {fmtMoeda(Math.min(total,giftApplied.availableCents/100))}</span></div>}
                     <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Frete</span><span>{freteSelecionado ? (freteSelecionado.valorFrete === 0 ? 'Grátis' : fmtMoeda(freteSelecionado.valorFrete)) : '—'}</span></div>
-                    <div className="flex items-center justify-between text-lg font-bold pt-1"><span>Total</span><span className="text-primary">{fmtMoeda(total)}</span></div>
+                    <div className="flex items-center justify-between text-lg font-bold pt-1"><span>Total da compra</span><span className="text-primary">{fmtMoeda(total)}</span></div>
+                    {giftApplied&&<div className="flex items-center justify-between text-base font-bold text-primary"><span>A pagar após o vale</span><span>{fmtMoeda(totalToPay)}</span></div>}
                   </div>
 
                   {checkoutZettaBloqueado && (
