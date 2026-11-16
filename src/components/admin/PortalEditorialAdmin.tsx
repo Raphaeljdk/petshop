@@ -14,7 +14,8 @@ type Article = {
   imageUrl:string|null;productId:string|null;published:boolean
 }
 type PlanRequest = {
-  id:string;clienteId:string;petKey:string;status:string;plan:{ title:string }
+  id:string;clienteId:string;petKey:string;status:string;sessionsUsed:number
+  plan:{ title:string;sessions:number }
 }
 type Gift = {id:string;clienteId:string;recipientName:string;amountCents:number;status:string}
 type Referral = {id:string;invitedId:string;status:string}
@@ -42,6 +43,7 @@ export function PortalEditorialAdmin() {
   const [price,setPrice]=useState('100')
   const [reference,setReference]=useState('')
   const [processId,setProcessId]=useState('')
+  const [sessionProcessId,setSessionProcessId]=useState('')
   const [photoKind,setPhotoKind]=useState<'banho_antes'|'banho_depois'>('banho_antes')
   const [photoTitle,setPhotoTitle]=useState('Foto do atendimento')
   const [image,setImage]=useState<string|null>(null)
@@ -140,13 +142,19 @@ export function PortalEditorialAdmin() {
           <label className="block space-y-1 text-xs">Referência do pagamento conferido (para aprovação manual)
             <Input value={reference} onChange={(e)=>setReference(e.target.value)} placeholder="Identificador do comprovante / transação"/>
           </label>
+          <label className="block space-y-1 text-xs">ID do atendimento concluído para baixar sessão de um plano ativo
+            <Input value={sessionProcessId} onChange={(e)=>setSessionProcessId(e.target.value)} placeholder="ID do atendimento finalizado"/>
+          </label>
           {data?.requests.map((r)=><div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
-            <div><strong>{r.plan.title}</strong><p>Cliente: {r.clienteId} · Pet: {r.petKey}</p></div>
+            <div><strong>{r.plan.title}</strong><p>Cliente: {r.clienteId} · Pet: {r.petKey} · {r.status==='ativo'?r.sessionsUsed+'/'+r.plan.sessions+' sessões':'Solicitado'}</p></div>
             <div className="flex gap-2">
-              <Button size="sm" disabled={busy||reference.trim().length<4}
-                onClick={()=>void submit({action:'plan-review',id:r.id,status:'ativo',paymentVerified:true,paymentReference:reference})}>Confirmar pago e ativar</Button>
-              <Button size="sm" variant="outline" disabled={busy}
-                onClick={()=>void submit({action:'plan-review',id:r.id,status:'recusado',paymentVerified:false})}>Recusar</Button>
+              {r.status==='solicitado'?<>
+                <Button size="sm" disabled={busy||reference.trim().length<4}
+                  onClick={()=>void submit({action:'plan-review',id:r.id,status:'ativo',paymentVerified:true,paymentReference:reference})}>Confirmar pago e ativar</Button>
+                <Button size="sm" variant="outline" disabled={busy}
+                  onClick={()=>void submit({action:'plan-review',id:r.id,status:'recusado',paymentVerified:false})}>Recusar</Button>
+              </>:<Button size="sm" disabled={busy||!sessionProcessId.trim()||r.sessionsUsed>=r.plan.sessions}
+                onClick={()=>void submit({action:'plan-use',requestId:r.id,processoId:sessionProcessId})}>Baixar sessão concluída</Button>}
             </div>
           </div>)}
           <p className="text-xs text-muted-foreground">A confirmação deve corresponder a pagamento conferido fora deste sistema. A assinatura recorrente e baixa automática de sessões ainda não estão integradas.</p>
