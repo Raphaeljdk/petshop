@@ -13,6 +13,7 @@ type MercadoLivreAttribute = {
 
 type MercadoLivreItemBody = {
   id?: string
+  seller_id?: number | string
   title?: string
   price?: number
   currency_id?: string
@@ -38,6 +39,7 @@ type MercadoLivreBulkResult = {
 
 export type MercadoLivreCatalogItem = {
   id: string
+  sellerId: string | null
   title: string
   price: number
   currency: string
@@ -116,6 +118,7 @@ function normalizeBulkItem(result: MercadoLivreBulkResult): MercadoLivreCatalogI
 
   return {
     id: itemId,
+    sellerId: normalizedBody.seller_id == null ? null : String(normalizedBody.seller_id),
     title: normalizedBody.title?.trim() || 'Produto sem título',
     price: Number.isFinite(Number(normalizedBody.price))
       ? Math.max(0, Number(normalizedBody.price))
@@ -191,6 +194,7 @@ export async function mercadoLivreItemsByIds(ids: string[], token: string) {
       'attributes',
       [
         'body.id',
+        'body.seller_id',
         'body.title',
         'body.price',
         'body.currency_id',
@@ -353,6 +357,7 @@ export async function mercadoLivreUpdateStock(
         available_quantity: Math.max(0, Math.floor(quantity)),
       }),
       cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     }
   )
 
