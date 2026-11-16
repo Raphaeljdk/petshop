@@ -27,6 +27,7 @@ const actions = z.discriminatedUnion('action', [
     description:z.string().trim().min(10).max(500),
     sessions:z.number().int().min(1).max(30), durationDays:z.number().int().min(7).max(365),
     priceCents:z.number().int().min(100).max(1000000), active:z.boolean() }).strict(),
+  z.object({ action:z.literal('plan-use'), requestId:z.string().min(1), processoId:z.string().min(1) }).strict(),
   z.object({ action:z.literal('plan-review'), id:z.string().min(1), status:z.enum(['recusado','ativo']),
     paymentVerified:z.boolean(), paymentReference:z.string().trim().min(4).max(150).optional() }).strict(),
   z.object({ action:z.literal('gift-review'), id:z.string().min(1),
@@ -64,6 +65,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     if (!await admin()) return NextResponse.json({ error:'Acesso negado.' }, { status:403 })
+    const staff = await getUsuarioLogado()
+    if (!staff || staff.role !== 'ADMIN') return NextResponse.json({ error:'Acesso negado.' }, { status:403 })
     const data = actions.parse(await experienceBody(req, 250000))
     if (data.action === 'article-create' || data.action === 'article-update') {
       const article = {
@@ -100,8 +103,38 @@ export async function POST(req: NextRequest) {
       const expires = new Date(start.getTime()+target.plan.durationDays*86400_000)
       await db.portalCarePlanRequest.updateMany({ where:{ id:target.id,status:'solicitado' },
         data:{ status:data.status, startsAt:data.status==='ativo'?start:null,
-          expiresAt:data.status==='ativo'?expires:null } })
+          expiresAt:data.status==='ativo'?expires:null,
+          approvedAt:new Date(), approvedByUserId:staff.id,
+          paymentReference:data.status==='ativo'?data.paymentReference:null } })
       return NextResponse.json({ success:true, note:'Registro administrativo; confira as evidências de pagamento fora deste painel.' })
+    }
+    if (data.action === 'plan-use') {
+      const result = await db.$transaction(async (tx) => {
+        const request = await tx.portalCarePlanRequest.findFirst({
+          where:{ id:data.requestId,status:'ativo' },include:{ plan:true },
+        })
+        if (!request || !request.startsAt || !request.expiresAt)
+          return { error:'Plano não está ativo.' }
+        const service = await tx.processo.findFirst({
+          where:{ id:data.processoId,status:'finalizado',petId:request.petKey,
+            pet:{ clienteId:request.clienteId } },
+          select:{ id:true, fimAtendimento:true },
+        })
+        if (!service?.fimAtendimento || service.fimAtendimento < request.startsAt ||
+            service.fimAtendimento > request.expiresAt)
+          return { error:'Atendimento concluído não corresponde ao pet ou ao período do plano.' }
+        if (request.sessionsUsed >= request.plan.sessions)
+          return { error:'Todas as sessões do plano já foram utilizadas.' }
+        const updated = await tx.portalCarePlanRequest.updateMany({
+          where:{ id:request.id,sessionsUsed:{ lt:request.plan.sessions },status:'ativo' },
+          data:{ sessionsUsed:{ increment:1 } },
+        })
+        if (!updated.count) return { error:'Sessões esgotadas.' }
+        await tx.portalCarePlanUse.create({data:{ requestId:request.id,processoId:service.id }})
+        return { success:true }
+      },{ isolationLevel:'Serializable' })
+      if ('error' in result) return NextResponse.json(result,{status:409})
+      return NextResponse.json({success:true,note:'Sessão abatida com vínculo ao atendimento concluído.'})
     }
     if (data.action === 'gift-review') {
       if (data.status === 'pago' && (!data.paymentVerified || !data.paymentReference))
@@ -111,7 +144,8 @@ export async function POST(req: NextRequest) {
       const code = data.status==='pago'?'MP-PRES-'+randomBytes(7).toString('hex').toUpperCase():null
       await db.portalGiftRequest.updateMany({
         where:{ id:voucher.id, status:{ in:['solicitado','aguardando_pagamento'] } },
-        data:{ status:data.status, paidAt:data.status==='pago'?new Date():null, voucherCode:code },
+        data:{ status:data.status, paidAt:data.status==='pago'?new Date():null, voucherCode:code,
+          paymentReference:data.status==='pago'?data.paymentReference:null,approvedByUserId:staff.id },
       })
       return NextResponse.json({ success:true, note:data.status==='pago'?'Código gerado após verificação manual. O resgate no checkout ainda precisa de integração.':'Status registrado.' })
     }
@@ -122,7 +156,7 @@ export async function POST(req: NextRequest) {
         createdAt:{ gte:claim.createdAt } }, select:{ id:true } })
       if (!eligible) return NextResponse.json({ error:'Não foi encontrada compra elegível concluída e paga após a indicação.' }, { status:409 })
       await db.portalReferralClaim.updateMany({ where:{ id:claim.id,status:'aguardando_compra' },
-        data:{ status:'verificada_sem_beneficio',verifiedAt:new Date() } })
+        data:{ status:'verificada_sem_beneficio',verifiedAt:new Date(),verifiedByUserId:staff.id } })
       return NextResponse.json({ success:true, note:'Indicação verificada. Benefício comercial não é aplicado automaticamente.' })
     }
     if (data.action === 'grooming-photo') {
