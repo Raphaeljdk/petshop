@@ -134,9 +134,10 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
     return vendas.filter((v) => {
       if (filtroOrigem==='locais' && !['site','loja'].includes(v.canal)) return false
       if (filtroOrigem==='marketplaces' && !['mercado_livre','mercadolivre','amazon'].includes(v.canal)) return false
-      if (filtroStatus==='em_aberto' && !['pendente','enviada'].includes(v.statusEntrega||'pendente')) return false
+      if (filtroStatus==='em_aberto' && (v.status==='cancelada'||!['pendente','enviada'].includes(v.statusEntrega||'pendente'))) return false
+      if (filtroStatus==='cancelada' && v.status!=='cancelada' && v.statusEntrega!=='cancelada') return false
       if (filtroTipo !== 'todos' && v.tipoEntrega !== filtroTipo) return false
-      if (filtroStatus !== 'todos' && filtroStatus !== 'em_aberto' && (v.statusEntrega || 'pendente') !== filtroStatus)
+      if (!['todos','em_aberto','cancelada'].includes(filtroStatus) && (v.statusEntrega || 'pendente') !== filtroStatus)
         return false
       if (termo) {
         const nome = v.cliente?.nome?.toLowerCase() || ''
@@ -421,7 +422,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="enviada">Enviada</SelectItem>
               <SelectItem value="entregue">Entregue</SelectItem>
-              <SelectItem value="cancelada">Cancelada</SelectItem>
+              <SelectItem value="cancelada">Cancelados (inclusive testes)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -507,7 +508,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {!loading &&
           filtradas.map((v) => {
-            const statusEntrega = (v.statusEntrega || 'pendente') as StatusEntrega
+            const statusEntrega = (v.status==='cancelada'?'cancelada':(v.statusEntrega || 'pendente')) as StatusEntrega
             const meta = STATUS_META[statusEntrega]
             const tipoMeta = String(v.tipoEntrega) === 'marketplace'
               ? {label:'Marketplace',icon:Package}
