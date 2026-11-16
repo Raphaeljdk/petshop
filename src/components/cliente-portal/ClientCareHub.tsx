@@ -292,7 +292,7 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </div>)}
     </Section>
 
-    <Section title="Compartilhar cuidados em família" hint="A pessoa convidada precisa entrar com o e-mail informado e aceitar. Compartilhamos somente nome do pet e próximos agendamentos; fotos e documentos continuam privados.">
+    <Section title="Compartilhar cuidados em família" hint="A pessoa convidada aceita no próprio login; depois você precisa aprovar o acesso. Somente nome do pet e próximos agendamentos são compartilhados. Fotos e documentos continuam privados.">
       <div className="flex flex-wrap gap-2">
         <Input type="email" className="max-w-72" placeholder="E-mail do familiar" value={familyEmail} onChange={(e)=>setFamilyEmail(e.target.value)}/>
         <Button size="sm" disabled={busy||!familyEmail||!petKey} onClick={()=>void act({action:'family-invite',petKey,email:familyEmail},'Convite registrado.')}>
@@ -301,7 +301,12 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </div>
       {data.outgoing.filter((i)=>i.petKey===petKey&&i.status!=='revogado').map((i)=><div key={i.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <span>{i.recipientEmail} · {i.status}</span>
-        <Button size="sm" variant="outline" disabled={busy} onClick={()=>void act({action:'family-revoke',id:i.id},'Acesso revogado.')}>Revogar</Button>
+        <div className="flex flex-wrap gap-2">
+          {i.status==='aguardando_aprovacao'&&<Button size="sm" disabled={busy} onClick={()=>{
+            if(window.confirm('Você reconhece esta pessoa e autoriza que ela veja o nome do pet e os próximos agendamentos?'))void act({action:'family-approve',id:i.id},'Acesso autorizado.')
+          }}>Autorizar familiar</Button>}
+          <Button size="sm" variant="outline" disabled={busy} onClick={()=>void act({action:'family-revoke',id:i.id},'Acesso revogado.')}>Revogar</Button>
+        </div>
       </div>)}
       {data.incoming.filter((i)=>i.status==='pendente').map((i)=><div key={i.id} className="flex flex-wrap items-center gap-2 text-xs">
         <span>Convite pendente de compartilhamento</span>
