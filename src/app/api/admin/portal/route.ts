@@ -80,8 +80,8 @@ export async function GET() {
           Boolean(process.env.APP_URL?.startsWith('https://') || process.env.NEXTAUTH_URL?.startsWith('https://')),
         validatedEndToEnd:false,
       },
-      email: { configured: emailConfigured, domainVerified:false },
-      whatsapp: { configured: whatsappConfigured, templateApproved:false },
+      email: { configured: emailConfigured, domainVerification:'not_checked' },
+      whatsapp: { configured: whatsappConfigured, templateVerification:'not_checked' },
       notifications: {
         enabled:process.env.PORTAL_NOTIFICATIONS_ENABLED === 'true',
         cronConfigured:Boolean(process.env.CRON_SECRET?.trim()),
