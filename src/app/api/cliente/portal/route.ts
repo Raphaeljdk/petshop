@@ -128,7 +128,9 @@ export async function POST(req: NextRequest) {
     }
     if (data.action === 'preferences') {
       await db.portalClientPreferences.upsert({ where: { clienteId },
-        create: { clienteId, ...data, action:undefined },
+        create: { clienteId, remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
+          remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
+          marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
         update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
           remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
           marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
