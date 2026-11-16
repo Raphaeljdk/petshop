@@ -139,7 +139,10 @@ function capitalizeModel(value: string) {
 
 /** Título da família + atributos de uma variação física real. */
 export function catalogVariantDetails(nome: string) {
-  const original = (nome || '').replace(/\s*\/\s*(PP|P|M|G|GG|XGG)\s*$/i, ' $1').replace(/\s+/g, ' ').trim()
+  const original = (nome || '')
+    .replace(/\s*\(\s*TG\s*[0-9]{1,2}\s*\)\s*$/i, '')
+    .replace(/\s*\/\s*(PP|P|M|G|GG|XGG)\s*$/i, ' $1')
+    .replace(/\s+/g, ' ').trim()
   const parts = original.split(/\s+[-–—]\s+/)
   // Em muitos títulos o tamanho vem antes da cor: 'Cama Grande - Rosa'.
   // Remove somente a última cor para identificar o tamanho sem misturar SKUs.
