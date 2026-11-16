@@ -11,7 +11,8 @@ const LEASE_MS=7*60*1000
 export async function marketplaceSyncStatus() {
   return db.marketplaceSyncRun.findUnique({where:{id:JOB_ID},
     select:{status:true,lastStartedAt:true,lastFinishedAt:true,lastSuccessAt:true,
-      lastMlUpdated:true,lastAmazonUpdated:true,lastSalesImported:true,lastErrors:true}})
+      lastMlUpdated:true,lastMlActivated:true,lastLocalPublished:true,lastLocalHidden:true,
+      lastBlockedListings:true,lastAmazonUpdated:true,lastSalesImported:true,lastErrors:true}})
 }
 
 export async function runMarketplacesSync(options: { force?: boolean } = {}) {
@@ -41,12 +42,16 @@ export async function runMarketplacesSync(options: { force?: boolean } = {}) {
     await db.marketplaceSyncRun.updateMany({where:{id:JOB_ID,leaseToken:token},data:{
       leaseToken:null,leaseUntil:null,status:errors.length?'partial':'success',
       lastFinishedAt:ended,...(!errors.length?{lastSuccessAt:ended}:{}),
-      lastMlUpdated:ml,lastAmazonUpdated:amazon,lastSalesImported:imported,
+      lastMlUpdated:ml,lastMlActivated:stock.mercadoLivreActivated,
+      lastLocalPublished:stock.localPublished,lastLocalHidden:stock.localHidden,
+      lastBlockedListings:stock.blockedListings,lastAmazonUpdated:amazon,lastSalesImported:imported,
       lastErrors:errors.slice(0,25).join('\n').slice(0,5000)||null,
     }})
     return {ok:errors.length===0,busy:false,
       checked:{mercadoLivre:sales.mercadoLivre?.checked||0,amazon:sales.amazon?.checked||0},
-      imported,mercadoLivreUpdated:ml,amazonUpdated:amazon,
+      imported,mercadoLivreUpdated:ml,mercadoLivreActivated:stock.mercadoLivreActivated,
+      localPublished:stock.localPublished,localHidden:stock.localHidden,
+      blockedListings:stock.blockedListings,amazonUpdated:amazon,
       errors:errors.slice(0,25),lastSync:ended.toISOString()}
   }catch(error){
     const message=error instanceof Error?error.message:'Erro inesperado na conciliacao.'

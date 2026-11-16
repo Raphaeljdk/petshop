@@ -1,205 +1,243 @@
 import { db } from '@/lib/db'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
-import { mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
+import { mercadoLivreItemsByIds, mercadoLivreUpdateListingStatus, mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
 import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-api'
-import { safeStock } from '@/lib/product-stock'
+import { isServiceProduct, safeStock } from '@/lib/product-stock'
 import { codigoCompartilhado } from '@/lib/product-sku-groups'
 import { notifyRestockSubscribers } from '@/lib/restock-notifications'
+import { decideMercadoLivreListing,shouldPublishLocalStock } from '@/lib/marketplace-publish-policy'
 
 export type InventorySyncResult = {
-  products: number
-  mercadoLivreUpdated: number
-  amazonUpdated: number
-  skippedUnlinked: number
-  blockedListings: number
-  restockNotifications: {
-    configured: boolean
-    sent: number
-    pending: number
-    errors: string[]
-  }
-  errors: string[]
+  products:number
+  mercadoLivreUpdated:number
+  mercadoLivreActivated:number
+  amazonUpdated:number
+  localPublished:number
+  localHidden:number
+  skippedUnlinked:number
+  blockedListings:number
+  restockNotifications:{configured:boolean;sent:number;pending:number;errors:string[]}
+  errors:string[]
 }
 
+type Channel='mercadolivre'|'amazon'
 function amazonSubmissionHasError(payload: unknown) {
-  if (!payload || typeof payload !== 'object') return false
-  const issues = (payload as { issues?: Array<{ severity?: string }> }).issues
-  return Boolean(
-    issues?.some((issue) => String(issue.severity || '').toUpperCase() === 'ERROR')
-  )
+  const issues=(payload as {issues?:Array<{severity?:string}>}|null)?.issues
+  return Boolean(issues?.some(x=>String(x.severity||'').toUpperCase()==='ERROR'))
+}
+function reason(error:unknown){return error instanceof Error?error.message:String(error)}
+function issueType(error:unknown){
+  const message=reason(error)
+  return /UNAUTHORIZED|not authorized|access.denied|access_denied|permission|policy|HTTP 40[13]/i.test(message)
+    ? 'permission' : 'remote_error'
 }
 
-export async function syncLocalStockToMarketplaces(options: { force?: boolean } = {}): Promise<InventorySyncResult> {
-  // O Produto.estoque do ERP Matilha Prado é a única fonte física;
-  // marketplaces recebem o saldo e nunca sobrescrevem o estoque local.
-  // Considera também a posição do Zetta/local no diagnóstico do saldo físico.
-  // Não cria sincronização se dois anúncios compartilham SKU e discordam sobre
-  // a quantidade: alguém precisa confirmar a posição real antes de enviar.
-  const allProducts = await db.produto.findMany({
-    where:{ativo:true},
-    select:{
-      id:true,nome:true,sku:true,estoque:true,zettaProCod:true,mlItemId:true,
-      amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true,
-    },
+export async function syncLocalStockToMarketplaces(
+  options:{force?:boolean}={}
+):Promise<InventorySyncResult>{
+  // O estoque físico único e o SKU do ERP determinam a publicação na vitrine.
+  // As quantidades observadas em ML/Amazon não se somam ao estoque físico.
+  const all=await db.produto.findMany({
+    where:{OR:[{mlItemId:{not:null}},{amazonAsin:{not:null}}]},
+    select:{id:true,nome:true,categoria:true,sku:true,ativo:true,estoque:true,
+      estoqueIlimitado:true,mlItemId:true,amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true},
   })
-  const products=allProducts.filter(p=>p.mlItemId||p.amazonAsin)
-  const mlIdCounts=new Map<string,number>()
-  for(const p of allProducts){
-    if(p.mlItemId)mlIdCounts.set(p.mlItemId,(mlIdCounts.get(p.mlItemId)||0)+1)
+  const products=all.filter(p=>!isServiceProduct(p))
+  const publish=products.filter(p=>shouldPublishLocalStock(p.estoque,true)&&!p.ativo)
+  const hide=products.filter(p=>!shouldPublishLocalStock(p.estoque,true)&&p.ativo)
+  const localPublished=publish.length?(await db.produto.updateMany({
+    where:{id:{in:publish.map(p=>p.id)},ativo:false,estoque:{gt:0}},data:{ativo:true},
+  })).count:0
+  const localHidden=hide.length?(await db.produto.updateMany({
+    where:{id:{in:hide.map(p=>p.id)},ativo:true,estoque:{lte:0}},data:{ativo:false},
+  })).count:0
+
+  const errors:string[]=[]
+  let mercadoLivreUpdated=0,mercadoLivreActivated=0,amazonUpdated=0,blockedListings=0
+  const mlCounts=new Map<string,number>()
+  const skuStocks=new Map<string,Set<number>>()
+  for(const product of products){
+    if(product.mlItemId)mlCounts.set(product.mlItemId,(mlCounts.get(product.mlItemId)||0)+1)
+    const sku=codigoCompartilhado(product.sku)
+    if(sku){const vals=skuStocks.get(sku)||new Set<number>()
+      vals.add(safeStock(product.estoque));skuStocks.set(sku,vals)}
   }
-  const ambiguousMlIds=new Set([...mlIdCounts.entries()]
-    .filter(([,count])=>count>1).map(([id])=>id))
-  const warnedAmbiguous=new Set<string>()
-  const pendingIssues=await db.marketplaceStockIssue.findMany({
-    where:{resolvedAt:null,retryAfter:{gt:new Date()}},
-    select:{id:true,error:true,retryAfter:true},
+  const ambiguousIds=new Set([...mlCounts.entries()].filter(([,n])=>n>1).map(([id])=>id))
+  const divergentSkus=new Set([...skuStocks.entries()]
+    .filter(([,s])=>s.size>1).map(([sku])=>sku))
+  const blocked=await db.marketplaceStockIssue.findMany({
+    where:{resolvedAt:null,retryAfter:{gt:new Date()}},select:{id:true,category:true},
   })
-  const blockedIds=new Set(pendingIssues.map(p=>p.id))
-  let blockedListings=0
-  const markIssue=async (channel:'mercadolivre'|'amazon',key:string,productId:string,title:string,error:unknown)=>{
-    const msg=error instanceof Error?error.message:String(error)
-    const unauthorized=/UNAUTHORIZED|not authorized|access.denied|access_denied|permission|policy|HTTP 40[13]/i.test(msg)
-    const waitMs=unauthorized?6*60*60*1000:30*60*1000
-    await db.marketplaceStockIssue.upsert({where:{id:channel+':'+key},create:{
-      id:channel+':'+key,channel,productId,title,category:unauthorized?'permission':'remote_error',
-      error:msg.slice(0,700),retryAfter:new Date(Date.now()+waitMs),
-    },update:{productId,title,category:unauthorized?'permission':'remote_error',
-      error:msg.slice(0,700),retryAfter:new Date(Date.now()+waitMs),resolvedAt:null}})
+  const cooldownIds=new Set(blocked.map(x=>x.id))
+  const issuesAlreadyReported=new Set<string>()
+  const putIssue=async(channel:Channel,key:string,productId:string,title:string,message:string,
+    category?:string)=>{
+    const cls=category||issueType(message)
+    const waitMs=cls==='permission'?6*60*60*1000:cls==='blocked_status'||cls==='variant_mapping'
+      ?24*60*60*1000:30*60*1000
+    const id=channel+':'+key
+    await db.marketplaceStockIssue.upsert({where:{id},create:{
+      id,channel,productId,title,category:cls,error:message.slice(0,700),
+      retryAfter:new Date(Date.now()+waitMs),
+    },update:{productId,title,category:cls,error:message.slice(0,700),
+      retryAfter:new Date(Date.now()+waitMs),resolvedAt:null}})
   }
-  const markOk=async(channel:'mercadolivre'|'amazon',key:string)=>{
-    await db.marketplaceStockIssue.updateMany({where:{id:channel+':'+key,resolvedAt:null},
-      data:{resolvedAt:new Date(),retryAfter:null}})
+  const clearIssue=async(channel:Channel,key:string)=>{
+    await db.marketplaceStockIssue.updateMany({
+      where:{id:channel+':'+key,resolvedAt:null},
+      data:{resolvedAt:new Date(),retryAfter:null},
+    })
   }
-  const estoquePorSku=new Map<string,Set<number>>()
-  for(const p of allProducts){
-    const sku=codigoCompartilhado(p.sku)
-    if(!sku)continue
-    const current=estoquePorSku.get(sku)||new Set<number>()
-    current.add(safeStock(p.estoque));estoquePorSku.set(sku,current)
-  }
-  const skusComDivergencia=new Set([...estoquePorSku.entries()]
-    .filter(([,saldos])=>saldos.size>1).map(([sku])=>sku))
 
-  let mercadoLivreUpdated = 0
-  let amazonUpdated = 0
-  const errors: string[] = []
-
-  const mlProducts = products.filter((product) => product.mlItemId)
-  let mlToken: string | null = null
-  if (mlProducts.length) {
-    try {
-      mlToken = (await mercadoLivreAccessToken()).token
-    } catch (error) {
-      errors.push(
-        `Mercado Livre: ${error instanceof Error ? error.message : 'falha de autenticação'}`
-      )
+  let mlToken:string|null=null
+  let mlSellerId:string|null=null
+  let remoteItems=new Map<string,Awaited<ReturnType<typeof mercadoLivreItemsByIds>>[number]>()
+  const mlIds=[...new Set(products.map(p=>p.mlItemId).filter((v):v is string=>Boolean(v)))]
+  if(mlIds.length){
+    try{
+      const access=await mercadoLivreAccessToken()
+      mlToken=access.token
+      mlSellerId=access.sellerId
+      const fetched=await mercadoLivreItemsByIds(mlIds,mlToken)
+      remoteItems=new Map(fetched.map(item=>[item.id,item]))
+      if(fetched.length<mlIds.length)
+        errors.push('Mercado Livre: '+(mlIds.length-fetched.length)+
+          ' anúncio(s) não retornaram dados válidos da API; nenhuma mudança será feita neles.')
+    }catch(error){
+      errors.push('Mercado Livre: não foi possível validar status e quantidade antes de atualizar: '+reason(error))
+      mlToken=null
     }
   }
 
-  const divergenciasAvisadas=new Set<string>()
-  for (const product of products) {
+  // Limite conservador por execução; os demais anúncios são reavaliados no próximo cron.
+  // Impede sobrecarga e funções interrompidas no meio de uma operação em lote.
+  const MAX_ML_OPERATIONS=120
+  const MAX_STOCK_SYNC_MS=180_000
+  const stockStartedAt=Date.now()
+  let mlOperations=0
+  for(const product of products){
+    const quantity=safeStock(product.estoque)
     const sku=codigoCompartilhado(product.sku)
-    if(sku && skusComDivergencia.has(sku)){
-      if(!divergenciasAvisadas.has(sku)){
-        errors.push('SKU '+sku+': saldos físicos diferentes entre anúncios/canais; sincronização bloqueada até conferência do estoque real.')
-        divergenciasAvisadas.add(sku)
+    if(sku&&divergentSkus.has(sku)){
+      if(!issuesAlreadyReported.has(sku)){
+        errors.push('SKU '+sku+': há saldos físicos divergentes; requer conferência antes de sincronizar.')
+        issuesAlreadyReported.add(sku)
       }
+      blockedListings++
       continue
     }
-    const quantity = safeStock(product.estoque)
-    if(product.mlItemId&&ambiguousMlIds.has(product.mlItemId)){
-      if(!warnedAmbiguous.has(product.mlItemId)){
-        const message='Anúncio '+product.mlItemId+
-          ' vinculado a vários SKUs: precisa identificar variation_id antes de atualizar estoque no Mercado Livre.'
-        errors.push(message)
-        warnedAmbiguous.add(product.mlItemId)
-        await markIssue('mercadolivre',product.mlItemId,product.id,product.nome,new Error(message))
-          .catch(console.error)
-      }
-    }
 
-    if (product.mlItemId && !ambiguousMlIds.has(product.mlItemId) && mlToken && safeStock(product.estoqueMercadoLivre)!==quantity
-    && (options.force || !blockedIds.has('mercadolivre:'+product.mlItemId))) {
-      try {
-        await mercadoLivreUpdateStock(product.mlItemId, quantity, mlToken)
-        await db.produto.update({
-          where: { id: product.id },
-          data: { estoqueMercadoLivre: quantity },
-        })
-        await markOk('mercadolivre',product.mlItemId!)
-        mercadoLivreUpdated += 1
-      } catch (error) {
-        await markIssue('mercadolivre',product.mlItemId!,product.id,product.nome,error).catch(console.error)
-        errors.push(
-          `${product.nome} / Mercado Livre: ${
-            error instanceof Error ? error.message : 'falha ao atualizar estoque'
-          }`
-        )
-      }
-    } else if (product.mlItemId && !ambiguousMlIds.has(product.mlItemId) && mlToken && !options.force &&
-      blockedIds.has('mercadolivre:'+product.mlItemId) &&
-      safeStock(product.estoqueMercadoLivre)!==quantity) {
-      blockedListings+=1
-    }
-
-    if (
-      product.amazonAsin &&
-      product.sku &&
-      safeStock(product.estoqueAmazon) !== quantity &&
-      (options.force || !blockedIds.has('amazon:'+product.sku))
-    ) {
-      try {
-        const submission = await amazonUpdateListingQuantity(product.sku, quantity)
-        if (amazonSubmissionHasError(submission)) {
-          throw new Error('A Amazon recebeu a atualização, mas retornou erro na submissão.')
+    if(product.mlItemId){
+      const id=product.mlItemId
+      const issueId='mercadolivre:'+id
+      if(ambiguousIds.has(id)){
+        if(!issuesAlreadyReported.has(id)){
+          const msg='Anúncio '+id+' vinculado a diferentes produtos: identificar variation_id de cada SKU antes de atualizar.'
+          errors.push(msg)
+          await putIssue('mercadolivre',id,product.id,product.nome,msg,'variant_mapping').catch(console.error)
+          issuesAlreadyReported.add(id)
         }
-        await db.produto.update({
-          where: { id: product.id },
-          data: { estoqueAmazon: quantity },
-        })
-        await markOk('amazon',product.sku!)
-        amazonUpdated += 1
-      } catch (error) {
-        await markIssue('amazon',product.sku!,product.id,product.nome,error).catch(console.error)
-        const message =
-          error instanceof AmazonSpApiError || error instanceof Error
-            ? error.message
-            : 'falha ao atualizar estoque'
-        errors.push(`${product.nome} / Amazon: ${message}`)
+        blockedListings++
+      }else if(!mlToken){
+        // Erro de autenticação já registrado; não tentar PUT sem verificação.
+      }else if(!options.force&&cooldownIds.has(issueId)){
+        blockedListings++
+      }else{
+        const remote=remoteItems.get(id)
+        if(!remote){
+          blockedListings++
+          if(!issuesAlreadyReported.has(id)){
+            errors.push('Mercado Livre: anúncio '+id+' sem status confiável no retorno da API.')
+            issuesAlreadyReported.add(id)
+          }
+        }else if(remote.sellerId&&mlSellerId&&remote.sellerId!==mlSellerId){
+          blockedListings++
+          await putIssue('mercadolivre',id,product.id,product.nome,
+            'O anúncio pertence a outra conta vendedora. Conferir vínculo e vendedor na integração.','permission')
+            .catch(console.error)
+        }else{
+          const decision=decideMercadoLivreListing(quantity,remote)
+          if(decision.action==='blocked'){
+            blockedListings++
+            await putIssue('mercadolivre',id,product.id,product.nome,
+              decision.reason||'Estado do anúncio não permite atualização automática.','blocked_status')
+              .catch(console.error)
+          }else if(decision.action!=='none'&&
+            (mlOperations>=MAX_ML_OPERATIONS||Date.now()-stockStartedAt>MAX_STOCK_SYNC_MS)){
+            blockedListings++
+            if(!issuesAlreadyReported.has('limit')){
+              errors.push('Mercado Livre: limite de operações/tempo por execução atingido; demais anúncios serão avaliados no próximo ciclo.')
+              issuesAlreadyReported.add('limit')
+            }
+          }else{
+            try{
+              if(decision.action==='update-stock'||decision.action==='update-stock-and-activate'){
+                await mercadoLivreUpdateStock(id,quantity,mlToken)
+                mlOperations++
+                await db.produto.update({where:{id:product.id},data:{estoqueMercadoLivre:quantity}})
+                mercadoLivreUpdated++
+              }else if(product.estoqueMercadoLivre!==remote.quantity){
+                await db.produto.update({where:{id:product.id},
+                  data:{estoqueMercadoLivre:remote.quantity}})
+              }
+              if(decision.action==='activate'||decision.action==='update-stock-and-activate'){
+                const result=await mercadoLivreUpdateListingStatus(id,'active',mlToken)
+                mlOperations++
+                if(result.status!=='active')
+                  throw new Error('O Mercado Livre não confirmou o status active para '+id)
+                mercadoLivreActivated++
+              }
+              await clearIssue('mercadolivre',id)
+            }catch(error){
+              const msg=reason(error)
+              await putIssue('mercadolivre',id,product.id,product.nome,msg).catch(console.error)
+              errors.push(product.nome+' / Mercado Livre: '+msg)
+              blockedListings++
+            }
+          }
+        }
       }
-    } else if (product.amazonAsin && product.sku && !options.force &&
-      blockedIds.has('amazon:'+product.sku) &&
-      safeStock(product.estoqueAmazon)!==quantity) {
-      blockedListings+=1
-    } else if (product.amazonAsin && !product.sku) {
-      errors.push(
-        `${product.nome} / Amazon: SKU ausente; não é possível sincronizar a quantidade.`
-      )
+    }
+
+    if(product.amazonAsin){
+      if(!product.sku){
+        errors.push(product.nome+' / Amazon: SKU ausente; estoque não enviado.')
+      }else if(quantity!==safeStock(product.estoqueAmazon)){
+        const issueId='amazon:'+product.sku
+        if(!options.force&&cooldownIds.has(issueId)){
+          blockedListings++
+        }else{
+          try{
+            const submission=await amazonUpdateListingQuantity(product.sku,quantity)
+            if(amazonSubmissionHasError(submission))
+              throw new Error('Amazon retornou erro na submissão de estoque.')
+            // Resposta da SP-API confirma recebimento da submissão, não a mudança
+            // definitiva da disponibilidade (esta exige conciliação posterior).
+            await db.produto.update({where:{id:product.id},data:{estoqueAmazon:quantity}})
+            await clearIssue('amazon',product.sku)
+            amazonUpdated++
+          }catch(error){
+            const msg=error instanceof AmazonSpApiError||error instanceof Error
+              ?error.message:'Falha ao enviar estoque.'
+            await putIssue('amazon',product.sku,product.id,product.nome,msg).catch(console.error)
+            errors.push(product.nome+' / Amazon: '+msg)
+            blockedListings++
+          }
+        }
+      }
     }
   }
-
-  const skippedUnlinked = 0
-
-  const restockNotifications = await notifyRestockSubscribers().catch((error) => ({
-    configured: false,
-    sent: 0,
-    pending: 0,
-    errors: [
-      error instanceof Error
-        ? error.message
-        : 'Falha ao processar avisos de reposição.',
-    ],
-  }))
+  // Desativado por padrão até domínio Resend validado. Não transformar
+  // sincronização de estoque em disparos de e-mails sem opt-in operacional.
+  const restockNotifications=process.env.RESTOCK_NOTIFICATIONS_ENABLED==='true'
+    ?await notifyRestockSubscribers().catch(error=>({configured:false,sent:0,pending:0,
+      errors:[reason(error)]}))
+    :{configured:false,sent:0,pending:0,errors:[] as string[]}
 
   return {
-    products: products.length,
-    mercadoLivreUpdated,
-    amazonUpdated,
-    skippedUnlinked,
-    blockedListings,
-    restockNotifications,
-    errors: [...errors, ...restockNotifications.errors,
-      ...(blockedListings?[blockedListings+' anúncio(s) aguardando correção de permissão ou nova tentativa.']:[])
-    ].slice(0, 50),
+    products:products.length,mercadoLivreUpdated,mercadoLivreActivated,amazonUpdated,
+    localPublished,localHidden,skippedUnlinked:0,
+    blockedListings,restockNotifications,
+    errors:[...errors,...restockNotifications.errors].slice(0,50),
   }
 }

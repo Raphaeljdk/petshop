@@ -13,11 +13,14 @@ type MercadoLivreAttribute = {
 
 type MercadoLivreItemBody = {
   id?: string
+  seller_id?: number | string
   title?: string
   price?: number
   currency_id?: string
   available_quantity?: number
   status?: string
+  sub_status?: string[]
+  tags?: string[]
   permalink?: string
   thumbnail?: string
   secure_thumbnail?: string
@@ -36,11 +39,14 @@ type MercadoLivreBulkResult = {
 
 export type MercadoLivreCatalogItem = {
   id: string
+  sellerId: string | null
   title: string
   price: number
   currency: string
   quantity: number
   status: string
+  subStatus: string[]
+  tags: string[]
   permalink: string | null
   thumbnail: string | null
   images: string[]
@@ -112,6 +118,7 @@ function normalizeBulkItem(result: MercadoLivreBulkResult): MercadoLivreCatalogI
 
   return {
     id: itemId,
+    sellerId: normalizedBody.seller_id == null ? null : String(normalizedBody.seller_id),
     title: normalizedBody.title?.trim() || 'Produto sem título',
     price: Number.isFinite(Number(normalizedBody.price))
       ? Math.max(0, Number(normalizedBody.price))
@@ -121,6 +128,8 @@ function normalizeBulkItem(result: MercadoLivreBulkResult): MercadoLivreCatalogI
       ? Math.max(0, Math.floor(Number(normalizedBody.available_quantity)))
       : 0,
     status: normalizedBody.status || 'unknown',
+    subStatus: normalizedBody.sub_status || [],
+    tags: normalizedBody.tags || [],
     permalink: validHttps(normalizedBody.permalink),
     thumbnail,
     images,
@@ -185,11 +194,14 @@ export async function mercadoLivreItemsByIds(ids: string[], token: string) {
       'attributes',
       [
         'body.id',
+        'body.seller_id',
         'body.title',
         'body.price',
         'body.currency_id',
         'body.available_quantity',
         'body.status',
+        'body.sub_status',
+        'body.tags',
         'body.permalink',
         'body.thumbnail',
         'body.secure_thumbnail',
@@ -345,6 +357,7 @@ export async function mercadoLivreUpdateStock(
         available_quantity: Math.max(0, Math.floor(quantity)),
       }),
       cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     }
   )
 
@@ -355,9 +368,31 @@ export async function mercadoLivreUpdateStock(
         ? payload.message
         : `HTTP ${response.status}`
     throw new Error(
-      `Mercado Livre recusou a atualização de estoque do anúncio ${itemId}: ${message}`
+      `Mercado Livre recusou a atualização de estoque do anúncio ${itemId} (HTTP ${response.status}${typeof payload?.code==='string'?', '+payload.code:''}): ${message}`
     )
   }
 
   return payload
+}
+
+
+/** Status externo: só altera um anúncio que ainda esteja elegível na plataforma. */
+export async function mercadoLivreUpdateListingStatus(
+  itemId: string, status:'active'|'paused',token:string
+){
+  const response=await fetch('https://api.mercadolibre.com/items/'+encodeURIComponent(itemId),{
+    method:'PUT',
+    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify({status}),
+    cache:'no-store',
+    signal:AbortSignal.timeout(15000),
+  })
+  const payload=await response.json().catch(()=>null)
+  if(!response.ok){
+    const code=typeof payload?.code==='string'?payload.code:''
+    const message=typeof payload?.message==='string'?payload.message:'Status HTTP '+response.status
+    throw new Error('Mercado Livre não autorizou mudar o status do anúncio '+itemId+
+      ' (HTTP '+response.status+(code?', '+code:'')+'): '+message)
+  }
+  return payload as {status?:string;id?:string}
 }

@@ -59,6 +59,8 @@ type MercadoLivreItem = {
   currency: string
   quantity: number
   status: string
+  subStatus?: string[]
+  localStock?: number | null
   permalink: string | null
   thumbnail: string | null
   imported: boolean
@@ -85,6 +87,7 @@ type AmazonItem = {
   price: number | null
   currency: string
   quantity: number
+  localStock?: number | null
   status: string[]
   imageUrl: string | null
   productType: string | null
@@ -107,6 +110,10 @@ type AutoSyncState={
     lastFinishedAt:string|null
     lastSuccessAt:string|null
     lastMlUpdated:number
+    lastMlActivated:number
+    lastLocalPublished:number
+    lastLocalHidden:number
+    lastBlockedListings:number
     lastAmazonUpdated:number
     lastSalesImported:number
     lastErrors:string|null
@@ -580,7 +587,7 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              Sincronização automática a cada 30 minutos: pedidos pagos entram no ERP e o estoque físico local é enviado aos anúncios vinculados. Falhas de permissão ficam registradas para revisão.
+              Sincronização automática a cada 30 minutos: produtos com estoque no ERP são publicados na vitrine e anúncios elegíveis do Mercado Livre são reativados. Sem estoque, permanecem ocultos ou pausados. Bloqueios e permissões do canal são respeitados.
             </p>
             <Button
               type="button"
@@ -603,7 +610,10 @@ export function IntegracoesView() {
               </p>
               {autoSync?.status?.lastFinishedAt&&<p className="text-xs text-blue-800">
                 Última execução: {autoSync.status.lastSalesImported} pedido(s) novo(s),
-                {' '}{autoSync.status.lastMlUpdated} ajuste(s) Mercado Livre,
+                {' '}{autoSync.status.lastMlUpdated} ajuste(s) de estoque ML,
+                {' '}{autoSync.status.lastMlActivated||0} reativação(ões) de anúncios ML,
+                {' '}{autoSync.status.lastLocalPublished||0} produto(s) publicado(s) na vitrine,
+                {' '}{autoSync.status.lastLocalHidden||0} ocultado(s) por falta de estoque,
                 {' '}{autoSync.status.lastAmazonUpdated} envio(s) Amazon.
               </p>}
               {autoSync?.status?.status==='partial'&&
@@ -618,7 +628,9 @@ export function IntegracoesView() {
                       className="rounded border bg-background p-2 text-xs">
                       <strong>{issue.channel==='mercadolivre'?'Mercado Livre':'Amazon'}: {issue.title}</strong>
                       <p className="break-words">{issue.error}</p>
-                      {issue.category==='permission'&&<p className="mt-1 font-semibold">Revisar autorização do aplicativo, anúncio e política do canal antes de tentar novamente.</p>}
+                      {issue.category==='permission'&&<p className="mt-1 font-semibold">Confira permissões de escrita para Publicações nas configurações do aplicativo Mercado Livre; salve e clique em Reconectar Mercado Livre. O acesso de leitura não basta para alterar estoque.</p>}
+                      {issue.category==='blocked_status'&&<p className="mt-1 font-semibold">Item encerrado ou moderado: regularize no Mercado Livre. O sistema não vai forçar a reativação.</p>}
+                      {issue.category==='variant_mapping'&&<p className="mt-1 font-semibold">Anúncio com vários SKUs: vincular variation_id antes de enviar estoque.</p>}
                     </div>)}
                   </div>
                 </details>
@@ -761,6 +773,11 @@ export function IntegracoesView() {
                 )}
               </div>
 
+              <p className="text-xs text-muted-foreground">
+                A situação do anúncio é informada pelo Mercado Livre. Publicar/Ocultar
+                controla apenas a loja Matilha Prado; a regra de estoque automático será
+                reaplicada no próximo ciclo.
+              </p>
               {mlLoading && (
                 <p className="text-muted-foreground">Carregando anúncios...</p>
               )}
@@ -806,7 +823,7 @@ export function IntegracoesView() {
                             {item.title}
                           </p>
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            {item.id} · Estoque: {item.quantity}
+                            {item.id} · No Mercado Livre: {item.quantity} · Estoque ERP: {item.localStock??'não vinculado'}
                             {group.items.length>1 && ' · '+[item.colorLabel,item.sizeLabel].filter(Boolean).join(' / ')}
                           </p>
                         </div>
@@ -834,6 +851,11 @@ export function IntegracoesView() {
                         >
                           {item.imported ? 'Importado' : 'Aguardando sync'}
                         </Badge>
+                        {item.imported && item.status==='paused' && (item.localStock||0)>0 && (
+                          <Badge variant="outline" className="border-amber-300 text-amber-800 text-[10px]">
+                            Aguardando reativação no ML
+                          </Badge>
+                        )}
                         {item.imported && (
                           <Badge
                             variant="outline"
@@ -843,7 +865,7 @@ export function IntegracoesView() {
                                 : 'border-slate-200 bg-slate-50 text-slate-600'
                             }
                           >
-                            {item.published ? 'Publicado' : 'Oculto'}
+                            {item.published ? 'Na vitrine' : 'Oculto na vitrine'}
                           </Badge>
                         )}
                       </div>
@@ -863,7 +885,7 @@ export function IntegracoesView() {
                             ) : (
                               <Eye className="size-3.5" />
                             )}
-                            {item.published ? 'Ocultar' : 'Publicar'}
+                            {item.published ? 'Ocultar da vitrine' : 'Publicar na vitrine'}
                           </Button>
                         )}
 
@@ -1073,7 +1095,7 @@ export function IntegracoesView() {
                           <p className="mt-1 text-[11px] text-muted-foreground">
                             SKU: {item.sku}
                             {item.asin ? ` · ASIN: ${item.asin}` : ''}
-                            {' · '}Estoque: {item.quantity}
+                            {' · '}Na Amazon: {item.quantity} · Estoque ERP: {item.localStock??'não vinculado'}
                             {group.items.length>1 && ' · '+[item.colorLabel,item.sizeLabel].filter(Boolean).join(' / ')}
                           </p>
                         </div>

@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { decideMercadoLivreListing, shouldPublishLocalStock } from '../src/lib/marketplace-publish-policy.ts'
 import { pickMarketplaceProduct } from '../src/lib/marketplace-product-match.ts'
 import { catalogVariantDetails, catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, groupMarketplaceListings, isClothingProduct } from '../src/lib/product-variants.ts'
 
@@ -251,4 +252,25 @@ test('pedido com item_id ML compartilhado baixa apenas o SKU da variação corre
     {sku:'AZUL-G',externalProductId:'MLB100'})?.id,'azul')
   assert.equal(pickMarketplaceProduct(products,'mercadolivre',
     {externalProductId:'MLB100'}),null)
+})
+
+
+test('cron publica somente produtos com estoque fisico no ERP',()=>{
+  assert.equal(shouldPublishLocalStock(1,true),true)
+  assert.equal(shouldPublishLocalStock(0,true),false)
+  assert.equal(shouldPublishLocalStock(7,false),false)
+})
+
+test('ML: pausado com estoque precisa ser ativado, com 0 nao',()=>{
+  assert.equal(decideMercadoLivreListing(3,{status:'paused',subStatus:['paused_by_seller'],quantity:3}).action,'activate')
+  assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['out_of_stock'],quantity:0}).action,'update-stock-and-activate')
+  assert.equal(decideMercadoLivreListing(0,{status:'paused',quantity:0}).action,'none')
+  assert.equal(decideMercadoLivreListing(0,{status:'active',quantity:3}).action,'update-stock')
+})
+
+test('ML: anuncio moderado, encerrado ou em analise nunca e reativado automaticamente',()=>{
+ for(const status of ['closed','under_review','inactive'])
+   assert.equal(decideMercadoLivreListing(3,{status,quantity:0}).action,'blocked')
+ assert.equal(decideMercadoLivreListing(3,{status:'paused',quantity:1,tags:['moderation_penalty']}).action,'blocked')
+ assert.equal(decideMercadoLivreListing(3,{status:'paused',quantity:1,subStatus:['held']}).action,'blocked')
 })
