@@ -24,7 +24,8 @@ type PortalAdmin = {
   requests:PlanRequest[];gifts:Gift[];referrals:Referral[]
   referralConfig:{active:boolean;awardCents:number;minimumPurchaseCents:number;validDays:number}|null
   integrations?:{
-    subscriptions:{configured:boolean;validatedEndToEnd:boolean}
+    subscriptions:{enabled:boolean;configured:boolean;validatedEndToEnd:boolean}
+    giftRedemption:{enabled:boolean}
     email:{configured:boolean;domainVerification:string}
     whatsapp:{configured:boolean;templateVerification:string}
     notifications:{enabled:boolean;cronConfigured:boolean}
@@ -93,8 +94,10 @@ export function PortalEditorialAdmin() {
       <details className="rounded-lg border p-3">
         <summary className="cursor-pointer text-sm font-semibold">Integrações — prontidão para ativação</summary>
         <div className="mt-3 space-y-2 text-xs">
-          <p><strong>Assinaturas Mercado Pago:</strong> {data?.integrations?.subscriptions.configured?'Credenciais básicas identificadas':'Configuração incompleta'}.
-            A confirmação de cobrança e renovação real continua pendente de homologação.</p>
+          <p><strong>Assinaturas Mercado Pago:</strong> {data?.integrations?.subscriptions.enabled?'Liberação técnica habilitada':'Bloqueadas até homologação'}.
+            {data?.integrations?.subscriptions.configured?' Credenciais básicas identificadas.':' Configuração de pagamento incompleta.'}
+            Ainda é necessário testar cobrança e renovação reais.</p>
+          <p><strong>Vales no checkout:</strong> {data?.integrations?.giftRedemption.enabled?'Liberação técnica habilitada':'Resgate bloqueado até homologação fiscal e financeira'}.</p>
           <p><strong>E-mail:</strong> {data?.integrations?.email.configured?'Configuração de envio identificada':'Chave e/ou remetente ainda não configurados'}.
             É necessário validar DKIM/SPF e confirmar o domínio no Resend antes de ativar.</p>
           <p><strong>WhatsApp:</strong> {data?.integrations?.whatsapp.configured?'Credenciais e nome de template informados':'Configuração da Meta Cloud API incompleta'}.
