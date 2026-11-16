@@ -45,12 +45,12 @@ export async function syncLocalStockToMarketplaces(
   const products=all.filter(p=>!isServiceProduct(p))
   const publish=products.filter(p=>shouldPublishLocalStock(p.estoque,true)&&!p.ativo)
   const hide=products.filter(p=>!shouldPublishLocalStock(p.estoque,true)&&p.ativo)
-  if(publish.length)await db.produto.updateMany({
+  const localPublished=publish.length?(await db.produto.updateMany({
     where:{id:{in:publish.map(p=>p.id)},ativo:false,estoque:{gt:0}},data:{ativo:true},
-  })
-  if(hide.length)await db.produto.updateMany({
+  })).count:0
+  const localHidden=hide.length?(await db.produto.updateMany({
     where:{id:{in:hide.map(p=>p.id)},ativo:true,estoque:{lte:0}},data:{ativo:false},
-  })
+  })).count:0
 
   const errors:string[]=[]
   let mercadoLivreUpdated=0,mercadoLivreActivated=0,amazonUpdated=0,blockedListings=0
@@ -90,11 +90,14 @@ export async function syncLocalStockToMarketplaces(
   }
 
   let mlToken:string|null=null
+  let mlSellerId:string|null=null
   let remoteItems=new Map<string,Awaited<ReturnType<typeof mercadoLivreItemsByIds>>[number]>()
   const mlIds=[...new Set(products.map(p=>p.mlItemId).filter((v):v is string=>Boolean(v)))]
   if(mlIds.length){
     try{
-      mlToken=(await mercadoLivreAccessToken()).token
+      const access=await mercadoLivreAccessToken()
+      mlToken=access.token
+      mlSellerId=access.sellerId
       const fetched=await mercadoLivreItemsByIds(mlIds,mlToken)
       remoteItems=new Map(fetched.map(item=>[item.id,item]))
       if(fetched.length<mlIds.length)
@@ -109,6 +112,8 @@ export async function syncLocalStockToMarketplaces(
   // Limite conservador por execução; os demais anúncios são reavaliados no próximo cron.
   // Impede sobrecarga e funções interrompidas no meio de uma operação em lote.
   const MAX_ML_OPERATIONS=120
+  const MAX_STOCK_SYNC_MS=180_000
+  const stockStartedAt=Date.now()
   let mlOperations=0
   for(const product of products){
     const quantity=safeStock(product.estoque)
@@ -145,6 +150,11 @@ export async function syncLocalStockToMarketplaces(
             errors.push('Mercado Livre: anúncio '+id+' sem status confiável no retorno da API.')
             issuesAlreadyReported.add(id)
           }
+        }else if(remote.sellerId&&mlSellerId&&remote.sellerId!==mlSellerId){
+          blockedListings++
+          await putIssue('mercadolivre',id,product.id,product.nome,
+            'O anúncio pertence a outra conta vendedora. Conferir vínculo e vendedor na integração.','permission')
+            .catch(console.error)
         }else{
           const decision=decideMercadoLivreListing(quantity,remote)
           if(decision.action==='blocked'){
@@ -152,11 +162,11 @@ export async function syncLocalStockToMarketplaces(
             await putIssue('mercadolivre',id,product.id,product.nome,
               decision.reason||'Estado do anúncio não permite atualização automática.','blocked_status')
               .catch(console.error)
-          }else if(decision.action!=='none'&&mlOperations>=MAX_ML_OPERATIONS){
+          }else if(decision.action!=='none'&&
+            (mlOperations>=MAX_ML_OPERATIONS||Date.now()-stockStartedAt>MAX_STOCK_SYNC_MS)){
             blockedListings++
             if(!issuesAlreadyReported.has('limit')){
-              errors.push('Mercado Livre: limite de '+MAX_ML_OPERATIONS+
-                ' anúncios por execução atingido; demais serão avaliados no próximo ciclo.')
+              errors.push('Mercado Livre: limite de operações/tempo por execução atingido; demais anúncios serão avaliados no próximo ciclo.')
               issuesAlreadyReported.add('limit')
             }
           }else{
@@ -173,7 +183,7 @@ export async function syncLocalStockToMarketplaces(
               if(decision.action==='activate'||decision.action==='update-stock-and-activate'){
                 const result=await mercadoLivreUpdateListingStatus(id,'active',mlToken)
                 mlOperations++
-                if(result.status&&result.status!=='active')
+                if(result.status!=='active')
                   throw new Error('O Mercado Livre não confirmou o status active para '+id)
                 mercadoLivreActivated++
               }
@@ -226,7 +236,7 @@ export async function syncLocalStockToMarketplaces(
 
   return {
     products:products.length,mercadoLivreUpdated,mercadoLivreActivated,amazonUpdated,
-    localPublished:publish.length,localHidden:hide.length,skippedUnlinked:0,
+    localPublished,localHidden,skippedUnlinked:0,
     blockedListings,restockNotifications,
     errors:[...errors,...restockNotifications.errors].slice(0,50),
   }
