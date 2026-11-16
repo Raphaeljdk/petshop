@@ -25,9 +25,10 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('referral-claim'), code: z.string().trim().min(4).max(32) }).strict(),
   z.object({ action: z.literal('gift-request'),
     recipientName: z.string().trim().min(2).max(120),
-    recipientEmail: z.union([z.string().email().max(200), z.literal('')]).optional(),
+    recipientEmail: z.string().trim().email().max(200),
+    recipientWhatsapp:z.string().trim().regex(/^\\+?[0-9() .-]{10,20}$/,'Informe WhatsApp com DDD válido.'),
     message: z.string().trim().max(500).optional(),
-    amountCents: z.number().int().min(2000).max(50000) }).strict(),
+    amountCents: z.number().int().min(5000).max(50000) }).strict(),
   z.object({ action: z.literal('family-invite'), petKey: petKeySchema, email: z.string().email().max(200) }).strict(),
   z.object({ action: z.literal('family-response'), id: z.string().min(1), accepted: z.boolean() }).strict(),
   z.object({ action: z.literal('family-revoke'), id: z.string().min(1) }).strict(),
@@ -224,10 +225,11 @@ export async function POST(req: NextRequest) {
       if (pendingGifts >= 5) return NextResponse.json({error:'Limite de 5 solicitações pendentes. Aguarde a análise da loja.'},{status:409})
       await db.portalGiftRequest.create({ data: {
         clienteId, recipientName:data.recipientName,
-        recipientEmail:data.recipientEmail ? cleanEmail(data.recipientEmail) : null,
+        recipientEmail:cleanEmail(data.recipientEmail),
+        recipientWhatsapp:data.recipientWhatsapp,
         amountCents:data.amountCents, message:data.message || null,
       } })
-      return NextResponse.json({ success:true, note:'Pedido recebido. O voucher só será emitido após aprovação e pagamento confirmado.' }, { status:201 })
+      return NextResponse.json({ success:true, note:'Pedido recebido. O voucher só será emitido após aprovação e pagamento confirmado. O presenteado precisará acessar sua própria conta com o e-mail informado.' }, { status:201 })
     }
     if (data.action === 'family-invite') {
       if (!await ownsPet(user,data.petKey))
