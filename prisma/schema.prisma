@@ -850,6 +850,10 @@ model MarketplaceSyncRun {
   lastFinishedAt DateTime?
   lastSuccessAt DateTime?
   lastMlUpdated Int @default(0)
+  lastMlActivated Int @default(0)
+  lastLocalPublished Int @default(0)
+  lastLocalHidden Int @default(0)
+  lastBlockedListings Int @default(0)
   lastAmazonUpdated Int @default(0)
   lastSalesImported Int @default(0)
   lastErrors String? @db.Text
