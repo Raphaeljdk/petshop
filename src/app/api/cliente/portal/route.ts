@@ -123,6 +123,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error:'Pet não encontrado na sua conta.' }, { status:404 })
       if (data.kind === 'vacina_documento' && !data.imageData)
         return NextResponse.json({ error:'Anexe uma foto do comprovante para registrar o documento.' }, { status:400 })
+      const count = await db.portalPetMemory.count({where:{clienteId}})
+      if (count >= 100) return NextResponse.json({error:'Limite de 100 registros atingido. Exclua registros antigos para continuar.'},{status:409})
+      if (data.imageData && await db.portalPetMemory.count({where:{clienteId,imageData:{not:null}}}) >= 30)
+        return NextResponse.json({error:'Limite de 30 fotos atingido para proteger o armazenamento.'},{status:409})
       const item = await db.portalPetMemory.create({ data: {
         clienteId, petKey:data.petKey, kind:data.kind, title:data.title,
         notes:data.notes || null, imageData:data.imageData || null,
@@ -189,6 +193,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ id:claim.id, status:claim.status }, { status:201 })
     }
     if (data.action === 'gift-request') {
+      const pendingGifts = await db.portalGiftRequest.count({where:{
+        clienteId,status:{in:['solicitado','aguardando_pagamento']},
+      }})
+      if (pendingGifts >= 5) return NextResponse.json({error:'Limite de 5 solicitações pendentes. Aguarde a análise da loja.'},{status:409})
       await db.portalGiftRequest.create({ data: {
         clienteId, recipientName:data.recipientName,
         recipientEmail:data.recipientEmail ? cleanEmail(data.recipientEmail) : null,
@@ -201,6 +209,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error:'Pet não encontrado.' }, { status:404 })
       const email = cleanEmail(data.email)
       if (email === cleanEmail(user.email)) return NextResponse.json({ error:'Não é possível convidar a própria conta.' }, { status:400 })
+      const activeInvites = await db.portalPetFamilyInvite.count({where:{
+        ownerClienteId:clienteId,petKey:data.petKey,
+        status:{in:['pendente','aguardando_aprovacao','aceito']},
+      }})
+      if (activeInvites >= 5) return NextResponse.json({error:'No máximo cinco convites ativos por pet.'},{status:409})
       await db.portalPetFamilyInvite.upsert({
         where: { ownerClienteId_petKey_recipientEmail: { ownerClienteId:clienteId, petKey:data.petKey, recipientEmail:email } },
         create: { ownerClienteId:clienteId, petKey:data.petKey, recipientEmail:email },
