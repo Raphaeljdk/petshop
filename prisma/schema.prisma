@@ -890,3 +890,16 @@ model MarketplaceStockConfirmation {
   createdAt DateTime @default(now())
   @@index([productId,createdAt])
 }
+
+
+// Auditoria de conclusão manual de entregas LOCAIS, nunca de remessas
+// confirmadas externamente por Mercado Livre/Amazon.
+model EntregaLoteAuditoria {
+  id String @id @default(cuid())
+  adminId String
+  pedidoIds Json
+  quantidade Int
+  acao String @default("entregue")
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
