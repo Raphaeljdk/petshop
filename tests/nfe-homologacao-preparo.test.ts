@@ -29,8 +29,12 @@ test('seleciona produto real e retorna diagnóstico sem liberar envio ou criar v
  assert.equal(r.historico.maiorNumeroConhecidoNaSerie,1084)
  assert.equal(r.historico.numeroProximoConfirmado,false)
  assert.equal(r.historico.notasComNumeroNaSerie,2)
- assert.ok(r.pendencias.some(s=>s.includes('49')))
- assert.ok(r.pendencias.some(s=>s.includes('XSD')))
+ assert.ok(r.pendencias.some(s=>s.includes('CST 49')))
+ assert.ok(r.pendencias.some(s=>s.includes('XMLDSig')))
+ assert.ok(r.pendencias.some(s=>s.includes('Nenhuma NF-e 55 própria autorizada')))
+ assert.equal(r.emissaoRealHabilitada,false)
+ assert.equal(r.nfeAutorizadasEmHomologacao,0)
+ assert.equal(r.homologacaoDisponivelParaTeste,false)
  assert.deepEqual({produto,empresa,historico},original)
 })
 test('produto ou regras ausentes mantêm o emissor bloqueado',()=>{
@@ -51,4 +55,16 @@ test('mesmo com regra cadastrada, não presume número livre ou autorização SE
  assert.equal(r.liberadoParaTransmitir,false)
  assert.equal(r.historico.numeroProximoConfirmado,false)
  assert.equal(r.envioSefaz,false)
+})
+
+test('autorização registrada em homologação não habilita automaticamente notas reais',()=>{
+ const resultado=prepararPrimeiraHomologacao({
+  produto,emitente:{...empresa,serieNfe:2},documentos:historico,
+  regrasAprovadas:1,certificadoConfigurado:true,autorizacoesHomologacao:1,
+ })
+ assert.equal(resultado.homologacaoDisponivelParaTeste,true)
+ assert.equal(resultado.nfeAutorizadasEmHomologacao,1)
+ assert.equal(resultado.emissaoRealHabilitada,false)
+ assert.equal(resultado.liberadoParaTransmitir,false)
+ assert.ok(!resultado.pendencias.some(p=>p.includes('Nenhuma NF-e 55 própria autorizada')))
 })

@@ -22,8 +22,10 @@ export const SKU_TESTE_INICIAL='7899669611657'
 export function prepararPrimeiraHomologacao(input:{
   produto:ProdutoHomologacao|null;emitente:EmitenteHomologacao|null
   documentos:NumeroEmitido[];regrasAprovadas:number;certificadoConfigurado:boolean
+  autorizacoesHomologacao?:number
 }){
   const {produto:p,emitente:e,documentos,regrasAprovadas,certificadoConfigurado}=input
+  const autorizacoesHomologacao=input.autorizacoesHomologacao??0
   const serie=e?.serieNfe??null
   const numerosNaSerie=documentos.filter(n=>n.serie===serie&&n.numero!=null)
   const numeroMaximo=numerosNaSerie.length?Math.max(...numerosNaSerie.map(n=>n.numero||0)):null
@@ -46,17 +48,21 @@ export function prepararPrimeiraHomologacao(input:{
   if(!e||e.regimeTributario!=='1'||e.uf!=='SP'||!filled(e.cnpj)||!filled(e.inscricaoEstadual))
     observacoes.push('Dados fiscais do emitente CRT 1 / SP incompletos ou não confirmados.')
   if(!certificadoConfigurado)observacoes.push('Variáveis protegidas do certificado A1 indisponíveis no servidor.')
-  if(regrasAprovadas===0)observacoes.push('Nenhuma regra de operação revisada pelo contador foi registrada.')
-  if(p?.pisCst==='49'||p?.cofinsCst==='49')
-    observacoes.push('O rascunho XML atual NÃO suporta CST PIS/COFINS 49; não trocar códigos sem aprovação.')
-  observacoes.push('Numeração usada por Zetta, Mercado Livre e outros emissores ainda precisa de conciliação externa.')
-  observacoes.push('XML NF-e completo, validação XSD 010f, XMLDSig, autorização/protocolo e DANFE ainda não implementados para o emissor próprio.')
+  if(regrasAprovadas===0)observacoes.push('Nenhuma regra de operação revisada pelo contador foi registrada no ERP. Confirmação externa não equivale a regra cadastrada.')
+  observacoes.push('A série 2 deve continuar exclusiva do emissor próprio. Conferir o histórico externo antes de reservar numeração real.')
+  if(autorizacoesHomologacao===0)
+    observacoes.push('Nenhuma NF-e 55 própria autorizada em homologação consta no banco. Preparar, assinar, validar e transmitir o teste para obter cStat 100 e protocolo.')
+  observacoes.push('A1, assinatura XMLDSig, CST 49, XSD e transmissão de TESTE estão implementados. Emissão real em produção, controle idempotente da numeração e DANFE ainda exigem implementação e testes específicos.')
+  observacoes.push('Tributação PIS/COFINS e IBS/CBS deve estar aprovada para cada operação; códigos preenchidos não comprovam cálculo validado.')
   return {
     tipo:'PREPARACAO_NFE_55_HOMOLOGACAO',
     modo:'somente_leitura',
     tpAmbPlanejado:2,
     criacaoDeVenda:false,alteracaoDeEstoque:false,envioSefaz:false,
     liberadoParaTransmitir:false,
+    homologacaoDisponivelParaTeste:!!(certificadoConfigurado&&p?.ativo&&e?.serieNfe===2&&e?.uf==='SP'),
+    nfeAutorizadasEmHomologacao:autorizacoesHomologacao,
+    emissaoRealHabilitada:false,
     produto:p?{
       id:p.id,nome:p.nome,sku:p.sku,ativo:p.ativo,
       ncm:p.ncm,gtinFiscal:p.gtinFiscal,cfop:p.cfop,csosn:p.csosn,

@@ -8,6 +8,9 @@ type Preparo={
   tipo:string;modo:string;tpAmbPlanejado:number
   criacaoDeVenda:boolean;alteracaoDeEstoque:boolean;envioSefaz:boolean
   liberadoParaTransmitir:boolean
+  homologacaoDisponivelParaTeste:boolean
+  nfeAutorizadasEmHomologacao:number
+  emissaoRealHabilitada:boolean
   produto:null|{
     nome:string;sku:string|null;ativo:boolean;ncm:string|null;gtinFiscal:string|null
     cfop:string|null;csosn:string|null;pisCst:string|null;cofinsCst:string|null
@@ -49,9 +52,16 @@ export function PreparoHomologacaoNfe(){
     </div>
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
     {data&&<>
-      <p className="flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-300">
-        <AlertTriangle className="size-4"/> Emissão própria bloqueada até homologação técnica, fiscal e numeração revisadas.
-      </p>
+      <div className="rounded-lg border bg-background p-3 text-xs space-y-2">
+        <p className="font-semibold">Estado verificado do emissor próprio NF-e 55</p>
+        <p>Homologação: {data.homologacaoDisponivelParaTeste?'preparo, assinatura, XSD e envio de TESTE disponíveis':'indisponível'}</p>
+        <p>Notas próprias autorizadas em homologação com XML e protocolo: <strong>{data.nfeAutorizadasEmHomologacao}</strong></p>
+        <p className="flex items-start gap-2 text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="size-4 shrink-0"/>
+          {data.emissaoRealHabilitada?'Emissão em produção habilitada.':'Emissão de NF-e REAL bloqueada: não existe fluxo próprio de produção liberado.'}
+        </p>
+        <p className="text-muted-foreground">Credenciamento da empresa e aprovação da contadora devem ser conferidos separadamente. A preferência “produção” no cadastro não libera notas reais.</p>
+      </div>
       {data.produto?<div className="rounded-lg border bg-background p-3 text-xs">
         <p className="font-semibold">Produto selecionado para consulta ao contador</p>
         <p className="mt-1">{data.produto.nome}</p>
