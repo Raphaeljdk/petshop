@@ -104,6 +104,8 @@ export async function POST(req: NextRequest) {
       const target = await db.portalCarePlanRequest.findFirst({ where:{ id:data.id,status:'solicitado' },
         include:{plan:true} })
       if (!target) return NextResponse.json({ error:'Solicitação indisponível.' }, { status:404 })
+      if (target.providerSubscriptionId && data.status==='ativo')
+        return NextResponse.json({ error:'Assinatura Mercado Pago deve ser ativada somente por pagamento confirmado no webhook.' }, { status:409 })
       const start = new Date()
       const expires = new Date(start.getTime()+target.plan.durationDays*86400_000)
       await db.portalCarePlanRequest.updateMany({ where:{ id:target.id,status:'solicitado' },
