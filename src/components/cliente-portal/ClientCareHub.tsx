@@ -95,6 +95,7 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
   const [refCode,setRefCode] = useState('')
   const [giftName,setGiftName] = useState('')
   const [giftEmail,setGiftEmail] = useState('')
+  const [giftWhatsapp,setGiftWhatsapp] = useState('')
   const [giftValue,setGiftValue] = useState('50')
   const [giftNote,setGiftNote] = useState('')
   const [familyEmail,setFamilyEmail] = useState('')
@@ -369,18 +370,19 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </div>)}
     </Section>
 
-    <Section title="Vale-presente digital" hint="Solicite um vale-presente. O código somente será gerado após a loja conferir o pagamento; resgate direto no checkout depende de integração adicional.">
+    <Section title="Vale-presente digital" hint="Para solicitar é necessário estar logado. O presenteado deverá entrar ou criar sua própria conta usando o e-mail informado; a entrega por e-mail/WhatsApp depende da ativação do envio. O código só é emitido após confirmação do pagamento.">
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async(e)=>{
         e.preventDefault()
-        const response=await act({action:'gift-request',recipientName:giftName,recipientEmail:giftEmail,
+        const response=await act({action:'gift-request',recipientName:giftName,recipientEmail:giftEmail,recipientWhatsapp:giftWhatsapp,
           message:giftNote,amountCents:Math.round(Number(giftValue)*100)},'Solicitação registrada.')
-        if(response){setGiftName('');setGiftEmail('');setGiftNote('')}
+        if(response){setGiftName('');setGiftEmail('');setGiftWhatsapp('');setGiftNote('')}
       }}>
         <label className="space-y-1 text-xs">Nome do presenteado<Input required value={giftName} onChange={(e)=>setGiftName(e.target.value)}/></label>
-        <label className="space-y-1 text-xs">E-mail (opcional)<Input type="email" value={giftEmail} onChange={(e)=>setGiftEmail(e.target.value)}/></label>
-        <label className="space-y-1 text-xs">Valor (R$ 20 a R$ 500)<Input type="number" min="20" max="500" step="0.01" value={giftValue} onChange={(e)=>setGiftValue(e.target.value)}/></label>
+        <label className="space-y-1 text-xs">E-mail do presenteado *<Input required type="email" autoComplete="email" value={giftEmail} onChange={(e)=>setGiftEmail(e.target.value)}/></label>
+        <label className="space-y-1 text-xs">WhatsApp do presenteado com DDD *<Input required type="tel" inputMode="tel" placeholder="(11) 99999-9999" value={giftWhatsapp} onChange={e=>setGiftWhatsapp(e.target.value)}/></label>
+        <label className="space-y-1 text-xs">Valor (R$ 50 a R$ 500)<Input required type="number" min="50" max="500" step="0.01" value={giftValue} onChange={(e)=>setGiftValue(e.target.value)}/></label>
         <label className="space-y-1 text-xs">Mensagem (opcional)<Input maxLength={500} value={giftNote} onChange={(e)=>setGiftNote(e.target.value)}/></label>
-        <Button type="submit" disabled={busy}><Gift className="mr-1 size-4"/>Solicitar vale-presente</Button>
+        <Button type="submit" disabled={busy||!giftEmail.trim()||!giftWhatsapp.trim()||Number(giftValue)<50}><Gift className="mr-1 size-4"/>Solicitar vale-presente</Button>
       </form>
       {data.gifts.map((g)=><div className="rounded-lg bg-muted/50 p-2 text-xs" key={g.id}>
         {g.recipientName} · {money(g.amountCents)} · {g.status}
