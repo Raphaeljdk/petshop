@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { DashboardComercial } from '@/components/dashboard/DashboardComercial'
+import { PainelMelhoriasOperacionais } from '@/components/dashboard/PainelMelhoriasOperacionais'
 
 type Metrics = {
   clientes: number; pets: number; produtos: number; atendimentos: number; agendamentosHoje: number
@@ -19,11 +20,12 @@ type Props = {
   onNovoProduto?: () => void; onIrParaEcommerce?: () => void; onNovaVenda?: () => void
   onIrParaNotificacoes?: () => void; onIrParaClientes?: () => void; onIrParaIntegracoes?: () => void
   onIrParaEntregas?: () => void; onIrParaPagamentos?: () => void; onIrParaFiscal?: () => void
+  onIrParaRelacionamento?: () => void
 }
 const money = (x: number) => x.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const day = (x: string) => new Date(x).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
 export function DashboardView({onIrParaKanban,onIrParaAgendamentos,onIrParaEcommerce,onIrParaClientes,
-  onIrParaEntregas,onIrParaPagamentos,onIrParaFiscal}:Props) {
+  onIrParaEntregas,onIrParaPagamentos,onIrParaFiscal,onIrParaIntegracoes,onIrParaRelacionamento}:Props) {
   const [data,setData] = useState<Metrics|null>(null)
   const [loading,setLoading] = useState(true)
   const [error,setError] = useState<string|null>(null)
@@ -56,6 +58,9 @@ export function DashboardView({onIrParaKanban,onIrParaAgendamentos,onIrParaEcomm
       <Button type="button" variant="outline" size="sm" disabled={loading} onClick={()=>void fetchData()}><RefreshCw className={'mr-2 size-4 '+(loading?'animate-spin':'')}/>Atualizar</Button>
     </div>
     {error&&<p role="status" className="text-sm text-destructive">Falha na atualização: {error}. Exibindo últimos dados carregados.</p>}
+    <PainelMelhoriasOperacionais onIrParaAgendamentos={onIrParaAgendamentos} onIrParaEcommerce={onIrParaEcommerce}
+      onIrParaFiscal={onIrParaFiscal} onIrParaIntegracoes={onIrParaIntegracoes}
+      onIrParaPagamentos={onIrParaPagamentos} onIrParaRelacionamento={onIrParaRelacionamento}/>
     <DashboardComercial />
     <h2 className="text-lg font-semibold">Operação da loja</h2>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
