@@ -609,3 +609,132 @@ model ServicoEsteticoConfig {
   confirmado Boolean @default(false)
   updatedAt DateTime @updatedAt
 }
+
+
+// Portal do cliente: conteúdo editorial público para contas autenticadas.
+// As tabelas novas não modificam vendas, NF-e ou os dados oficiais do Siggma.
+model PortalArticle {
+  id String @id @default(cuid())
+  title String
+  category String
+  summary String
+  body String @db.Text
+  imageUrl String?
+  productId String?
+  published Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  favorites PortalArticleFavorite[]
+  @@index([published, createdAt])
+}
+
+model PortalArticleFavorite {
+  id String @id @default(cuid())
+  articleId String
+  clienteId String
+  createdAt DateTime @default(now())
+  article PortalArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  @@unique([articleId, clienteId])
+  @@index([clienteId])
+}
+
+// Fotos guardadas no banco próprio, nunca em URLs públicas nem no Zetta.
+// kind: diario | vacina_documento | banho_antes | banho_depois
+model PortalPetMemory {
+  id String @id @default(cuid())
+  clienteId String
+  petKey String
+  kind String
+  title String
+  notes String? @db.Text
+  weightKg Float?
+  imageData String? @db.Text
+  eventAt DateTime @default(now())
+  nextAt DateTime?
+  processoId String?
+  createdByAdmin Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([clienteId, petKey, eventAt])
+  @@index([processoId])
+}
+
+model PortalClientPreferences {
+  clienteId String @id
+  remindersInApp Boolean @default(true)
+  remindersEmail Boolean @default(false)
+  remindersWhatsapp Boolean @default(false)
+  marketingEmail Boolean @default(false)
+  marketingWhatsapp Boolean @default(false)
+  groomingPhotoConsent Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model PortalCarePlan {
+  id String @id @default(cuid())
+  title String
+  description String
+  sessions Int
+  durationDays Int @default(30)
+  priceCents Int
+  active Boolean @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PortalCarePlanRequest {
+  id String @id @default(cuid())
+  clienteId String
+  planId String
+  petKey String
+  status String @default("solicitado")
+  sessionsUsed Int @default(0)
+  startsAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  plan PortalCarePlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  @@index([clienteId, status])
+}
+
+model PortalReferral {
+  id String @id @default(cuid())
+  clienteId String @unique
+  code String @unique
+  createdAt DateTime @default(now())
+}
+
+model PortalReferralClaim {
+  id String @id @default(cuid())
+  inviterId String
+  invitedId String @unique
+  code String
+  status String @default("aguardando_compra")
+  createdAt DateTime @default(now())
+  verifiedAt DateTime?
+  @@index([inviterId, status])
+}
+
+model PortalGiftRequest {
+  id String @id @default(cuid())
+  clienteId String
+  recipientName String
+  recipientEmail String?
+  message String?
+  amountCents Int
+  status String @default("solicitado")
+  voucherCode String? @unique
+  paidAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([clienteId, status])
+}
+
+model PortalPetFamilyInvite {
+  id String @id @default(cuid())
+  ownerClienteId String
+  petKey String
+  recipientEmail String
+  recipientClienteId String?
+  status String @default("pendente")
+  createdAt DateTime @default(now())
+  respondedAt DateTime?
+  @@unique([ownerClienteId, petKey, recipientEmail])
+  @@index([recipientEmail, status])
+}
