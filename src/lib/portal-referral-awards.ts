@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 // Nothing is awarded before an eligible, actually paid purchase.
 export async function awardReferralForPaidSale(tx:Prisma.TransactionClient,saleId:string) {
   const sale=await tx.venda.findUnique({where:{id:saleId},select:{
-    id:true,clienteId:true,total:true,status:true,createdAt:true,
+    id:true,clienteId:true,total:true,subtotalProdutos:true,descontoCupom:true,valorFrete:true,status:true,createdAt:true,
   }})
   if(!sale||sale.status!=='concluida'||!sale.clienteId)return {awarded:false}
   const claim=await tx.portalReferralClaim.findUnique({where:{invitedId:sale.clienteId}})
@@ -15,7 +15,8 @@ export async function awardReferralForPaidSale(tx:Prisma.TransactionClient,saleI
   await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))','referral:'+claim.id)
   const config=await tx.portalReferralConfig.findUnique({where:{id:'default'}})
   if(!config?.active || config.awardCents<=0)return {awarded:false,notConfigured:true}
-  if(Math.round(sale.total*100)<config.minimumPurchaseCents)return {awarded:false,minimumNotMet:true}
+  const productsNet=Math.max(0,(sale.subtotalProdutos ?? (sale.total-(sale.valorFrete||0)))-sale.descontoCupom)
+  if(Math.round(productsNet*100)<config.minimumPurchaseCents)return {awarded:false,minimumNotMet:true}
   const older=await tx.venda.count({where:{
     clienteId:sale.clienteId,status:'concluida',createdAt:{lt:sale.createdAt},
   }})
