@@ -53,7 +53,10 @@ export async function POST() {
         }
       }
 
-      const sourceStock = item.status === 'active' ? item.quantity : 0
+      // Pausa simples não implica ausência física: o item pode ter
+      // quantidade anunciada mesmo quando está pausado pelo vendedor.
+      // Para produtos já cadastrados, preserve SEMPRE o estoque físico do ERP.
+      const sourceStock = ['active','paused'].includes(item.status) ? item.quantity : 0
       const estoqueIlimitado = isUnlimitedBathProduct({
         nome: item.title,
         categoria: item.categoryId ? categories.get(item.categoryId) || 'Mercado Livre' : 'Mercado Livre',
@@ -98,7 +101,9 @@ export async function POST() {
             estoqueAmazon: 0,
             estoqueIlimitado,
             amazonAsin: null,
-            ativo: false,
+            // Itens novos com estoque válido já entram disponíveis na
+            // vitrine. O cron revê essa regra a cada 30 minutos.
+            ativo: sourceStock > 0,
           },
         })
         created += 1
