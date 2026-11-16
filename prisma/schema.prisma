@@ -678,6 +678,7 @@ model PortalCarePlan {
   priceCents Int
   active Boolean @default(false)
   createdAt DateTime @default(now())
+  requests PortalCarePlanRequest[]
 }
 
 model PortalCarePlanRequest {
