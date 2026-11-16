@@ -26,6 +26,7 @@ type PlanRequest = {
 }
 type Invite = { id:string; petKey:string; recipientEmail?:string; status:string }
 type PortalData = {
+  features?: {subscriptionsEnabled:boolean;giftRedemptionEnabled:boolean}
   pets:Pet[]; memories:Memory[]; preferences:Prefs; plans:Plan[]; requests:PlanRequest[]
   recommendations:Array<{ id:string; nome:string; imageUrl:string|null; preco:number; precoPromo:number|null }>
   referralCode:string|null; referrals:Array<{ id:string;status:string }>
@@ -313,12 +314,16 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
           {r.expiresAt&&' · validade até '+date(r.expiresAt)}
           {r.cancelAtPeriodEnd&&' · renovação cancelada'}
         </p>
-        {['solicitado','checkout_pendente'].includes(r.status) && <Button size="sm" disabled={busy}
+        {data.features?.subscriptionsEnabled && ['solicitado','checkout_pendente'].includes(r.status) && <Button size="sm" disabled={busy}
           onClick={()=>void manageSubscription(r.id,'start')}>Assinar mensalmente pelo Mercado Pago</Button>}
         {r.providerSubscriptionId && !r.cancelAtPeriodEnd && <Button size="sm" variant="outline" disabled={busy}
           onClick={()=>{if(window.confirm('Cancelar as próximas cobranças recorrentes deste plano?'))void manageSubscription(r.id,'cancel')}}>Cancelar renovação</Button>}
       </div>)}
-      <p className="text-xs text-muted-foreground">O plano só fica ativo após o provedor confirmar o pagamento. Cobranças seguintes são gerenciadas pelo Mercado Pago.</p>
+      <p className="text-xs text-muted-foreground">
+        {data.features?.subscriptionsEnabled
+          ? 'O plano só fica ativo após confirmação de pagamento no Mercado Pago. Renovações são gerenciadas pelo provedor.'
+          : 'Assinaturas online aguardam homologação financeira. Você pode consultar os planos; a contratação automática ainda não está disponível.'}
+      </p>
     </Section>
 
     <Section title="Recomendações para seu pet" hint="Sugestões simples por espécie, porte e catálogo disponível. Revise produto, preço e estoque na loja antes de comprar.">
