@@ -18,7 +18,7 @@ export async function GET() {
     const agora = new Date()
     const emSeteDias = new Date(agora.getTime() + 7 * 86400_000)
     const [produtos, agendamentos, solicitacoes, pedidos, notasPendentes,
-      notasComErro, notasRecentes, lembretes, favoritos, integracoes, pets] = await Promise.all([
+      notasComErro, notasRascunho, notasAutorizadas, notasRecentes, lembretes, favoritos, integracoes, pets] = await Promise.all([
       db.produto.findMany({
         select: {
           id: true, nome: true, descricao: true, categoria: true, sku: true,
@@ -35,10 +35,12 @@ export async function GET() {
       }),
       db.bookingRequest.count({ where: { status: 'solicitado' } }),
       db.venda.count({ where: { status: 'pendente' } }),
-      db.notaFiscal.count({ where: { status: { in: ['rascunho', 'pendente'] } } }),
+      db.notaFiscal.count({ where: { status: 'pendente' } }),
       db.notaFiscal.count({ where: { status: { in: ['erro', 'rejeitada'] } } }),
+      db.notaFiscal.count({ where: { status: 'rascunho' } }),
+      db.notaFiscal.count({ where: { status: 'autorizada', modelo: '55', canceladaEm: null } }),
       db.notaFiscal.findMany({
-        where: { status: { in: ['erro', 'rejeitada', 'pendente', 'rascunho'] } },
+        where: { status: { in: ['erro', 'rejeitada', 'pendente'] } },
         orderBy: { updatedAt: 'desc' }, take: 6,
         select: { id: true, status: true, erro: true, serie: true, numero: true, emissor: true },
       }),
@@ -60,6 +62,7 @@ export async function GET() {
         conflitosAgenda: conflitos.length,
       },
       fiscal: {
+        notasRascunho, notasAutorizadas,
         recentes: notasRecentes.map((nota) => ({
           ...nota, erro: nota.erro?.slice(0, 250) || null,
         })),
