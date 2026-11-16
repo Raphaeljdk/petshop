@@ -43,6 +43,13 @@ export async function syncLocalStockToMarketplaces(options: { force?: boolean } 
     },
   })
   const products=allProducts.filter(p=>p.mlItemId||p.amazonAsin)
+  const mlIdCounts=new Map<string,number>()
+  for(const p of allProducts){
+    if(p.mlItemId)mlIdCounts.set(p.mlItemId,(mlIdCounts.get(p.mlItemId)||0)+1)
+  }
+  const ambiguousMlIds=new Set([...mlIdCounts.entries()]
+    .filter(([,count])=>count>1).map(([id])=>id))
+  const warnedAmbiguous=new Set<string>()
   const pendingIssues=await db.marketplaceStockIssue.findMany({
     where:{resolvedAt:null,retryAfter:{gt:new Date()}},
     select:{id:true,error:true,retryAfter:true},
@@ -100,8 +107,18 @@ export async function syncLocalStockToMarketplaces(options: { force?: boolean } 
       continue
     }
     const quantity = safeStock(product.estoque)
+    if(product.mlItemId&&ambiguousMlIds.has(product.mlItemId)){
+      if(!warnedAmbiguous.has(product.mlItemId)){
+        const message='Anúncio '+product.mlItemId+
+          ' vinculado a vários SKUs: precisa identificar variation_id antes de atualizar estoque no Mercado Livre.'
+        errors.push(message)
+        warnedAmbiguous.add(product.mlItemId)
+        await markIssue('mercadolivre',product.mlItemId,product.id,product.nome,new Error(message))
+          .catch(console.error)
+      }
+    }
 
-    if (product.mlItemId && mlToken && safeStock(product.estoqueMercadoLivre)!==quantity
+    if (product.mlItemId && !ambiguousMlIds.has(product.mlItemId) && mlToken && safeStock(product.estoqueMercadoLivre)!==quantity
     && (options.force || !blockedIds.has('mercadolivre:'+product.mlItemId))) {
       try {
         await mercadoLivreUpdateStock(product.mlItemId, quantity, mlToken)
@@ -119,7 +136,7 @@ export async function syncLocalStockToMarketplaces(options: { force?: boolean } 
           }`
         )
       }
-    } else if (product.mlItemId && mlToken && !options.force &&
+    } else if (product.mlItemId && !ambiguousMlIds.has(product.mlItemId) && mlToken && !options.force &&
       blockedIds.has('mercadolivre:'+product.mlItemId) &&
       safeStock(product.estoqueMercadoLivre)!==quantity) {
       blockedListings+=1
