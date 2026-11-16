@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { db } from '@/lib/db'
 import { diagnosticarCatalogo, identificarChoquesAgenda } from '@/lib/operational-insights'
+import { proximosAniversarios } from '@/lib/dashboard-comercial'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -17,7 +18,7 @@ export async function GET() {
     const agora = new Date()
     const emSeteDias = new Date(agora.getTime() + 7 * 86400_000)
     const [produtos, agendamentos, solicitacoes, pedidos, notasPendentes,
-      notasComErro, notasRecentes, lembretes, favoritos, integracoes] = await Promise.all([
+      notasComErro, notasRecentes, lembretes, favoritos, integracoes, pets] = await Promise.all([
       db.produto.findMany({
         select: {
           id: true, nome: true, descricao: true, categoria: true, sku: true,
@@ -44,6 +45,8 @@ export async function GET() {
       db.customerPreference.count({ where: { reminderAt: { lte: agora } } }),
       db.customerPreference.count({ where: { favorite: true } }),
       db.integracao.findMany({ select: { plataforma: true, ativo: true, ultimaSync: true }, orderBy: { plataforma: 'asc' } }),
+      db.pet.findMany({ where: { ativo: true, nascimento: { not: null }, cliente: { ativo: true } },
+        select: { id: true, nome: true, nascimento: true, cliente: { select: { nome: true } } } }),
     ])
     const catalogo = diagnosticarCatalogo(produtos)
     const conflitos = identificarChoquesAgenda(agendamentos)
@@ -62,7 +65,8 @@ export async function GET() {
         })),
       },
       agenda: { conflitos: conflitos.slice(0, 6), totalDaSemana: agendamentos.length },
-      relacionamento: { lembretesVencidos: lembretes, favoritosSalvos: favoritos },
+      relacionamento: { lembretesVencidos: lembretes, favoritosSalvos: favoritos,
+        aniversarios: proximosAniversarios(pets, agora).slice(0, 6) },
       integracoes: integracoes.map(({ plataforma, ativo, ultimaSync }) =>
         ({ plataforma, ativo, ultimaSync })),
       custosDetalhadosDisponiveis: false,
