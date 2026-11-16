@@ -442,6 +442,50 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
         )}
       </div>
 
+      {/* O histórico dos marketplaces e pedidos cancelados permanece consultável,
+          mas não recebe baixa manual por lote. */}
+      {!loading && (
+        <p className="text-xs text-muted-foreground">
+          {stats.marketplace} pedido(s) de marketplaces disponíveis no filtro específico.
+          {stats.canceladas>0 && ' '+stats.canceladas+' pedido(s) local(is) cancelado(s), inclusive eventuais testes, aparecem no filtro Cancelada.'}
+          {' '}Marcar como entregue atualiza somente o controle interno, sem confirmar a entrega na transportadora.
+        </p>
+      )}
+
+      {!loading && elegiveisFiltradas.length>0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+          <label className="flex cursor-pointer items-center gap-2">
+            <Checkbox
+              checked={todasSelecionadas}
+              disabled={concluindoLote}
+              aria-label="Selecionar todas as entregas locais em aberto nos filtros"
+              onCheckedChange={(checked)=>{
+                if(checked) setSelecionadas(prev=>[...new Set([...prev,...elegiveisFiltradas])])
+                else setSelecionadas(prev=>prev.filter(id=>!elegiveisSet.has(id)))
+              }}
+            />
+            Selecionar todas as filtradas ({elegiveisFiltradas.length})
+          </label>
+          <div className="flex flex-1 flex-wrap justify-end gap-2">
+            <Button size="sm" variant="outline"
+              disabled={concluindoLote||!selecionadasValidas.length}
+              onClick={()=>void concluirSelecionadas(selecionadasValidas)}>
+              <CheckSquare2 className="size-4"/>
+              Entregar selecionadas ({selecionadasValidas.length})
+            </Button>
+            <Button size="sm"
+              disabled={concluindoLote||elegiveisFiltradas.length>200}
+              onClick={()=>void concluirSelecionadas(elegiveisFiltradas)}>
+              {concluindoLote?<Loader2 className="size-4 animate-spin"/>:<PackageCheck className="size-4"/>}
+              Entregar todas as filtradas
+            </Button>
+          </div>
+          {elegiveisFiltradas.length>200&&(
+            <p className="w-full text-xs text-amber-700">Refine os filtros: o limite seguro é 200 entregas por operação.</p>
+          )}
+        </div>
+      )}
+
       {/* Lista de entregas */}
       {loading && <SkeletonLoader type="cards" count={4} />}
 
@@ -480,6 +524,17 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               <Card key={v.id} className="card-hover">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
+                    {podeEntregar&&(
+                      <Checkbox
+                        checked={selecionadasValidas.includes(v.id)}
+                        disabled={concluindoLote}
+                        aria-label={'Selecionar entrega '+v.id.slice(-8)}
+                        onCheckedChange={(checked)=>setSelecionadas(prev=>checked
+                          ? [...new Set([...prev,v.id])]
+                          : prev.filter(id=>id!==v.id))}
+                        className="mt-1"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <CardTitle className="text-sm sm:text-base flex items-center gap-2 flex-wrap">
                         <span className="truncate">
@@ -645,30 +700,35 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
                     </div>
                   </div>
 
-                  {/* Ações de status */}
-                  <div className="flex items-center gap-2 pt-1 border-t border-border">
-                    <Button
-                      size="sm"
-                      variant={prox === 'enviada' ? 'default' : 'outline'}
-                      className="h-8 flex-1"
-                      disabled={!prox || isAtualizandoStatus}
-                      onClick={() => atualizarStatus(v.id, statusEntrega)}
-                    >
-                      {isAtualizandoStatus ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <>
-                          {prox === 'enviada' && <Send className="size-3.5" />}
-                          {prox === 'entregue' && (
-                            <CheckCircle2 className="size-3.5" />
-                          )}
-                          {!prox && <CheckCircle2 className="size-3.5" />}
-                          {prox
-                            ? `Marcar como ${STATUS_META[prox].label.toLowerCase()}`
-                            : 'Concluída'}
-                        </>
-                      )}
-                    </Button>
+                  {/* Ações: status da transportadora nunca é alterado aqui. */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
+                    {['mercado_livre','amazon'].includes(v.canal)?(
+                      <p className="text-xs text-muted-foreground">
+                        Entrega do marketplace: acompanhe a confirmação no canal de origem.
+                      </p>
+                    ):v.status==='cancelada'||statusEntrega==='cancelada'?(
+                      <p className="text-xs text-muted-foreground">Pedido cancelado — não é possível marcar entregue.</p>
+                    ):podeEntregar?(
+                      <>
+                        {prox==='enviada' && (
+                          <Button size="sm" variant="outline" disabled={isAtualizandoStatus||concluindoLote}
+                            onClick={()=>void atualizarStatus(v.id,statusEntrega)}
+                            className="h-8 flex-1">
+                            {isAtualizandoStatus?<Loader2 className="size-4 animate-spin"/>:<Send className="size-4"/>}
+                            Marcar enviada
+                          </Button>
+                        )}
+                        <Button size="sm" disabled={isAtualizandoStatus||concluindoLote}
+                          onClick={()=>void concluirSelecionadas([v.id])}
+                          className="h-8 flex-1">
+                          <CheckCircle2 className="size-4"/> Marcar entregue
+                        </Button>
+                      </>
+                    ):(
+                      <p className="text-xs text-muted-foreground">
+                        {statusEntrega==='entregue'?'Entrega concluída.':'Pedido não elegível para conclusão.'}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
