@@ -18,6 +18,8 @@ type MercadoLivreItemBody = {
   currency_id?: string
   available_quantity?: number
   status?: string
+  sub_status?: string[]
+  tags?: string[]
   permalink?: string
   thumbnail?: string
   secure_thumbnail?: string
@@ -41,6 +43,8 @@ export type MercadoLivreCatalogItem = {
   currency: string
   quantity: number
   status: string
+  subStatus: string[]
+  tags: string[]
   permalink: string | null
   thumbnail: string | null
   images: string[]
@@ -121,6 +125,8 @@ function normalizeBulkItem(result: MercadoLivreBulkResult): MercadoLivreCatalogI
       ? Math.max(0, Math.floor(Number(normalizedBody.available_quantity)))
       : 0,
     status: normalizedBody.status || 'unknown',
+    subStatus: normalizedBody.sub_status || [],
+    tags: normalizedBody.tags || [],
     permalink: validHttps(normalizedBody.permalink),
     thumbnail,
     images,
@@ -190,6 +196,8 @@ export async function mercadoLivreItemsByIds(ids: string[], token: string) {
         'body.currency_id',
         'body.available_quantity',
         'body.status',
+        'body.sub_status',
+        'body.tags',
         'body.permalink',
         'body.thumbnail',
         'body.secure_thumbnail',
@@ -355,9 +363,31 @@ export async function mercadoLivreUpdateStock(
         ? payload.message
         : `HTTP ${response.status}`
     throw new Error(
-      `Mercado Livre recusou a atualização de estoque do anúncio ${itemId}: ${message}`
+      `Mercado Livre recusou a atualização de estoque do anúncio ${itemId} (HTTP ${response.status}${typeof payload?.code==='string'?', '+payload.code:''}): ${message}`
     )
   }
 
   return payload
+}
+
+
+/** Status externo: só altera um anúncio que ainda esteja elegível na plataforma. */
+export async function mercadoLivreUpdateListingStatus(
+  itemId: string, status:'active'|'paused',token:string
+){
+  const response=await fetch('https://api.mercadolibre.com/items/'+encodeURIComponent(itemId),{
+    method:'PUT',
+    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify({status}),
+    cache:'no-store',
+    signal:AbortSignal.timeout(15000),
+  })
+  const payload=await response.json().catch(()=>null)
+  if(!response.ok){
+    const code=typeof payload?.code==='string'?payload.code:''
+    const message=typeof payload?.message==='string'?payload.message:'Status HTTP '+response.status
+    throw new Error('Mercado Livre não autorizou mudar o status do anúncio '+itemId+
+      ' (HTTP '+response.status+(code?', '+code:'')+'): '+message)
+  }
+  return payload as {status?:string;id?:string}
 }
