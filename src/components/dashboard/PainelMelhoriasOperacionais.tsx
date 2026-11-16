@@ -21,6 +21,7 @@ type Diagnostico = {
     notasPendentes: number; notasComErro: number; conflitosAgenda: number
   }
   fiscal: {
+    notasRascunho: number; notasAutorizadas: number
     recentes: Array<{ id: string; status: string; serie: number | null; numero: number | null; erro: string | null }>
   }
   agenda: { totalDaSemana: number; conflitos: Array<{ id: string; dataHora: string; pets: string[] }> }
@@ -172,7 +173,7 @@ export function PainelMelhoriasOperacionais(destinos: Destinos) {
             <h3 className="flex items-center gap-2 font-semibold"><FileWarning className="size-4 text-primary"/>Acompanhamento fiscal</h3>
             <Button size="sm" variant="outline" onClick={destinos.onIrParaFiscal}>Fiscal e Notas</Button>
           </div>
-          <div className="flex gap-3 text-sm"><span><strong>{dados.pendencias.notasPendentes}</strong> pendentes</span><span><strong>{dados.pendencias.notasComErro}</strong> com erro</span></div>
+          <div className="flex flex-wrap gap-3 text-sm"><span><strong>{dados.pendencias.notasPendentes}</strong> pendentes</span><span><strong>{dados.pendencias.notasComErro}</strong> com erro</span><span><strong>{dados.fiscal.notasRascunho}</strong> rascunhos</span><span><strong>{dados.fiscal.notasAutorizadas}</strong> autorizadas</span></div>
           {dados.fiscal.recentes.length ? dados.fiscal.recentes.map((n) => <div key={n.id} className="rounded-lg border p-2 text-xs">
             <p className="font-medium">NF-e {n.numero != null ? n.numero : 'sem numeração'} · {n.status}</p>
             {n.erro && <><p className="mt-1 break-words text-muted-foreground">{n.erro}</p><p className="mt-1 text-amber-700 dark:text-amber-300">Próximo passo: {orientarErroFiscal(n.erro)}</p></>}
@@ -187,7 +188,7 @@ export function PainelMelhoriasOperacionais(destinos: Destinos) {
           </div>
           <p className="text-sm"><strong>{dados.agenda.totalDaSemana}</strong> atendimentos nos próximos sete dias.</p>
           <p className="text-sm"><strong>{dados.pendencias.solicitacoes}</strong> solicitações aguardando equipe.</p>
-          <p className="text-sm"><strong>{dados.agenda.conflitos.length}</strong> possíveis choques de profissional e horário identificados na amostra.</p>
+          <p className="text-sm"><strong>{dados.pendencias.conflitosAgenda}</strong> possíveis choques de profissional e horário identificados.</p>
           {dados.agenda.conflitos.map((c) => <p key={c.id} className="rounded-lg border border-amber-300/50 p-2 text-xs">
             <AlertTriangle className="mr-1 inline size-3"/> {c.pets.join(' e ')} — {new Date(c.dataHora).toLocaleString('pt-BR')}
           </p>)}
