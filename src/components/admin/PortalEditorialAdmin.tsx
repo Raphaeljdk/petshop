@@ -22,6 +22,7 @@ type Referral = {id:string;invitedId:string;status:string}
 type PortalAdmin = {
   articles:Article[];plans:Array<{id:string;title:string;priceCents:number;active:boolean}>
   requests:PlanRequest[];gifts:Gift[];referrals:Referral[]
+  referralConfig:{active:boolean;awardCents:number;minimumPurchaseCents:number;validDays:number}|null
 }
 const categories=['Cuidados','Comportamento','Brinquedos','Bem-estar','Novidades']
 const emptyArticle = {
@@ -47,10 +48,19 @@ export function PortalEditorialAdmin() {
   const [photoKind,setPhotoKind]=useState<'banho_antes'|'banho_depois'>('banho_antes')
   const [photoTitle,setPhotoTitle]=useState('Foto do atendimento')
   const [image,setImage]=useState<string|null>(null)
+  const [bonusEnabled,setBonusEnabled]=useState(false)
+  const [bonusValue,setBonusValue]=useState('0')
+  const [bonusMinimum,setBonusMinimum]=useState('0')
+  const [bonusDays,setBonusDays]=useState('30')
 
   useEffect(()=>{
     let live=true
-    portalRequest<PortalAdmin>('/api/admin/portal').then((v)=>{if(live){setData(v);setError('')}})
+    portalRequest<PortalAdmin>('/api/admin/portal').then((v)=>{if(live){setData(v);setError('')
+      if(v.referralConfig){setBonusEnabled(v.referralConfig.active);
+        setBonusValue(String(v.referralConfig.awardCents/100));
+        setBonusMinimum(String(v.referralConfig.minimumPurchaseCents/100));
+        setBonusDays(String(v.referralConfig.validDays))}
+    }})
       .catch((e)=>{if(live)setError((e as Error).message)})
     return ()=>{live=false}
   },[refresh])
@@ -158,6 +168,28 @@ export function PortalEditorialAdmin() {
             </div>
           </div>)}
           <p className="text-xs text-muted-foreground">A confirmação deve corresponder a pagamento conferido fora deste sistema. A assinatura recorrente e baixa automática de sessões ainda não estão integradas.</p>
+        </div>
+      </details>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-semibold">Programa Indique e Ganhe — regras comerciais</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-muted-foreground">O benefício é um cupom individual, emitido somente após a primeira compra elegível estar efetivamente paga. Não existe valor padrão: configure com a Matilha Prado.</p>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bonusEnabled} onChange={(e)=>setBonusEnabled(e.target.checked)}/>Ativar benefícios de indicação</label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="space-y-1 text-xs">Valor do bônus (R$)
+              <Input type="number" min="0" max="100" step="0.01" value={bonusValue} onChange={(e)=>setBonusValue(e.target.value)}/>
+            </label>
+            <label className="space-y-1 text-xs">Compra mínima (R$)
+              <Input type="number" min="0" max="1000" step="0.01" value={bonusMinimum} onChange={(e)=>setBonusMinimum(e.target.value)}/>
+            </label>
+            <label className="space-y-1 text-xs">Validade do cupom (dias)
+              <Input type="number" min="1" max="365" value={bonusDays} onChange={(e)=>setBonusDays(e.target.value)}/>
+            </label>
+          </div>
+          <Button size="sm" disabled={busy||bonusEnabled&&Number(bonusValue)<=0} onClick={()=>void submit({
+            action:'referral-config',active:bonusEnabled,awardCents:Math.round(Number(bonusValue)*100),
+            minimumPurchaseCents:Math.round(Number(bonusMinimum)*100),validDays:Number(bonusDays),
+          })}>Salvar regras de indicação</Button>
         </div>
       </details>
       <details className="rounded-lg border p-3">
