@@ -60,7 +60,7 @@ export function prepararPrimeiraHomologacao(input:{
     tpAmbPlanejado:2,
     criacaoDeVenda:false,alteracaoDeEstoque:false,envioSefaz:false,
     liberadoParaTransmitir:false,
-    homologacaoDisponivelParaTeste:true,
+    homologacaoDisponivelParaTeste:!!(certificadoConfigurado&&p?.ativo&&e?.serieNfe===2&&e?.uf==='SP'),
     nfeAutorizadasEmHomologacao:autorizacoesHomologacao,
     emissaoRealHabilitada:false,
     produto:p?{
