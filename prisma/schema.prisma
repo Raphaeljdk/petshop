@@ -688,10 +688,14 @@ model PortalCarePlanRequest {
   petKey String
   status String @default("solicitado")
   sessionsUsed Int @default(0)
+  paymentReference String?
+  approvedByUserId String?
+  approvedAt DateTime?
   startsAt DateTime?
   expiresAt DateTime?
   createdAt DateTime @default(now())
   plan PortalCarePlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  uses PortalCarePlanUse[]
   @@index([clienteId, status])
 }
 
@@ -710,6 +714,7 @@ model PortalReferralClaim {
   status String @default("aguardando_compra")
   createdAt DateTime @default(now())
   verifiedAt DateTime?
+  verifiedByUserId String?
   @@index([inviterId, status])
 }
 
@@ -723,6 +728,8 @@ model PortalGiftRequest {
   status String @default("solicitado")
   voucherCode String? @unique
   paidAt DateTime?
+  paymentReference String?
+  approvedByUserId String?
   createdAt DateTime @default(now())
   @@index([clienteId, status])
 }
@@ -738,4 +745,15 @@ model PortalPetFamilyInvite {
   respondedAt DateTime?
   @@unique([ownerClienteId, petKey, recipientEmail])
   @@index([recipientEmail, status])
+}
+
+
+// Baixa idempotente: uma prestação concluída de atendimento para um pacote.
+model PortalCarePlanUse {
+  id String @id @default(cuid())
+  requestId String
+  processoId String @unique
+  createdAt DateTime @default(now())
+  request PortalCarePlanRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  @@index([requestId])
 }
