@@ -48,3 +48,14 @@ Branch: feat/portal-cliente-blog-cuidados-20261116. PR #123 permanece draft, sem
 8. Revisar visual desktop e celular; somente apos homologacao considerar merge e publicacao.
 
 Ainda nao ha confirmacao de credenciais de pagamento, provedores de envio ou validacao ponta a ponta nesta branch.
+
+## Diagnóstico de ativação em 16/11/2026
+
+- Código e dados do portal ainda estão na PR #123, não na `main`; a produção Vercel não usa a PR.
+- O valor do bônus é editável pelo administrador em **Relacionamento > Indique e Ganhe**, com valor em reais, compra mínima, validade, ativar/desativar e botão para salvar.
+- O domínio de remetente `matilhaprado.com.br` está com **verificação failed** no Resend. Os registros DKIM e SPF precisam ser corrigidos no DNS externo; Vercel informou nomes de servidores `e.sec.dns.br` e `f.sec.dns.br`. Não ative disparos reais até confirmação `verified` no Resend.
+- Credenciais e segredo de webhook do Mercado Pago foram identificados nas variáveis de produção da Vercel, mas isso não equivale à aprovação de teste financeiro real.
+- Feature flags intencionalmente desligadas por padrão: `PORTAL_SUBSCRIPTIONS_ENABLED`, `PORTAL_GIFT_REDEMPTION_ENABLED` e `PORTAL_NOTIFICATIONS_ENABLED`. O valor `true` deve ser habilitado somente depois dos testes de homologação correspondentes.
+- O painel de Relacionamento agora informa quais credenciais/flags existem, sem expor segredos. 'Configurado' não significa entrega/comprovante homologado.
+- Nenhuma cobrança de assinatura, pagamento integral/parcial por vale ou mensagem externa foi efetivamente validada nesta verificação. Não anunciar essas operações como disponíveis em produção.
+- Para testar a PR na Vercel, usar uma implantação **preview com banco Neon isolado**, não o mesmo `DATABASE_URL` da produção. O build de produção aplica migrações, portanto confirmar o alvo antes de publicar.
