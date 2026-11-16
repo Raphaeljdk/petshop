@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { isServiceProduct } from '../src/lib/product-stock.ts'
 import { decideMercadoLivreListing, shouldPublishLocalStock } from '../src/lib/marketplace-publish-policy.ts'
 import { pickMarketplaceProduct } from '../src/lib/marketplace-product-match.ts'
 import { catalogVariantDetails, catalogVariantInfo, clothingSizeOptions, groupCatalogProducts, groupMarketplaceListings, isClothingProduct } from '../src/lib/product-variants.ts'
@@ -273,4 +274,15 @@ test('ML: anuncio moderado, encerrado ou em analise nunca e reativado automatica
    assert.equal(decideMercadoLivreListing(3,{status,quantity:0}).action,'blocked')
  assert.equal(decideMercadoLivreListing(3,{status:'paused',quantity:1,tags:['moderation_penalty']}).action,'blocked')
  assert.equal(decideMercadoLivreListing(3,{status:'paused',quantity:1,subStatus:['held']}).action,'blocked')
+})
+
+
+test('espuma de banho a seco vendida como shampoo e produto fisico, nao servico',()=>{
+  assert.equal(isServiceProduct({
+    nome:'Banho A Seco Espuma De Limpeza P/ Cachorros Arm And Hammer',
+    categoria:'Shampoo e Condicionadores',estoqueIlimitado:false,
+  }),false)
+  assert.equal(isServiceProduct({
+    nome:'Banho a seco',categoria:'Serviços',estoqueIlimitado:false,
+  }),true)
 })
