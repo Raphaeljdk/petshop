@@ -39,8 +39,8 @@ export async function GET() {
     const { user, clienteId } = await portalCliente()
     const [articles, favorites, memories, preferences, plans, requests,
       referral, claims, gifts, outgoing, incoming, localPets, products, likedProducts] = await Promise.all([
-      db.portalArticle.findMany({ where: { published: true }, orderBy: { createdAt: 'desc' },
-        take: 40, select: { id:true, title:true, category:true, summary:true, body:true, imageUrl:true, productId:true, createdAt:true } }),
+      db.portalArticle.findMany({ where: { published: true, OR:[{publishAt:null},{publishAt:{lte:new Date()}}] }, orderBy: { createdAt: 'desc' },
+        take: 40, select: { id:true, title:true, category:true, summary:true, body:true, imageUrl:true, productId:true, createdAt:true, readMinutes:true, publishAt:true } }),
       db.portalArticleFavorite.findMany({ where: { clienteId }, select: { articleId:true } }),
       db.portalPetMemory.findMany({ where: { clienteId }, orderBy: { eventAt: 'desc' }, take: 60 }),
       db.portalClientPreferences.findUnique({ where: { clienteId } }),
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
     const { user, clienteId } = await portalCliente()
     const data = actionSchema.parse(await experienceBody(req, 245000))
     if (data.action === 'favorite') {
-      const article = await db.portalArticle.findFirst({ where: { id:data.articleId, published:true }, select: { id:true } })
+      const article = await db.portalArticle.findFirst({ where: { id:data.articleId, published:true, OR:[{publishAt:null},{publishAt:{lte:new Date()}}] }, select: { id:true } })
       if (!article) return NextResponse.json({ error:'Artigo indisponível.' }, { status:404 })
       const key = { articleId_clienteId: { articleId:data.articleId, clienteId } }
       if (data.saved) await db.portalArticleFavorite.upsert({ where:key,
