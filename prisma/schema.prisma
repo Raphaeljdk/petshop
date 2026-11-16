@@ -876,3 +876,17 @@ model MarketplaceStockIssue {
   updatedAt DateTime @updatedAt
   @@index([resolvedAt,retryAfter])
 }
+
+
+// Registro auditável de conferências manuais do estoque físico integrado.
+model MarketplaceStockConfirmation {
+  id String @id @default(cuid())
+  productId String
+  mlItemId String
+  adminId String
+  previousStock Int
+  confirmedStock Int
+  marketplaceStockSeen Int
+  createdAt DateTime @default(now())
+  @@index([productId,createdAt])
+}
