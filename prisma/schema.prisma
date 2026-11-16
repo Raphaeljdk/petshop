@@ -117,6 +117,20 @@ model ProfissionalAgenda {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   agendamentos Agendamento[]
+  bloqueios AgendaBloqueio[]
+}
+
+model AgendaBloqueio {
+  id String @id @default(cuid())
+  profissionalId String
+  profissional ProfissionalAgenda @relation(fields:[profissionalId],references:[id],onDelete:Cascade)
+  inicio DateTime
+  fim DateTime
+  tipo String
+  observacoes String?
+  criadoPorId String
+  createdAt DateTime @default(now())
+  @@index([profissionalId,inicio,fim])
 }
 
 model Produto {
@@ -418,6 +432,7 @@ model BookingRequest {
   confirmedAt DateTime?
   confirmationRef String?
   reply String?
+  profissionalId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
@@ -672,6 +687,7 @@ model PortalClientPreferences {
   groomingPhotoConsent Boolean @default(false)
   publicPetConsent Boolean @default(false)
   publicPetConsentAt DateTime?
+  termsAcceptedAt DateTime?
   updatedAt DateTime @updatedAt
 }
 
@@ -736,6 +752,7 @@ model PortalGiftRequest {
   clienteId String
   recipientName String
   recipientEmail String?
+  recipientWhatsapp String?
   message String?
   amountCents Int
   status String @default("solicitado")
