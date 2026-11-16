@@ -75,6 +75,7 @@ import { cn } from '@/lib/utils'
 import type { Produto, Venda, StatusVenda, CanalVenda } from '@/lib/types'
 import { catalogVariantDetails, clothingSizeOptions, groupCatalogProducts, isClothingProduct } from '@/lib/product-variants'
 import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
+import { fileToCatalogImage } from '@/lib/catalog-image'
 
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -1578,13 +1579,37 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                               
 />
             </div>
-            <div>
-              <Label htmlFor="imageUrl">URL da imagem</Label>
+            <div className="space-y-2">
+              <Label htmlFor="imageUrl">Imagem do produto</Label>
+              <label htmlFor="produto-foto-local" className="block text-xs font-medium text-primary">Escolher foto do computador (JPG, PNG ou WebP)</label>
+              <Input
+                id="produto-foto-local"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+                  try {
+                    const imageUrl = await fileToCatalogImage(file)
+                    setForm((current) => ({ ...current, imageUrl }))
+                    toast.success('Foto pronta. Clique em Salvar para gravar no catálogo.')
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : 'Falha ao preparar a foto.')
+                  } finally { event.target.value = '' }
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground">A foto é reduzida e armazenada no catálogo. Também pode usar uma URL HTTPS.</p>
               <Input
                 id="imageUrl"
-                value={(form.imageUrl as string) || ''}
+                type="text"
+                placeholder="https://... (opcional)"
+                value={(form.imageUrl as string)?.startsWith('data:image/') ? '' : (form.imageUrl as string) || ''}
                 onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
               />
+              {!!form.imageUrl && <div className="flex items-center gap-3 rounded-md border p-2">
+                <img src={String(form.imageUrl)} alt="Prévia da foto selecionada" className="size-20 rounded object-contain" />
+                <Button type="button" size="sm" variant="outline" onClick={() => setForm({ ...form, imageUrl: '' })}>Remover imagem</Button>
+              </div>}
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="ativo">Ativo</Label>
