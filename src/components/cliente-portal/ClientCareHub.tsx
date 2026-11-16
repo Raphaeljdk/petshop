@@ -21,6 +21,7 @@ type Prefs = {
 type Plan = { id:string; title:string; description:string; sessions:number; priceCents:number; durationDays:number }
 type PlanRequest = {
   id:string; petKey:string; status:string; sessionsUsed:number; startsAt:string|null; expiresAt:string|null
+  providerSubscriptionId:string|null;providerCheckoutUrl:string|null;providerStatus:string|null;cancelAtPeriodEnd:boolean
   plan:{ title:string; sessions:number; priceCents:number }
 }
 type Invite = { id:string; petKey:string; recipientEmail?:string; status:string }
@@ -29,6 +30,9 @@ type PortalData = {
   recommendations:Array<{ id:string; nome:string; imageUrl:string|null; preco:number; precoPromo:number|null }>
   referralCode:string|null; referrals:Array<{ id:string;status:string }>
   gifts:Array<{ id:string;recipientName:string;amountCents:number;status:string;voucherCode:string|null }>
+  rewardCoupons:Array<{ codigo:string;descricao:string|null;valor:number;fimEm:string|null }>
+  notifications:Array<{id:string;text:string;sentAt:string|null}>
+  documents:Array<{id:string;petKey:string;title:string;fileName:string;sizeBytes:number;createdAt:string}>
   incoming:Invite[]; outgoing:Invite[]
   sharedPets:Array<{ inviteId:string; pet:{ nome:string; especie:string };
     agenda:Array<{ id:string; dataHora:string; servico:string; status:string }> }>
@@ -93,6 +97,8 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
   const [giftValue,setGiftValue] = useState('50')
   const [giftNote,setGiftNote] = useState('')
   const [familyEmail,setFamilyEmail] = useState('')
+  const [pdfTitle,setPdfTitle]=useState('')
+  const [pdfFile,setPdfFile]=useState<File|null>(null)
 
   useEffect(()=>{
     let alive=true
@@ -120,6 +126,40 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
     finally {setBusy(false)}
   }
 
+  async function manageSubscription(requestId:string,action:'start'|'cancel') {
+    if(busy)return
+    setBusy(true)
+    try{
+      const res=await portalRequest<{url?:string;success?:boolean}>('/api/cliente/portal/assinaturas',{
+        method:'POST',body:JSON.stringify({action,requestId}),
+      })
+      if(action==='start'&&res.url){window.location.assign(res.url);return}
+      toast.success('Assinatura cancelada no provedor. Período já pago permanece disponível.')
+      setRetry(n=>n+1)
+    }catch(e){toast.error(e instanceof Error?e.message:'Não foi possível atualizar a assinatura.')}
+    finally{setBusy(false)}
+  }
+  async function uploadPDF() {
+    if(!petKey||!pdfFile||!pdfTitle.trim()||busy)return
+    if(pdfFile.size>1_048_576||pdfFile.type!=='application/pdf') {
+      toast.error('Envie um PDF de até 1 MB.');return
+    }
+    setBusy(true)
+    try{
+      const fileData=await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader()
+        reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'')
+        reader.onerror=()=>reject(new Error('Não foi possível ler o PDF.'))
+        reader.readAsDataURL(pdfFile)
+      })
+      await portalRequest('/api/cliente/portal/documentos',{method:'POST',
+        body:JSON.stringify({petKey,title:pdfTitle,fileName:pdfFile.name,fileData}),
+      })
+      toast.success('PDF guardado no seu perfil privado.')
+      setPdfTitle('');setPdfFile(null);setRetry(n=>n+1)
+    }catch(e){toast.error(e instanceof Error?e.message:'Falha no upload do PDF.')}
+    finally{setBusy(false)}
+  }
   const mem=data?.memories.filter((m)=>m.petKey===petKey)||[]
   const petName=data?.pets.find((p)=>p.id===petKey)?.nome || 'seu pet'
   if(loading) return <div className="h-40 animate-pulse rounded-xl bg-muted" role="status" aria-label="Carregando cuidados"/>
@@ -196,6 +236,30 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </>}
     </Section>
 
+    <Section title="Documentos PDF do pet" hint="Arquivos restritos ao tutor autenticado. Não são públicos nem ficam acessíveis aos familiares convidados.">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="space-y-1 text-xs">Título do documento
+          <Input maxLength={120} value={pdfTitle} onChange={(e)=>setPdfTitle(e.target.value)} placeholder="Ex.: Comprovante de vacinação"/>
+        </label>
+        <label className="space-y-1 text-xs">Arquivo PDF, até 1 MB
+          <Input type="file" accept="application/pdf,.pdf" onChange={(e)=>setPdfFile(e.target.files?.[0]||null)}/>
+        </label>
+      </div>
+      <Button size="sm" disabled={!pdfFile||!pdfTitle.trim()||busy||!petKey} onClick={()=>void uploadPDF()}>Guardar documento privado</Button>
+      {data.documents?.filter((d)=>d.petKey===petKey).map((d)=><div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
+        <div><strong>{d.title}</strong><p className="text-muted-foreground">{d.fileName} · {Math.round(d.sizeBytes/1024)} KB</p></div>
+        <div className="flex gap-2">
+          <a className="inline-flex min-h-9 items-center rounded-md border px-3 py-2 font-medium" href={'/api/cliente/portal/documentos/'+encodeURIComponent(d.id)}>Baixar PDF</a>
+          <Button variant="outline" size="sm" disabled={busy} onClick={async()=>{
+            if(!window.confirm('Excluir definitivamente este PDF?'))return
+            setBusy(true)
+            try{await portalRequest('/api/cliente/portal/documentos/'+encodeURIComponent(d.id),{method:'DELETE'});toast.success('Documento excluído.');setRetry(n=>n+1)}
+            catch(e){toast.error((e as Error).message)}finally{setBusy(false)}
+          }}>Excluir</Button>
+        </div>
+      </div>)}
+    </Section>
+
     <Section title="Fotos e etapas do banho" hint="Fotos da equipe só ficam disponíveis com seu consentimento expresso; sem publicação pública.">
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={prefs.groomingPhotoConsent}
         onChange={(e)=>setPrefs(p=>({...p,groomingPhotoConsent:e.target.checked}))}/>
@@ -229,6 +293,12 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       <Button size="sm" disabled={busy} onClick={()=>void act({action:'preferences',...prefs})}><Bell className="mr-1 size-4"/>Salvar preferências</Button>
     </Section>
 
+    <Section title="Avisos dentro do portal" hint="Histórico de lembretes que a Matilha Prado registrou na sua conta.">
+      {data.notifications?.length ? data.notifications.map((n)=><div key={n.id} className="rounded-lg border p-3 text-xs">
+        <p>{n.text}</p>{n.sentAt&&<p className="mt-1 text-muted-foreground">{new Date(n.sentAt).toLocaleString('pt-BR')}</p>}
+      </div>):<p className="text-xs text-muted-foreground">Nenhum aviso registrado no momento.</p>}
+    </Section>
+
     <Section title="Planos de banho e cuidados" hint="Pacotes disponíveis, mediante aprovação da loja; solicitar não efetua pagamento nem ativa sessões automaticamente.">
       <div className="grid gap-3 sm:grid-cols-2">
         {data.plans.map((plan)=><div className="space-y-2 rounded-xl border p-3" key={plan.id}>
@@ -238,10 +308,17 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
         </div>)}
       </div>
       {!data.plans.length&&<p className="text-sm text-muted-foreground">A Matilha Prado ainda não publicou planos.</p>}
-      {data.requests.filter((r)=>r.petKey===petKey).map((r)=><p className="text-xs" key={r.id}>
-        {r.plan.title}: {r.status} · sessões utilizadas: {r.sessionsUsed}/{r.plan.sessions}
-        {r.expiresAt&&' · validade até '+date(r.expiresAt)}
-      </p>)}
+      {data.requests.filter((r)=>r.petKey===petKey).map((r)=><div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3" key={r.id}>
+        <p className="text-xs">{r.plan.title}: {r.status} · sessões utilizadas: {r.sessionsUsed}/{r.plan.sessions}
+          {r.expiresAt&&' · validade até '+date(r.expiresAt)}
+          {r.cancelAtPeriodEnd&&' · renovação cancelada'}
+        </p>
+        {['solicitado','checkout_pendente'].includes(r.status) && <Button size="sm" disabled={busy}
+          onClick={()=>void manageSubscription(r.id,'start')}>Assinar mensalmente pelo Mercado Pago</Button>}
+        {r.providerSubscriptionId && !r.cancelAtPeriodEnd && <Button size="sm" variant="outline" disabled={busy}
+          onClick={()=>{if(window.confirm('Cancelar as próximas cobranças recorrentes deste plano?'))void manageSubscription(r.id,'cancel')}}>Cancelar renovação</Button>}
+      </div>)}
+      <p className="text-xs text-muted-foreground">O plano só fica ativo após o provedor confirmar o pagamento. Cobranças seguintes são gerenciadas pelo Mercado Pago.</p>
     </Section>
 
     <Section title="Recomendações para seu pet" hint="Sugestões simples por espécie, porte e catálogo disponível. Revise produto, preço e estoque na loja antes de comprar.">
@@ -271,6 +348,11 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
         <Button size="sm" variant="outline" disabled={busy||!refCode.trim()} onClick={()=>void act({action:'referral-claim',code:refCode})}><HeartHandshake className="mr-1 size-4"/>Registrar indicação</Button>
       </div>
       <p className="text-xs text-muted-foreground">{data.referrals.length} indicação(ões) registrada(s) com seu código.</p>
+      {data.rewardCoupons?.map((coupon)=><div key={coupon.codigo} className="rounded-lg border p-3 text-xs">
+        <strong>Bônus disponível: {coupon.codigo}</strong>
+        <p>Desconto de {previewMoney(coupon.valor)} · até {coupon.fimEm?date(coupon.fimEm):'validade informada no checkout'}</p>
+        <Button size="sm" variant="outline" onClick={()=>void navigator.clipboard?.writeText(coupon.codigo).then(()=>toast.success('Cupom copiado.'))}>Copiar cupom pessoal</Button>
+      </div>)}
     </Section>
 
     <Section title="Vale-presente digital" hint="Solicite um vale-presente. O código somente será gerado após a loja conferir o pagamento; resgate direto no checkout depende de integração adicional.">
