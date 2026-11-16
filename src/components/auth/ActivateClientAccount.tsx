@@ -18,6 +18,7 @@ export function ActivateClientAccount() {
   const [senha, setSenha] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [visible, setVisible] = useState(false)
+  const [publicPetConsent, setPublicPetConsent] = useState(false)
   useEffect(() => {
     let active = true
     if (!token.current) token.current = new URLSearchParams(window.location.hash.slice(1)).get('convite') || ''
@@ -42,7 +43,7 @@ export function ActivateClientAccount() {
     if (senha !== confirmation) { setError('As senhas não coincidem.'); return }
     setBusy(true)
     try {
-      const res = await fetch('/api/auth/convite-cliente', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'accept', token: token.current, senha, confirmarSenha: confirmation }) })
+      const res = await fetch('/api/auth/convite-cliente', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'accept', token: token.current, senha, confirmarSenha: confirmation, publicPetConsent }) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Não foi possível ativar sua conta.')
       token.current = ''; setSenha(''); setConfirmation(''); setDone(true)
@@ -58,6 +59,15 @@ export function ActivateClientAccount() {
       <div><Label htmlFor="invite-email">E-mail do seu cadastro</Label><Input id="invite-email" value={email} readOnly autoComplete="username" className="mt-2 h-11 text-base" /></div>
       <div><Label htmlFor="invite-password">Crie sua senha</Label><Input id="invite-password" type={visible ? 'text' : 'password'} value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={10} maxLength={72} autoComplete="new-password" aria-describedby="invite-password-hint" className="mt-2 h-11 text-base" /><p id="invite-password-hint" className="mt-2 text-xs text-muted-foreground">Use pelo menos 10 caracteres, com letra e número. Limite de 72 bytes.</p></div>
       <div><Label htmlFor="invite-confirm">Repita sua senha</Label><Input id="invite-confirm" type={visible ? 'text' : 'password'} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} required maxLength={72} autoComplete="new-password" className="mt-2 h-11 text-base" /></div>
+      <div className="rounded-lg border p-3 text-sm">
+        <p className="font-semibold">Autorização para fotos públicas do pet (opcional)</p>
+        <p className="mt-1 text-xs text-muted-foreground">A Matilha Prado só poderá utilizar imagens do seu pet em conteúdos públicos se você permitir. Isso não é necessário para ativar sua conta ou usar o portal. Você pode revogar em Meus Pets.</p>
+        <label className="mt-3 flex items-start gap-2 text-xs">
+          <input type="checkbox" checked={publicPetConsent} onChange={e=>setPublicPetConsent(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 accent-primary"/>
+          Autorizo o uso de imagens do meu pet em conteúdos da Matilha Prado, após revisão da equipe.
+        </label>
+      </div>
       <Button type="button" variant="ghost" aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? 'Ocultar senhas' : 'Mostrar senhas'}</Button>
       <Button type="submit" disabled={busy} className="w-full h-12 btn-brand">{busy ? 'Ativando...' : 'Confirmar e-mail e ativar minha conta'}</Button>
     </form>}
