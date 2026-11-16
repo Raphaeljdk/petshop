@@ -19,3 +19,8 @@ export function canScheduleBath(user: OperationalIdentity): boolean {
 export function canViewDeliveryAddresses(user: OperationalIdentity): boolean {
   return user?.role === 'ADMIN' || isAndreOperator(user)
 }
+
+// O convite de administrador nunca pode elevar este login operacional a ADMIN.
+export function roleForTeamInvitation(email: string): 'KANBAN' | 'ADMIN' {
+  return email.trim().toLowerCase() === ANDRE_OPERATIONS_EMAIL ? 'KANBAN' : 'ADMIN'
+}
