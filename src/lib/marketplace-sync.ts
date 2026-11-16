@@ -53,10 +53,11 @@ type MlBillingResponse = {
 
 function lookback(lastSync?: Date | null) {
   const now = Date.now()
-  // Permite recuperar pedidos atrasados apos indisponibilidade do provedor.
-  const initial = now - 7 * 24 * 60 * 60 * 1000
-  if (!lastSync) return new Date(initial)
-  return new Date(Math.max(initial, lastSync.getTime() - 6 * 60 * 60 * 1000))
+  // Uma primeira sincronização sem histórico lê apenas as últimas 24h.
+  // Com checkpoint conhecido, recupera até sete dias após uma indisponibilidade.
+  if (!lastSync) return new Date(now - 24 * 60 * 60 * 1000)
+  const oldest = now - 7 * 24 * 60 * 60 * 1000
+  return new Date(Math.max(oldest, lastSync.getTime() - 6 * 60 * 60 * 1000))
 }
 
 async function mlJson<T>(url: URL | string, token: string): Promise<T> {
