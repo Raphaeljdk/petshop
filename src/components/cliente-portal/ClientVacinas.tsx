@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { Button } from '@/components/ui/button'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
+import { portalRequest } from './ExperienceProvider'
 
 type Vacina = {
   id: number
@@ -64,6 +65,19 @@ export function ClientVacinas() {
     return [...map.entries()]
   }, [vacinas])
 
+  const [docs,setDocs] = useState<Array<{id:string;petKey:string;title:string;notes:string|null;
+    imageData:string|null;eventAt:string;nextAt:string|null}>>([])
+  const [names,setNames] = useState<Record<string,string>>({})
+  useEffect(()=>{
+    let active=true
+    portalRequest<{memories:Array<{id:string;petKey:string;kind:string;title:string;notes:string|null;imageData:string|null;eventAt:string;nextAt:string|null}>;
+      pets:Array<{id:string;nome:string}>}>('/api/cliente/portal')
+      .then((data)=>{if(!active)return
+        setDocs(data.memories.filter((item)=>item.kind==='vacina_documento'))
+        setNames(Object.fromEntries(data.pets.map((p)=>[p.id,p.nome])))
+      }).catch(()=>{/* Módulo particular opcional: o histórico oficial continua disponível. */})
+    return ()=>{active=false}
+  },[])
   return (
     <div className="space-y-6">
       <div>
@@ -102,6 +116,21 @@ export function ClientVacinas() {
         </Card>
       )}
 
+      {docs.length>0 && <Card>
+        <CardHeader><CardTitle className="text-base">Minha carteirinha digital — documentos adicionados por mim</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Estas imagens são registros privados do tutor, não confirmados pelo sistema oficial ou por um veterinário.</p>
+          {docs.map((doc)=><article key={doc.id} className="flex flex-wrap items-start gap-3 rounded-lg border p-3">
+            {doc.imageData && <img src={doc.imageData} alt={'Comprovante '+doc.title} className="size-24 rounded-lg object-cover"/>}
+            <div className="min-w-0 flex-1 space-y-1">
+              <h3 className="text-sm font-semibold">{names[doc.petKey]||'Pet'} · {doc.title}</h3>
+              <p className="text-xs text-muted-foreground">Registrado em {dateLabel(doc.eventAt)}</p>
+              {doc.nextAt&&<p className="text-xs">Próxima data anotada: {dateLabel(doc.nextAt)}</p>}
+              {doc.notes&&<p className="whitespace-pre-wrap break-words text-xs">{doc.notes}</p>}
+            </div>
+          </article>)}
+        </CardContent>
+      </Card>}
       {porPet.map(([pet, registros]) => (
         <Card key={pet}>
           <CardHeader>
