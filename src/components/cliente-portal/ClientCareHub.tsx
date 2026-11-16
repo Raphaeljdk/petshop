@@ -261,10 +261,10 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </div>)}
     </Section>
 
-    <Section title="Autorização para divulgar imagens do pet" hint="Controla exclusivamente a possibilidade de aparecer em conteúdos públicos da Matilha Prado. Publicação não é automática e exige revisão; a recusa não prejudica agendamentos ou compras.">
+    <Section title="Autorização para divulgar imagens do pet" hint="Controla exclusivamente a possibilidade de aparecer em páginas públicas do portal e blog da Matilha Prado. Publicação não é automática e exige revisão; a recusa não prejudica agendamentos ou compras.">
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" checked={prefs.publicPetConsent} onChange={e=>setPrefs(p=>({...p,publicPetConsent:e.target.checked}))}/>
-        Autorizo o uso de imagens do meu pet em conteúdos públicos da Matilha Prado. Posso revogar a autorização a qualquer momento.
+        Autorizo o uso de imagens do meu pet em páginas públicas do portal e blog da Matilha Prado. Posso revogar a autorização a qualquer momento.
       </label>
       <p className="text-xs text-muted-foreground">Fotos privadas de antes/depois dos banhos têm uma autorização independente abaixo. Para remover material já publicado, procure a equipe.</p>
       <Button size="sm" disabled={busy} onClick={()=>void act({action:'preferences',...prefs},'Autorização atualizada.')}>Salvar autorização pública</Button>
