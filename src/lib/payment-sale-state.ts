@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { updateGiftRedemption } from '@/lib/portal-gift-credit'
 
 export type PaymentSalePatch = {
   mercadoPagoId?: string | null
@@ -55,6 +56,11 @@ export async function applyPaymentSaleState(
         }
         await tx.cupomUso.deleteMany({ where: { vendaId } })
       }
+
+      if (patch.status==='concluida' && current.status==='pendente')
+        await updateGiftRedemption(tx,vendaId,'concluida')
+      if (firstPendingCancellation)
+        await updateGiftRedemption(tx,vendaId,'cancelada')
 
       // Estornos após conclusão devem ser conferidos antes de repor o estoque,
       // pois a mercadoria pode ter sido expedida.
