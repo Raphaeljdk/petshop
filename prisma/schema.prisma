@@ -838,3 +838,20 @@ model PortalPetDocument {
   createdAt DateTime @default(now())
   @@index([clienteId, petKey])
 }
+
+
+// Execução periódica com lease para evitar syncs simultâneos entre cron e painel.
+model MarketplaceSyncRun {
+  id String @id @default("marketplaces")
+  leaseToken String?
+  leaseUntil DateTime?
+  status String @default("never")
+  lastStartedAt DateTime?
+  lastFinishedAt DateTime?
+  lastSuccessAt DateTime?
+  lastMlUpdated Int @default(0)
+  lastAmazonUpdated Int @default(0)
+  lastSalesImported Int @default(0)
+  lastErrors String? @db.Text
+  updatedAt DateTime @updatedAt
+}
