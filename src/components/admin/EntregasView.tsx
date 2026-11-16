@@ -136,7 +136,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
       if (filtroOrigem==='marketplaces' && !['mercado_livre','amazon'].includes(v.canal)) return false
       if (filtroStatus==='em_aberto' && !['pendente','enviada'].includes(v.statusEntrega||'pendente')) return false
       if (filtroTipo !== 'todos' && v.tipoEntrega !== filtroTipo) return false
-      if (filtroStatus !== 'todos' && (v.statusEntrega || 'pendente') !== filtroStatus)
+      if (filtroStatus !== 'todos' && filtroStatus !== 'em_aberto' && (v.statusEntrega || 'pendente') !== filtroStatus)
         return false
       if (termo) {
         const nome = v.cliente?.nome?.toLowerCase() || ''
@@ -280,8 +280,11 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
 
   // Estatísticas rápidas
   const stats = useMemo(() => {
-    const s = { pendente: 0, enviada: 0, entregue: 0, total: vendas.length }
+    const s = { pendente: 0, enviada: 0, entregue: 0, total: 0, marketplace: 0, canceladas: 0 }
     for (const v of vendas) {
+      if (['mercado_livre','amazon'].includes(v.canal)) { s.marketplace++; continue }
+      if (v.status==='cancelada' || v.statusEntrega==='cancelada') { s.canceladas++; continue }
+      s.total++
       const st = (v.statusEntrega || 'pendente') as StatusEntrega
       if (st === 'pendente') s.pendente++
       else if (st === 'enviada') s.enviada++
@@ -300,7 +303,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             Entregas
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Gerencie entregas por motoboy no Centro e nas zonas Norte, Leste e Sul de São Paulo
+            Acompanhe entregas locais separadas dos pedidos de Mercado Livre e Amazon.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -355,7 +358,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold leading-tight">{stats.total}</p>
-              <p className="text-[11px] text-muted-foreground">Total entregas</p>
+              <p className="text-[11px] text-muted-foreground">Entregas locais</p>
             </div>
           </CardContent>
         </Card>
@@ -364,6 +367,16 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
       {/* Filtros */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">
         <div className="flex flex-col sm:flex-row gap-2">
+          <Select value={filtroOrigem} onValueChange={(value)=>{setFiltroOrigem(value);setSelecionadas([])}}>
+            <SelectTrigger className="w-full sm:w-[190px] h-9">
+              <SelectValue placeholder="Origem"/>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="locais">Entregas locais</SelectItem>
+              <SelectItem value="marketplaces">Mercado Livre / Amazon</SelectItem>
+              <SelectItem value="todos">Todas as origens</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
@@ -393,6 +406,8 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               <SelectItem value="todos">Todos os tipos</SelectItem>
               <SelectItem value="entrega_propria">Entrega própria</SelectItem>
               <SelectItem value="sedex">Sedex</SelectItem>
+              <SelectItem value="melhor_envio">Melhor Envio</SelectItem>
+              <SelectItem value="marketplace">Marketplace</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filtroStatus} onValueChange={setFiltroStatus}>
@@ -401,6 +416,7 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="em_aberto">Em aberto (pendentes e enviadas)</SelectItem>
               <SelectItem value="todos">Todos os status</SelectItem>
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="enviada">Enviada</SelectItem>
@@ -436,7 +452,9 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
             <p className="text-muted-foreground">
               {vendas.length === 0
                 ? 'Nenhuma entrega registrada ainda.'
-                : 'Nenhuma entrega encontrada com os filtros aplicados.'}
+                : filtroOrigem==='locais' && filtroStatus==='em_aberto'
+                  ? 'Nenhuma entrega local em aberto. Consulte os filtros para ver as canceladas, entregues ou dos marketplaces.'
+                  : 'Nenhuma entrega encontrada com os filtros aplicados.'}
             </p>
           </CardContent>
         </Card>
@@ -447,15 +465,16 @@ export function EntregasView({ refreshSignal }: EntregasViewProps) {
           filtradas.map((v) => {
             const statusEntrega = (v.statusEntrega || 'pendente') as StatusEntrega
             const meta = STATUS_META[statusEntrega]
-            const tipoMeta = v.tipoEntrega
-              ? TIPO_META[v.tipoEntrega as TipoEntrega]
-              : null
+            const tipoMeta = v.tipoEntrega === 'marketplace'
+              ? {label:'Marketplace',icon:Package}
+              : v.tipoEntrega ? TIPO_META[v.tipoEntrega as TipoEntrega] : null
             const TipoIcon = tipoMeta?.icon || Truck
             const StatusIcon = meta.icon
             const prox = proximoStatus(statusEntrega)
             const rastreioEditando = editandoRastreio[v.id] ?? v.codigoRastreio ?? ''
             const isSalvandoRastreio = !!salvandoRastreio[v.id]
             const isAtualizandoStatus = !!atualizandoStatus[v.id]
+            const podeEntregar=canCompleteLocalDelivery(v)
 
             return (
               <Card key={v.id} className="card-hover">
