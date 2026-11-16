@@ -37,6 +37,11 @@ export function isServiceProduct(product: {
   const categoria = normalizeText(product.categoria)
   if (categoria.includes('servic')) return true
 
+  // "Banho a seco" também é nome de shampoo/espuma de higiene; esses são
+  // produtos físicos quando classificados no catálogo de cosméticos.
+  if (/^banho a seco(?:\s|$)/.test(nome) &&
+      /shampoo|condicion|higien|cosmet|limpeza/.test(categoria)) return false
+
   // Serviços do Zetta chegam com nomes detalhados e categoria genérica
   // ("Pet Shop"). Reconhecemos somente prefixos de serviços para não ocultar
   // produtos físicos como "spray banho a seco".
