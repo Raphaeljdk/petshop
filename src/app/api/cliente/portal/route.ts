@@ -1,0 +1,206 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'node:crypto'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { experienceBody, experienceError } from '@/lib/customer-experience'
+import { portalCliente, ownsPet, cleanEmail, imageData, petKeySchema, portalDate, bodyText, recommendationRank } from '@/lib/portal-care'
+import { getZettaAnimalsByClient } from '@/lib/zetta-client'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+const actionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('favorite'), articleId: z.string().min(1), saved: z.boolean() }).strict(),
+  z.object({ action: z.literal('memory'), petKey: petKeySchema,
+    kind: z.enum(['diario', 'vacina_documento']), title: z.string().trim().min(2).max(120),
+    notes: bodyText, imageData, weightKg: z.number().min(0.1).max(200).nullable().optional(),
+    eventAt: portalDate, nextAt: portalDate }).strict(),
+  z.object({ action: z.literal('remove-memory'), id: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('preferences'), remindersInApp: z.boolean(),
+    remindersEmail: z.boolean(), remindersWhatsapp: z.boolean(),
+    marketingEmail: z.boolean(), marketingWhatsapp: z.boolean(),
+    groomingPhotoConsent: z.boolean() }).strict(),
+  z.object({ action: z.literal('plan-request'), planId: z.string().min(1), petKey: petKeySchema }).strict(),
+  z.object({ action: z.literal('referral-code') }).strict(),
+  z.object({ action: z.literal('referral-claim'), code: z.string().trim().min(4).max(32) }).strict(),
+  z.object({ action: z.literal('gift-request'),
+    recipientName: z.string().trim().min(2).max(120),
+    recipientEmail: z.union([z.string().email().max(200), z.literal('')]).optional(),
+    message: z.string().trim().max(500).optional(),
+    amountCents: z.number().int().min(2000).max(50000) }).strict(),
+  z.object({ action: z.literal('family-invite'), petKey: petKeySchema, email: z.string().email().max(200) }).strict(),
+  z.object({ action: z.literal('family-response'), id: z.string().min(1), accepted: z.boolean() }).strict(),
+  z.object({ action: z.literal('family-revoke'), id: z.string().min(1) }).strict(),
+])
+
+export async function GET() {
+  try {
+    const { user, clienteId } = await portalCliente()
+    const [articles, favorites, memories, preferences, plans, requests,
+      referral, claims, gifts, outgoing, incoming, localPets, products] = await Promise.all([
+      db.portalArticle.findMany({ where: { published: true }, orderBy: { createdAt: 'desc' },
+        take: 40, select: { id:true, title:true, category:true, summary:true, body:true, imageUrl:true, productId:true, createdAt:true } }),
+      db.portalArticleFavorite.findMany({ where: { clienteId }, select: { articleId:true } }),
+      db.portalPetMemory.findMany({ where: { clienteId }, orderBy: { eventAt: 'desc' }, take: 60 }),
+      db.portalClientPreferences.findUnique({ where: { clienteId } }),
+      db.portalCarePlan.findMany({ where: { active: true }, orderBy: { createdAt: 'desc' }, take: 30 }),
+      db.portalCarePlanRequest.findMany({ where: { clienteId }, orderBy: { createdAt: 'desc' }, take: 30,
+        include: { plan: { select: { title:true, sessions:true, priceCents:true } } } }),
+      db.portalReferral.findUnique({ where: { clienteId } }),
+      db.portalReferralClaim.findMany({ where: { inviterId: clienteId }, orderBy: { createdAt: 'desc' }, take: 30,
+        select: { id:true, status:true, createdAt:true } }),
+      db.portalGiftRequest.findMany({ where: { clienteId }, orderBy: { createdAt:'desc' }, take: 25 }),
+      db.portalPetFamilyInvite.findMany({ where: { ownerClienteId: clienteId }, orderBy: { createdAt: 'desc' }, take: 25 }),
+      db.portalPetFamilyInvite.findMany({ where: { recipientEmail: cleanEmail(user.email) },
+        orderBy: { createdAt: 'desc' }, take: 25 }),
+      db.pet.findMany({ where: { clienteId, ativo: true }, select: { id:true, nome:true, especie:true, porte:true, fotoUrl:true, raca:true } }),
+      db.produto.findMany({ where: { ativo:true, estoque: { gt:0 } },
+        select: { id:true, nome:true, categoria:true, preco:true, precoPromo:true, imageUrl:true }, take: 75 }),
+    ])
+    const pets = localPets.map((p) => ({ ...p, origem:'local' as const }))
+    if (user.siggmaCliCod) {
+      try {
+        const linked = await getZettaAnimalsByClient(user.siggmaCliCod)
+        for (const pet of linked) pets.push({
+          id: 'zetta:' + pet.id, nome:pet.nome || 'Pet', especie:pet.especie || 'Pet',
+          porte:null, fotoUrl:null, raca:null, origem:'local' as const,
+        })
+      } catch { /* A integração externa não deve derrubar o conteúdo local. */ }
+    }
+    const species = pets[0]?.especie || ''
+    const size = pets[0]?.porte || ''
+    const recommendations = products
+      .map((p) => ({ ...p, score:recommendationRank(p.nome,p.categoria,species,size) }))
+      .filter((p) => p.score > 0).sort((a,b) => b.score-a.score).slice(0,8)
+      .map(({ score, ...p }) => p)
+    const shares = await Promise.all(incoming.filter((i) => i.status === 'aceito' && i.recipientClienteId === clienteId)
+      .map(async (invite) => {
+        const pet = await db.pet.findFirst({ where: { id:invite.petKey, clienteId:invite.ownerClienteId, ativo:true },
+          select:{ id:true, nome:true, especie:true } })
+        if (!pet) return null
+        const agenda = await db.agendamento.findMany({ where: { petId:pet.id, clienteId:invite.ownerClienteId,
+          dataHora:{ gte:new Date() }, status:{ in:['agendado','confirmado'] } },
+          select: { id:true, dataHora:true, servico:true, status:true }, orderBy:{ dataHora:'asc' }, take:3 })
+        return { pet, agenda, inviteId:invite.id }
+      }))
+    return NextResponse.json({
+      articles, favorites:favorites.map((x) => x.articleId),
+      memories, preferences: preferences || {
+        remindersInApp:true, remindersEmail:false, remindersWhatsapp:false,
+        marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false,
+      },
+      pets, recommendations, plans, requests,
+      referralCode:referral?.code || null, referrals:claims, gifts,
+      outgoing, incoming:incoming.map((i) => ({ id:i.id, status:i.status, petKey:i.petKey, createdAt:i.createdAt })),
+      sharedPets:shares.filter((x) => x !== null),
+    }, { headers: { 'Cache-Control':'private, no-store' } })
+  } catch (error) { return experienceError(error) }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { user, clienteId } = await portalCliente()
+    const data = actionSchema.parse(await experienceBody(req, 245000))
+    if (data.action === 'favorite') {
+      const article = await db.portalArticle.findFirst({ where: { id:data.articleId, published:true }, select: { id:true } })
+      if (!article) return NextResponse.json({ error:'Artigo indisponível.' }, { status:404 })
+      const key = { articleId_clienteId: { articleId:data.articleId, clienteId } }
+      if (data.saved) await db.portalArticleFavorite.upsert({ where:key,
+        create:{ articleId:data.articleId, clienteId }, update:{} })
+      else await db.portalArticleFavorite.deleteMany({ where:{ articleId:data.articleId, clienteId } })
+      return NextResponse.json({ success:true })
+    }
+    if (data.action === 'memory') {
+      if (!await ownsPet(user,data.petKey))
+        return NextResponse.json({ error:'Pet não encontrado na sua conta.' }, { status:404 })
+      const item = await db.portalPetMemory.create({ data: {
+        clienteId, petKey:data.petKey, kind:data.kind, title:data.title,
+        notes:data.notes || null, imageData:data.imageData || null,
+        weightKg:data.weightKg ?? null,
+        eventAt:data.eventAt ? new Date(data.eventAt) : new Date(),
+        nextAt:data.nextAt ? new Date(data.nextAt) : null,
+      } })
+      return NextResponse.json({ id:item.id }, { status:201 })
+    }
+    if (data.action === 'remove-memory') {
+      const result = await db.portalPetMemory.deleteMany({ where: { id:data.id, clienteId, createdByAdmin:false } })
+      return NextResponse.json({ success:result.count > 0 })
+    }
+    if (data.action === 'preferences') {
+      await db.portalClientPreferences.upsert({ where: { clienteId },
+        create: { clienteId, ...data, action:undefined },
+        update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
+          remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
+          marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+      })
+      return NextResponse.json({ success:true, note:'Preferências registradas. Canais externos dependem de integração habilitada.' })
+    }
+    if (data.action === 'plan-request') {
+      if (!await ownsPet(user,data.petKey)) return NextResponse.json({ error:'Pet não encontrado.' }, { status:404 })
+      const plan = await db.portalCarePlan.findFirst({ where: { id:data.planId, active:true } })
+      if (!plan) return NextResponse.json({ error:'Plano indisponível.' }, { status:404 })
+      const existing = await db.portalCarePlanRequest.findFirst({ where: {
+        clienteId, petKey:data.petKey, status: { in:['solicitado','ativo'] },
+      } })
+      if (existing) return NextResponse.json({ error:'Já existe uma solicitação ou plano em andamento para este pet.' }, { status:409 })
+      await db.portalCarePlanRequest.create({ data: { clienteId, petKey:data.petKey, planId:data.planId } })
+      return NextResponse.json({ success:true, note:'Solicitação recebida; nenhuma cobrança foi efetuada.' }, { status:201 })
+    }
+    if (data.action === 'referral-code') {
+      const previous = await db.portalReferral.findUnique({ where:{ clienteId } })
+      if (previous) return NextResponse.json({ code:previous.code })
+      const created = await db.portalReferral.create({
+        data:{ clienteId, code:'MP'+randomBytes(7).toString('hex').toUpperCase() },
+      })
+      return NextResponse.json({ code:created.code }, { status:201 })
+    }
+    if (data.action === 'referral-claim') {
+      const code = data.code.toUpperCase()
+      const referral = await db.portalReferral.findUnique({ where:{ code } })
+      if (!referral || referral.clienteId === clienteId)
+        return NextResponse.json({ error:'Código inválido.' }, { status:400 })
+      const existingSale = await db.venda.findFirst({ where:{ clienteId,
+        status:{ in:['concluida','paga','enviada'] } }, select:{ id:true } })
+      if (existingSale) return NextResponse.json({ error:'Indicações disponíveis somente antes da primeira compra.' }, { status:409 })
+      const claim = await db.portalReferralClaim.create({ data: {
+        inviterId:referral.clienteId, invitedId:clienteId, code,
+      } })
+      return NextResponse.json({ id:claim.id, status:claim.status }, { status:201 })
+    }
+    if (data.action === 'gift-request') {
+      await db.portalGiftRequest.create({ data: {
+        clienteId, recipientName:data.recipientName,
+        recipientEmail:data.recipientEmail ? cleanEmail(data.recipientEmail) : null,
+        amountCents:data.amountCents, message:data.message || null,
+      } })
+      return NextResponse.json({ success:true, note:'Pedido recebido. O voucher só será emitido após aprovação e pagamento confirmado.' }, { status:201 })
+    }
+    if (data.action === 'family-invite') {
+      if (!await ownsPet(user,data.petKey))
+        return NextResponse.json({ error:'Pet não encontrado.' }, { status:404 })
+      const email = cleanEmail(data.email)
+      if (email === cleanEmail(user.email)) return NextResponse.json({ error:'Não é possível convidar a própria conta.' }, { status:400 })
+      await db.portalPetFamilyInvite.upsert({
+        where: { ownerClienteId_petKey_recipientEmail: { ownerClienteId:clienteId, petKey:data.petKey, recipientEmail:email } },
+        create: { ownerClienteId:clienteId, petKey:data.petKey, recipientEmail:email },
+        update: { status:'pendente', recipientClienteId:null, respondedAt:null },
+      })
+      return NextResponse.json({ success:true, note:'Convite registrado. A pessoa deve entrar com esse e-mail para aceitar.' })
+    }
+    if (data.action === 'family-response') {
+      const updated = await db.portalPetFamilyInvite.updateMany({ where:{
+        id:data.id, recipientEmail:cleanEmail(user.email), status:'pendente',
+        ownerClienteId: { not:clienteId },
+      }, data: { status:data.accepted ? 'aceito':'recusado',
+        recipientClienteId:data.accepted ? clienteId:null, respondedAt:new Date() } })
+      if (!updated.count) return NextResponse.json({ error:'Convite não encontrado.' }, { status:404 })
+      return NextResponse.json({ success:true })
+    }
+    if (data.action === 'family-revoke') {
+      const updated = await db.portalPetFamilyInvite.updateMany({ where:{ id:data.id, ownerClienteId:clienteId },
+        data:{ status:'revogado', recipientClienteId:null, respondedAt:new Date() } })
+      return NextResponse.json({ success:updated.count > 0 })
+    }
+    return NextResponse.json({ error:'Ação inválida.' }, { status:400 })
+  } catch (error) { return experienceError(error) }
+}
