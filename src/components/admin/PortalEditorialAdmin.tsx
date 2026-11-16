@@ -23,6 +23,12 @@ type PortalAdmin = {
   articles:Article[];plans:Array<{id:string;title:string;priceCents:number;active:boolean}>
   requests:PlanRequest[];gifts:Gift[];referrals:Referral[]
   referralConfig:{active:boolean;awardCents:number;minimumPurchaseCents:number;validDays:number}|null
+  integrations?:{
+    subscriptions:{configured:boolean;validatedEndToEnd:boolean}
+    email:{configured:boolean;domainVerification:string}
+    whatsapp:{configured:boolean;templateVerification:string}
+    notifications:{enabled:boolean;cronConfigured:boolean}
+  }
 }
 const categories=['Cuidados','Comportamento','Brinquedos','Bem-estar','Novidades']
 const emptyArticle = {
@@ -84,6 +90,20 @@ export function PortalEditorialAdmin() {
         <Button variant="outline" size="sm" onClick={()=>setRefresh(x=>x+1)}><RefreshCw className="mr-1 size-4"/>Atualizar</Button>
       </div>
       {error&&<p className="text-sm text-destructive" role="alert">{error}</p>}
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer text-sm font-semibold">Integrações — prontidão para ativação</summary>
+        <div className="mt-3 space-y-2 text-xs">
+          <p><strong>Assinaturas Mercado Pago:</strong> {data?.integrations?.subscriptions.configured?'Credenciais básicas identificadas':'Configuração incompleta'}.
+            A confirmação de cobrança e renovação real continua pendente de homologação.</p>
+          <p><strong>E-mail:</strong> {data?.integrations?.email.configured?'Configuração de envio identificada':'Chave e/ou remetente ainda não configurados'}.
+            É necessário validar DKIM/SPF e confirmar o domínio no Resend antes de ativar.</p>
+          <p><strong>WhatsApp:</strong> {data?.integrations?.whatsapp.configured?'Credenciais e nome de template informados':'Configuração da Meta Cloud API incompleta'}.
+            A aprovação e a entrega de uma mensagem de teste ainda precisam ser verificadas.</p>
+          <p><strong>Notificações automáticas:</strong> {data?.integrations?.notifications.enabled?'Flag de envio habilitada':'Desabilitadas por segurança'}
+            {data?.integrations?.notifications.cronConfigured?' · Cron autenticado configurado.':' · Cron não configurado.'}</p>
+          <p className="text-muted-foreground">Este diagnóstico indica somente presença das configurações. Não valida saldos, pagamentos, domínio ou entregas reais.</p>
+        </div>
+      </details>
       <details open className="rounded-lg border p-3">
         <summary className="cursor-pointer font-semibold">Blog — criar e revisar artigos</summary>
         <div className="mt-4 space-y-3">
@@ -167,13 +187,13 @@ export function PortalEditorialAdmin() {
                 onClick={()=>void submit({action:'plan-use',requestId:r.id,processoId:sessionProcessId})}>Baixar sessão concluída</Button>}
             </div>
           </div>)}
-          <p className="text-xs text-muted-foreground">A confirmação deve corresponder a pagamento conferido fora deste sistema. A assinatura recorrente e baixa automática de sessões ainda não estão integradas.</p>
+          <p className="text-xs text-muted-foreground">A cobrança recorrente utiliza o Mercado Pago e a baixa manual de sessões está vinculada aos atendimentos concluídos. Só ative após validação de pagamentos reais e webhook assinado.</p>
         </div>
       </details>
       <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer font-semibold">Programa Indique e Ganhe — regras comerciais</summary>
+        <summary className="cursor-pointer font-semibold">Indique e Ganhe — editar bônus {data?.referralConfig ? '('+money(data.referralConfig.awardCents)+')' : '(não configurado)'}</summary>
         <div className="mt-3 space-y-3">
-          <p className="text-xs text-muted-foreground">O benefício é um cupom individual, emitido somente após a primeira compra elegível estar efetivamente paga. Não existe valor padrão: configure com a Matilha Prado.</p>
+          <p className="text-xs text-muted-foreground">Edite aqui o valor do bônus de indicação, a compra mínima e a validade. O benefício só será emitido após uma primeira compra elegível realmente paga. Nenhum valor padrão foi ativado.</p>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bonusEnabled} onChange={(e)=>setBonusEnabled(e.target.checked)}/>Ativar benefícios de indicação</label>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="space-y-1 text-xs">Valor do bônus (R$)
@@ -186,10 +206,17 @@ export function PortalEditorialAdmin() {
               <Input type="number" min="1" max="365" value={bonusDays} onChange={(e)=>setBonusDays(e.target.value)}/>
             </label>
           </div>
-          <Button size="sm" disabled={busy||bonusEnabled&&Number(bonusValue)<=0} onClick={()=>void submit({
+          <p className="text-xs text-muted-foreground">Prévia: {money(Math.round(Number(bonusValue||0)*100))} em desconto individual,
+            para compras a partir de {money(Math.round(Number(bonusMinimum||0)*100))}, com {bonusDays} dia(s) de validade.
+          </p>
+          <Button size="sm" disabled={busy||!Number.isFinite(Number(bonusValue))||
+            !Number.isFinite(Number(bonusMinimum))||!Number.isInteger(Number(bonusDays))||
+            Number(bonusValue)<0||Number(bonusValue)>100||Number(bonusMinimum)<0||
+            Number(bonusMinimum)>1000||Number(bonusDays)<1||Number(bonusDays)>365||
+            (bonusEnabled&&Number(bonusValue)<=0)} onClick={()=>void submit({
             action:'referral-config',active:bonusEnabled,awardCents:Math.round(Number(bonusValue)*100),
             minimumPurchaseCents:Math.round(Number(bonusMinimum)*100),validDays:Number(bonusDays),
-          })}>Salvar regras de indicação</Button>
+          })}>Salvar valor e regras de indicação</Button>
         </div>
       </details>
       <details className="rounded-lg border p-3">
@@ -209,7 +236,7 @@ export function PortalEditorialAdmin() {
             <p>Indicação de cliente {r.invitedId} · {r.status}</p>
             <Button size="sm" variant="outline" disabled={busy} onClick={()=>void submit({action:'referral-review',id:r.id})}>Verificar compra paga</Button>
           </div>)}
-          <p className="text-xs text-muted-foreground">Código de vale-presente não está integrado ao checkout. Não anuncie resgate automático até implementar e testar a baixa do saldo.</p>
+          <p className="text-xs text-muted-foreground">Vale-presente tem resgate programado no checkout, mas ainda exige homologação de pagamento, saldo, cancelamento e conciliação fiscal antes de liberar para clientes.</p>
         </div>
       </details>
       <details className="rounded-lg border p-3">
