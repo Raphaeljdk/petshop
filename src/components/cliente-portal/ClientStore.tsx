@@ -798,7 +798,8 @@ export function ClientStore({
                     {descontoCupom > 0 && <div className="flex items-center justify-between text-sm text-green-700"><span>Desconto ({cupomAplicado?.codigo})</span><span>- {fmtMoeda(descontoCupom)}</span></div>}
                     {giftApplied&&<div className="flex items-center justify-between text-sm text-green-700"><span>Crédito do vale</span><span>- {fmtMoeda(Math.min(total,giftApplied.availableCents/100))}</span></div>}
                     <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Frete</span><span>{freteSelecionado ? (freteSelecionado.valorFrete === 0 ? 'Grátis' : fmtMoeda(freteSelecionado.valorFrete)) : '—'}</span></div>
-                    <div className="flex items-center justify-between text-lg font-bold pt-1"><span>Total</span><span className="text-primary">{fmtMoeda(total)}</span></div>
+                    <div className="flex items-center justify-between text-lg font-bold pt-1"><span>Total da compra</span><span className="text-primary">{fmtMoeda(total)}</span></div>
+                    {giftApplied&&<div className="flex items-center justify-between text-base font-bold text-primary"><span>A pagar após o vale</span><span>{fmtMoeda(totalToPay)}</span></div>}
                   </div>
 
                   {checkoutZettaBloqueado && (
