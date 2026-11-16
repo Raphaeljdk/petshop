@@ -35,6 +35,7 @@ import type {
 } from '@/lib/types'
 import { toast } from 'sonner'
 import { groupMarketplaceListings } from '@/lib/product-variants'
+import { Input } from '@/components/ui/input'
 
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
@@ -68,6 +69,10 @@ type MercadoLivreItem = {
   productId: string | null
 }
 type MercadoLivreItems = { items: MercadoLivreItem[]; page: number; total: number }
+type MlStockMismatch = {
+  id:string;nome:string;sku:string|null;mlItemId:string|null;
+  estoque:number;estoqueMercadoLivre:number;ativo:boolean
+}
 
 type AmazonStatus = {
   configured: boolean
@@ -157,7 +162,25 @@ export function IntegracoesView() {
   const [mlSyncing, setMlSyncing] = useState(false)
   const [mlRefresh, setMlRefresh] = useState(0)
   const [mlPublishingId, setMlPublishingId] = useState<string | null>(null)
+  const [mlStockMismatches,setMlStockMismatches]=useState<{total:number;items:MlStockMismatch[]}|null>(null)
+  const [stockSelected,setStockSelected]=useState<string|null>(null)
+  const [stockDraft,setStockDraft]=useState('')
+  const [stockSaving,setStockSaving]=useState(false)
   const mlAutoSyncDone = useRef(false)
+  useEffect(()=>{
+    if(!mercadoLivre?.connected)return
+    let active=true
+    const load=()=>{
+      void fetch('/api/integracoes/mercado-livre/estoque/conferir',{
+        credentials:'same-origin',cache:'no-store'
+      }).then(async r=>r.ok?r.json():null)
+        .then(x=>{if(active&&x)setMlStockMismatches(x)})
+        .catch(()=>{})
+    }
+    load()
+    const interval=setInterval(load,5*60*1000)
+    return ()=>{active=false;clearInterval(interval)}
+  },[mercadoLivre?.connected,mlRefresh])
 
   const [amazon, setAmazon] = useState<AmazonStatus | null>(null)
   const [amazonItems, setAmazonItems] = useState<AmazonItems | null>(null)
@@ -398,7 +421,7 @@ export function IntegracoesView() {
         `Mercado Livre sincronizado: ${data.created || 0} novo(s) e ${data.updated || 0} atualizado(s).`
       )
       if (data.created) {
-        toast.info('Os novos produtos foram importados ocultos. Publique apenas os que quiser exibir.')
+        toast.info('Os produtos novos com estoque físico disponível entram na vitrine; sem saldo confirmado, ficam ocultos.')
       }
       setMlRefresh((value) => value + 1)
       setMercadoLivre((current) =>
@@ -418,6 +441,38 @@ export function IntegracoesView() {
     } finally {
       setMlSyncing(false)
     }
+  }
+
+  const confirmarEstoqueFisico = async (product:MlStockMismatch)=>{
+    if(stockSaving||stockSelected!==product.id)return
+    const raw=stockDraft.trim()
+    if(!/^\d+$/.test(raw)||Number(raw)>100000){
+      toast.error('Preencha um número inteiro válido para o estoque físico (0 a 100.000).')
+      return
+    }
+    const quantity=Number(raw)
+    if(!window.confirm(
+      'Confirma que conferiu o estoque físico de '+product.nome+' e há '+quantity+
+      ' unidade(s) disponíveis? A vitrine será '+(quantity>0?'publicada.':'ocultada.')
+    ))return
+    setStockSaving(true)
+    try{
+      const response=await fetch('/api/integracoes/mercado-livre/estoque/conferir',{
+        method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          productId:product.id,mlItemId:product.mlItemId,
+          quantity,expectedStock:product.estoque,
+        }),
+      })
+      const data=await response.json().catch(()=>null)
+      if(!response.ok)throw new Error(data?.error||'Não foi possível confirmar o estoque.')
+      toast.success('Estoque físico registrado: '+quantity+' unidade(s). A vitrine foi ajustada; o Mercado Livre será atualizado quando autorizado.')
+      setStockSelected(null);setStockDraft('')
+      setMlRefresh(v=>v+1)
+    }catch(error){
+      toast.error(error instanceof Error?error.message:'Falha ao conferir o estoque.')
+    }finally{setStockSaving(false)}
   }
 
   const alterarPublicacaoMercadoLivre = async (
@@ -752,6 +807,53 @@ export function IntegracoesView() {
 
           {mercadoLivre?.connected && (
             <div className="space-y-3 border-t pt-4">
+              {mlStockMismatches && mlStockMismatches.total>0 && (
+                <details className="rounded-lg border border-amber-300 bg-amber-50/50 p-3" id="divergencias-ml">
+                  <summary className="cursor-pointer text-sm font-semibold text-amber-900">
+                    {mlStockMismatches.total} divergência(s) de estoque: Mercado Livre anuncia quantidade, ERP registra zero
+                  </summary>
+                  <p className="mt-2 text-xs text-amber-900">
+                    Não é seguro importar automaticamente o saldo anunciado como estoque físico.
+                    Confira a quantidade real de cada item abaixo. Ao salvar, a Matilha Prado
+                    publica na vitrine se o saldo for positivo; a reativação do anúncio externo
+                    depende da permissão de escrita do Mercado Livre.
+                  </p>
+                  <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+                    {mlStockMismatches.items.map(product=>(
+                      <div key={product.id} className="flex flex-wrap items-center gap-2 rounded-lg border bg-background p-2 text-xs">
+                        <div className="min-w-[180px] flex-1">
+                          <p className="font-semibold">{product.nome}</p>
+                          <p className="text-muted-foreground">{product.mlItemId} · SKU: {product.sku||'Não informado'}</p>
+                          <p>ERP: <strong>{product.estoque}</strong> · Anunciado ML: <strong>{product.estoqueMercadoLivre}</strong></p>
+                        </div>
+                        {stockSelected===product.id?(
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="space-y-1">
+                              <span className="block">Quantidade física conferida</span>
+                              <Input type="number" min={0} max={100000} step={1}
+                                className="h-9 w-32" autoFocus value={stockDraft}
+                                onChange={e=>setStockDraft(e.target.value)}
+                                placeholder="Ex.: 3"/>
+                            </label>
+                            <Button size="sm" disabled={stockSaving||!/^\d+$/.test(stockDraft)}
+                              onClick={()=>void confirmarEstoqueFisico(product)}>
+                              {stockSaving?'Salvando...':'Confirmar saldo'}
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={stockSaving}
+                              onClick={()=>{setStockSelected(null);setStockDraft('')}}>Cancelar</Button>
+                          </div>
+                        ):(
+                          <Button size="sm" variant="outline"
+                            onClick={()=>{setStockSelected(product.id);setStockDraft('')}}>
+                            Conferir estoque
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="font-semibold">
@@ -851,6 +953,11 @@ export function IntegracoesView() {
                         >
                           {item.imported ? 'Importado' : 'Aguardando sync'}
                         </Badge>
+                        {item.imported && item.quantity>0 && (item.localStock??0)===0 && (
+                          <Badge variant="outline" className="border-amber-300 text-amber-800 text-[10px]">
+                            ML: {item.quantity} · ERP: zero — conferir estoque
+                          </Badge>
+                        )}
                         {item.imported && item.status==='paused' && (item.localStock||0)>0 && (
                           <Badge variant="outline" className="border-amber-300 text-amber-800 text-[10px]">
                             Aguardando reativação no ML
@@ -875,7 +982,7 @@ export function IntegracoesView() {
                           <Button
                             size="sm"
                             variant={item.published ? 'outline' : 'default'}
-                            disabled={mlPublishingId === item.id}
+                            disabled={mlPublishingId === item.id || (!item.published && (item.localStock??0)<=0)}
                             onClick={() =>
                               alterarPublicacaoMercadoLivre(item, !item.published)
                             }
