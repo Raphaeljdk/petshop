@@ -13,6 +13,7 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { StatusAgendamento } from '@/lib/types'
 import { AgendaCalendar, type AgendaCalendarEntry, type AgendaProfessional } from './AgendaCalendar'
 import { ConfiguracaoServicosEsteticos } from './ConfiguracaoServicosEsteticos'
+import { BloqueioProfissionalDialog } from './BloqueioProfissionalDialog'
 import { CATEGORIAS_AGENDA, SUGESTOES_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
 
 type Entry = AgendaCalendarEntry
@@ -190,7 +191,7 @@ export function AgendamentosView() {
   return <div className="space-y-5 pb-10">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-bold sm:text-2xl">Agenda Matilha Prado</h1><p className="text-sm text-muted-foreground">Agenda própria: reserve, remarque, cancele e acompanhe o histórico de cada pet.</p></div>
-      <div className="flex gap-2"><Button variant="outline" onClick={()=>void carregar()} disabled={loading}><RefreshCw className="mr-1.5 size-4" />Atualizar</Button><Button onClick={novo}><Plus className="mr-1.5 size-4" />Novo agendamento</Button></div>
+      <div className="flex flex-wrap gap-2"><BloqueioProfissionalDialog profissionais={profissionais} onUpdated={()=>setCalendarRefresh(n=>n+1)}/><Button variant="outline" onClick={()=>void carregar()} disabled={loading}><RefreshCw className="mr-1.5 size-4" />Atualizar</Button><Button onClick={novo}><Plus className="mr-1.5 size-4" />Novo agendamento</Button></div>
     </div>
     <div className="grid grid-cols-3 gap-3">
       {[{name:'Hoje',value:todayCount},{name:'Ativos',value:openCount},{name:'Registros',value:total}].map(c=><Card key={c.name}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{c.name}</p><p className="mt-1 text-2xl font-bold">{c.value}</p></CardContent></Card>)}
