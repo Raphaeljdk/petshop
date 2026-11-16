@@ -6,6 +6,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { imageData } from '@/lib/portal-care'
 import { paidSaleWhere } from '@/lib/sales-policy'
+import { awardReferralBySale } from '@/lib/portal-referral-awards'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,9 @@ const actions = z.discriminatedUnion('action', [
     status:z.enum(['cancelado','aguardando_pagamento','pago']),
     paymentVerified:z.boolean(), paymentReference:z.string().trim().min(4).max(150).optional() }).strict(),
   z.object({ action:z.literal('referral-review'), id:z.string().min(1) }).strict(),
+  z.object({action:z.literal('referral-config'),active:z.boolean(),
+    awardCents:z.number().int().min(0).max(10000),minimumPurchaseCents:z.number().int().min(0).max(100000),
+    validDays:z.number().int().min(1).max(365)}).strict(),
   z.object({ action:z.literal('grooming-photo'), processoId:z.string().min(1),
     kind:z.enum(['banho_antes','banho_depois']), imageData:imageData.refine((v)=>Boolean(v)),
     title:z.string().trim().min(2).max(100) }).strict(),
@@ -47,7 +51,7 @@ async function admin() {
 export async function GET() {
   try {
     if (!await admin()) return NextResponse.json({ error:'Acesso negado.' }, { status:403 })
-    const [articles,plans,requests,gifts,referrals] = await Promise.all([
+    const [articles,plans,requests,gifts,referrals,referralConfig] = await Promise.all([
       db.portalArticle.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
       db.portalCarePlan.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
       db.portalCarePlanRequest.findMany({ where:{ status:{ in:['solicitado','ativo'] } }, take:100,
@@ -56,8 +60,9 @@ export async function GET() {
         orderBy:{ createdAt:'desc' } }),
       db.portalReferralClaim.findMany({ where:{ status:'aguardando_compra' }, take:100,
         orderBy:{ createdAt:'desc' } }),
+      db.portalReferralConfig.findUnique({where:{id:'default'}}),
     ])
-    return NextResponse.json({ articles,plans,requests,gifts,referrals },
+    return NextResponse.json({ articles,plans,requests,gifts,referrals,referralConfig },
       { headers:{ 'Cache-Control':'private, no-store' } })
   } catch (error) { return experienceError(error) }
 }
@@ -150,15 +155,23 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ success:true, note:data.status==='pago'?'Código gerado após verificação manual. O resgate no checkout ainda precisa de integração.':'Status registrado.' })
     }
-    if (data.action === 'referral-review') {
-      const claim = await db.portalReferralClaim.findFirst({ where:{ id:data.id,status:'aguardando_compra' } })
-      if (!claim) return NextResponse.json({ error:'Indicação não encontrada.' }, { status:404 })
-      const eligible = await db.venda.findFirst({ where:{ ...paidSaleWhere, clienteId:claim.invitedId,
-        createdAt:{ gte:claim.createdAt } }, select:{ id:true } })
-      if (!eligible) return NextResponse.json({ error:'Não foi encontrada compra elegível concluída e paga após a indicação.' }, { status:409 })
-      await db.portalReferralClaim.updateMany({ where:{ id:claim.id,status:'aguardando_compra' },
-        data:{ status:'verificada_sem_beneficio',verifiedAt:new Date(),verifiedByUserId:staff.id } })
-      return NextResponse.json({ success:true, note:'Indicação verificada. Benefício comercial não é aplicado automaticamente.' })
+    if(data.action==='referral-config'){
+      await db.portalReferralConfig.upsert({where:{id:'default'},
+        create:{id:'default',active:data.active,awardCents:data.awardCents,
+          minimumPurchaseCents:data.minimumPurchaseCents,validDays:data.validDays},
+        update:{active:data.active,awardCents:data.awardCents,
+          minimumPurchaseCents:data.minimumPurchaseCents,validDays:data.validDays}})
+      return NextResponse.json({success:true,note:'Regras de indicação atualizadas.'})
+    }
+    if(data.action==='referral-review') {
+      const claim=await db.portalReferralClaim.findFirst({where:{id:data.id,status:'aguardando_compra'}})
+      if(!claim)return NextResponse.json({error:'Indicação indisponível.'},{status:404})
+      const eligible=await db.venda.findFirst({where:{...paidSaleWhere,clienteId:claim.invitedId,
+        createdAt:{gte:claim.createdAt}},select:{id:true},orderBy:{createdAt:'asc'}})
+      if(!eligible)return NextResponse.json({error:'Nenhuma compra paga elegível.'},{status:409})
+      const result=await awardReferralBySale(eligible.id)
+      if(!result.awarded)return NextResponse.json({error:'Regras de benefício inativas, valor mínimo não atingido ou indicação inelegível.'},{status:409})
+      return NextResponse.json({success:true,note:'Cupom pessoal emitido para o indicador.'})
     }
     if (data.action === 'grooming-photo') {
       const process = await db.processo.findUnique({ where:{ id:data.processoId },
