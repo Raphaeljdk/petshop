@@ -35,6 +35,8 @@ export function trustedCheckoutLink(raw:unknown) {
   } catch {return null}
 }
 export async function startSubscription(requestId:string,clienteId:string,email:string) {
+  if(process.env.PORTAL_SUBSCRIPTIONS_ENABLED!=='true')
+    throw new SubscriptionError('Assinaturas aguardam homologação; a cobrança ainda não está ativada.',503)
   if(!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new SubscriptionError('Cadastre um e-mail válido.',400)
   const request=await db.portalCarePlanRequest.findFirst({where:{id:requestId,clienteId},include:{plan:true}})
   if(!request||!['solicitado','checkout_pendente'].includes(request.status))
