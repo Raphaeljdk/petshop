@@ -90,6 +90,7 @@ export interface Agendamento {
   updatedAt: string
   pet?: Pet
   cliente?: Cliente
+  profissional?: { id:string;nome:string } | null
   origem?: 'local' | 'siggma'
   siggmaId?: number | null
   statusOriginal?: string | null
