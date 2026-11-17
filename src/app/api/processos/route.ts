@@ -16,7 +16,11 @@ export async function GET() {
 
     const processos = await db.processo.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { pet: { include: { cliente: true } }, notificacoes: true },
+      include: {
+        pet: { include: { cliente: true } },
+        notificacoes: true,
+        ficha: { select: { checkinStatus: true, checkinSubmittedAt: true, tutorAceiteAt: true, checkoutFinalizadoAt: true } },
+      },
     })
 
     return NextResponse.json(processos)
