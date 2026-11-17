@@ -36,7 +36,7 @@ export function FichaSections({sections,answers,onChange,readonly=false,initialO
  sections:FormSection[];answers:FormAnswers;onChange?:(value:FormAnswers)=>void;readonly?:boolean;initialOpen?:boolean
 }){
  return <div className="space-y-3">
-  {sections.map((section,index)=><details key={section.id} open={readonly?true:undefined} defaultOpen={!readonly&&initialOpen&&index===0} className="rounded-lg border bg-card p-3 print:break-inside-auto print:border-0 print:p-0">
+  {sections.map((section,index)=><details key={section.id} open={readonly||(initialOpen&&index===0)?true:undefined} className="rounded-lg border bg-card p-3 print:break-inside-auto print:border-0 print:p-0">
    {!readonly?<summary className="cursor-pointer text-sm font-semibold">{section.title}</summary>:<h3 className="mb-2 mt-4 text-sm font-bold border-b pb-1 print:text-black">{section.title}</h3>}
    {section.description&&<p className="mt-2 text-xs text-muted-foreground print:text-black">{section.description}</p>}
    <div className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-2">
