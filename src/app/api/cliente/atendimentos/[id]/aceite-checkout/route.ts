@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
-import { CHECKOUT_ACEITE_TEXTO,CHECKOUT_ACEITE_VERSAO } from '@/lib/atendimento-ficha'
+import { CHECKOUT_ACEITE_TEXTO,CHECKOUT_ACEITE_VERSAO,validarRespostaCheckout } from '@/lib/atendimento-ficha'
 
 export const runtime='nodejs'
 type Route={params:Promise<{id:string}>}
@@ -19,14 +19,13 @@ export async function POST(req:NextRequest,{params}:Route){
  if(raw.length>5000)return reply({error:'Solicitação muito grande.'},413)
  let data:{action?:unknown;confirmed?:unknown;name?:unknown;version?:unknown}
  try{data=JSON.parse(raw)}catch{return reply({error:'Resposta inválida.'},400)}
- if(!data||!['aceitar','discordar'].includes(String(data.action)))
-  return reply({error:'Selecione registrar ciência ou registrar discordância.'},400)
+ if(!data)return reply({error:'Resposta inválida.'},400)
  if(data.version!==CHECKOUT_ACEITE_VERSAO)
   return reply({error:'A versão do termo mudou. Atualize a ficha antes de responder.'},409)
  const accepted=data.action==='aceitar'
  const name=typeof data.name==='string'?data.name.trim():''
- if(name.length<3||name.length>140||accepted&&data.confirmed!==true)
-  return reply({error:'Informe seu nome completo e, para confirmar ciência, marque a declaração de leitura.'},400)
+ const validationError=validarRespostaCheckout(data.action,data.name,data.confirmed)
+ if(validationError)return reply({error:validationError},400)
  const ownerId=user.clienteId
  const ficha=await db.atendimentoFicha.findFirst({where:{
   id,clienteId:ownerId,checkinStatus:'aceito',
