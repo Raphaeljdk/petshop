@@ -36,6 +36,24 @@ export type ResultadoAutorizacao = {
  protocolo:{status:number;chave:string;numero:string|null;motivo:string}|null;
  autorizada:boolean;
 }
+/** Consulta cStat 217 informa ausência na base, NÃO rejeição definitiva da transmissão
+ * após timeout. O ERP conserva o registro para permitir reconciliação segura. */
+export function classificarSituacaoHomologacao(r:ResultadoAutorizacao):'autorizada'|'recebida'|'rejeitada'|'incerta'{
+ if(r.autorizada)return 'autorizada'
+ if(r.recibo)return 'recebida'
+ const codigo=r.protocolo?.status??r.statusLote
+ if(codigo===217)return 'incerta'
+ return codigo>=200?'rejeitada':'incerta'
+}
+/** Somente a mesma NF-e assinada pode ser reenviada, após consulta cStat 217 e 3min. */
+export function podeRetransmitirHomologacao(
+ nota:{ambiente:number;status:string;codigoSefaz:number|null;recibo:string|null;protocolo:string|null;enviadaEm:Date|null},
+ agora=Date.now()
+):boolean{
+ return nota.ambiente===2&&nota.status==='incerta'&&nota.codigoSefaz===217&&
+  !nota.recibo&&!nota.protocolo&&nota.enviadaEm instanceof Date&&
+  agora-nota.enviadaEm.getTime()>=180_000
+}
 /** Só retorna autorizada quando a SEFAZ confirma chave, status e protocolo. */
 export function interpretarAutorizacaoHomologacao(xml:string,chaveEsperada:string):ResultadoAutorizacao{
  if(!/^\d{44}$/.test(chaveEsperada))throw Error('Chave esperada inválida.')
@@ -97,7 +115,7 @@ export async function enviarSoapHomologacao(operacao:Operacao,xml:string,cred:Cr
  return new Promise<string>((resolve,reject)=>{
   const req=httpsRequest(url,{method:'POST',pfx:cred.pfx,passphrase:cred.passphrase,
    minVersion:'TLSv1.2',maxVersion:'TLSv1.2',servername:url.hostname,
-   ca:[...rootCertificates,ICP_BRASIL_V10],rejectUnauthorized:true,timeout:15_000,
+   ca:[...rootCertificates,ICP_BRASIL_V10],rejectUnauthorized:true,timeout:operacao==='autorizacao'?30_000:20_000,
    headers:{
     'Content-Type':'application/soap+xml; charset=utf-8; action="'+svc.ns+'/'+svc.acao+'"',
     'Content-Length':String(Buffer.byteLength(payload)),
