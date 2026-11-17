@@ -17,6 +17,7 @@ import {
   Bell,
   TicketPercent,
   ShieldCheck,
+  Stethoscope,
 } from 'lucide-react'
 import type { TabId } from '@/components/layout/Sidebar'
 import {
@@ -46,6 +47,7 @@ const navigation: Array<{
 }> = [
   { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard, keywords: 'dashboard início indicadores' },
   { id: 'kanban', label: 'Kanban de pets', icon: Activity, keywords: 'atendimentos processos pets' },
+  { id: 'anamnese', label: 'Ficha de Anamnese', icon: Stethoscope, keywords: 'fichas check-in check-out aceite tutores' },
   { id: 'agendamentos', label: 'Agendamentos', icon: CalendarClock, keywords: 'agenda horários serviços' },
   { id: 'clientes', label: 'Cadastro de clientes', icon: UsersRound, keywords: 'clientes tutores animais' },
   { id: 'ecommerce', label: 'Produtos e estoque', icon: Package, keywords: 'loja produtos estoque catálogo' },

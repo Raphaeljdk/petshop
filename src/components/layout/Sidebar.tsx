@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   TicketPercent,
   FileText,
+  Stethoscope,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/
 export type TabId =
   | 'dashboard'
   | 'kanban'
+  | 'anamnese'
   | 'agendamentos'
   | 'ecommerce'
   | 'integracoes'
@@ -62,6 +64,7 @@ function SidebarContent({ active, onChange, counts, onNavigate }: SidebarProps &
       items: [
         { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
         { id: 'kanban', label: 'Kanban de pets', icon: KanbanSquare, badge: counts?.novo },
+        { id: 'anamnese', label: 'Ficha de Anamnese', icon: Stethoscope },
         { id: 'agendamentos', label: 'Agendamentos', icon: CalendarClock },
         { id: 'clientes', label: 'Cadastro de clientes', icon: UsersRound },
       ],
