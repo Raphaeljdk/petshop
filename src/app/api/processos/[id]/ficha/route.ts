@@ -47,6 +47,10 @@ export async function PUT(req:NextRequest,{params}:Route){
   const missing=Array.from({length:10},(_,i)=>'saude'+(i+1)).concat('chegadaCondicao')
    .filter(k=>!answers[k])
   if(missing.length)return response({error:'Antes de enviar ao tutor, responda as dez perguntas de saúde e a condição geral de chegada. Use "Não informado" quando necessário.'},400)
+  for(const key of ['saude1','saude2','saude3','saude4','saude6','saude7','saude9','saude10']){
+   if(answers[key]==='Sim'&&!answers[key+'det'])
+    return response({error:'Descreva a condição informada em '+key+' antes de enviar ao tutor.'},400)
+  }
  }
  if(action==='finalizar_checkout'&&(!answers.secaCondicao||!answers.saidaCondicao||!answers.saidaFinalizador))
   return response({error:'Informe a condição da secagem, a condição de saída e o responsável pela finalização.'},400)
