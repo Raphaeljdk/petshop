@@ -137,8 +137,14 @@ export function sanitizeFormAnswers(kind:'checkin'|'checkout',source:unknown):Fo
       if(!Array.isArray(v)||v.length>f.options!.length||v.some(x=>typeof x!=='string'||!f.options!.includes(x)))throw Error('Valor inválido: '+id)
       result[id]=[...new Set(v)]
     }else{
-      if(typeof v!=='string'||v.length>(f.kind==='text'?1500:150)||f.kind==='choice'&&!f.options!.includes(v))throw Error('Valor inválido: '+id)
-      result[id]=v.trim()
+      if(typeof v!=='string'||v.length>(f.kind==='text'?1500:150))throw Error('Valor inválido: '+id)
+      const normalized=v.trim()
+      // O formulário permite deixar uma opção sem resposta. Isso não deve invalidar o rascunho.
+      if(f.kind==='choice'){
+        if(!normalized)continue
+        if(!f.options!.includes(normalized))throw Error('Valor inválido: '+id)
+      }
+      result[id]=normalized
     }
   }
   return result
