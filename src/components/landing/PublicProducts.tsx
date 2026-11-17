@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { isClothingProduct } from '@/lib/product-variants'
-import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
+import { findKongClassicImage, getProductBrand, MARCA_PERSONALIZAVEIS, SEM_MARCA } from '@/lib/product-brands'
 import {
   ProductDetailsDialog,
   type ProductPreview,
@@ -75,15 +75,26 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
 
   const brandOptions = useMemo(() => {
     const grouped = new Map<string, { label: string; count: number; imageUrl: string | null }>()
+    const kongClassicImage = findKongClassicImage(products)
     for (const product of products) {
       const label = getProductBrand(product)
-      if (label === SEM_MARCA) continue // Itens sem fabricante continuam em "Todos os produtos".
+      if (label === SEM_MARCA) continue
       const current = grouped.get(label) || { label, count: 0, imageUrl: null }
       current.count += 1
-      if (!current.imageUrl && product.imageUrl) current.imageUrl = product.imageUrl
+      // O cartão Kong sempre representa o Kong Classic vermelho, não a bola de tênis.
+      if (label === 'Kong' && kongClassicImage) current.imageUrl = kongClassicImage
+      else if (!current.imageUrl && product.imageUrl) current.imageUrl = product.imageUrl
       grouped.set(label, current)
     }
-    return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+    // Aparece em destaque mesmo sem nenhum produto cadastrado.
+    if (!grouped.has(MARCA_PERSONALIZAVEIS)) {
+      grouped.set(MARCA_PERSONALIZAVEIS, { label: MARCA_PERSONALIZAVEIS, count: 0, imageUrl: null })
+    }
+    return [...grouped.values()].sort((a, b) =>
+      a.label === MARCA_PERSONALIZAVEIS ? -1 :
+      b.label === MARCA_PERSONALIZAVEIS ? 1 :
+      a.label.localeCompare(b.label, 'pt-BR')
+    )
   }, [products])
 
   useEffect(() => {
@@ -209,11 +220,13 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                     aria-pressed={brand === option.label}
                     aria-controls="boutique-results"
                     onClick={() => selectBrand(option.label)}
-                    className="boutique-category group"
+                    className={`boutique-category group ${option.label === MARCA_PERSONALIZAVEIS ? 'border-orange-300 bg-orange-50/80 shadow-sm' : ''}`}
                     style={{ '--category-order': index + 1 } as CSSProperties}
                   >
                     <span className="boutique-category-art">
-                      {option.imageUrl ? (
+                      {option.label === MARCA_PERSONALIZAVEIS && option.count === 0 ? (
+                        <Sparkles className="size-8 text-orange-600" strokeWidth={1.5} aria-hidden="true" />
+                      ) : option.imageUrl ? (
                         <img src={option.imageUrl} alt="" loading="lazy"
                           className="h-full w-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105" />
                       ) : (
@@ -221,7 +234,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                       )}
                     </span>
                     <span className="boutique-category-name">{option.label}</span>
-                    <span className="boutique-category-hint">{option.count} {option.count === 1 ? 'produto' : 'produtos'}</span>
+                    <span className="boutique-category-hint">{option.label === MARCA_PERSONALIZAVEIS && option.count === 0 ? 'Em breve' : `${option.count} ${option.count === 1 ? 'produto' : 'produtos'}`}</span>
                     {brand === option.label && <Check className="boutique-category-check size-4" aria-hidden="true" />}
                   </button>
                 ))}
@@ -259,10 +272,14 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                 <CardContent className="p-7 text-center">
                   <Package className="mx-auto mb-2 size-8 text-muted-foreground/40" />
                   <p className="text-sm font-medium">
-                    Ainda não encontramos produtos dessa marca.
+                    {brand === MARCA_PERSONALIZAVEIS
+                      ? 'Matilha Prado Personalizáveis — em breve!'
+                      : 'Ainda não encontramos produtos dessa marca.'}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.
+                    {brand === MARCA_PERSONALIZAVEIS
+                      ? 'Estamos preparando itens personalizados exclusivos da Matilha Prado.'
+                      : 'Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.'}
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     <Button size="sm" variant="outline" onClick={() => selectBrand('todas')}>
