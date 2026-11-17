@@ -13,7 +13,9 @@ export async function GET(){
   select:{
    id:true,petId:true,processoId:true,checkin:true,checkinStatus:true,
    checkinSubmittedAt:true,tutorAceiteAt:true,tutorAceiteNome:true,tutorAceiteVersao:true,
-   checkout:true,checkoutFinalizadoAt:true,createdAt:true,
+   checkout:true,checkoutFinalizadoAt:true,checkoutStatus:true,
+   checkoutAceiteAt:true,checkoutAceiteNome:true,checkoutAceiteVersao:true,
+   createdAt:true,
    processo:{select:{servico:true,createdAt:true,pet:{select:{id:true,nome:true,raca:true}}}},
   },
  })
