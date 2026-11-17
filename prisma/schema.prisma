@@ -929,12 +929,20 @@ model AtendimentoFicha {
   checkout Json?
   checkoutById String?
   checkoutFinalizadoAt DateTime?
+  checkoutStatus String @default("nao_solicitado")
+  checkoutAceiteAt DateTime?
+  checkoutAceiteUserId String?
+  checkoutAceiteNome String?
+  checkoutAceiteVersao String?
+  checkoutAceiteHash String?
+  checkoutAceiteIpHash String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   processo Processo @relation(fields:[processoId],references:[id],onDelete:Restrict)
   eventos AtendimentoFichaEvento[]
   @@index([clienteId, petId, createdAt])
   @@index([checkinStatus, checkinSubmittedAt])
+  @@index([checkoutStatus, checkoutFinalizadoAt])
 }
 
 model AtendimentoFichaEvento {

@@ -2,6 +2,10 @@
 export const ACEITE_VERSAO='matilha-anamnese-2026-11-v1'
 export const ACEITE_TEXTO='Declaro que as informações fornecidas sobre a saúde e o comportamento do meu pet são verdadeiras e que fui informado(a) sobre as condições visíveis identificadas no momento do check-in. Estou ciente de que a avaliação da equipe da Matilha Prado é exclusivamente visual e preventiva, não substitui avaliação veterinária ou diagnóstico clínico. Autorizo o serviço contratado respeitando as condições observadas e os limites necessários para preservar o bem-estar e a segurança do pet.'
 
+/** Ciência da ficha de saída; não configura quitação, renúncia de direitos ou diagnóstico veterinário. */
+export const CHECKOUT_ACEITE_VERSAO='matilha-checkout-2026-11-v1'
+export const CHECKOUT_ACEITE_TEXTO='Declaro que tive acesso à ficha de check-out do meu pet, com o registro dos serviços realizados, das condições observadas na saída e das orientações informadas pela equipe da Matilha Prado. Ao confirmar, registro minha ciência sobre as informações apresentadas, sem que isso represente renúncia a direitos ou substitua avaliação veterinária. Posso registrar discordância, que ficará documentada no histórico do atendimento.'
+
 export type FormField={id:string;label:string;kind:'choice'|'multi'|'text';options?:readonly string[]}
 export type FormSection={id:string;title:string;description?:string;fields:FormField[]}
 export type FormAnswers=Record<string,string|string[]>
@@ -137,8 +141,14 @@ export function sanitizeFormAnswers(kind:'checkin'|'checkout',source:unknown):Fo
       if(!Array.isArray(v)||v.length>f.options!.length||v.some(x=>typeof x!=='string'||!f.options!.includes(x)))throw Error('Valor inválido: '+id)
       result[id]=[...new Set(v)]
     }else{
-      if(typeof v!=='string'||v.length>(f.kind==='text'?1500:150)||f.kind==='choice'&&!f.options!.includes(v))throw Error('Valor inválido: '+id)
-      result[id]=v.trim()
+      if(typeof v!=='string'||v.length>(f.kind==='text'?1500:150))throw Error('Valor inválido: '+id)
+      const normalized=v.trim()
+      // O formulário permite deixar uma opção sem resposta. Isso não deve invalidar o rascunho.
+      if(f.kind==='choice'){
+        if(!normalized)continue
+        if(!f.options!.includes(normalized))throw Error('Valor inválido: '+id)
+      }
+      result[id]=normalized
     }
   }
   return result

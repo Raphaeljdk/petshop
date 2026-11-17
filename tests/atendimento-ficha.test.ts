@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,answerCount,sanitizeFormAnswers} from '../src/lib/atendimento-ficha'
+import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,CHECKOUT_ACEITE_TEXTO,CHECKOUT_ACEITE_VERSAO,answerCount,sanitizeFormAnswers} from '../src/lib/atendimento-ficha'
 import {canAdvanceServiceProcess,requiresFichaAtendimento,unsafeCheckin} from '../src/lib/atendimento-flow'
 
 test('modelo contempla as secoes de check-in e check-out e versao do aceite',()=>{
@@ -10,6 +10,11 @@ test('modelo contempla as secoes de check-in e check-out e versao do aceite',()=
  assert.ok(CHECKOUT_SECTIONS.flatMap(s=>s.fields).length>=50)
  assert.ok(ACEITE_TEXTO.includes('não substitui avaliação veterinária'))
  assert.ok(ACEITE_VERSAO.includes('v1'))
+ assert.ok(CHECKOUT_ACEITE_VERSAO.includes('v1'))
+ assert.notEqual(CHECKOUT_ACEITE_VERSAO,ACEITE_VERSAO)
+ assert.match(CHECKOUT_ACEITE_TEXTO,/ciência sobre as informações/)
+ assert.match(CHECKOUT_ACEITE_TEXTO,/renúncia a direitos/)
+ assert.ok(!CHECKOUT_ACEITE_TEXTO.includes('Autorizo o serviço'))
 })
 test('não permite campos ou opções arbitrárias e preserva "não avaliado"',()=>{
  assert.deepEqual(sanitizeFormAnswers('checkin',{saude1:'Não informado',pele1:'Não avaliado',peleRegioes:['Patas']}),{
@@ -19,6 +24,15 @@ test('não permite campos ou opções arbitrárias e preserva "não avaliado"',(
  assert.throws(()=>sanitizeFormAnswers('checkin',{saude1:'Diagnóstico veterinário'}))
  assert.throws(()=>sanitizeFormAnswers('checkout',{saidaChecklist:['Procedimento não listado']}))
  assert.equal(answerCount({saude1:'Sim',peleRegioes:[],saude2:''}),1)
+})
+test('checkout aceita opção sem resposta, mas rejeita valores que não pertencem à lista',()=>{
+ assert.deepEqual(sanitizeFormAnswers('checkout',{
+  secaCondicao:'',seca1:'Adequado',saidaCondicao:['Tranquilo'],saidaFinalizador:'Aleksander',
+ }),{seca1:'Adequado',saidaCondicao:['Tranquilo'],saidaFinalizador:'Aleksander'})
+ assert.deepEqual(sanitizeFormAnswers('checkout',{secaCondicao:'  ',saidaFinalizador:'Aleksander'}),{saidaFinalizador:'Aleksander'})
+ assert.deepEqual(sanitizeFormAnswers('checkout',{secaCondicao:'Totalmente seca'}),{secaCondicao:'Totalmente seca'})
+ assert.throws(()=>sanitizeFormAnswers('checkout',{secaCondicao:'Opção inválida'}),/Valor inválido: secaCondicao/)
+ assert.throws(()=>sanitizeFormAnswers('checkout',{secaCondicao:12}),/Valor inválido: secaCondicao/)
 })
 test('novo banho precisa de aceite e checkout, histórico legado preservado',()=>{
  assert.equal(requiresFichaAtendimento('Banho e Tosa'),true)
