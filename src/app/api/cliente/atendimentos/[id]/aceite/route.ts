@@ -11,6 +11,7 @@ const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'
 export async function POST(req:NextRequest,{params}:Route){
  const user=await getUsuarioLogado()
  if(user?.role!=='CLIENTE'||!user.clienteId)return reply({error:'É necessário entrar com a conta do tutor.'},401)
+ const ownerId=user.clienteId as string
  try{assertSameOrigin(req)}catch{return reply({error:'Origem não autorizada.'},403)}
  const {id}=await params
  const raw=await req.text()
@@ -24,10 +25,10 @@ export async function POST(req:NextRequest,{params}:Route){
  if(accepted&&(!data.confirmed||name.length<3||name.length>140))
   return reply({error:'Leia o termo, marque a confirmação e informe seu nome completo.'},400)
  const ficha=await db.atendimentoFicha.findFirst({where:{
-  id,clienteId:user.clienteId,checkinStatus:'pendente_aceite',checkinSubmittedAt:{not:null},
+  id,clienteId:ownerId,checkinStatus:'pendente_aceite',checkinSubmittedAt:{not:null},
  },select:{id:true,checkin:true,petId:true,processo:{select:{status:true,pet:{select:{clienteId:true}}}}}})
  if(!ficha)return reply({error:'Ficha não disponível, já respondida ou pertencente a outro tutor.'},404)
- if(!ficha.checkin||ficha.processo.pet.clienteId!==user.clienteId||ficha.processo.status==='cancelado')
+ if(!ficha.checkin||ficha.processo.pet.clienteId!==ownerId||ficha.processo.status==='cancelado')
   return reply({error:'Este atendimento não permite aceite.'},409)
  const signedContent=JSON.stringify({
   kind:'checkin',version:ACEITE_VERSAO,text:ACEITE_TEXTO,checkin:ficha.checkin,
@@ -40,7 +41,7 @@ export async function POST(req:NextRequest,{params}:Route){
  try{
   const result=await db.$transaction(async tx=>{
    const changed=await tx.atendimentoFicha.updateMany({where:{
-    id,clienteId:user.clienteId,checkinStatus:'pendente_aceite',tutorAceiteAt:null,
+    id,clienteId:ownerId,checkinStatus:'pendente_aceite',tutorAceiteAt:null,
    },data:{
     checkinStatus:accepted?'aceito':'recusado',tutorAceiteAt:new Date(),
     tutorAceiteUserId:user.id,tutorAceiteNome:accepted?name:user.nome,
