@@ -718,11 +718,15 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         credentials: 'same-origin',
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error('patch-failed')
+      if (!res.ok) {
+        const reason=await res.json().catch(()=>null)
+        if(res.status===409&&processo.requiresFicha)setFichaProcesso(processo)
+        throw new Error(reason?.error||'Falha ao alterar o atendimento.')
+      }
       const colunaTitulo = COLUNAS.find((c) => c.id === novoStatus)?.titulo
       if (novoStatus === 'finalizado') {
         toast.success(
-          `${processo.pet?.nome || 'Pet'} finalizado — SMS/Email enviado ao dono`
+          `${processo.pet?.nome || 'Pet'} finalizado — notificações registradas no sistema`
         )
       } else {
         toast.success(`Movido para ${colunaTitulo}`)
@@ -731,15 +735,15 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
       if (
         novoStatus === 'em_andamento' &&
         statusAnterior === 'novo' &&
-        !processo.anamnese
+        !processo.anamnese && !processo.requiresFicha
       ) {
         const atualizado = { ...processo, status: novoStatus }
         setAnamneseProcesso(atualizado)
         setAnamneseTexto('')
         setAnamneseOpen(true)
       }
-    } catch {
-      toast.error('Erro ao mover processo')
+    } catch (error) {
+      toast.error(error instanceof Error?error.message:'Não foi possível mover o atendimento.')
       setProcessos((prev) =>
         prev.map((p) =>
           p.id === processoId ? { ...p, status: statusAnterior } : p
@@ -1109,8 +1113,8 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         open={!!confirmFinalizar}
         onOpenChange={(o) => !o && setConfirmFinalizar(null)}
         title="Finalizar atendimento?"
-        description="Ao finalizar, o sistema enviará SMS e E-mail ao dono do pet avisando que o serviço está pronto. Deseja continuar?"
-        confirmText="Finalizar e notificar"
+        description="Confira se o check-out foi concluído. A finalização registra o atendimento e prepara as notificações configuradas; o envio externo depende dos canais habilitados."
+        confirmText="Finalizar atendimento"
         variant="default"
         onConfirm={async () => {
           if (!confirmFinalizar) return
