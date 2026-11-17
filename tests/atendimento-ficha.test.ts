@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,answerCount,sanitizeFormAnswers} from '../src/lib/atendimento-ficha'
-import {canAdvanceServiceProcess,requiresFichaAtendimento} from '../src/lib/atendimento-flow'
+import {canAdvanceServiceProcess,requiresFichaAtendimento,unsafeCheckin} from '../src/lib/atendimento-flow'
 
 test('modelo contempla as secoes de check-in e check-out e versao do aceite',()=>{
  assert.equal(CHECKIN_SECTIONS.length,9)
@@ -28,4 +28,10 @@ test('novo banho precisa de aceite e checkout, histórico legado preservado',()=
  assert.match(canAdvanceServiceProcess({requiresFicha:true,status:'finalizado',checkinStatus:'aceito'})||'',/check-out/)
  assert.equal(canAdvanceServiceProcess({requiresFicha:true,status:'finalizado',checkinStatus:'aceito',checkoutCompleted:true}),null)
  assert.equal(canAdvanceServiceProcess({requiresFicha:false,status:'finalizado'}),null)
+})
+
+test('nenhum aceite autoriza procedimento marcado para suspensão ou avaliação veterinária',()=>{
+ assert.equal(unsafeCheckin({chegadaCondicao:'Necessita avaliação veterinária antes do procedimento'}),true)
+ assert.equal(unsafeCheckin({checkinComunicacoes:['Procedimento suspenso/não iniciado por segurança']}),true)
+ assert.equal(unsafeCheckin({chegadaCondicao:'Sem alterações visíveis'}),false)
 })
