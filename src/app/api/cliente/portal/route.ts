@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { portalCliente, ownsPet, cleanEmail, imageData, petKeySchema, portalDate, bodyText, recommendationRank } from '@/lib/portal-care'
 import { getZettaAnimalsByClient } from '@/lib/zetta-client'
+import { normalizarTelefonePresente } from '@/lib/portal-gift-phone'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,8 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('referral-claim'), code: z.string().trim().min(4).max(32) }).strict(),
   z.object({ action: z.literal('gift-request'),
     recipientName: z.string().trim().min(2).max(120),
-    recipientEmail: z.union([z.string().email().max(200), z.literal('')]).optional(),
+    recipientPhone: z.string().trim().min(10, 'Informe o telefone do presenteado.').max(24)
+      .refine((value) => Boolean(normalizarTelefonePresente(value)), 'Informe um telefone brasileiro válido com DDD.'),
     message: z.string().trim().max(500).optional(),
     amountCents: z.number().int().min(2000).max(50000) }).strict(),
   z.object({ action: z.literal('family-invite'), petKey: petKeySchema, email: z.string().email().max(200) }).strict(),
@@ -212,7 +214,7 @@ export async function POST(req: NextRequest) {
       if (pendingGifts >= 5) return NextResponse.json({error:'Limite de 5 solicitações pendentes. Aguarde a análise da loja.'},{status:409})
       await db.portalGiftRequest.create({ data: {
         clienteId, recipientName:data.recipientName,
-        recipientEmail:data.recipientEmail ? cleanEmail(data.recipientEmail) : null,
+        recipientPhone:normalizarTelefonePresente(data.recipientPhone)!,
         amountCents:data.amountCents, message:data.message || null,
       } })
       return NextResponse.json({ success:true, note:'Pedido recebido. O voucher só será emitido após aprovação e pagamento confirmado.' }, { status:201 })
