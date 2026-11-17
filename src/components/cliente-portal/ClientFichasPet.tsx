@@ -65,7 +65,7 @@ export function ClientFichasPet({petNome,fichas,onUpdated}:{petNome:string;ficha
      <p className="text-xs font-semibold">MATILHA PRADO — Avaliação inicial visual e preventiva</p>
      <FichaSections sections={CHECKIN_SECTIONS} answers={asAnswers(selected.checkin)} readonly/>
      <div className="rounded-lg border p-3 text-sm">
-      <p className="font-semibold">10. Ciência e autorização do tutor</p>
+      <p className="font-semibold">11. Ciência e autorização do tutor</p>
       <p className="my-2 text-xs leading-relaxed">{ACEITE_TEXTO}</p>
       {selected.checkinStatus==='pendente_aceite'?<>
        <label className="my-3 flex items-start gap-2 text-xs">

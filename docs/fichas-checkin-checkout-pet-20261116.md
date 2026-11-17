@@ -2,7 +2,7 @@
 
 ## Operação
 - Kanban > cartão do atendimento > Check-in / Check-out / Imprimir.
-- 1. Identificação automática do tutor e pet; 2–9. avaliação de saúde, pele, pelagem, ouvidos, olhos, unhas/patas, chegada e comunicação; 10. termo do tutor; 11. registro interno da equipe.
+- 1. Identificação automática do tutor e pet; 2–9. avaliação de saúde, pele, pelagem, ouvidos, olhos, unhas/patas, chegada e comunicação; 10. registro interno da equipe; 11. termo do tutor.
 - A equipe preenche o check-in como rascunho e depois seleciona Enviar para aceite. O envio bloqueia qualquer edição do documento original. Campos não respondidos são impressos como não registrados; não são considerados normais.
 - No portal do cliente > Meus Pets > Fichas de atendimento, o tutor lê integralmente a avaliação, concorda explicitamente com o termo e digita o nome, ou recusa a autorização.
 - São gravados usuário autenticado, data/hora da decisão, versão do texto, hash SHA-256 do documento assinado e log de auditoria; não é uma assinatura manuscrita ou qualificada ICP-Brasil.

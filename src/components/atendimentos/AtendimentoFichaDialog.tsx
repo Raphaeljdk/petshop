@@ -84,7 +84,7 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
      <p className="text-xs">1. Identificação · Pet: {data.processo.pet.nome} · {data.processo.pet.raca||data.processo.pet.especie} · Tutor: {data.processo.pet.cliente.nome} · {data.processo.pet.cliente.telefone}</p>
      <FichaSections sections={CHECKIN_SECTIONS} answers={checkin} onChange={canCheckin?v=>{setCheckin(v);setEdited(true)}:undefined} initialOpen/>
      <div className="rounded-lg border p-3 text-xs">
-      <b>10. Ciência e autorização do tutor</b><p className="my-2">{ACEITE_TEXTO}</p>
+      <b>11. Ciência e autorização do tutor</b><p className="my-2">{ACEITE_TEXTO}</p>
       <p>{f?.tutorAceiteAt?(f.checkinStatus==='aceito'?'Aceite':'Recusa')+' de '+(f.tutorAceiteNome||'tutor')+' em '+dateTime(f.tutorAceiteAt):
       f?.checkinStatus==='pendente_aceite'?'Aguardando resposta no portal Meus Pets.':'Ainda não enviado para aceite.'}</p>
      </div>
@@ -115,7 +115,7 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
   <h2 className="mt-3 text-lg font-bold">FICHA DE ANAMNESE E CHECK-IN PET</h2>
   <p>Enviado: {dateTime(f?.checkinSubmittedAt)} · Status: {label[f?.checkinStatus||'rascunho']}</p>
   <FichaSections sections={CHECKIN_SECTIONS} answers={checkin} readonly/>
-  <h3 className="mt-4 font-bold">10. Ciência e autorização do tutor</h3><p className="text-xs">{ACEITE_TEXTO}</p>
+  <h3 className="mt-4 font-bold">11. Ciência e autorização do tutor</h3><p className="text-xs">{ACEITE_TEXTO}</p>
   <p className="mt-2 text-xs">Resposta: {f?.checkinStatus==='aceito'?'ACEITO':f?.checkinStatus==='recusado'?'NÃO AUTORIZADO':'SEM ACEITE'} · Nome: {f?.tutorAceiteNome||'—'} · Data: {dateTime(f?.tutorAceiteAt)}</p>
   <p className="text-[10px]">Versão: {f?.tutorAceiteVersao||ACEITE_VERSAO} · Hash da ficha: {f?.tutorAceiteHash||'Não registrado'}</p>
   <h2 className="mt-6 text-lg font-bold" style={{breakBefore:'page'}}>FICHA DE CHECK-OUT PET</h2>
