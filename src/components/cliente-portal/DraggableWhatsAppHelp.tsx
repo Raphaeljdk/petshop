@@ -40,6 +40,7 @@ export function DraggableWhatsAppHelp() {
   const [side, setSide] = useState<HelpSavedPosition['side']>('right')
   const [customized, setCustomized] = useState(false)
   const positionRef = useRef<HelpPosition | null>(null)
+  const savedRef = useRef<HelpSavedPosition | null>(null)
   const dragRef = useRef<Drag | null>(null)
   const ignoreClickRef = useRef(false)
 
@@ -51,21 +52,22 @@ export function DraggableWhatsAppHelp() {
   useEffect(() => {
     let saved: HelpSavedPosition | null = null
     try { saved = lerAjudaSalva(window.localStorage.getItem(STORAGE_KEY)) } catch {}
+    savedRef.current = saved
     setSide(saved?.side ?? 'right')
     setCustomized(Boolean(saved))
     updatePosition(posicionarAjuda(saved, viewportBounds()))
 
     const onResize = () => {
+      if (dragRef.current) return
       const bounds = viewportBounds()
-      const current = positionRef.current
-      if (!current) return
-      const next = limitarAjuda(current, bounds)
+      const saved = savedRef.current
+      const next = posicionarAjuda(saved, bounds)
       updatePosition(next)
-      // Salva a posição vertical ajustada e mantém a lateral escolhida.
-      const snapped = encaixarAjuda(next, bounds)
-      updatePosition(snapped.position)
-      setSide(snapped.saved.side)
-      if (saved) save(snapped.saved)
+      if (saved) {
+        const adjusted = { side: saved.side, y: next.y }
+        savedRef.current = adjusted
+        save(adjusted)
+      }
     }
 
     window.addEventListener('resize', onResize)
@@ -108,12 +110,14 @@ export function DraggableWhatsAppHelp() {
     updatePosition(snapped.position)
     setSide(snapped.saved.side)
     setCustomized(true)
+    savedRef.current = snapped.saved
     save(snapped.saved)
   }
 
   function pointerCancel() {
+    const drag = dragRef.current
     dragRef.current = null
-    if (positionRef.current) updatePosition(encaixarAjuda(positionRef.current, viewportBounds()).position)
+    if (drag) updatePosition(limitarAjuda(drag.original, viewportBounds()))
   }
 
   function reset() {
@@ -121,6 +125,7 @@ export function DraggableWhatsAppHelp() {
     updatePosition(next)
     setSide('right')
     setCustomized(false)
+    savedRef.current = null
     save(null)
   }
 
