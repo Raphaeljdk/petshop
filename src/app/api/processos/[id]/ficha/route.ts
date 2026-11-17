@@ -80,7 +80,7 @@ export async function PUT(req:NextRequest,{params}:Route){
     ...(action==='enviar_checkin'?{checkinStatus:'pendente_aceite',checkinSubmittedAt:new Date()}:{})
    }:{
     checkout:answers as Prisma.InputJsonValue,checkoutById:user.id,
-    ...(action==='finalizar_checkout'?{checkoutFinalizadoAt:new Date()}:{})
+    ...(action==='finalizar_checkout'?{checkoutFinalizadoAt:new Date(),checkoutStatus:'pendente_aceite'}:{})
    }
    const where=isCheckin?{id:ficha.id,checkinStatus:'rascunho'}:
     {id:ficha.id,checkinStatus:'aceito',checkoutFinalizadoAt:null}
@@ -88,7 +88,7 @@ export async function PUT(req:NextRequest,{params}:Route){
    if(!changed.count)return {error:'Ficha modificada por outra pessoa. Reabra para conferir.',status:409}
    await tx.atendimentoFichaEvento.create({data:{
     fichaId:ficha.id,actorId:user.id,acao:action,
-    resumo:isCheckin?'Equipe registrou a avaliação inicial.':'Equipe registrou a avaliação de saída.',
+    resumo:isCheckin?'Equipe registrou a avaliação inicial.':action==='finalizar_checkout'?'Equipe finalizou o check-out e solicitou ciência ao tutor.':'Equipe registrou a avaliação de saída.',
    }})
    return {ok:true,action}
   })
