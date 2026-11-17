@@ -184,7 +184,7 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </select>
     </div>
 
-    <Section title="Diário do Pet e carteirinha de cuidados" hint="Registros adicionados por você ficam privados na sua conta. Fotos são armazenadas no banco do portal, não no ERP oficial." open>
+    <Section title="Diário do Pet e carteirinha de cuidados" hint="Seus registros são privados por padrão. Somente relatos do diário autorizados por você e aprovados pela equipe podem aparecer no blog. Fotos ficam no banco do portal." open>
       {!petKey ? <p className="text-sm">Cadastre ou vincule um pet antes de adicionar registros.</p> : <>
         <div className="flex gap-2">
           <Button size="sm" variant={kind==='diario'?'default':'outline'} onClick={()=>setKind('diario')}><BookHeart className="mr-1 size-4"/>Diário</Button>
