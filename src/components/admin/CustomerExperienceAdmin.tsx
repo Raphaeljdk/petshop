@@ -17,6 +17,7 @@ type Config = {
 type Data = {
   config: Config | null
   bookings: Booking[]
+  professionals:Array<{id:string;nome:string}>
   reviews: {
     id: string
     rating: number
@@ -38,11 +39,14 @@ const DEFAULT_CONFIG = {
 function BookingDecision({
   booking,
   onSaved,
+  professionals,
 }: {
   booking: Booking
   onSaved: () => void
+  professionals:Array<{id:string;nome:string}>
 }) {
   const [date, setDate] = useState('')
+  const [professionalId,setProfessionalId]=useState(booking.profissionalId||'')
   const [reference, setReference] = useState('')
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
@@ -70,6 +74,7 @@ function BookingDecision({
               }
             : {}),
           reply,
+          ...(status==='confirmado'?{profissionalId:professionalId||null}:{}),
         }),
       })
       toast.success('Resposta salva no portal do cliente')
@@ -91,6 +96,7 @@ function BookingDecision({
           timeZone: 'America/Sao_Paulo',
         })}
       </p>
+      <p className="text-xs text-muted-foreground">Profissional solicitado: {professionals.find(p=>p.id===booking.profissionalId)?.nome||'Sem preferência'}</p>
       {booking.status === 'confirmado' ? (
         <p className="text-sm text-green-700">
           Confirmado ·{' '}
@@ -107,6 +113,14 @@ function BookingDecision({
             confirmar aqui. Esta tela não grava no ERP.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label htmlFor={'confirm-professional-'+booking.id} className="text-sm">Profissional responsável</label>
+              <select id={'confirm-professional-'+booking.id} className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={professionalId} onChange={e=>setProfessionalId(e.target.value)}>
+                <option value="">Sem profissional definido</option>
+                {professionals.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
             <div>
               <label htmlFor={'confirm-date-' + booking.id} className="text-sm">
                 Horário confirmado (Brasília)
@@ -329,6 +343,7 @@ export function CustomerExperienceAdmin() {
             <BookingDecision
               key={booking.id}
               booking={booking}
+              professionals={data.professionals||[]}
               onSaved={load}
             />
           ))}
