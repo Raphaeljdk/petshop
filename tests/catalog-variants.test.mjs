@@ -321,3 +321,12 @@ test('Sodapup Mandala e cama Grace Linen viram famílias sem perder opções rea
   assert.deepEqual(new Set(cama?.variantes?.map(v=>v.modeloLabel)),new Set(['Padrão','Com babado']))
   assert.equal(cama?.estoque,2)
 })
+
+test('areia grossa milho e mandioca Great Pets fica em um único anúncio',()=>{
+  const rows=groupCatalogProducts([
+    make('sem-marca-no-titulo','Areia Sanitária Gato Milho Mandioca Biodegradável 2kg Grossa',7),
+    make('marca-no-titulo','Areia Sanitária Gato Milho Mandioca Biodegradável 2kg Grossa Great Pets',7),
+  ])
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].estoque,7)
+})
