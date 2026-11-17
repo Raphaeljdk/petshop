@@ -21,6 +21,8 @@ export type NfeEntrada = {
     indicadorIE: '1' | '2' | '9'; inscricaoEstadual?: string }
   consumidorFinal: '0' | '1'
   pagamento: '01' | '17' | '18'
+  /** Obrigatório para Pix dinâmico. Nunca presumir dados de integração em produção. */
+  dadosPagamento?: { tipoIntegracao:'1'|'2'; cnpjInstituicao?:string; codigoAutorizacao?:string }
   modalidadeFrete: '0' | '1' | '2' | '9'
   itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string
     pis?: TributoOutrasOperacoes; cofins?: TributoOutrasOperacoes }>
@@ -118,6 +120,24 @@ export function gerarRascunhoNfe55(
   necessario(['01','17','18'].includes(entrada.pagamento)
     && ['0','1','2','9'].includes(entrada.modalidadeFrete),
     'Forma de pagamento ou modalidade de frete não suportada neste primeiro gerador.')
+  // NT 2023.004 / 2025.001: Pix dinâmico (tPag=17) requer grupo card
+  // e tipo de integração; o XSD sozinho não testa essa rejeição (cStat 391).
+  if(entrada.pagamento==='17'){
+    const dados=entrada.dadosPagamento
+    necessario(dados?.tipoIntegracao==='1'||dados?.tipoIntegracao==='2',
+      'Pix dinâmico exige informação explícita do tipo de integração do pagamento.')
+    if(dados?.tipoIntegracao==='1'){
+      necessario(/^\d{14}$/.test(dados.cnpjInstituicao||'') &&
+        /^[A-Za-z0-9]{1,128}$/.test(dados.codigoAutorizacao||''),
+        'Pix integrado exige CNPJ real da instituição e identificação/autorização da transação.')
+    }else{
+      necessario(!dados?.cnpjInstituicao&&!dados?.codigoAutorizacao,
+        'Pix não integrado não pode inventar credenciadora ou autorização.')
+    }
+  }else{
+    necessario(!entrada.dadosPagamento,
+      'Não informar grupo eletrônico do Pix em meio de pagamento que não o utiliza.')
+  }
   necessario(venda.itens.length > 0 && venda.itens.length <= 990
     && venda.itens.length === entrada.itens.length, 'Itens fiscais e itens da venda não conferem.')
   necessario(Number.isFinite(venda.total) && venda.total > 0
@@ -224,6 +244,12 @@ export function gerarRascunhoNfe55(
     campo('vPIS',moeda(pisTotalCentavos)) + campo('vCOFINS',moeda(cofinsTotalCentavos)) +
     campo('vOutro','0.00') +
     campo('vNF',moeda(cents(venda.total))) + '</ICMSTot>'
+  const grupoPix=entrada.pagamento==='17' ? '<card>'+
+    campo('tpIntegra',entrada.dadosPagamento!.tipoIntegracao)+
+    (entrada.dadosPagamento!.tipoIntegracao==='1'
+      ?campo('CNPJ',entrada.dadosPagamento!.cnpjInstituicao!)+
+       campo('cAut',entrada.dadosPagamento!.codigoAutorizacao!)
+      :'')+'</card>':''
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<!-- RASCUNHO EM HOMOLOGACAO: NAO ASSINADO, NAO VALIDADO EM XSD, NAO TRANSMITIDO; CHAVE E NUMERO NAO RESERVADOS -->\n' +
     '<NFe xmlns="' + NS + '"><infNFe versao="4.00" Id="NFe' + chave + '">' +
@@ -231,7 +257,7 @@ export function gerarRascunhoNfe55(
     detalhes + '<total>' + totais + '</total>' +
     '<transp>' + campo('modFrete',entrada.modalidadeFrete) + '</transp>' +
     '<pag><detPag>' + campo('indPag','0') + campo('tPag',entrada.pagamento) +
-    campo('vPag',moeda(cents(venda.total))) + '</detPag></pag>' +
+    campo('vPag',moeda(cents(venda.total))) + grupoPix + '</detPag></pag>' +
     '</infNFe></NFe>'
   return { xml, chaveApenasEstrutural: chave, ambiente: 'homologacao' as const,
     aviso: 'Rascunho NF-e 55 (tpAmb=2). Numeração NÃO reservada. Assinatura, XSD oficial vigente, IBS/CBS quando aplicável e autorização SEFAZ pendentes. NÃO transmitir.' }

@@ -45,7 +45,8 @@ test('assinatura A1 sintética e XML 55 passam pelo XSD do pacote 010g',()=>{
   destinatario:{nome:'Consumidor teste',documento:'12345678909',indicadorIE:'9' as const,
    endereco:{logradouro:'Rua Beta',numero:'20',bairro:'Centro',municipio:'Sao Paulo',
     codigoMunicipio:'3550308',uf:'SP',cep:'01002000'}},
-  consumidorFinal:'1' as const,pagamento:'17' as const,modalidadeFrete:'9' as const,
+  consumidorFinal:'1' as const,pagamento:'17' as const,
+  dadosPagamento:{tipoIntegracao:'2' as const},modalidadeFrete:'9' as const,
   itens:[{produtoId:'bola',gtin:'7899669611657',pisCst:'49',cofinsCst:'49',
    pis:{base:0,aliquota:0,valor:0},cofins:{base:0,aliquota:0,valor:0}}],
  }

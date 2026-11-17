@@ -28,7 +28,7 @@ function dados() {
       endereco:{logradouro:'Rua B',numero:'123',bairro:'Bela Vista',municipio:'Sao Paulo',
         codigoMunicipio:'3550308',uf:'SP',cep:'01310000'},
     },
-    consumidorFinal:'1',pagamento:'17',modalidadeFrete:'0',
+    consumidorFinal:'1',pagamento:'17',dadosPagamento:{tipoIntegracao:'2'},modalidadeFrete:'0',
     itens:[{produtoId:'prod-1',gtin:'SEM GTIN',pisCst:'07',cofinsCst:'07'},
       {produtoId:'prod-2',gtin:'SEM GTIN',pisCst:'07',cofinsCst:'07'}],
   }
@@ -42,7 +42,7 @@ test('gera estrutura nacional NF-e 55 em homologação sem afirmar autorização
   assert.match(resultado.xml,/<xNome>NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL<\/xNome>/)
   assert.match(resultado.xml,/<xProd>Osso &amp; pet &lt;brinquedo&gt;<\/xProd>/)
   assert.match(resultado.xml,/<ICMS><ICMSSN102><orig>0<\/orig><CSOSN>102<\/CSOSN><\/ICMSSN102><\/ICMS>/)
-  assert.match(resultado.xml,/<pag><detPag>.*<tPag>17<\/tPag><vPag>32.00<\/vPag><\/detPag><\/pag>/)
+  assert.match(resultado.xml,/<pag><detPag>.*<tPag>17<\/tPag><vPag>32.00<\/vPag><card><tpIntegra>2<\/tpIntegra><\/card><\/detPag><\/pag>/)
   assert.match(resultado.xml,/<vFrete>5.00<\/vFrete>/)
   assert.match(resultado.xml,/<vDesc>3.00<\/vDesc>/)
   assert.ok(!/<Signature\b|<protNFe\b|<nfeProc\b/.test(resultado.xml))
@@ -150,4 +150,30 @@ test('não classifica venda de marketplace Amazon como se fosse site próprio',(
  const {empresa,venda,entrada}=dados()
  venda.canal='amazon'
  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/Amazon exige grupo infIntermed/)
+})
+
+test('Pix exige integração explícita; sem card provocaria cStat 391',()=>{
+  const {empresa,venda,entrada}=dados()
+  entrada.dadosPagamento=undefined
+  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/Pix dinâmico exige/)
+  entrada.dadosPagamento={tipoIntegracao:'2'}
+  const result=gerarRascunhoNfe55(venda,empresa,entrada)
+  assert.match(result.xml,/<tPag>17<\/tPag><vPag>32.00<\/vPag><card><tpIntegra>2<\/tpIntegra><\/card>/)
+})
+test('não inventa dados de transação no Pix integrado',()=>{
+  const {empresa,venda,entrada}=dados()
+  entrada.dadosPagamento={tipoIntegracao:'1'}
+  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/Pix integrado exige/)
+  entrada.dadosPagamento={tipoIntegracao:'1',cnpjInstituicao:'12345678000195',codigoAutorizacao:'E123456'}
+  const result=gerarRascunhoNfe55(venda,empresa,entrada)
+  assert.match(result.xml,/<card><tpIntegra>1<\/tpIntegra><CNPJ>12345678000195<\/CNPJ><cAut>E123456<\/cAut><\/card>/)
+})
+test('dinheiro não usa o grupo card; campos do Pix não são aceitos',()=>{
+  const {empresa,venda,entrada}=dados()
+  entrada.pagamento='01'
+  assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/Não informar grupo eletrônico/)
+  entrada.dadosPagamento=undefined
+  const result=gerarRascunhoNfe55(venda,empresa,entrada)
+  assert.match(result.xml,/<tPag>01<\/tPag><vPag>32.00<\/vPag><\/detPag>/)
+  assert.doesNotMatch(result.xml,/<card>/)
 })
