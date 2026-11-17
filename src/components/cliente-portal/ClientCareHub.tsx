@@ -30,7 +30,7 @@ type PortalData = {
   pets:Pet[]; memories:Memory[]; preferences:Prefs; plans:Plan[]; requests:PlanRequest[]
   recommendations:Array<{ id:string; nome:string; imageUrl:string|null; preco:number; precoPromo:number|null }>
   referralCode:string|null; referrals:Array<{ id:string;status:string }>
-  gifts:Array<{ id:string;recipientName:string;amountCents:number;status:string;voucherCode:string|null }>
+  gifts:Array<{ id:string;recipientName:string;recipientPhone:string|null;amountCents:number;status:string;voucherCode:string|null }>
   rewardCoupons:Array<{ codigo:string;descricao:string|null;valor:number;fimEm:string|null }>
   notifications:Array<{id:string;text:string;sentAt:string|null}>
   documents:Array<{id:string;petKey:string;title:string;fileName:string;sizeBytes:number;createdAt:string}>
@@ -94,7 +94,7 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
   const [prefs,setPrefs] = useState<Prefs>(defaultPrefs)
   const [refCode,setRefCode] = useState('')
   const [giftName,setGiftName] = useState('')
-  const [giftEmail,setGiftEmail] = useState('')
+  const [giftPhone,setGiftPhone] = useState('')
   const [giftValue,setGiftValue] = useState('50')
   const [giftNote,setGiftNote] = useState('')
   const [familyEmail,setFamilyEmail] = useState('')
@@ -363,18 +363,18 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
     <Section title="Vale-presente digital" hint="Solicite um vale-presente. O código somente será gerado após a loja conferir o pagamento; resgate direto no checkout depende de integração adicional.">
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async(e)=>{
         e.preventDefault()
-        const response=await act({action:'gift-request',recipientName:giftName,recipientEmail:giftEmail,
+        const response=await act({action:'gift-request',recipientName:giftName,recipientPhone:giftPhone,
           message:giftNote,amountCents:Math.round(Number(giftValue)*100)},'Solicitação registrada.')
-        if(response){setGiftName('');setGiftEmail('');setGiftNote('')}
+        if(response){setGiftName('');setGiftPhone('');setGiftNote('')}
       }}>
         <label className="space-y-1 text-xs">Nome do presenteado<Input required value={giftName} onChange={(e)=>setGiftName(e.target.value)}/></label>
-        <label className="space-y-1 text-xs">E-mail (opcional)<Input type="email" value={giftEmail} onChange={(e)=>setGiftEmail(e.target.value)}/></label>
+        <label className="space-y-1 text-xs">Telefone do presenteado (obrigatório)<Input type="tel" inputMode="tel" autoComplete="tel" required maxLength={24} placeholder="(11) 99999-9999" value={giftPhone} onChange={(e)=>setGiftPhone(e.target.value)}/></label>
         <label className="space-y-1 text-xs">Valor (R$ 20 a R$ 500)<Input type="number" min="20" max="500" step="0.01" value={giftValue} onChange={(e)=>setGiftValue(e.target.value)}/></label>
         <label className="space-y-1 text-xs">Mensagem (opcional)<Input maxLength={500} value={giftNote} onChange={(e)=>setGiftNote(e.target.value)}/></label>
         <Button type="submit" disabled={busy}><Gift className="mr-1 size-4"/>Solicitar vale-presente</Button>
       </form>
       {data.gifts.map((g)=><div className="rounded-lg bg-muted/50 p-2 text-xs" key={g.id}>
-        {g.recipientName} · {money(g.amountCents)} · {g.status}
+        {g.recipientName} · {g.recipientPhone ? 'Tel.: +' + g.recipientPhone : 'Contato antigo por e-mail'} · {money(g.amountCents)} · {g.status}
         {g.voucherCode&&<span className="ml-2 font-semibold">{g.voucherCode} (resgate na loja)</span>}
       </div>)}
     </Section>
