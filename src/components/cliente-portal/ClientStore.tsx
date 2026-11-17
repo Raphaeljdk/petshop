@@ -32,7 +32,7 @@ import { toast } from 'sonner'
 import type { Produto, TipoEntrega, Venda } from '@/lib/types'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { isClothingProduct } from '@/lib/product-variants'
-import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
+import { getProductBrand, MARCA_PERSONALIZAVEIS, SEM_MARCA } from '@/lib/product-brands'
 import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
 import { StoreHero } from '@/components/cliente-portal/StoreHero'
 import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
@@ -167,7 +167,7 @@ export function ClientStore({
   }, [refreshKey])
 
   const marcas = useMemo(
-    () => [...new Set(produtos.map(getProductBrand))]
+    () => [...new Set([...produtos.map(getProductBrand), MARCA_PERSONALIZAVEIS])]
       .filter((marca) => marca !== SEM_MARCA)
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [produtos]
@@ -436,7 +436,7 @@ export function ClientStore({
       <StoreHero
         whatsappUrl={whatsappLoja}
         productsCount={produtos.length}
-        brandsCount={marcas.filter((marca) => marca !== SEM_MARCA).length}
+        brandsCount={marcas.filter((marca) => produtos.some((produto) => getProductBrand(produto) === marca)).length}
       />
       <StorePromoCarousel />
 
@@ -559,19 +559,25 @@ export function ClientStore({
                 >
                   Todas
                 </Button>
-                {marcas.map((marca) => (
-                  <Button
-                    key={marca}
-                    type="button"
-                    size="sm"
-                    variant={marcaSelecionada === marca ? 'default' : 'outline'}
-                    aria-pressed={marcaSelecionada === marca}
-                    className="shrink-0 rounded-full"
-                    onClick={() => setMarcaSelecionada(marca)}
-                  >
-                    {marca}
-                  </Button>
-                ))}
+                {marcas.map((marca) => {
+                  const semItens = marca === MARCA_PERSONALIZAVEIS &&
+                    !produtos.some((produto) => getProductBrand(produto) === MARCA_PERSONALIZAVEIS)
+                  return (
+                    <Button
+                      key={marca}
+                      type="button"
+                      size="sm"
+                      disabled={semItens}
+                      title={semItens ? 'Itens personalizados em breve' : undefined}
+                      variant={marcaSelecionada === marca ? 'default' : 'outline'}
+                      aria-pressed={marcaSelecionada === marca}
+                      className="shrink-0 rounded-full"
+                      onClick={() => setMarcaSelecionada(marca)}
+                    >
+                      {marca}{semItens ? ' · Em breve' : ''}
+                    </Button>
+                  )
+                })}
               </div>
             </div>
           )}
