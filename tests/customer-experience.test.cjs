@@ -42,6 +42,13 @@ function harness() {
       if (id === '@/lib/zetta-client')
         return { getZettaAnimalsByClient: async () => state.animals || [] }
       if (id.startsWith('@/')) return load('src/' + id.slice(2) + '.ts')
+      // Também resolve imports locais de módulos TypeScript carregados pelo harness.
+      if (id.startsWith('./') || id.startsWith('../')) {
+        const candidate = path.resolve(path.dirname(filename), id + '.ts')
+        if (candidate.startsWith(path.join(root, 'src') + path.sep) && fs.existsSync(candidate)) {
+          return load(path.relative(root, candidate))
+        }
+      }
       return require(id)
     }
     vm.runInThisContext('(function(require,module,exports){' + code + '\n})', {
