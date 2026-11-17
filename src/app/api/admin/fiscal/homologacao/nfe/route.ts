@@ -11,7 +11,7 @@ import {gerarRascunhoNfe55,NfeRascunhoError} from '@/lib/nfe-xml-modelo55'
 import {PRODUTO_TESTE_INICIAL_ID,SKU_TESTE_INICIAL} from '@/lib/nfe-homologacao-preparo'
 import {BLOQUEIO_NUMERACAO_HOMOLOGACAO,bloqueioNumeracaoValido} from '@/lib/nfe-homologacao-lock'
 import {montarLoteHomologacao,montarConsultaHomologacao,montarRetornoHomologacao,
- enviarSoapHomologacao,interpretarAutorizacaoHomologacao} from '@/lib/sefaz-sp-nfe-homologacao'
+ enviarSoapHomologacao,interpretarAutorizacaoHomologacao,classificarSituacaoHomologacao,podeRetransmitirHomologacao} from '@/lib/sefaz-sp-nfe-homologacao'
 
 export const runtime='nodejs'
 export const dynamic='force-dynamic'
@@ -36,7 +36,7 @@ const preparar=z.object({
   documento:z.string().regex(/^(?:\d{11}|\d{14})$/),endereco}).strict(),
  pis:trib,cofins:trib,confirmacao:z.literal('PREPARAR TESTE'),
 }).strict()
-const acao=z.object({acao:z.enum(['transmitir','consultar']),
+const acao=z.object({acao:z.enum(['transmitir','consultar','retransmitir']),
  id:z.string().min(1).max(120),confirmacao:z.string().max(80).optional()}).strict()
 
 async function admin(){
@@ -155,8 +155,7 @@ function montarNfeProc(xml:string,soap:string){
 }
 async function registrarRetorno(id:string,soap:string,chave:string,assinado:string){
  const r=interpretarAutorizacaoHomologacao(soap,chave)
- const status=r.autorizada?'autorizada':r.recibo?'recebida':
-  (r.protocolo?.status||r.statusLote)>=200?'rejeitada':'incerta'
+ const status=classificarSituacaoHomologacao(r)
  const data={
   status,recibo:r.recibo,protocolo:r.protocolo?.numero||null,
   codigoSefaz:r.protocolo?.status||r.statusLote,
@@ -167,27 +166,39 @@ async function registrarRetorno(id:string,soap:string,chave:string,assinado:stri
  return {id,chave,status,ambiente:'homologacao',codigoSefaz:data.codigoSefaz,
   motivoSefaz:data.motivoSefaz,protocolo:data.protocolo,recibo:data.recibo}
 }
-async function transmitir(id:string){
+async function transmitir(id:string,reenvio=false){
  const nota=await db.nfeHomologacao.findUnique({where:{id}})
  if(!nota||nota.ambiente!==2)return fail('NF-e de homologação inexistente.',404)
- if(nota.status!=='preparada')return fail('Documento já enviado ou pendente. Consulte antes de retransmitir.',409)
+ if(reenvio){
+  if(!podeRetransmitirHomologacao(nota))
+   return fail('Retransmissão bloqueada: aguarde 3 minutos e confirme cStat 217 na consulta pela chave. A mesma NF-e será reutilizada.',409)
+ }else if(nota.status!=='preparada')
+  return fail('Documento já enviado ou pendente. Consulte a mesma chave antes de retransmitir.',409)
  await configValidada()
  validarXmlNfeXsdHomologacao(nota.xmlAssinado)
  const cred=credenciais()
  const chaves=extrairCertificadoA1(cred.pfx,cred.passphrase,'57199062000191')
  validarAssinaturaNfeHomologacao(nota.xmlAssinado,chaves.certificadoPem,nota.chave)
- const updated=await db.nfeHomologacao.updateMany({where:{id,status:'preparada',ambiente:2},
-  data:{status:'enviando',enviadaEm:new Date()}})
- if(updated.count!==1)return fail('Documento processado por outra solicitação.',409)
+ const where=reenvio
+  ?{id,status:'incerta',ambiente:2,codigoSefaz:217,recibo:null,protocolo:null,
+    enviadaEm:{lte:new Date(Date.now()-180_000)}}
+  :{id,status:'preparada',ambiente:2}
+ const updated=await db.nfeHomologacao.updateMany({where,
+  data:{status:'enviando',enviadaEm:new Date(),...(reenvio?{codigoSefaz:null,motivoSefaz:null}:{})}})
+ if(updated.count!==1)return fail('Documento processado por outra solicitação ou ainda sem reconciliação autorizada.',409)
  try{
   const lote=montarLoteHomologacao(semCabecalho(nota.xmlAssinado),String(nota.numero))
   const soap=await enviarSoapHomologacao('autorizacao',lote,cred)
   return ok(await registrarRetorno(id,soap,nota.chave,nota.xmlAssinado))
  }catch(err){
+  console.error('Falha no transporte NF-e homologação.',{
+   operacao:'autorizacao',categoria:err instanceof SefazComunicacaoError?err.categoria:'inesperado',
+   codigoTecnico:err instanceof SefazComunicacaoError?(err.codigoTecnico||null):null,
+  })
   await db.nfeHomologacao.updateMany({where:{id,status:'enviando'},data:{
    status:'incerta',motivoSefaz:'Comunicação indefinida: consultar antes de reenviar.',
   }})
-  if(err instanceof SefazComunicacaoError)return fail(err.message+' O número foi preservado.',502)
+  if(err instanceof SefazComunicacaoError)return fail(err.message+' O número foi preservado. Aguarde 3 minutos e consulte a mesma NF-e antes de qualquer reenvio.',502)
   return fail('Retorno da SEFAZ incerto; consulte o protocolo antes de nova tentativa.',502)
  }
 }
@@ -209,10 +220,12 @@ async function consultar(id:string){
 }
 export async function GET(){
  const denied=await admin();if(denied)return denied
- const documentos=await db.nfeHomologacao.findMany({orderBy:{createdAt:'desc'},take:15,
+ const documentos=await db.nfeHomologacao.findMany({where:{ambiente:2},orderBy:{createdAt:'desc'},take:15,
   select:{id:true,serie:true,numero:true,chave:true,status:true,codigoSefaz:true,
-   motivoSefaz:true,protocolo:true,recibo:true,createdAt:true}})
- return ok({ambiente:'homologacao',documentos,
+   motivoSefaz:true,protocolo:true,recibo:true,enviadaEm:true,createdAt:true}})
+ return ok({ambiente:'homologacao',documentos:documentos.map(n=>({
+   ...n,podeRetransmitir:podeRetransmitirHomologacao({...n,ambiente:2}),
+  })),
   aviso:'Apenas testes sem valor fiscal, sem movimentação de estoque ou venda.'})
 }
 export async function POST(req:NextRequest){
@@ -240,6 +253,11 @@ export async function POST(req:NextRequest){
   const a=acao.safeParse(body)
   if(!a.success)return fail('Dados ou confirmação fiscal inválidos.')
   if(a.data.acao==='consultar')return consultar(a.data.id)
+  if(a.data.acao==='retransmitir'){
+   if(a.data.confirmacao!=='RETRANSMITIR HOMOLOGACAO')
+    return fail('Confirmação explícita obrigatória para retransmitir a mesma NF-e de teste.')
+   return transmitir(a.data.id,true)
+  }
   if(a.data.confirmacao!=='TRANSMITIR HOMOLOGACAO')
    return fail('Confirmação explícita obrigatória para transmitir o teste.')
   return transmitir(a.data.id)
