@@ -44,7 +44,12 @@ export function FichaSections({sections,answers,onChange,readonly=false,initialO
       <p className="mb-1 text-xs font-medium print:text-black">{field.label}</p>
       {readonly?<p className="min-h-5 border-b border-dotted py-0.5 text-xs print:text-black">{readAnswer(answers[field.id])}</p>:
       <FieldEditor field={field} value={answers[field.id]} disabled={!onChange}
-       onChange={value=>onChange?.({...answers,[field.id]:value})}/>}
+       onChange={value=>{
+        const next={...answers}
+        if(field.kind==='choice'&&value==='')delete next[field.id]
+        else next[field.id]=value
+        onChange?.(next)
+       }}/>}
     </div>)}
    </div>
   </details>)}
