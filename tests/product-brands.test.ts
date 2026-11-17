@@ -30,3 +30,42 @@ test('fotos conflitantes ficam pendentes sem substituicao automatica', () => {
   ]
   assert.equal(recoverCatalogImages(rows)[0].imageUrl, null)
 })
+
+
+test('reconhece Great Pet inclusive variantes de grafia e linha Tapetim', () => {
+  assert.equal(getProductBrand({ nome: 'Tapete Higiênico Greet Pet 30 unidades' }), 'Great Pet')
+  assert.equal(getProductBrand({ nome: 'Tapete Higiênico Great Pets 80x60' }), 'Great Pet')
+  assert.equal(getProductBrand({ nome: 'Tapetim 60x60 30 unidades' }), 'Great Pet')
+  assert.equal(getProductBrand({ nome: 'Tapete higiênico genérico' }), SEM_MARCA)
+})
+
+test('reconhece Bonito pra Cachorro nas roupas e camas mesmo após agrupar variações', () => {
+  assert.equal(
+    getProductBrand({
+      nome: 'Jaqueta Puffer Urso Rosa Ou Azul',
+      variantes: [
+        { nome: 'Jaqueta Puffer Urso Rosa Ou Azul - Bonito Pra Cachorro Azul-celeste G' },
+        { nome: 'Jaqueta Puffer Urso Rosa Ou Azul - Bonito Pra Cachorro Rosa-chiclete M' },
+      ],
+    }),
+    'Bonito pra Cachorro'
+  )
+  assert.equal(getProductBrand({ nome: 'Cama Retangular Rosa Ou Azul - Bonito Pra Cachorro G Rosa' }), 'Bonito pra Cachorro')
+  assert.equal(getProductBrand({ nome: 'Cama Linho Clean Chiclete, Tamanho M' }), 'Bonito pra Cachorro')
+  assert.equal(getProductBrand({ nome: 'Moletom Maxi Sport Marinho G' }), 'Bonito pra Cachorro')
+  assert.equal(getProductBrand({ nome: 'Casaco Coelho Laço Branco, Tamanho P' }), 'Bonito pra Cachorro')
+})
+
+test('não transforma toda roupa ou cama em marca: preserva identificação confiável', () => {
+  assert.equal(getProductBrand({ nome: 'Roupa pet lisa sem fabricante' }), SEM_MARCA)
+  assert.equal(getProductBrand({ nome: 'Cama pet retangular simples' }), SEM_MARCA)
+  assert.equal(getProductBrand({ nome: 'Cama Jambo Pet para gato' }), 'Jambo Pet')
+  assert.equal(
+    getProductBrand({ nome: 'Cama', marca: 'Fabricante Informado', variantes: [{ nome: 'Cama Bonito Pra Cachorro' }] }),
+    'Fabricante Informado'
+  )
+  assert.equal(
+    getProductBrand({ nome: 'Cama', variantes: [{ nome: 'Cama Kong' }, { nome: 'Cama Jambo Pet' }] }),
+    SEM_MARCA
+  )
+})

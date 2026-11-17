@@ -77,14 +77,13 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
     const grouped = new Map<string, { label: string; count: number; imageUrl: string | null }>()
     for (const product of products) {
       const label = getProductBrand(product)
+      if (label === SEM_MARCA) continue // Itens sem fabricante continuam em "Todos os produtos".
       const current = grouped.get(label) || { label, count: 0, imageUrl: null }
       current.count += 1
       if (!current.imageUrl && product.imageUrl) current.imageUrl = product.imageUrl
       grouped.set(label, current)
     }
-    return [...grouped.values()].sort((a, b) =>
-      a.label === SEM_MARCA ? 1 : b.label === SEM_MARCA ? -1 : a.label.localeCompare(b.label, 'pt-BR')
-    )
+    return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
   }, [products])
 
   useEffect(() => {
@@ -214,9 +213,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                     style={{ '--category-order': index + 1 } as CSSProperties}
                   >
                     <span className="boutique-category-art">
-                      {option.label === SEM_MARCA ? (
-                        <Package className="size-7 text-slate-500" strokeWidth={1.5} aria-hidden="true" />
-                      ) : option.imageUrl ? (
+                      {option.imageUrl ? (
                         <img src={option.imageUrl} alt="" loading="lazy"
                           className="h-full w-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105" />
                       ) : (
