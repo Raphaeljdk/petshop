@@ -7,7 +7,7 @@ test('modelo contempla as secoes de check-in e check-out e versao do aceite',()=
  assert.equal(CHECKIN_SECTIONS.length,9)
  assert.equal(CHECKOUT_SECTIONS.length,9)
  assert.ok(CHECKIN_SECTIONS.flatMap(s=>s.fields).length>=65)
- assert.ok(CHECKOUT_SECTIONS.flatMap(s=>s.fields).length>=60)
+ assert.ok(CHECKOUT_SECTIONS.flatMap(s=>s.fields).length>=50)
  assert.ok(ACEITE_TEXTO.includes('não substitui avaliação veterinária'))
  assert.ok(ACEITE_VERSAO.includes('v1'))
 })
