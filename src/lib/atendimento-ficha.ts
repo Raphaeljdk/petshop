@@ -1,5 +1,7 @@
 /** Perguntas oficiais das fichas Matilha Prado, versão 1. NUNCA inferir avaliação clínica. */
 export const ACEITE_VERSAO='matilha-anamnese-2026-11-v1'
+export const CHECKOUT_ACEITE_VERSAO='matilha-checkout-2026-11-v1'
+export const CHECKOUT_ACEITE_TEXTO='Declaro que tive acesso à ficha de check-out do meu pet e li as informações registradas pela equipe sobre os procedimentos realizados e as condições de saída. Ao confirmar, registro minha ciência sobre o conteúdo apresentado, sem renunciar a direitos ou substituir avaliação veterinária. Caso identifique divergências, posso registrar discordância para análise da equipe.'
 export const ACEITE_TEXTO='Declaro que as informações fornecidas sobre a saúde e o comportamento do meu pet são verdadeiras e que fui informado(a) sobre as condições visíveis identificadas no momento do check-in. Estou ciente de que a avaliação da equipe da Matilha Prado é exclusivamente visual e preventiva, não substitui avaliação veterinária ou diagnóstico clínico. Autorizo o serviço contratado respeitando as condições observadas e os limites necessários para preservar o bem-estar e a segurança do pet.'
 
 export type FormField={id:string;label:string;kind:'choice'|'multi'|'text';options?:readonly string[]}
