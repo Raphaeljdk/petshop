@@ -26,7 +26,7 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('gift-request'),
     recipientName: z.string().trim().min(2).max(120),
     recipientEmail: z.string().trim().email().max(200),
-    recipientWhatsapp:z.string().trim().regex(/^\\+?[0-9() .-]{10,20}$/,'Informe WhatsApp com DDD válido.'),
+    recipientWhatsapp:z.string().trim().regex(/^\+?[0-9() .-]{10,20}$/,'Informe WhatsApp com DDD válido.'),
     message: z.string().trim().max(500).optional(),
     amountCents: z.number().int().min(5000).max(50000) }).strict(),
   z.object({ action: z.literal('family-invite'), petKey: petKeySchema, email: z.string().email().max(200) }).strict(),
