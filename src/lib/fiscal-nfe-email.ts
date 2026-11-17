@@ -21,7 +21,8 @@ export function nfeRealAutorizadaParaEmail(n:NfeParaEmail):boolean{
    !/^\d{44}$/.test(n.chaveAcesso||'')||!/^\d{15}$/.test(n.protocolo||'')||
    !n.xmlAutorizado||n.xmlAutorizado.length>500_000) return false
  const xml=n.xmlAutorizado
- if(!/<(?:\w+:)?nfeProc\b/.test(xml)||/<!DOCTYPE|<!ENTITY/i.test(xml))return false
+ if(!/<(?:\w+:)?nfeProc\b/.test(xml)||/<!DOCTYPE|<!ENTITY/i.test(xml)||
+   !xml.includes('Id="NFe'+n.chaveAcesso+'"'))return false
  const match=xml.match(/<(?:\w+:)?protNFe\b[^>]*>[\s\S]*?<\/(?:\w+:)?protNFe\s*>/)
  if(!match)return false
  const prot=match[0]
