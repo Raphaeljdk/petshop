@@ -2,6 +2,10 @@
 export const ACEITE_VERSAO='matilha-anamnese-2026-11-v1'
 export const ACEITE_TEXTO='Declaro que as informações fornecidas sobre a saúde e o comportamento do meu pet são verdadeiras e que fui informado(a) sobre as condições visíveis identificadas no momento do check-in. Estou ciente de que a avaliação da equipe da Matilha Prado é exclusivamente visual e preventiva, não substitui avaliação veterinária ou diagnóstico clínico. Autorizo o serviço contratado respeitando as condições observadas e os limites necessários para preservar o bem-estar e a segurança do pet.'
 
+/** Ciência da ficha de saída; não configura quitação, renúncia de direitos ou diagnóstico veterinário. */
+export const CHECKOUT_ACEITE_VERSAO='matilha-checkout-2026-11-v1'
+export const CHECKOUT_ACEITE_TEXTO='Declaro que tive acesso à ficha de check-out do meu pet, com o registro dos serviços realizados, das condições observadas na saída e das orientações informadas pela equipe da Matilha Prado. Ao confirmar, registro minha ciência sobre as informações apresentadas, sem que isso represente renúncia a direitos ou substitua avaliação veterinária. Posso registrar discordância, que ficará documentada no histórico do atendimento.'
+
 export type FormField={id:string;label:string;kind:'choice'|'multi'|'text';options?:readonly string[]}
 export type FormSection={id:string;title:string;description?:string;fields:FormField[]}
 export type FormAnswers=Record<string,string|string[]>
