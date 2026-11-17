@@ -5,6 +5,11 @@ import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {Label} from '@/components/ui/label'
 
+type DiagnosticoKong={
+  homologacaoDisponivelParaTeste:boolean
+  pendenciasProduto:string[]
+  produto:{id:string;nome:string;sku:string|null;ncm:string|null;cfop:string|null;csosn:string|null;pisCst:string|null;cofinsCst:string|null;preco:number}|null
+}
 type NotaTeste={
  id:string;serie:number;numero:number;chave:string;status:string
  codigoSefaz?:number|null;motivoSefaz?:string|null;protocolo?:string|null;recibo?:string|null
@@ -18,15 +23,23 @@ const txt=(v:string)=>v.replace(/\D/g,'')
 export function PrimeiraNfeHomologacao(){
  const [form,setForm]=useState(initial)
  const [notas,setNotas]=useState<NotaTeste[]>([])
+ const [diagnostico,setDiagnostico]=useState<DiagnosticoKong|null>(null)
  const [loading,setLoading]=useState(false)
  const [erro,setErro]=useState('')
  const [sucesso,setSucesso]=useState('')
  const [aceitaEnvio,setAceitaEnvio]=useState(false)
  const atualizar=useCallback(async()=>{
-  const res=await fetch('/api/admin/fiscal/homologacao/nfe',{cache:'no-store'})
-  const json=await res.json()
+  const [res,preparoRes]=await Promise.all([
+   fetch('/api/admin/fiscal/homologacao/nfe',{cache:'no-store'}),
+   fetch('/api/admin/fiscal/homologacao/preparo',{cache:'no-store'}),
+  ])
+  const [json,preparoJson]=await Promise.all([res.json(),preparoRes.json()])
   if(!res.ok)throw new Error(json.error||'Não foi possível listar notas de teste.')
+  if(!preparoRes.ok)throw new Error(preparoJson.error||'Não foi possível consultar a situação fiscal do Kong.')
   setNotas(json.documentos)
+  setDiagnostico(preparoJson)
+  if(preparoJson.produto?.preco>0)
+    setForm(f=>f.valorUnitario?f:{...f,valorUnitario:String(preparoJson.produto.preco)})
  },[])
  useEffect(()=>{atualizar().catch(e=>setErro(e.message))},[atualizar])
  const field=(key:keyof typeof initial,label:string,type='text',step?:string)=>
@@ -57,6 +70,7 @@ export function PrimeiraNfeHomologacao(){
  }
  async function preparar(e:React.FormEvent){
   e.preventDefault()
+  if(!diagnostico?.homologacaoDisponivelParaTeste){setErro('O Kong Extreme XXL ainda precisa ter seus dados e regra fiscal aprovados antes da preparação.');return}
   const vals=[form.valorUnitario,form.quantidade,form.pisBase,form.pisAliquota,form.pisValor,
    form.cofinsBase,form.cofinsAliquota,form.cofinsValor]
   if(vals.some(s=>s.trim()==='')){setErro('Todos os valores fiscais devem ser explicitamente preenchidos.');return}
@@ -74,9 +88,18 @@ export function PrimeiraNfeHomologacao(){
   <div className="space-y-1">
    <h3 className="text-base font-semibold">Primeira NF-e 55 — somente HOMOLOGAÇÃO</h3>
    <p className="text-xs text-muted-foreground">
-    Utiliza exclusivamente a Strong Ball Pequena Laranja aprovada. Teste sem validade fiscal,
-    sem venda real e sem movimentar estoque. Série 2 e numeração de homologação isolada.
+    Produto de teste: Kong Extreme XXL (SKU 035585111421). Sem validade fiscal, sem venda real,
+    sem movimentar estoque. Série 2 e numeração de homologação isolada.
    </p>
+  </div>
+  <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1" aria-live="polite">
+   <p className="font-semibold">Produto selecionado: {diagnostico?.produto?.nome||'Kong Extreme XXL — verificando cadastro'}</p>
+   <p className="text-muted-foreground">SKU: {diagnostico?.produto?.sku||'035585111421'} · NCM: {diagnostico?.produto?.ncm||'pendente'} · CFOP: {diagnostico?.produto?.cfop||'pendente'} · CSOSN: {diagnostico?.produto?.csosn||'pendente'}</p>
+   {diagnostico&&!diagnostico.homologacaoDisponivelParaTeste&&
+     <div className="mt-2 space-y-1 text-amber-700 dark:text-amber-300">
+      <p className="font-semibold">Preparação bloqueada até a aprovação fiscal do Kong:</p>
+      {diagnostico.pendenciasProduto.map(p=><p key={p}>• {p}</p>)}
+     </div>}
   </div>
   <form className="space-y-3" onSubmit={preparar}>
    <div className="grid gap-3 sm:grid-cols-3">
@@ -94,7 +117,7 @@ export function PrimeiraNfeHomologacao(){
     {field('municipio','Município')}
     {field('codigoMunicipio','Código IBGE (7 dígitos)')}
    </div>
-   <p className="font-semibold text-sm">CST 49 — valores expressamente aprovados</p>
+   <p className="font-semibold text-sm">PIS/COFINS — valores expressamente aprovados (CST 49, se aplicável)</p>
    <p className="text-xs text-amber-700 dark:text-amber-300">
     Não presuma alíquota ou valor zerado. Informe bases, percentuais e valores que a contadora
     validou para o teste. O sistema confere os cálculos.
@@ -107,8 +130,8 @@ export function PrimeiraNfeHomologacao(){
     {field('cofinsAliquota','Alíquota COFINS (%)','number','0.0001')}
     {field('cofinsValor','Valor COFINS (R$)','number','0.01')}
    </div>
-   <Button type="submit" disabled={loading}>
-    {loading?'Validando...':'Preparar e assinar nota de teste'}
+   <Button type="submit" disabled={loading||!diagnostico?.homologacaoDisponivelParaTeste}>
+    {loading?'Validando...':!diagnostico?.homologacaoDisponivelParaTeste?'Aguardando aprovação fiscal do Kong':'Preparar e assinar nota de teste'}
    </Button>
   </form>
   <div className="space-y-2">
