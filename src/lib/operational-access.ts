@@ -1,28 +1,32 @@
-// Permissões mínimas para o login individual da operação.
-// A checagem deve ocorrer no servidor em cada rota; a interface é apenas uma conveniência.
+// A autorização operacional é por e-mail E perfil KANBAN (nunca apenas pelo nome).
 export const ANDRE_OPERATIONS_EMAIL = 'andreflavieira21@gmail.com'
-// Convites antigos nunca podem receber perfil ADMIN por engano.
+export const ALEKSANDER_OPERATIONS_EMAIL = 'aleksanderprado97@icloud.com'
 const OLD_ANDRE_OPERATIONS_EMAIL = 'andre.matilhaprado@gmail.com'
-
+const operationalEmails = [ANDRE_OPERATIONS_EMAIL, ALEKSANDER_OPERATIONS_EMAIL]
 export type OperationalIdentity = { role: string; email: string } | null | undefined
 
+export function isOperationalEmail(email: string): boolean {
+  return operationalEmails.includes(email.trim().toLowerCase())
+}
+
+export function isOperationalOperator(user: OperationalIdentity): boolean {
+  return user?.role === 'KANBAN' && isOperationalEmail(user.email)
+}
+
+// Compatibilidade para testes e referências anteriores.
 export function isAndreOperator(user: OperationalIdentity): boolean {
   return user?.role === 'KANBAN' && user.email.trim().toLowerCase() === ANDRE_OPERATIONS_EMAIL
 }
 
 export function canViewAppointments(user: OperationalIdentity): boolean {
-  return user?.role === 'ADMIN' || isAndreOperator(user)
+  return user?.role === 'ADMIN' || isOperationalOperator(user)
 }
-
 export function canScheduleBath(user: OperationalIdentity): boolean {
-  return user?.role === 'ADMIN' || isAndreOperator(user)
+  return user?.role === 'ADMIN' || isOperationalOperator(user)
 }
-
 export function canViewDeliveryAddresses(user: OperationalIdentity): boolean {
-  return user?.role === 'ADMIN' || isAndreOperator(user)
+  return user?.role === 'ADMIN' || isOperationalOperator(user)
 }
-
-// O convite de administrador nunca pode elevar este login operacional a ADMIN.
 export function roleForTeamInvitation(email: string): 'KANBAN' | 'ADMIN' {
-  return [ANDRE_OPERATIONS_EMAIL, OLD_ANDRE_OPERATIONS_EMAIL].includes(email.trim().toLowerCase()) ? 'KANBAN' : 'ADMIN'
+  return [...operationalEmails, OLD_ANDRE_OPERATIONS_EMAIL].includes(email.trim().toLowerCase()) ? 'KANBAN' : 'ADMIN'
 }

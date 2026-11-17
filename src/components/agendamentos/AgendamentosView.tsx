@@ -17,6 +17,7 @@ import { CATEGORIAS_AGENDA, SUGESTOES_AGENDA, inferirCategoriaAgenda, type Categ
 
 type Entry = AgendaCalendarEntry
 type Tutor = { id: string; nome: string; pets: Array<{ id: string; nome: string; especie: string }> }
+type AgendaBloqueio = { id: string; inicio: string; fim: string; motivo: string; profissional: string }
 type Form = { clienteId: string; petId: string; servico: string; categoria: CategoriaAgenda; dataHora: string; observacoes: string; status: StatusAgendamento; profissionalId: string }
 const empty: Form = { clienteId: '', petId: '', servico: 'Banho', categoria: 'Estéticos', dataHora: '', observacoes: '', status: 'agendado', profissionalId: '' }
 const statusMap: Record<StatusAgendamento, { label: string; className: string }> = {
@@ -39,6 +40,7 @@ export function AgendamentosView() {
   const [items, setItems] = useState<Entry[]>([])
   const [tutores, setTutores] = useState<Tutor[]>([])
   const [profissionais, setProfissionais] = useState<AgendaProfessional[]>([])
+  const [bloqueios, setBloqueios] = useState<AgendaBloqueio[]>([])
   const [nomeProfissional, setNomeProfissional] = useState('')
   const [especialidadesProfissional, setEspecialidadesProfissional] = useState('')
   const [savingProfessional, setSavingProfessional] = useState(false)
@@ -59,18 +61,21 @@ export function AgendamentosView() {
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const [res, resTut, resProf] = await Promise.all([
+      const [res, resTut, resProf, resBloq] = await Promise.all([
         fetch('/api/agendamentos?pagina=' + pagina, { cache: 'no-store', credentials: 'same-origin' }),
         fetch('/api/clientes', { cache: 'no-store', credentials: 'same-origin' }),
         fetch('/api/agenda/profissionais', { cache: 'no-store', credentials: 'same-origin' }),
+        fetch('/api/agenda/bloqueios', { cache: 'no-store', credentials: 'same-origin' }),
       ])
       const dados = await parseResponse(res)
       const cs = await parseResponse(resTut)
       const prof = await parseResponse(resProf)
+      const bloq = await parseResponse(resBloq)
       setItems(dados.items || [])
       setTotal(dados.total || 0)
       setTutores(Array.isArray(cs) ? cs : [])
       setProfissionais(Array.isArray(prof.items) ? prof.items : [])
+      setBloqueios(Array.isArray(bloq.items) ? bloq.items : [])
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível carregar agenda.') }
     finally { setLoading(false) }
   }, [pagina])
@@ -209,6 +214,16 @@ export function AgendamentosView() {
           <Button type="button" size="sm" variant="outline" disabled={savingProfessional} onClick={()=>void alternarProfissional(p)}>{p.ativo?'Desativar':'Reativar'}</Button>
         </div>)}
         {!profissionais.length&&<p className="text-xs text-muted-foreground">Nenhum profissional cadastrado ainda.</p>}
+      </div>
+    </details>
+    <details className="rounded-xl border bg-card p-3 sm:p-4">
+      <summary className="cursor-pointer text-sm font-semibold">Horários bloqueados pela equipe ({bloqueios.length})</summary>
+      <p className="mt-2 text-xs text-muted-foreground">André e Aleksander gerenciam os bloqueios na agenda operacional. A administração consulta os períodos aqui.</p>
+      <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+        {!bloqueios.length && <p className="text-sm text-muted-foreground">Sem períodos bloqueados.</p>}
+        {bloqueios.map(b=><div key={b.id} className="rounded-lg border px-3 py-2 text-xs">
+          <strong>{b.profissional}</strong> · {b.motivo} · {new Date(b.inicio).toLocaleString('pt-BR')} até {new Date(b.fim).toLocaleString('pt-BR')}
+        </div>)}
       </div>
     </details>
     <ConfiguracaoServicosEsteticos />

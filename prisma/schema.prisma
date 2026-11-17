@@ -22,6 +22,7 @@ model User {
   updatedAt DateTime @updatedAt
   cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   adminInvitations AdminInvitation[]
+  profissionalAgenda ProfissionalAgenda?
 }
 
 model Cliente {
@@ -119,6 +120,21 @@ model ProfissionalAgenda {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   agendamentos Agendamento[]
+  userId String? @unique
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bloqueios AgendaBloqueio[]
+}
+
+model AgendaBloqueio {
+  id String @id @default(cuid())
+  profissionalId String
+  inicio DateTime
+  fim DateTime
+  motivo String
+  criadoPorId String
+  createdAt DateTime @default(now())
+  profissional ProfissionalAgenda @relation(fields: [profissionalId], references: [id], onDelete: Cascade)
+  @@index([profissionalId, inicio, fim])
 }
 
 model Produto {
