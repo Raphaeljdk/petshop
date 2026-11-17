@@ -21,7 +21,8 @@ describe('Autorização de diário no blog',()=>{
     expect(artigoDeDiario({...diario,createdByAdmin:true})).toBeNull()
   })
   test('relato aprovado expõe apenas campos públicos consentidos, sem peso ou dados pessoais',()=>{
-    const article=artigoDeDiario({...diario,weightKg:15,clienteId:'private-user',petKey:'private-pet'})
+    const comCamposPrivados={...diario,weightKg:15,clienteId:'private-user',petKey:'private-pet'}
+    const article=artigoDeDiario(comCamposPrivados)
     expect(article?.title).toBe('Meu primeiro banho')
     expect(article?.body).toBe('O dia foi especial!')
     expect(article?.imageUrl).toBe(diario.imageData)
