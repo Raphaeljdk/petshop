@@ -5,6 +5,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoPatchSchema } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
+import { horarioBloqueado } from '@/lib/agenda-bloqueios'
 type Params = { params: Promise<{ id: string }> }
 async function admin() {
   const user = await getUsuarioLogado()
@@ -42,14 +43,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
       if (conflito) return NextResponse.json({ error: 'Já existe atendimento reservado para esse pet nesse horário.' }, { status: 409 })
     }
+    const profissionalId = changes.profissionalId !== undefined ? changes.profissionalId : existing.profissionalId
     const item = await db.$transaction(async tx => {
+      if (profissionalId && ['agendado', 'confirmado'].includes(status)) {
+        const bloqueio = await tx.agendaBloqueio.findFirst({
+          where: { profissionalId, inicio: { lte: dataHora }, fim: { gt: dataHora } },
+          select: { inicio: true, fim: true },
+        })
+        if (bloqueio && horarioBloqueado(dataHora, bloqueio.inicio, bloqueio.fim)) throw new Error('AGENDA_BLOQUEADA')
+      }
       const updated = await tx.agendamento.update({
         where: { id },
         data: {
           clienteId, petId, servico: changes.servico || existing.servico,
           categoria: changes.categoria || (changes.servico ? inferirCategoriaAgenda(changes.servico) : existing.categoria),
           dataHora, status,
-          profissionalId: changes.profissionalId !== undefined ? changes.profissionalId : existing.profissionalId,
+          profissionalId,
           observacoes: changes.observacoes !== undefined ? changes.observacoes || null : existing.observacoes,
         },
         include: { pet: true, cliente: true },
@@ -60,10 +69,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         data: { agendamentoId: id, acao: action, autorId: auth.user!.id, detalhe: 'Status anterior: ' + existing.status },
       })
       return updated
-    })
+    }, { isolationLevel: 'Serializable' })
     return NextResponse.json(item)
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues[0]?.message }, { status: 400 })
+    if (error instanceof Error && error.message === 'AGENDA_BLOQUEADA') return NextResponse.json({ error: 'O profissional bloqueou este horário. Selecione outro.' }, { status: 409 })
+    if ((error as {code?:string})?.code === 'P2034') return NextResponse.json({ error: 'A agenda mudou. Atualize e tente novamente.' }, { status: 409 })
     console.error('agenda PATCH:', error)
     return NextResponse.json({ error: 'Erro ao atualizar agendamento.' }, { status: 500 })
   }

@@ -5,7 +5,8 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoSchema, statusAgenda } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
-import { canViewAppointments, canScheduleBath, isAndreOperator } from '@/lib/operational-access'
+import { canViewAppointments, canScheduleBath, isOperationalOperator } from '@/lib/operational-access'
+import { getOperationalProfessional, horarioBloqueado } from '@/lib/agenda-bloqueios'
 
 export const dynamic = 'force-dynamic'
 async function admin() {
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   try {
     assertSameOrigin(req)
     const data = agendamentoSchema.parse(await req.json())
-    if (isAndreOperator(auth.user) && (data.servico.toLowerCase() !== 'banho' ||
+    if (isOperationalOperator(auth.user) && (data.servico.toLowerCase() !== 'banho' ||
       (data.categoria && data.categoria !== 'Estéticos') || data.profissionalId)) {
       return NextResponse.json({ error: 'Esta conta pode agendar somente banho, sem alterar a equipe.' }, { status: 403 })
     }
@@ -82,19 +83,31 @@ export async function POST(req: NextRequest) {
       const profissional = await db.profissionalAgenda.findFirst({ where: { id: data.profissionalId, ativo: true }, select: { id: true } })
       if (!profissional) return NextResponse.json({ error: 'Profissional indisponível para novos agendamentos.' }, { status: 409 })
     }
+    const propria = isOperationalOperator(auth.user) ? await getOperationalProfessional(auth.user!) : null
+    if (isOperationalOperator(auth.user) && (!propria || !propria.ativo)) return NextResponse.json({ error: 'Seu cadastro de profissional está indisponível.' }, { status: 409 })
+    const profissionalId = propria?.id || data.profissionalId || null
     const item = await db.$transaction(async tx => {
+      if (profissionalId) {
+        const bloqueio = await tx.agendaBloqueio.findFirst({
+          where: { profissionalId, inicio: { lte: dataHora }, fim: { gt: dataHora } },
+          select: { id: true, inicio: true, fim: true },
+        })
+        if (bloqueio && horarioBloqueado(dataHora, bloqueio.inicio, bloqueio.fim)) throw new Error('AGENDA_BLOQUEADA')
+      }
       const created = await tx.agendamento.create({
         data: { clienteId: data.clienteId, petId: data.petId, dataHora, servico: data.servico,
           categoria: data.categoria || inferirCategoriaAgenda(data.servico),
-          observacoes: data.observacoes || null, profissionalId: data.profissionalId || null },
+          observacoes: data.observacoes || null, profissionalId },
         include: { pet: true, cliente: true },
       })
       await tx.agendaEvento.create({ data: { agendamentoId: created.id, acao: 'criado', autorId: auth.user!.id } })
       return created
-    })
+    }, { isolationLevel: 'Serializable' })
     return NextResponse.json(item, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues[0]?.message || 'Dados inválidos.' }, { status: 400 })
+    if (error instanceof Error && error.message === 'AGENDA_BLOQUEADA') return NextResponse.json({ error: 'O profissional bloqueou este horário. Selecione outro.' }, { status: 409 })
+    if ((error as {code?:string})?.code === 'P2034') return NextResponse.json({ error: 'A agenda mudou. Atualize e tente novamente.' }, { status: 409 })
     console.error('agenda POST:', error)
     return NextResponse.json({ error: 'Erro ao criar agendamento.' }, { status: 500 })
   }
