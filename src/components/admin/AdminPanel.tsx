@@ -5,6 +5,7 @@ import { LogOut, Radio, ChevronRight, Menu, Search, Command as CommandIcon } fro
 import { Sidebar, type TabId } from '@/components/layout/Sidebar'
 import { DashboardView } from '@/components/dashboard/DashboardView'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
+import { AnamneseView } from '@/components/admin/AnamneseView'
 import { AndreOperations } from '@/components/operacional/AndreOperations'
 import { isAndreOperator } from '@/lib/operational-access'
 import { AgendamentosView } from '@/components/agendamentos/AgendamentosView'
@@ -44,6 +45,10 @@ function AdminPanelImpl() {
   const [entregasRefreshSignal, setEntregasRefreshSignal] = useState(0)
   const [pagamentosRefreshSignal, setPagamentosRefreshSignal] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
+  const atualizarContagemKanban = useCallback((c: { novo: number; andamento: number }) => {
+    setCounts((prev) => prev.novo === c.novo && prev.andamento === c.andamento
+      ? prev : { ...prev, novo: c.novo, andamento: c.andamento })
+  }, [])
 
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('ml')
@@ -64,6 +69,7 @@ function AdminPanelImpl() {
   const pageNames: Record<TabId, string> = {
     dashboard: 'Visão geral',
     kanban: 'Kanban de pets',
+    anamnese: 'Ficha de Anamnese',
     agendamentos: 'Agendamentos',
     ecommerce: 'Estoque',
     integracoes: 'Integrações',
@@ -251,7 +257,8 @@ function AdminPanelImpl() {
                 onIrParaFiscal={() => setTab('fiscal')}
               />
             )}
-            {tab === 'kanban' && <KanbanBoard onCountsChange={(c) => setCounts((prev) => ({ ...prev, novo: c.novo, andamento: c.andamento }))} />}
+            {tab === 'kanban' && <KanbanBoard onCountsChange={atualizarContagemKanban} />}
+            {tab === 'anamnese' && <AnamneseView />}
             {tab === 'agendamentos' && <AgendamentosView />}
             {tab === 'ecommerce' && <EcommerceView refreshSignal={ecommerceRefreshSignal} />}
             {tab === 'integracoes' && <IntegracoesView />}
