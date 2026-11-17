@@ -66,6 +66,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { cn } from '@/lib/utils'
 import type { Pet, Processo, StatusProcesso } from '@/lib/types'
+import { AtendimentoFichaDialog } from '@/components/atendimentos/AtendimentoFichaDialog'
 
 interface KanbanBoardProps {
   onCountsChange?: (counts: { novo: number; andamento: number }) => void
@@ -192,10 +193,11 @@ function colunaFromOverId(overId: unknown): ColunaId | null {
 interface CardProcessoProps {
   processo: Processo
   onAbrirAnamnese: (p: Processo) => void
+  onAbrirFicha: (p: Processo) => void
   onMover: (novoStatus: StatusProcesso) => void
 }
 
-function CardProcesso({ processo, onAbrirAnamnese, onMover }: CardProcessoProps) {
+function CardProcesso({ processo, onAbrirAnamnese, onAbrirFicha, onMover }: CardProcessoProps) {
   const colunaIdx = COLUNAS.findIndex((c) => c.id === processo.status)
   const podeAvancar = colunaIdx >= 0 && colunaIdx < 2
   const podeVoltar = colunaIdx > 0 && colunaIdx < 3
@@ -308,6 +310,10 @@ function CardProcesso({ processo, onAbrirAnamnese, onMover }: CardProcessoProps)
             </div>
 
             <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" className="text-xs"
+                onClick={e=>{e.stopPropagation();onAbrirFicha(processo)}} onPointerDown={e=>e.stopPropagation()}>
+                <ClipboardList className="mr-1 size-3"/> Check-in / Check-out / Imprimir
+              </Button>
               {processo.status !== 'cancelado' && processo.status !== 'finalizado' && (
                 <Button type="button" size="sm" variant="outline" className="text-xs text-destructive"
                   onClick={(e) => { e.stopPropagation(); if (window.confirm('Cancelar este atendimento? O registro ficará no histórico.')) onMover('cancelado') }}>Cancelar atendimento</Button>
@@ -399,6 +405,7 @@ interface ColunaProps {
   processos: Processo[]
   loading: boolean
   onAbrirAnamnese: (p: Processo) => void
+  onAbrirFicha: (p: Processo) => void
   onMover: (p: Processo, novoStatus: StatusProcesso) => void
   isOver: boolean
 }
@@ -408,6 +415,7 @@ function ColunaKanban({
   processos,
   loading,
   onAbrirAnamnese,
+  onAbrirFicha,
   onMover,
   isOver,
 }: ColunaProps) {
@@ -471,6 +479,7 @@ function ColunaKanban({
                 key={p.id}
                 processo={p}
                 onAbrirAnamnese={onAbrirAnamnese}
+                onAbrirFicha={onAbrirFicha}
                 onMover={(novoStatus) => onMover(p, novoStatus)}
               />
             ))}
@@ -497,6 +506,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
   const [anamneseOpen, setAnamneseOpen] = useState(false)
   const [anamneseProcesso, setAnamneseProcesso] = useState<Processo | null>(null)
   const [anamneseTexto, setAnamneseTexto] = useState('')
+  const [fichaProcesso,setFichaProcesso]=useState<Processo|null>(null)
 
   // novo processo dialog
   const [novoOpen, setNovoOpen] = useState(false)
@@ -938,6 +948,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
                 processos={processosPorColuna[col.id]}
                 loading={false}
                 onAbrirAnamnese={abrirAnamnese}
+                onAbrirFicha={setFichaProcesso}
                 onMover={moverProcesso}
                 isOver={overColuna === col.id}
               />
@@ -953,6 +964,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
                 processos={processosPorColuna[col.id]}
                 loading={false}
                 onAbrirAnamnese={abrirAnamnese}
+                onAbrirFicha={setFichaProcesso}
                 onMover={moverProcesso}
                 isOver={overColuna === col.id}
               />
@@ -965,7 +977,8 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         </DndContext>
       )}
 
-      {/* Dialog anamnese */}
+      <AtendimentoFichaDialog processo={fichaProcesso} onClose={()=>setFichaProcesso(null)}/>
+      {/* Dialog anamnese legado — preservado para registros antigos */}
       <Dialog open={anamneseOpen} onOpenChange={setAnamneseOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
