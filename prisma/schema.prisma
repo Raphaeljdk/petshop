@@ -755,6 +755,7 @@ model PortalGiftRequest {
   clienteId String
   recipientName String
   recipientEmail String?
+  recipientPhone String?
   message String?
   amountCents Int
   status String @default("solicitado")

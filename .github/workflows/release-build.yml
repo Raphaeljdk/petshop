@@ -49,6 +49,9 @@ jobs:
       - run: bun test tests/marketplace-product-match.test.ts
       - run: bun test tests/portal-care.test.ts
       - run: bun test tests/portal-payments.test.ts
+      - run: bun test tests/portal-gift-phone.test.ts
+      - run: bun test tests/portal-gift-credit-phone.test.ts
+      - run: bun test tests/mobile-whatsapp-position.test.ts
       - run: bun test tests/fiscal-sku-reuse.test.ts
       - run: bun run test:customer-experience
       - run: bun run test:dashboard
