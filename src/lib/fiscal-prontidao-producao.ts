@@ -5,7 +5,7 @@
  */
 export type ConfigFiscalReadiness = {
   razaoSocial?: string | null; cnpj?: string | null; inscricaoEstadual?: string | null
-  regimeTributario?: string | null; logradouro?: string | null
+  regimeTributario?: string | null; apuracaoTributaria?: string | null; logradouro?: string | null
   numeroEndereco?: string | null; bairro?: string | null; cidade?: string | null
   uf?: string | null; cep?: string | null; codigoMunicipio?: string | null
   serieNfe?: number | null; ambiente?: string | null
@@ -47,6 +47,9 @@ export function avaliarProntidaoNfeProducao({
     && Number.isInteger(empresa.serieNfe) && Number(empresa.serieNfe) >= 1
   add('cadastro',cadastroCompleto,'Emitente cadastrado',
     'CNPJ com dígitos verificadores válidos, IE, CRT, endereço SP, município IBGE e série preenchidos. Não confirma a situação cadastral na SEFAZ.')
+  add('apuracao-simples',empresa?.regimeTributario==='1'&&empresa.apuracaoTributaria==='PGDAS_D',
+    'Apuração do Simples Nacional parametrizada',
+    'CRT 1: receitas declaradas no PGDAS-D e recolhimento pelo DAS. Não ratear o Anexo I na NF-e; ST, monofásico, antecipações e outros tratamentos exigem segregação e revisão específica.')
   add('a1-variaveis',certificadoRegistrado,'Certificado A1 configurado no servidor',
     'Confirma apenas que as variáveis protegidas estão presentes. Não prova validade, titularidade ou aceite TLS.')
   add('a1-validacao',false,'Validação do A1 e vínculo do CNPJ',
