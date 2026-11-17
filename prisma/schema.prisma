@@ -520,10 +520,28 @@ model NotaFiscal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   venda Venda @relation(fields: [vendaId], references: [id], onDelete: Restrict)
+  entregaEmail NfeEmailDelivery?
 
   @@index([status, createdAt])
 }
 
+
+/** Apenas documentos REAIS autorizados, nunca notas de homologação ou rejeitadas.
+ * Uma entrega por nota, com idempotência no provedor para evitar envio duplicado. */
+model NfeEmailDelivery {
+  id String @id @default(cuid())
+  notaFiscalId String @unique
+  destinatarioEmail String
+  status String @default("pendente") // pendente | enviando | enviado | erro
+  providerId String?
+  sentAt DateTime?
+  attemptedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notaFiscal NotaFiscal @relation(fields: [notaFiscalId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}
 
 // Eventos permanentes de auditoria da agenda própria.
 model AgendaEvento {

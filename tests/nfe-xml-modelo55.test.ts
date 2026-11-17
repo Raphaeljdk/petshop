@@ -139,3 +139,15 @@ test('Arm & Hammer 473 ml em homologação: CST 49 zerado não faz rateio do DAS
   assert.doesNotMatch(xml,/<CEST>|<retTrib>|<vRetPIS>|<vRetCOFINS>|<vRetCSLL>|<vRetIRRF>/)
   assert.doesNotMatch(xml,/<pPIS>2.76|<pCOFINS>12.74|<vICMS>[d]*[1-9]/)
 })
+
+test('site próprio informa indIntermed 0 para operação pela internet e evita cStat 434',()=>{
+ const {empresa,venda,entrada}=dados()
+ const {xml}=gerarRascunhoNfe55(venda,empresa,entrada)
+ assert.match(xml,/<indPres>2<\/indPres><indIntermed>0<\/indIntermed><procEmi>/)
+ assert.doesNotMatch(xml,/<infIntermed>/)
+})
+test('não classifica venda de marketplace Amazon como se fosse site próprio',()=>{
+ const {empresa,venda,entrada}=dados()
+ venda.canal='amazon'
+ assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/Amazon exige grupo infIntermed/)
+})

@@ -87,6 +87,9 @@ export function gerarRascunhoNfe55(
 ) {
   necessario(venda.status === 'concluida', 'A venda deve estar concluída.')
   necessario(['site','amazon'].includes(venda.canal), 'Somente vendas do site ou Amazon. Mercado Livre utiliza seu Faturador e não pode duplicar a nota.')
+  // A operação deste fluxo é exclusivamente no site próprio. Para marketplace,
+  // é obrigatório cadastrar corretamente o intermediador antes de gerar XML.
+  necessario(venda.canal==='site', 'Amazon exige grupo infIntermed e identificação fiscal da plataforma, ainda não homologados. Não informar ausência de intermediador para pedido marketplace.')
   necessario(empresa.regimeTributario === '1', 'Este gerador inicial cobre apenas CRT 1 (Simples Nacional). Outros regimes ainda precisam de implementação.')
   necessario(numerico(empresa.cnpj).length === 14 && numerico(empresa.inscricaoEstadual).length >= 2, 'CNPJ e IE do emitente são obrigatórios.')
   necessario(empresa.razaoSocial?.trim() && empresa.logradouro?.trim() && empresa.numeroEndereco?.trim()
@@ -151,6 +154,7 @@ export function gerarRascunhoNfe55(
     campo('cMunFG',numerico(empresa.codigoMunicipio)) + campo('tpImp','1') +
     campo('tpEmis','1') + campo('cDV',dv) + campo('tpAmb','2') +
     campo('finNFe','1') + campo('indFinal',entrada.consumidorFinal) + campo('indPres','2') +
+    campo('indIntermed','0') +
     campo('procEmi','0') + campo('verProc','MatilhaPradoERP1.0')
   const emitEndereco: EnderecoNfe = {
     logradouro: empresa.logradouro as string, numero: empresa.numeroEndereco as string,
