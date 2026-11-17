@@ -4,7 +4,7 @@ import {avaliarProntidaoNfeProducao,cnpjDigitosValidos} from '../src/lib/fiscal-
 
 const empresa = {
   cnpj:'11.222.333/0001-81',razaoSocial:'Loja de Testes',inscricaoEstadual:'123456789',
-  regimeTributario:'1',logradouro:'Rua A',numeroEndereco:'123',bairro:'Centro',
+  regimeTributario:'1',apuracaoTributaria:'PGDAS_D',logradouro:'Rua A',numeroEndereco:'123',bairro:'Centro',
   cidade:'Sao Paulo',uf:'SP',cep:'01001000',codigoMunicipio:'3550308',
   serieNfe:1,ambiente:'producao',
 }
@@ -23,7 +23,8 @@ test('selecionar produção nunca habilita emissão nem transmite',()=>{
   assert.equal(status.requisitos.find(r=>r.id==='a1-variaveis')?.ok,true)
   assert.equal(status.requisitos.find(r=>r.id==='assinatura')?.ok,false)
   assert.equal(status.requisitos.find(r=>r.id==='homologacao')?.ok,false)
-  assert.equal(status.concluido,3)
+  assert.equal(status.requisitos.find(r=>r.id==='apuracao-simples')?.ok,true)
+  assert.equal(status.concluido,4)
 })
 test('não considera cadastro incompleto ou estoque não classificado como apto',()=>{
   const obj=avaliarProntidaoNfeProducao({
@@ -63,4 +64,13 @@ test('preparo da primeira NF-e de homologação não cria venda, não reserva n�
   assert.equal(r.criacaoDeVenda,false)
   assert.equal(r.liberadoParaTransmitir,false)
   assert.ok(r.pendencias.some(x=>x.includes('49')))
+})
+
+test('indica pendência quando apuração do Simples não é PGDAS-D',()=>{
+ const r=avaliarProntidaoNfeProducao({
+  empresa:{...empresa,apuracaoTributaria:'PENDENTE_VALIDACAO'},
+  certificadoRegistrado:true,produtosAtivos:1,produtosSemClassificacao:0,
+ })
+ assert.equal(r.requisitos.find(i=>i.id==='apuracao-simples')?.ok,false)
+ assert.equal(r.emissaoRealHabilitada,false)
 })
