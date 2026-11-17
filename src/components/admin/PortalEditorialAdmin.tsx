@@ -18,7 +18,7 @@ type PlanRequest = {
   id:string;clienteId:string;petKey:string;status:string;sessionsUsed:number
   plan:{ title:string;sessions:number }
 }
-type Gift = {id:string;clienteId:string;recipientName:string;amountCents:number;status:string}
+type Gift = {id:string;clienteId:string;recipientName:string;recipientEmail:string|null;recipientWhatsapp:string|null;voucherCode:string|null;amountCents:number;status:string}
 type Referral = {id:string;invitedId:string;status:string}
 type PortalAdmin = {
   articles:Article[];plans:Array<{id:string;title:string;priceCents:number;active:boolean}>
@@ -254,12 +254,20 @@ export function PortalEditorialAdmin() {
         <div className="mt-3 space-y-3">
           <label className="block space-y-1 text-xs">Referência do pagamento conferido<Input value={reference} onChange={(e)=>setReference(e.target.value)}/></label>
           {data?.gifts.map((g)=><div key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
-            <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p></div>
+            <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p>
+              <p className="text-muted-foreground">{g.recipientEmail||'Sem e-mail'} · {g.recipientWhatsapp||'Sem WhatsApp'}</p>
+            </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy||reference.trim().length<4}
-                onClick={()=>void submit({action:'gift-review',id:g.id,status:'pago',paymentVerified:true,paymentReference:reference})}>Confirmar pagamento</Button>
-              <Button size="sm" variant="outline" disabled={busy}
-                onClick={()=>void submit({action:'gift-review',id:g.id,status:'aguardando_pagamento',paymentVerified:false})}>Aguardar</Button>
+              {g.status==='pago' && g.voucherCode ? <>
+                <Button size="sm" variant="outline" onClick={()=>void navigator.clipboard?.writeText(g.voucherCode!).then(()=>toast.success('Código copiado.'))}>Copiar código</Button>
+                {g.recipientEmail&&<Button asChild size="sm" variant="outline"><a href={'mailto:'+encodeURIComponent(g.recipientEmail)+'?subject='+encodeURIComponent('Seu vale-presente Matilha Prado')+'&body='+encodeURIComponent('Olá, '+g.recipientName+'! Seu vale-presente Matilha Prado foi confirmado. Para resgatar, entre ou crie a sua conta com este e-mail em https://www.matilhaprado.com.br/login e informe o código '+g.voucherCode+'.')}>Preparar e-mail</a></Button>}
+                {g.recipientWhatsapp&&<Button asChild size="sm" variant="outline"><a target="_blank" rel="noopener noreferrer" href={'https://wa.me/'+(g.recipientWhatsapp.replace(/\\D/g,'').length===11?'55':'')+g.recipientWhatsapp.replace(/\\D/g,'')+'?text='+encodeURIComponent('Olá, '+g.recipientName+'! Seu vale-presente Matilha Prado foi confirmado. Entre ou crie sua conta com o e-mail informado em https://www.matilhaprado.com.br/login para resgatar o código '+g.voucherCode+'.')}>Preparar WhatsApp</a></Button>}
+              </> : <>
+                <Button size="sm" disabled={busy||reference.trim().length<4}
+                  onClick={()=>void submit({action:'gift-review',id:g.id,status:'pago',paymentVerified:true,paymentReference:reference})}>Confirmar pagamento</Button>
+                <Button size="sm" variant="outline" disabled={busy}
+                  onClick={()=>void submit({action:'gift-review',id:g.id,status:'aguardando_pagamento',paymentVerified:false})}>Aguardar</Button>
+              </>}
             </div>
           </div>)}
           {data?.referrals.map((r)=><div key={r.id} className="flex flex-wrap justify-between gap-2 rounded-lg border p-3 text-xs">
