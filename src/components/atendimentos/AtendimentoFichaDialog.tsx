@@ -5,13 +5,15 @@ import {Printer,Send,ShieldCheck} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
 import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from '@/components/ui/dialog'
-import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,type FormAnswers} from '@/lib/atendimento-ficha'
+import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,CHECKOUT_ACEITE_TEXTO,CHECKOUT_ACEITE_VERSAO,type FormAnswers} from '@/lib/atendimento-ficha'
 import {FichaSections,asAnswers,dateTime} from './FichaSections'
 import type {Processo} from '@/lib/types'
 
 type Ficha={id:string;checkin:unknown;checkinStatus:string;checkinSubmittedAt:string|null;
  tutorAceiteAt:string|null;tutorAceiteNome:string|null;tutorAceiteVersao:string|null;tutorAceiteHash:string|null;
- checkout:unknown;checkoutFinalizadoAt:string|null;eventos:Array<{id:string;acao:string;createdAt:string;resumo:string|null}>}
+ checkout:unknown;checkoutFinalizadoAt:string|null;
+ checkoutAceiteStatus:string;checkoutAceiteAt:string|null;checkoutAceiteNome:string|null;
+ checkoutAceiteVersao:string|null;checkoutAceiteHash:string|null;eventos:Array<{id:string;acao:string;createdAt:string;resumo:string|null}>}
 type Entry={processo:{id:string;servico:string;pet:{nome:string;raca:string|null;especie:string;
  cliente:{nome:string;telefone:string}}};ficha:Ficha|null}
 const label:Record<string,string>={rascunho:'Rascunho interno',pendente_aceite:'Aguardando aceite do tutor',
@@ -56,7 +58,7 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
    if(!r.ok)throw Error(payload?.error||'Falha ao salvar.')
    await reload(id)
    toast.success(action==='enviar_checkin'?'Check-in enviado para aceite no portal do tutor.':
-    action==='finalizar_checkout'?'Check-out finalizado.':'Rascunho salvo.')
+    action==='finalizar_checkout'?'Check-out finalizado e disponível para ciência do tutor em Meus Pets.':'Rascunho salvo.')
   }catch(e){toast.error(e instanceof Error?e.message:'Falha ao salvar.')}
   finally{setBusy(false)}
  }
@@ -99,7 +101,7 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
       <Button variant="outline" disabled={busy} onClick={()=>void save('salvar_checkout')}>Salvar rascunho</Button>
       <Button disabled={busy} onClick={()=>void save('finalizar_checkout')}>Finalizar check-out</Button>
      </div>}
-     {f?.checkoutFinalizadoAt&&<p className="text-xs text-green-700"><ShieldCheck className="inline mr-1 size-4"/> Finalizado em {dateTime(f.checkoutFinalizadoAt)}. Registro imutável.</p>}
+     {f?.checkoutFinalizadoAt&&<div className="rounded-md border p-3 text-xs"><p className="text-green-700"><ShieldCheck className="inline mr-1 size-4"/> Finalizado em {dateTime(f.checkoutFinalizadoAt)}. Registro imutável.</p><p className="mt-2 font-semibold">Ciência do tutor na saída</p><p>{f.checkoutAceiteStatus==='pendente'?'Aguardando resposta no portal Meus Pets.':f.checkoutAceiteStatus==='aceito'?'Tutor confirmou a ciência do check-out.':f.checkoutAceiteStatus==='discordo'?'Tutor registrou discordância — consultar histórico.':'Sem resposta solicitada (ficha anterior à nova funcionalidade).'}</p>{f.checkoutAceiteAt&&<p className="mt-1">{f.checkoutAceiteNome||'Tutor'} · {dateTime(f.checkoutAceiteAt)}</p>}</div>}
     </>}
     {Boolean(f?.eventos?.length)&&<details className="rounded-lg border p-2 text-xs">
      <summary className="cursor-pointer">Histórico de registros e aceite</summary>
@@ -121,6 +123,10 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
   <h2 className="mt-6 text-lg font-bold" style={{breakBefore:'page'}}>FICHA DE CHECK-OUT PET</h2>
   <p>Finalização: {dateTime(f?.checkoutFinalizadoAt)}</p>
   <FichaSections sections={CHECKOUT_SECTIONS} answers={checkout} readonly/>
+  <h3 className="mt-4 font-bold">10. Ciência do tutor sobre o check-out</h3>
+  <p className="text-xs">{CHECKOUT_ACEITE_TEXTO}</p>
+  <p className="mt-2 text-xs">Resposta: {f?.checkoutAceiteStatus==='aceito'?'CIÊNCIA REGISTRADA':f?.checkoutAceiteStatus==='discordo'?'DISCORDÂNCIA REGISTRADA':f?.checkoutAceiteStatus==='pendente'?'AGUARDANDO TUTOR':'SEM RESPOSTA SOLICITADA'} · Nome: {f?.checkoutAceiteNome||'—'} · Data: {dateTime(f?.checkoutAceiteAt)}</p>
+  <p className="text-[10px]">Versão: {f?.checkoutAceiteVersao||CHECKOUT_ACEITE_VERSAO} · Hash da ficha: {f?.checkoutAceiteHash||'Não registrado'}</p>
   <p className="mt-6 text-xs">Matilha Prado — Cuidado, respeito e bem-estar em cada detalhe. Avaliação visual, sem diagnóstico veterinário.</p>
  </div>}
  <style jsx global>{'@media print { @page { margin: 13mm; size: A4; } body * { visibility: hidden !important; } #matilha-fichas-print, #matilha-fichas-print * { visibility: visible !important; } #matilha-fichas-print { display: block !important; position: absolute !important; z-index: 999999; top: 0; left: 0; width: 100% !important; background: white !important; color: black !important; } #matilha-fichas-print details { display: block !important; break-inside: avoid-page; } #matilha-fichas-print .text-muted-foreground { color: black !important; } }'}</style>
