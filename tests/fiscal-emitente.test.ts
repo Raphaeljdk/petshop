@@ -4,7 +4,7 @@ import { camposEditaveisEmitente, configSchema, erroConfigEmitente } from '../sr
 const emitente = {
   razaoSocial: 'Empresa Exemplo LTDA', nomeFantasia: 'Pet Shop',
   cnpj: '12345678000195', inscricaoEstadual: '123456789',
-  regimeTributario: '1' as const, logradouro: 'Avenida Principal', numeroEndereco: '1647',
+  regimeTributario: '1' as const, apuracaoTributaria:'PGDAS_D' as const, logradouro: 'Avenida Principal', numeroEndereco: '1647',
   bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', cep: '02333001',
   codigoMunicipio: '3550308', serieNfe: 1, ambiente: 'homologacao' as const,
 }
@@ -23,6 +23,7 @@ describe('Cadastro fiscal não envia metadados internos', () => {
     const p=camposEditaveisEmitente({...emitente,ambiente:'producao'})
     expect(configSchema.parse(p).ambiente).toBe('producao')
     expect(p.regimeTributario).toBe('1')
+    expect(p.apuracaoTributaria).toBe('PGDAS_D')
   })
   test('mensagem de erro aponta o campo inválido', () => {
     const parsed=configSchema.safeParse({...emitente,serieNfe:0})
@@ -33,5 +34,15 @@ describe('Cadastro fiscal não envia metadados internos', () => {
     const parsed=configSchema.safeParse({...emitente,id:'abc',role:'ADMIN'})
     expect(parsed.success).toBe(false)
     if(!parsed.success)expect(erroConfigEmitente(parsed.error)).toContain('campos internos')
+  })
+  test('impede apuração por imposto direto ou tentativa incompatível com o CRT',()=>{
+    const direto=configSchema.safeParse({...emitente,apuracaoTributaria:'IMPOSTO_DIRETO_NFE'})
+    expect(direto.success).toBe(false)
+    const invalido=configSchema.safeParse({...emitente,apuracaoTributaria:'PENDENTE_VALIDACAO'})
+    expect(invalido.success).toBe(false)
+    const outroRegime=configSchema.safeParse({...emitente,regimeTributario:'3',apuracaoTributaria:'PGDAS_D'})
+    expect(outroRegime.success).toBe(false)
+    const incompleto=configSchema.safeParse({...emitente,regimeTributario:'3',apuracaoTributaria:'PENDENTE_VALIDACAO'})
+    expect(incompleto.success).toBe(true)
   })
 })

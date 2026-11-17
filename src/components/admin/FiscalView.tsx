@@ -24,6 +24,7 @@ type Config = {
   cnpj: string | null
   inscricaoEstadual: string | null
   regimeTributario: string | null
+  apuracaoTributaria: 'PGDAS_D'|'PENDENTE_VALIDACAO'
   logradouro: string | null
   numeroEndereco: string | null
   bairro: string | null
@@ -36,7 +37,7 @@ type Config = {
 }
 const EMPTY: Config = {
   razaoSocial: '', nomeFantasia: '', cnpj: '', inscricaoEstadual: '',
-  regimeTributario: null, logradouro: '', numeroEndereco: '', bairro: '',
+  regimeTributario: null, apuracaoTributaria:'PENDENTE_VALIDACAO', logradouro: '', numeroEndereco: '', bairro: '',
   cidade: '', uf: '', cep: '', codigoMunicipio: '', serieNfe: 1, ambiente: 'homologacao',
 }
 type Sale = {
@@ -368,7 +369,10 @@ export function FiscalView() {
 
   const alterar = (key: keyof Config, value: string) => {
     setEmitenteSalvo(false)
-    setConfig((v) => ({ ...v, [key]: key === 'serieNfe' ? Number(value) : value }))
+    setConfig((v) => ({ ...v, [key]: key === 'serieNfe' ? Number(value) : value,
+      ...(key==='regimeTributario'?{
+       apuracaoTributaria:value==='1'?'PGDAS_D':'PENDENTE_VALIDACAO'
+      }:{}) }))
   }
   const campo = (key: keyof Config, titulo: string, placeholder = '') => (
     <div className="space-y-1.5" key={key}>
@@ -648,6 +652,17 @@ export function FiscalView() {
               <select id="regime-fiscal" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={config.regimeTributario || ''} onChange={(e) => alterar('regimeTributario', e.target.value)}>
                 <option value="">Selecionar com contador</option><option value="1">1 — Simples Nacional</option><option value="2">2 — Simples Nacional (excesso de sublimite)</option><option value="3">3 — Regime normal</option>
               </select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-2" role="status">
+              <Label>Parâmetro de apuração tributária</Label>
+              <div className="flex min-h-10 items-center rounded-md border bg-muted/40 px-3 text-sm font-semibold">
+                {config.regimeTributario==='1'?'Simples Nacional — PGDAS-D / DAS':'Aguardando validação contábil do regime'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sem rateio dos percentuais do Anexo I nem cobrança automática de DAS por NF-e.
+                Os códigos e valores exigidos no XML continuam sujeitos à operação; ST,
+                monofásicos e outros recolhimentos fora do DAS exigem tratamento específico.
+              </p>
             </div>
             {campo('logradouro', 'Logradouro')}
             {campo('numeroEndereco', 'Número')}

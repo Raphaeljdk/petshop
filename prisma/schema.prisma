@@ -455,6 +455,8 @@ model ConfiguracaoFiscal {
   cnpj String?
   inscricaoEstadual String?
   regimeTributario String?
+  // CRT 1: apuração mensal no PGDAS-D / DAS. Nunca ratear Anexo I na NF-e.
+  apuracaoTributaria String @default("PENDENTE_VALIDACAO")
   logradouro String?
   numeroEndereco String?
   bairro String?

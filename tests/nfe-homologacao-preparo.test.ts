@@ -8,7 +8,7 @@ const produto={
 }
 const empresa={
   cnpj:'00000000000000',inscricaoEstadual:'123456',regimeTributario:'1',
-  serieNfe:1,ambiente:'producao',uf:'SP',razaoSocial:'Exemplo',
+  apuracaoTributaria:'PGDAS_D',serieNfe:1,ambiente:'producao',uf:'SP',razaoSocial:'Exemplo',
 }
 const historico=[
   {serie:1,numero:1084,emissor:'mercado_livre',status:'autorizada'},
@@ -92,4 +92,14 @@ test('rejeita outro cadastro com mesmo nome e SKU diferente do Arm & Hammer 473 
  assert.equal(resultado.homologacaoDisponivelParaTeste,false)
  assert.equal(resultado.emissaoRealHabilitada,false)
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('não corresponde')))
+})
+
+test('mesmo com regra, A1 e série 2 bloqueia teste sem parâmetro PGDAS-D',()=>{
+ const r=prepararPrimeiraHomologacao({
+  produto,emitente:{...empresa,serieNfe:2,apuracaoTributaria:'PENDENTE_VALIDACAO'},
+  documentos:[],regrasAprovadas:1,certificadoConfigurado:true,
+ })
+ assert.equal(r.homologacaoDisponivelParaTeste,false)
+ assert.ok(r.pendencias.some(x=>x.includes('PGDAS-D')))
+ assert.equal(r.emissaoRealHabilitada,false)
 })

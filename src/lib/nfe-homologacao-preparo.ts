@@ -10,6 +10,7 @@ export type ProdutoHomologacao = {
 }
 export type EmitenteHomologacao = {
   cnpj:string|null;inscricaoEstadual:string|null;regimeTributario:string|null
+  apuracaoTributaria?:string|null
   serieNfe:number;ambiente:string;uf:string|null
   razaoSocial:string|null
 }
@@ -59,6 +60,8 @@ export function prepararPrimeiraHomologacao(input:{
   if((p?.pisCst&&p.pisCst!=='49')||(p?.cofinsCst&&p.cofinsCst!=='49'))
     faltando('O CST PIS/COFINS do Arm & Hammer 473 ml exige tratamento específico; o emissor inicial só prepara CST 49.')
 
+  if(e?.regimeTributario==='1'&&e.apuracaoTributaria!=='PGDAS_D')
+    observacoes.push('Apuração do Simples Nacional ainda não configurada como PGDAS-D/DAS. Não aplicar rateio de impostos na NF-e.')
   if(!e||e.regimeTributario!=='1'||e.uf!=='SP'||!filled(e.cnpj)||!filled(e.inscricaoEstadual))
     observacoes.push('Dados fiscais do emitente CRT 1 / SP incompletos ou não confirmados.')
   if(!certificadoConfigurado)observacoes.push('Variáveis protegidas do certificado A1 indisponíveis no servidor.')
@@ -79,7 +82,7 @@ export function prepararPrimeiraHomologacao(input:{
       formato(p.ncm,/^\d{8}$/)&&formato(p.gtinFiscal,/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/)&&
       formato(p.cfop,/^5\d{3}$/)&&p.csosn==='102'&&
       p.pisCst==='49'&&p.cofinsCst==='49'&&filled(p.unidadeFiscal)&&
-      filled(p.origem)&&regrasAprovadas>0&&e?.serieNfe===2&&e?.uf==='SP'&&e.regimeTributario==='1'),
+      filled(p.origem)&&regrasAprovadas>0&&e?.serieNfe===2&&e?.uf==='SP'&&e.regimeTributario==='1'&&e.apuracaoTributaria==='PGDAS_D'),
     pendenciasProduto,
     nfeAutorizadasEmHomologacao:autorizacoesHomologacao,
     emissaoRealHabilitada:false,
@@ -90,7 +93,7 @@ export function prepararPrimeiraHomologacao(input:{
       origem:p.origem,unidadeFiscal:p.unidadeFiscal,
     }:null,
     emitente:{
-      crt:e?.regimeTributario||null,uf:e?.uf||null,
+      crt:e?.regimeTributario||null,apuracaoTributaria:e?.apuracaoTributaria||null,uf:e?.uf||null,
       serieCadastrada:serie,ambienteAtual:e?.ambiente||null,
       a1VariaveisPresentes:certificadoConfigurado,
     },
