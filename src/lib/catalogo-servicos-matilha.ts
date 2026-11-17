@@ -1,4 +1,5 @@
 import { SERVICOS_ESTETICOS_MATILHA } from './agenda-servicos'
+import { lerPrecosPorRaca } from './precos-por-raca'
 
 /**
  * Fonte unica para a configuracao interna. A chave nunca vem de dados de clientes.
@@ -13,6 +14,7 @@ export const CATALOGO_ESTETICO_MATILHA = SERVICOS_ESTETICOS_MATILHA.map((nome) =
 export type ConfiguracaoServico = {
   chave: string
   precoCentavos: number | null
+  precosPorRaca?: unknown
   duracaoMinutos: number | null
   regrasPreco: string | null
   observacoes: string | null
@@ -20,16 +22,17 @@ export type ConfiguracaoServico = {
   updatedAt: Date | string | null
 }
 
-export function possuiPrecoOuRegra(precoCentavos: number | null, regrasPreco: string | null) {
-  return precoCentavos !== null || !!regrasPreco?.trim()
+export function possuiPrecoOuRegra(precoCentavos: number | null, regrasPreco: string | null, precosPorRaca?: unknown) {
+  return precoCentavos !== null || !!regrasPreco?.trim() || lerPrecosPorRaca(precosPorRaca).length > 0
 }
 
 export function configuracaoPodeSerConfirmada(data: {
   precoCentavos: number | null
   duracaoMinutos: number | null
   regrasPreco: string | null
+  precosPorRaca?: unknown
 }) {
-  return data.duracaoMinutos !== null && possuiPrecoOuRegra(data.precoCentavos, data.regrasPreco)
+  return data.duracaoMinutos !== null && possuiPrecoOuRegra(data.precoCentavos, data.regrasPreco, data.precosPorRaca)
 }
 
 export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[]) {
@@ -37,6 +40,7 @@ export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[])
   return CATALOGO_ESTETICO_MATILHA.map((servico) => ({
     ...servico,
     precoCentavos: porChave.get(servico.chave)?.precoCentavos ?? null,
+    precosPorRaca: lerPrecosPorRaca(porChave.get(servico.chave)?.precosPorRaca),
     duracaoMinutos: porChave.get(servico.chave)?.duracaoMinutos ?? null,
     regrasPreco: porChave.get(servico.chave)?.regrasPreco ?? null,
     observacoes: porChave.get(servico.chave)?.observacoes ?? null,
