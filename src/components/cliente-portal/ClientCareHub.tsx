@@ -13,6 +13,7 @@ type Pet = { id:string; nome:string; especie:string; porte:string|null; fotoUrl:
 type Memory = {
   id:string; petKey:string; kind:string; title:string; notes:string|null
   weightKg:number|null; eventAt:string; nextAt:string|null; imageData:string|null; createdByAdmin:boolean
+  blogStatus:string;blogConsentAt:string|null
 }
 type Prefs = {
   remindersInApp:boolean; remindersEmail:boolean; remindersWhatsapp:boolean
@@ -90,6 +91,7 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
   const [notes,setNotes] = useState('')
   const [weight,setWeight] = useState('')
   const [imageData,setImageData] = useState<string|null>(null)
+  const [autorizarBlog,setAutorizarBlog] = useState(false)
   const [nextDate,setNextDate] = useState('')
   const [prefs,setPrefs] = useState<Prefs>(defaultPrefs)
   const [refCode,setRefCode] = useState('')
@@ -193,8 +195,9 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
           if(!title.trim()) return
           const response=await act({action:'memory',petKey,kind,title,notes,imageData,
             weightKg:kind==='diario'&&weight?Number(weight):null,
+            autorizarBlog:kind==='diario'&&autorizarBlog,
             nextAt:kind==='vacina_documento'&&nextDate?new Date(nextDate).toISOString():null},'Registro adicionado.')
-          if(response){setTitle('');setNotes('');setWeight('');setImageData(null);setNextDate('')}
+          if(response){setTitle('');setNotes('');setWeight('');setImageData(null);setNextDate('');setAutorizarBlog(false)}
         }}>
           <label className="space-y-1 text-xs">Título do registro
             <Input required minLength={2} maxLength={120} value={title} onChange={(e)=>setTitle(e.target.value)} placeholder={kind==='diario'?'Ex.: Primeiro banho':'Ex.: Vacina registrada pelo tutor'}/>
@@ -214,6 +217,14 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
           <label className="space-y-1 text-xs sm:col-span-2">Anotações
             <Textarea rows={2} maxLength={2000} value={notes} onChange={(e)=>setNotes(e.target.value)}/>
           </label>
+          {kind==='diario'&&<label className="sm:col-span-2 flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-xs leading-relaxed">
+            <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={autorizarBlog}
+              onChange={e=>setAutorizarBlog(e.target.checked)}/>
+            <span><strong>Autorizo enviar este relato para o blog da Matilha Prado.</strong>
+              Entendo que o título, as anotações e a foto anexada poderão ser vistos por outros clientes
+              depois da aprovação da equipe. O peso, os documentos e meus dados de cadastro não serão publicados.
+              Posso retirar esta autorização a qualquer momento. Sem marcar, o registro fica privado.</span>
+          </label>}
           {imageData && <p className="text-xs text-green-700">Imagem pronta para salvar com segurança.</p>}
           <Button type="submit" disabled={busy||!petKey}>Adicionar ao {kind==='diario'?'diário':'histórico particular'}</Button>
         </form>
@@ -228,7 +239,25 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
                 {m.notes&&<p className="mt-1 whitespace-pre-wrap break-words text-xs">{m.notes}</p>}
                 {m.weightKg!=null&&<p className="text-xs">Peso: {m.weightKg.toLocaleString('pt-BR')} kg</p>}
                 {m.nextAt&&<p className="text-xs">Próxima data anotada: {date(m.nextAt)}</p>}
-                <p className="mt-1 text-[11px] text-muted-foreground">Registro particular; não substitui prontuário nem orientação veterinária.</p>
+                {m.kind==='diario'&&<div className="mt-2 space-y-1">
+                  <p className="text-[11px] text-muted-foreground">
+                    {m.blogStatus==='publicado'?'Publicado no Blog da Matilha Prado'
+                      :m.blogStatus==='pendente'?'Aguardando revisão da equipe para publicação'
+                      :m.blogStatus==='recusado'?'Publicação não aprovada pela equipe'
+                      :m.blogStatus==='revogado'?'Autorização de publicação retirada'
+                      :'Privado — sem autorização para o blog'}
+                  </p>
+                  {!m.createdByAdmin&&(['privado','revogado','recusado'].includes(m.blogStatus)
+                    ?<Button type="button" variant="outline" size="sm" disabled={busy} onClick={()=>{
+                      if(window.confirm('Autorizar que o título, as anotações e a foto deste diário sejam revisados para publicação no blog?'))
+                        void act({action:'blog-consent',id:m.id,accepted:true},'Solicitação enviada.')
+                    }}>Autorizar publicação no blog</Button>
+                    :<Button type="button" variant="outline" size="sm" disabled={busy}
+                      onClick={()=>void act({action:'blog-consent',id:m.id,accepted:false},'Autorização retirada.')}>
+                        Retirar autorização do blog
+                      </Button>)}
+                </div>}
+                <p className="mt-1 text-[11px] text-muted-foreground">O diário particular não substitui prontuário nem orientação veterinária.</p>
               </div>
               {!m.createdByAdmin&&<Button variant="ghost" size="icon" disabled={busy} aria-label="Remover registro"
                 onClick={()=>{if(window.confirm('Excluir este registro definitivamente?'))void act({action:'remove-memory',id:m.id},'Registro removido.')}}><Trash2 className="size-4"/></Button>}
