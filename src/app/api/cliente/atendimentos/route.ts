@@ -8,7 +8,7 @@ export async function GET(){
  if(user?.role!=='CLIENTE'||!user.clienteId)
   return NextResponse.json({error:'Tutor não autenticado.'},{status:401})
  const fichas=await db.atendimentoFicha.findMany({
-  where:{clienteId:user.clienteId},
+  where:{clienteId:user.clienteId,checkinSubmittedAt:{not:null}},
   orderBy:{createdAt:'desc'},take:100,
   select:{
    id:true,petId:true,processoId:true,checkin:true,checkinStatus:true,
@@ -17,5 +17,6 @@ export async function GET(){
    processo:{select:{servico:true,createdAt:true,pet:{select:{id:true,nome:true,raca:true}}}},
   },
  })
- return NextResponse.json({fichas},{headers:{'Cache-Control':'private,no-store'}})
+ // Não expor rascunhos internos do check-out ao cliente.
+ return NextResponse.json({fichas:fichas.map(f=>({...f,checkout:f.checkoutFinalizadoAt?f.checkout:null}))},{headers:{'Cache-Control':'private,no-store'}})
 }
