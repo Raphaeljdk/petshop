@@ -32,7 +32,7 @@ const BRANDS = [
 ] as const
 
 const BRAND_ALIASES: Record<string, readonly string[]> = {
-  'Bonito pra Cachorro': ['bonito pra cachorro', 'bonito para cachorro', 'bonito p cachorro'],
+  'Bonito pra Cachorro': ['bonito pra cachorro', 'bonito para cachorro', 'bonito p cachorro', 'moletom maxi sport', 'casaco coelho laco branco', 'cama linho clean'],
   // A linha de tapetes Tapetim e as grafias Great Pets/Greet Pet apontam para Great Pet.
   'Great Pet': ['great pet', 'great pets', 'greatpets', 'greet pet', 'greet pets', 'tapetim'],
   'Arm & Hammer': ['arm hammer', 'arm and hammer'],
