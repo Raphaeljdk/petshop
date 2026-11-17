@@ -51,8 +51,8 @@ function credenciais(){
 async function configValidada(){
  const e=await db.configuracaoFiscal.findUnique({where:{id:'matilha-prado'}})
  if(!e||e.cnpj?.replace(/\D/g,'')!=='57199062000191'||e.regimeTributario!=='1'
-  ||e.uf!=='SP'||e.serieNfe!==2)
-  throw new NfeRascunhoError('Emitente, CRT, UF ou série 2 divergente.')
+  ||e.uf!=='SP'||e.serieNfe!==2||e.apuracaoTributaria!=='PGDAS_D')
+  throw new NfeRascunhoError('Emitente, CRT, apuração PGDAS-D, UF ou série 2 divergente. Não aplicar imposto direto ou rateio do DAS na NF-e.')
  return e
 }
 class NfeEtapaError extends Error {
