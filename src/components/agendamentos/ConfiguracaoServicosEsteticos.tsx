@@ -1,17 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, CircleHelp, Loader2, Save } from 'lucide-react'
+import { CheckCircle2, CircleHelp, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { LIMITE_PRECOS_POR_RACA, precosPorRacaSchema, type PrecoPorRaca } from '@/lib/precos-por-raca'
 
 type Servico = {
   chave: string
   nome: string
   precoCentavos: number | null
+  precosPorRaca: PrecoPorRaca[]
   duracaoMinutos: number | null
   regrasPreco: string | null
   observacoes: string | null
@@ -20,6 +22,7 @@ type Servico = {
 }
 type Rascunho = {
   preco: string
+  precosPorRaca: Array<{ raca: string; preco: string }>
   duracao: string
   regrasPreco: string
   observacoes: string
@@ -31,6 +34,7 @@ const formatarPreco = (centavos: number | null) =>
 
 const editar = (s: Servico): Rascunho => ({
   preco: formatarPreco(s.precoCentavos),
+  precosPorRaca: (s.precosPorRaca || []).map(({ raca, precoCentavos }) => ({ raca, preco: formatarPreco(precoCentavos) })),
   duracao: s.duracaoMinutos === null ? '' : String(s.duracaoMinutos),
   regrasPreco: s.regrasPreco ?? '',
   observacoes: s.observacoes ?? '',
@@ -86,14 +90,58 @@ export function ConfiguracaoServicosEsteticos() {
     setDrafts((prev) => ({ ...prev, [chave]: { ...prev[chave], [campo]: value } }))
   }
 
+  function adicionarRaca(chave: string) {
+    setDrafts((prev) => {
+      const atual = prev[chave]
+      if (!atual || atual.precosPorRaca.length >= LIMITE_PRECOS_POR_RACA) return prev
+      return {
+        ...prev,
+        [chave]: { ...atual, precosPorRaca: [...atual.precosPorRaca, { raca: '', preco: '' }] },
+      }
+    })
+  }
+
+  function alterarRaca(chave: string, indice: number, campo: 'raca' | 'preco', valor: string) {
+    setDrafts((prev) => {
+      const atual = prev[chave]
+      if (!atual) return prev
+      return {
+        ...prev,
+        [chave]: {
+          ...atual,
+          precosPorRaca: atual.precosPorRaca.map((linha, i) =>
+            i === indice ? { ...linha, [campo]: valor } : linha
+          ),
+        },
+      }
+    })
+  }
+
+  function removerRaca(chave: string, indice: number) {
+    setDrafts((prev) => {
+      const atual = prev[chave]
+      if (!atual) return prev
+      return {
+        ...prev,
+        [chave]: { ...atual, precosPorRaca: atual.precosPorRaca.filter((_, i) => i !== indice) },
+      }
+    })
+  }
+
   async function salvar(chave: string) {
     const rascunho = drafts[chave]
     if (!rascunho) return
     setSaving(chave)
     try {
+      const precosPorRaca = precosPorRacaSchema.parse(rascunho.precosPorRaca.map((linha, indice) => {
+        const precoCentavos = lerCentavos(linha.preco)
+        if (precoCentavos === null) throw new Error(`Informe o preço da raça ${linha.raca.trim() || indice + 1}.`)
+        return { raca: linha.raca.trim(), precoCentavos }
+      }))
       const body = {
         chave,
         precoCentavos: lerCentavos(rascunho.preco),
+        precosPorRaca,
         duracaoMinutos: lerDuracao(rascunho.duracao),
         regrasPreco: rascunho.regrasPreco.trim() || null,
         observacoes: rascunho.observacoes.trim() || null,
@@ -110,7 +158,9 @@ export function ConfiguracaoServicosEsteticos() {
       setDrafts((prev) => ({ ...prev, [chave]: editar(item) }))
       toast.success('Configuração interna do serviço salva.')
     } catch (reason) {
-      toast.error(reason instanceof Error ? reason.message : 'Erro ao salvar o serviço.')
+      toast.error(reason instanceof Error && 'issues' in reason && Array.isArray(reason.issues)
+        ? String(reason.issues[0]?.message || 'Revise os preços por raça.')
+        : reason instanceof Error ? reason.message : 'Erro ao salvar o serviço.')
     } finally {
       setSaving(null)
     }
@@ -154,6 +204,51 @@ export function ConfiguracaoServicosEsteticos() {
                   <Label htmlFor={id + '-duracao'}>Duração (min)</Label>
                   <Input id={id + '-duracao'} type="number" min={5} max={720} step={1} placeholder="A confirmar"
                     value={r.duracao} onChange={(e) => alterar(id, 'duracao', e.target.value)} />
+                </div>
+                <div className="col-span-2 space-y-2 rounded-lg border bg-muted/20 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold">Preços por raça</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Um valor para cada raça; não substitui o preço de referência.
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm"
+                      disabled={saving !== null || r.precosPorRaca.length >= LIMITE_PRECOS_POR_RACA}
+                      onClick={() => adicionarRaca(id)}>
+                      <Plus className="mr-1 size-3.5" /> Adicionar raça
+                    </Button>
+                  </div>
+                  {r.precosPorRaca.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhuma raça com preço específico cadastrada.</p>
+                  )}
+                  <div className="space-y-2">
+                    {r.precosPorRaca.map((linha, indice) => (
+                      <div key={indice} className="grid grid-cols-[minmax(0,1fr)_minmax(95px,0.6fr)_auto] items-end gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <Label htmlFor={`${id}-raca-${indice}`}>Raça</Label>
+                          <Input id={`${id}-raca-${indice}`} type="text" maxLength={80}
+                            placeholder="Ex.: Golden Retriever"
+                            value={linha.raca}
+                            onChange={(e) => alterarRaca(id, indice, 'raca', e.target.value)} />
+                        </div>
+                        <div className="min-w-0 space-y-1">
+                          <Label htmlFor={`${id}-raca-preco-${indice}`}>Preço (R$)</Label>
+                          <Input id={`${id}-raca-preco-${indice}`} type="text" inputMode="decimal"
+                            placeholder="A confirmar"
+                            value={linha.preco}
+                            onChange={(e) => alterarRaca(id, indice, 'preco', e.target.value)} />
+                        </div>
+                        <Button type="button" variant="ghost" size="icon"
+                          aria-label={`Remover preço da raça ${linha.raca || indice + 1}`}
+                          disabled={saving !== null}
+                          onClick={() => removerRaca(id, indice)}
+                          className="size-9 text-destructive hover:text-destructive">
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="col-span-2 space-y-1">
                   <Label htmlFor={id + '-regras'}>Variação por porte, pelagem, raça ou modalidade</Label>
