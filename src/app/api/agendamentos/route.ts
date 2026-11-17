@@ -6,7 +6,8 @@ import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoSchema, statusAgenda } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
 import { canViewAppointments, canScheduleBath, isOperationalOperator } from '@/lib/operational-access'
-import { getOperationalProfessional, horarioBloqueado } from '@/lib/agenda-bloqueios'
+import { getOperationalProfessional } from '@/lib/agenda-bloqueios'
+import { horarioBloqueado } from '@/lib/agenda-bloqueios-policy'
 
 export const dynamic = 'force-dynamic'
 async function admin() {

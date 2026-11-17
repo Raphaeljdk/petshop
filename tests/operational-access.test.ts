@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isAndreOperator, canViewAppointments, canScheduleBath, canViewDeliveryAddresses, roleForTeamInvitation } from '../src/lib/operational-access'
+import { isAndreOperator, isOperationalOperator, isOperationalEmail, canViewAppointments, canScheduleBath, canViewDeliveryAddresses, roleForTeamInvitation } from '../src/lib/operational-access'
 
 describe('permissões individuais do André', () => {
   const andre = { email: 'Andreflavieira21@gmail.com', role: 'KANBAN' }
@@ -26,5 +26,20 @@ describe('permissões individuais do André', () => {
   })
   test('ADMIN continua com acesso administrativo normal', () => {
     expect(canViewAppointments({ role: 'ADMIN', email: 'qualquer@empresa.com' })).toBe(true)
+  })
+})
+
+
+describe('perfil operacional do Aleksander', () => {
+  const aleksander = { email: 'Aleksanderprado97@icloud.com', role: 'KANBAN' }
+  test('Aleksander recebe acesso equivalente ao André sem privilégios ADMIN', () => {
+    expect(isOperationalEmail(aleksander.email)).toBe(true)
+    expect(isOperationalOperator(aleksander)).toBe(true)
+    expect(canViewAppointments(aleksander)).toBe(true)
+    expect(canScheduleBath(aleksander)).toBe(true)
+    expect(canViewDeliveryAddresses(aleksander)).toBe(true)
+    expect(roleForTeamInvitation(aleksander.email)).toBe('KANBAN')
+    expect(isOperationalOperator({ ...aleksander, role: 'CLIENTE' })).toBe(false)
+    expect(roleForTeamInvitation('outro@exemplo.com')).toBe('ADMIN')
   })
 })

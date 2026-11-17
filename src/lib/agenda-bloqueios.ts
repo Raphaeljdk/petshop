@@ -26,8 +26,3 @@ export async function getOperationalProfessional(user: User) {
     create: { userId: user.id, nome, especialidades: 'Banho', ativo: true },
   })
 }
-
-// Os agendamentos armazenam horário de início, não duração. O bloqueio vale para esse horário.
-export function horarioBloqueado(horario: Date, inicio: Date, fim: Date): boolean {
-  return horario >= inicio && horario < fim
-}

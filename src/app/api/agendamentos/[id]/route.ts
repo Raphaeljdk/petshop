@@ -5,7 +5,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoPatchSchema } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
-import { horarioBloqueado } from '@/lib/agenda-bloqueios'
+import { horarioBloqueado } from '@/lib/agenda-bloqueios-policy'
 type Params = { params: Promise<{ id: string }> }
 async function admin() {
   const user = await getUsuarioLogado()
