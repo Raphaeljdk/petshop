@@ -37,10 +37,11 @@ export function ClientTermsAcceptance() {
   return <section aria-label="Aceite dos termos do portal" className="mx-auto mt-4 w-full max-w-7xl px-4 sm:px-6">
     <div className="rounded-xl border border-primary/25 bg-card p-4 text-sm">
       <p className="font-semibold">Termos de uso do portal Matilha Prado</p>
-      <p className="mt-1 text-muted-foreground">Para registrar sua concordância, leia os <Link href="/privacidade" target="_blank" className="font-medium text-primary underline">termos e informações de privacidade</Link>. O aceite é guardado na sua conta e continua registrado nos próximos logins. Autorizações de divulgação de fotos do pet são separadas e podem ser revogadas.</p>
+      <p className="mt-1 text-muted-foreground">Ao usar o portal, você poderá acompanhar os pets vinculados à sua conta, compras e solicitações de serviços. Solicitações de agendamento dependem de confirmação da equipe; planos e vales só são ativados após confirmação de pagamento. Confira também o <Link href="/privacidade" target="_blank" className="font-medium text-primary underline">aviso de privacidade e seus direitos</Link>. A autorização para publicar fotos do pet é opcional, independente destes termos e revogável.</p>
+      <p className="mt-1 text-xs text-muted-foreground">O aceite destas condições fica registrado no seu perfil e permanece nos próximos acessos. A Matilha Prado poderá apresentar uma nova versão caso as condições sejam alteradas.</p>
       <label className="mt-3 flex cursor-pointer items-center gap-2">
         <input type="checkbox" className="size-4 accent-primary" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/>
-        Li e concordo com os termos de uso e privacidade do portal.
+        Li e concordo com as condições de uso apresentadas e li o aviso de privacidade.
       </label>
       <Button className="mt-3" size="sm" onClick={()=>void accept()} disabled={!agreed||saving}>{saving?'Salvando...':'Registrar meu aceite'}</Button>
     </div>
