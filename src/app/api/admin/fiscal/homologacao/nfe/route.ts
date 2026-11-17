@@ -11,7 +11,7 @@ import {gerarRascunhoNfe55,NfeRascunhoError} from '@/lib/nfe-xml-modelo55'
 import {PRODUTO_TESTE_INICIAL_ID,SKU_TESTE_INICIAL} from '@/lib/nfe-homologacao-preparo'
 import {BLOQUEIO_NUMERACAO_HOMOLOGACAO,bloqueioNumeracaoValido} from '@/lib/nfe-homologacao-lock'
 import {montarLoteHomologacao,montarConsultaHomologacao,montarRetornoHomologacao,
- enviarSoapHomologacao,interpretarAutorizacaoHomologacao} from '@/lib/sefaz-sp-nfe-homologacao'
+ enviarSoapHomologacao,interpretarAutorizacaoHomologacao,classificarSituacaoHomologacao,podeRetransmitirHomologacao} from '@/lib/sefaz-sp-nfe-homologacao'
 
 export const runtime='nodejs'
 export const dynamic='force-dynamic'
@@ -36,7 +36,7 @@ const preparar=z.object({
   documento:z.string().regex(/^(?:\d{11}|\d{14})$/),endereco}).strict(),
  pis:trib,cofins:trib,confirmacao:z.literal('PREPARAR TESTE'),
 }).strict()
-const acao=z.object({acao:z.enum(['transmitir','consultar']),
+const acao=z.object({acao:z.enum(['transmitir','consultar','retransmitir']),
  id:z.string().min(1).max(120),confirmacao:z.string().max(80).optional()}).strict()
 
 async function admin(){
@@ -155,8 +155,7 @@ function montarNfeProc(xml:string,soap:string){
 }
 async function registrarRetorno(id:string,soap:string,chave:string,assinado:string){
  const r=interpretarAutorizacaoHomologacao(soap,chave)
- const status=r.autorizada?'autorizada':r.recibo?'recebida':
-  (r.protocolo?.status||r.statusLote)>=200?'rejeitada':'incerta'
+ const status=classificarSituacaoHomologacao(r)
  const data={
   status,recibo:r.recibo,protocolo:r.protocolo?.numero||null,
   codigoSefaz:r.protocolo?.status||r.statusLote,
@@ -167,10 +166,14 @@ async function registrarRetorno(id:string,soap:string,chave:string,assinado:stri
  return {id,chave,status,ambiente:'homologacao',codigoSefaz:data.codigoSefaz,
   motivoSefaz:data.motivoSefaz,protocolo:data.protocolo,recibo:data.recibo}
 }
-async function transmitir(id:string){
+async function transmitir(id:string,reenvio=false){
  const nota=await db.nfeHomologacao.findUnique({where:{id}})
  if(!nota||nota.ambiente!==2)return fail('NF-e de homologação inexistente.',404)
- if(nota.status!=='preparada')return fail('Documento já enviado ou pendente. Consulte antes de retransmitir.',409)
+ if(reenvio){
+  if(!podeRetransmitirHomologacao(nota))
+   return fail('Retransmissão bloqueada: aguarde 3 minutos e confirme cStat 217 na consulta pela chave. A mesma NF-e será reutilizada.',409)
+ }else if(nota.status!=='preparada')
+  return fail('Documento já enviado ou pendente. Consulte a mesma chave antes de retransmitir.',409)
  await configValidada()
  validarXmlNfeXsdHomologacao(nota.xmlAssinado)
  const cred=credenciais()
