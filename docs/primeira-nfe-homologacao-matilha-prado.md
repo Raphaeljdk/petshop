@@ -44,4 +44,14 @@ Este plano distingue **dado registrado** de **tratamento aprovado pela contabili
 - Esquemas XML: https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w=
 - URLs serviços SEFAZ-SP: https://portal.fazenda.sp.gov.br/servicos/nfe/Paginas/URL-WEBSERVICES.aspx
 
-**Status do sistema na entrega deste plano**: prévia de preparo implementada; assinatura, XSD, autorização própria e protocolo ainda não implementados. Não alegar NF-e real autorizada.
+## Atualização de homologação — novembro de 2026
+
+- O ERP já possui preparação isolada da série 2, assinatura XMLDSig com A1, validação XSD e transmissão SOAP à SEFAZ-SP em ambiente tpAmb=2.
+- A primeira nota de teste, série 2 e número 1, foi preparada e assinada. Sua transmissão registrou **timeout** na comunicação com o serviço de autorização. No Neon o status ficou `incerta`, sem recibo, protocolo ou cStat; isso **não representa autorização**.
+- A correção da PR #145 amplia o tempo de espera da autorização para 30 segundos e das consultas para 20 segundos, atualiza o histórico após falha e registra diagnósticos sem segredos.
+- Após uma falha de comunicação, **não gerar nova numeração**. Aguardar pelo menos 3 minutos e consultar a chave pelo `NFeConsultaProtocolo4` de homologação.
+- O retorno `cStat 217` da consulta indica que a chave não foi localizada. Ele não prova, isoladamente, a rejeição da tentativa de autorização.
+- Só após consulta `217`, ausência de recibo e protocolo e prazo mínimo de 3 minutos, o administrador pode **retransmitir o mesmo XML assinado com a mesma série, número e chave**, mediante confirmação explícita e trava atômica. Nunca há reenvio automático.
+- O status `cStat 100` com protocolo válido é necessário para declarar uma NF-e de homologação autorizada. Emissão real continua bloqueada.
+
+**Status atual:** implementação e testes automatizados disponíveis. A primeira NF-e de homologação ainda aguarda autorização confirmada e protocolo. Não emitir em produção até a validação fiscal completa.
