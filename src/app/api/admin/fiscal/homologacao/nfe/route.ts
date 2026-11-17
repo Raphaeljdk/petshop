@@ -66,18 +66,18 @@ async function prepararTeste(input:z.infer<typeof preparar>){
  try {
  const empresa=await configValidada()
  etapa='carregamento do produto'
- // Usar ID específico: o catálogo contém mais de um Kong ativo com o mesmo SKU.
+ // Usar ID específico: há cadastros do mesmo aditivo com SKUs diferentes.
  const produto=await db.produto.findFirst({where:{id:PRODUTO_TESTE_INICIAL_ID,sku:SKU_TESTE_INICIAL,ativo:true},
   select:{id:true,nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,
    unidadeFiscal:true,gtinFiscal:true,pisCst:true,cofinsCst:true}})
  if(!produto)
-  throw new NfeRascunhoError('Kong Extreme XXL não encontrado ou inativo. Nenhum XML de teste foi gerado.')
+  throw new NfeRascunhoError('Arm & Hammer Enxágue Dental 473 ml não encontrado ou inativo. Nenhum XML de teste foi gerado.')
  if(!/^\d{8}$/.test(produto.ncm||'')||!/^5\d{3}$/.test(produto.cfop||'')||
    !produto.origem||!produto.unidadeFiscal||!/^\d{8}$|^\d{12,14}$/.test(produto.gtinFiscal||'')||
    !produto.csosn||!produto.pisCst||!produto.cofinsCst)
-  throw new NfeRascunhoError('Kong Extreme XXL sem cadastro fiscal completo: confirmar NCM, CFOP, CSOSN, CST PIS/COFINS, origem, GTIN e CEST com a contadora.')
+  throw new NfeRascunhoError('Arm & Hammer Enxágue Dental 473 ml sem cadastro fiscal completo: confirmar NCM, CFOP, CSOSN, CST PIS/COFINS, origem, GTIN e CEST com a contadora.')
  if(produto.csosn!=='102'||produto.pisCst!=='49'||produto.cofinsCst!=='49')
-  throw new NfeRascunhoError('Os códigos fiscais do Kong exigem um grupo de XML ainda não implementado para este teste. Não copiar códigos de outro produto.')
+  throw new NfeRascunhoError('Os códigos fiscais do Arm & Hammer 473 ml exigem um grupo de XML ainda não implementado para este teste. Não copiar códigos de outro produto.')
  // Somente regra da própria operação, aprovada pela contadora, libera a preparação.
  etapa='conferência da regra fiscal aprovada'
  const regra=await db.regraFiscalAprovada.findFirst({where:{
@@ -86,7 +86,7 @@ async function prepararTeste(input:z.infer<typeof preparar>){
    pisCst:produto.pisCst!,cofinsCst:produto.cofinsCst!,cest:produto.cest,
  }})
  if(!regra)
-  throw new NfeRascunhoError('Falta registrar a aprovação fiscal do Kong Extreme XXL para venda interna em SP, com indicação expressa de CEST e tratamento PIS/COFINS.')
+  throw new NfeRascunhoError('Falta registrar a aprovação fiscal do Arm & Hammer Enxágue Dental 473 ml para venda interna em SP, com indicação expressa de CEST e tratamento PIS/COFINS.')
  etapa='leitura do certificado A1'
  const cred=credenciais()
  etapa='verificação de CNPJ e validade do A1'

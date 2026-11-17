@@ -18,9 +18,10 @@ export type NumeroEmitido = {
 }
 const filled=(v:string|null|undefined)=>!!v?.trim()
 const formato=(v:string|null|undefined,pattern:RegExp)=>pattern.test(v?.trim()||'')
-// ID explícito: há dois produtos ATIVOS com o mesmo SKU. Não usar findFirst por SKU.
-export const PRODUTO_TESTE_INICIAL_ID='cmuvzedgt006wl80407vs0g6a'
-export const SKU_TESTE_INICIAL='035585111421'
+// Seleção por ID: o mesmo nome aparece em cadastros distintos com SKUs diferentes.
+// Este cadastro possui classificação preenchida, mas ainda exige regra fiscal aprovada.
+export const PRODUTO_TESTE_INICIAL_ID='cmund1rbu003il0042pqww20r'
+export const SKU_TESTE_INICIAL='742797096780'
 export function prepararPrimeiraHomologacao(input:{
   produto:ProdutoHomologacao|null;emitente:EmitenteHomologacao|null
   documentos:NumeroEmitido[];regrasAprovadas:number;certificadoConfigurado:boolean
@@ -34,34 +35,34 @@ export function prepararPrimeiraHomologacao(input:{
   const observacoes:string[]=[]
   const pendenciasProduto:string[]=[]
   const faltando=(mensagem:string)=>{observacoes.push(mensagem);pendenciasProduto.push(mensagem)}
-  if(!p)faltando('Kong Extreme XXL não encontrado no catálogo.')
+  if(!p)faltando('Arm & Hammer Enxágue Dental 473 ml não encontrado no catálogo.')
   else {
     if(p.id!==PRODUTO_TESTE_INICIAL_ID||p.sku!==SKU_TESTE_INICIAL)
-      faltando('O produto selecionado não corresponde ao Kong Extreme XXL escolhido para o teste.')
+      faltando('O produto selecionado não corresponde ao Arm & Hammer Enxágue Dental 473 ml escolhido para o teste.')
     if(!p.ativo)faltando('Produto de referência inativo.')
     if(!formato(p.ncm,/^\d{8}$/))faltando('NCM ausente ou fora do formato de oito dígitos.')
     if(!formato(p.gtinFiscal,/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/))
       faltando('GTIN fiscal não identificado em formato padrão; conferir fabricante/GS1.')
     if(!formato(p.cfop,/^5\d{3}$/))
-      faltando('CFOP do Kong pendente ou incompatível com operação interna em SP.')
+      faltando('CFOP do Arm & Hammer 473 ml pendente ou incompatível com operação interna em SP.')
     if(!formato(p.csosn,/^(101|102|103|201|202|203|300|400|500|900)$/))
-      faltando('CSOSN do Kong ausente ou inválido.')
+      faltando('CSOSN do Arm & Hammer 473 ml ausente ou inválido.')
     if(!filled(p.pisCst)||!filled(p.cofinsCst))
-      faltando('CST PIS e COFINS do Kong ainda não foram preenchidos.')
+      faltando('CST PIS e COFINS do Arm & Hammer 473 ml ainda não foram preenchidos.')
     if(!filled(p.unidadeFiscal)||!filled(p.origem))
       faltando('Origem ou unidade fiscal pendente.')
   }
   // O gerador implementado neste primeiro teste suporta somente CSOSN 102 e CST 49.
-  // Não copie classificação da Strong Ball: uma regra fiscal APROVADA deve respaldar o Kong.
+  // Não copiar classificação de outro produto: somente uma regra fiscal APROVADA deve respaldar o Arm & Hammer.
   if(p?.csosn&&p.csosn!=='102')
-    faltando('O CSOSN informado para o Kong requer implementação própria antes da NF-e de teste.')
+    faltando('O CSOSN informado para o Arm & Hammer 473 ml requer implementação própria antes da NF-e de teste.')
   if((p?.pisCst&&p.pisCst!=='49')||(p?.cofinsCst&&p.cofinsCst!=='49'))
-    faltando('O CST PIS/COFINS do Kong exige tratamento específico; o emissor inicial só prepara CST 49.')
+    faltando('O CST PIS/COFINS do Arm & Hammer 473 ml exige tratamento específico; o emissor inicial só prepara CST 49.')
 
   if(!e||e.regimeTributario!=='1'||e.uf!=='SP'||!filled(e.cnpj)||!filled(e.inscricaoEstadual))
     observacoes.push('Dados fiscais do emitente CRT 1 / SP incompletos ou não confirmados.')
   if(!certificadoConfigurado)observacoes.push('Variáveis protegidas do certificado A1 indisponíveis no servidor.')
-  if(regrasAprovadas===0)faltando('Falta registrar no ERP a regra fiscal do Kong aprovada pela contadora, incluindo NCM, CFOP, CSOSN, PIS/COFINS e CEST ou sua dispensa.')
+  if(regrasAprovadas===0)faltando('Falta registrar no ERP a regra fiscal do Arm & Hammer 473 ml aprovada pela contadora, incluindo NCM, CFOP, CSOSN, PIS/COFINS e CEST ou sua dispensa.')
   observacoes.push('A série 2 deve continuar exclusiva do emissor próprio. Conferir o histórico externo antes de reservar numeração real.')
   if(autorizacoesHomologacao===0)
     observacoes.push('Nenhuma NF-e 55 própria autorizada em homologação consta no banco. Preparar, assinar, validar e transmitir o teste para obter cStat 100 e protocolo.')
