@@ -66,6 +66,7 @@ export interface Processo {
   servico: string
   responsavel: string | null
   anamnese: string | null
+  requiresFicha?: boolean
   inicioAtendimento: string | null
   fimAtendimento: string | null
   valorServico: number

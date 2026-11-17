@@ -1,5 +1,6 @@
 'use client'
 import { PetProfileEditor, type PetProfile } from './PetProfileEditor'
+import { ClientFichasPet,type ClientFicha } from './ClientFichasPet'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -229,6 +230,7 @@ export function ClientMeusPets() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [profiles, setProfiles] = useState<PetProfile[] | null>(null)
+  const [fichas, setFichas] = useState<ClientFicha[]>([])
   const [editando, setEditando] = useState<Pet | null>(null)
   const [form, setForm] = useState<any>({})
   const [anamneseView, setAnamneseView] = useState<Processo | null>(null)
@@ -241,14 +243,16 @@ export function ClientMeusPets() {
 
   const carregar = useCallback(async () => {
     try {
-      const [r1, r2, r3] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
         fetch('/api/cliente/pets', { credentials: 'same-origin' }),
         fetch('/api/cliente/processos', { credentials: 'same-origin' }),
         fetch('/api/cliente/perfil-pet', { credentials: 'same-origin' }),
+        fetch('/api/cliente/atendimentos', { credentials:'same-origin',cache:'no-store' }),
       ])
       if (r1.ok) setPets(await r1.json())
       if (r2.ok) setProcessos(await r2.json())
       if (r3.ok) setProfiles(await r3.json())
+      if (r4.ok) {const data=await r4.json();setFichas(Array.isArray(data.fichas)?data.fichas:[])}
     } catch (e) {
       console.error('pets cliente erro:', e)
     } finally {
@@ -436,6 +440,8 @@ export function ClientMeusPets() {
                     <span className="px-2 py-1 bg-muted rounded">Peso: {p.peso} kg</span>
                   )}
                 </div>
+
+                <ClientFichasPet petNome={p.nome} fichas={fichas.filter(f=>f.petId===p.id)} onUpdated={carregar}/>
 
                 {/* Timeline do último processo */}
                 <div className="space-y-2">

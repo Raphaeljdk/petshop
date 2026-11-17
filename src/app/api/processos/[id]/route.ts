@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { emitWebSocket } from '@/lib/realtime'
+import { canAdvanceServiceProcess,unsafeCheckin } from '@/lib/atendimento-flow'
 
 export async function GET(
   _req: NextRequest,
@@ -60,6 +61,20 @@ export async function PATCH(
 
     if (status !== undefined && !['novo','em_andamento','aguardando_resposta','finalizado','cancelado'].includes(status)) {
       return NextResponse.json({ error: 'Status de atendimento inválido.' }, { status: 400 })
+    }
+    if (processoExistente.requiresFicha &&
+        (status==='em_andamento'||status==='finalizado')){
+      const ficha=await db.atendimentoFicha.findUnique({
+        where:{processoId:id},select:{checkinStatus:true,checkoutFinalizadoAt:true,checkin:true}
+      })
+      const error=canAdvanceServiceProcess({
+        requiresFicha:true,status,
+        checkinStatus:ficha?.checkinStatus,
+        checkoutCompleted:Boolean(ficha?.checkoutFinalizadoAt),
+      })
+      if(error)return NextResponse.json({error},{status:409})
+      if(unsafeCheckin(ficha?.checkin))
+        return NextResponse.json({error:'A ficha informa necessidade de avaliação veterinária ou suspensão por segurança. Não inicie o serviço até que a situação seja regularizada em novo atendimento.'},{status:409})
     }
     const dadosAtualizacao: any = {}
     if (status !== undefined) dadosAtualizacao.status = status
