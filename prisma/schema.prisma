@@ -929,6 +929,14 @@ model AtendimentoFicha {
   checkout Json?
   checkoutById String?
   checkoutFinalizadoAt DateTime?
+  // Ciência do tutor sobre o check-out, independente da autorização de entrada.
+  checkoutAceiteStatus String @default("nao_solicitado")
+  checkoutAceiteAt DateTime?
+  checkoutAceiteUserId String?
+  checkoutAceiteNome String?
+  checkoutAceiteVersao String?
+  checkoutAceiteHash String?
+  checkoutAceiteIpHash String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   processo Processo @relation(fields:[processoId],references:[id],onDelete:Restrict)
