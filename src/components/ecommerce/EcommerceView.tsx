@@ -1157,7 +1157,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       if (fotoSelecionada) {
         const uploadForm = new FormData()
         const fotoPreparada = await prepararFotoParaUpload(fotoSelecionada)
-        uploadForm.append('file', fotoPreparada, 'produto.' + (fotoPreparada.type === 'image/jpeg' ? 'jpg' : 'webp'))
+        const extensao = fotoPreparada.type === 'image/jpeg' ? 'jpg' : fotoPreparada.type === 'image/png' ? 'png' : 'webp'
+        uploadForm.append('file', fotoPreparada, `produto.${extensao}`)
         const response = await fetch('/api/produtos/imagens', {
           method: 'POST',
           credentials: 'same-origin',
