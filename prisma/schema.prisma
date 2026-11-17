@@ -627,6 +627,7 @@ model ImportacaoFiscalProduto {
 model ServicoEsteticoConfig {
   chave String @id
   precoCentavos Int?
+  precosPorRaca Json @default("[]")
   duracaoMinutos Int?
   regrasPreco String? @db.Text
   observacoes String? @db.Text
