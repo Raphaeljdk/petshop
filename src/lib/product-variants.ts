@@ -100,6 +100,8 @@ function catalogFamilyName(nome: string): string | null {
   // outras cores/tamanhos continuam disponíveis como variações reais.
   if (/^jaqueta maxi puffer camuflado laranja cachorro porte\b/.test(normalized))
     return 'Jaqueta Maxi Puffer Camuflado/Laranja Cachorro Porte'
+  if (/^areia sanitaria gato milho mandioca biodegradavel 2kg grossa(?: great pets)?$/.test(normalized))
+    return 'Areia Sanitária Milho e Mandioca Great Pets 2 kg Grossa'
   if (/^granulado de tofu areia (?:p|para) gatos 2kg great pets biodegradavel\b/.test(normalized)
       && !/\b(?:lavanda|perfumado|carvao)\b/.test(normalized))
     return 'Granulado de Tofu Great Pets Natural 2 kg'
