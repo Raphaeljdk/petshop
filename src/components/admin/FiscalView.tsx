@@ -649,8 +649,8 @@ export function FiscalView() {
               </div>
             </details>
             <p className="text-xs text-muted-foreground">
-              A opção Produção abaixo registra uma preferência cadastral. O teste de conexão A1/SEFAZ
-              permanece no ambiente de homologação e não transmite NF-e.
+              Este painel verifica apenas a prontidão da emissão REAL. A opção Produção é uma preferência cadastral, não libera a emissão.
+              O teste NFeStatusServico4 não emite notas; a transmissão de NF-e de TESTE é uma ação separada e exige confirmação no histórico de homologação.
             </p>
           </div>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
