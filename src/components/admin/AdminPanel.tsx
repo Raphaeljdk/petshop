@@ -5,6 +5,8 @@ import { LogOut, Radio, ChevronRight, Menu, Search, Command as CommandIcon } fro
 import { Sidebar, type TabId } from '@/components/layout/Sidebar'
 import { DashboardView } from '@/components/dashboard/DashboardView'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
+import { AndreOperations } from '@/components/operacional/AndreOperations'
+import { isAndreOperator } from '@/lib/operational-access'
 import { AgendamentosView } from '@/components/agendamentos/AgendamentosView'
 import { EcommerceView } from '@/components/ecommerce/EcommerceView'
 import { IntegracoesView } from '@/components/integracoes/IntegracoesView'
@@ -152,6 +154,7 @@ function AdminPanelImpl() {
   if (!user) return null
 
   if (user.role === 'KANBAN') {
+    const acessoAndre = isAndreOperator(user)
     return (
       <div className="app-shell flex min-h-dvh flex-col bg-background">
         <header className="app-header sticky top-0 z-40 border-b border-border">
@@ -160,7 +163,7 @@ function AdminPanelImpl() {
               <Logo size="sm" withText={false} />
               <div>
                 <p className="text-sm font-semibold">Agenda Matilha Prado</p>
-                <p className="text-xs text-muted-foreground">Acesso exclusivo ao Kanban</p>
+                <p className="text-xs text-muted-foreground">{acessoAndre ? 'Banhos, agenda e entregas' : 'Acesso exclusivo ao Kanban'}</p>
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={handleLogout}>
@@ -170,7 +173,7 @@ function AdminPanelImpl() {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <KanbanBoard limitedAccess />
+          {acessoAndre ? <AndreOperations /> : <KanbanBoard limitedAccess />}
         </main>
       </div>
     )

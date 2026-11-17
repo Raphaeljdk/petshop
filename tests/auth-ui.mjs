@@ -161,7 +161,7 @@ try {
   await page.getByRole('heading', { name: 'Equipe e convites' }).waitFor()
   passed('Cadastro real de administrador abre a gestão de equipe')
 
-  await page.getByLabel('E-mail do administrador').fill(prefix + '-convite@example.test')
+  await page.getByLabel('E-mail da pessoa autorizada').fill(prefix + '-convite@example.test')
   await page.getByRole('button', { name: 'Gerar convite', exact: true }).click()
   await page.getByRole('heading', { name: 'Convite pronto' }).waitFor()
   assert.equal((await page.getByLabel('Código gerado').inputValue()).length, 64)
