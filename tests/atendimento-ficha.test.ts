@@ -5,6 +5,7 @@ import {canAdvanceServiceProcess,requiresFichaAtendimento,unsafeCheckin} from '.
 
 test('modelo contempla as secoes de check-in e check-out e versao do aceite',()=>{
  assert.equal(CHECKIN_SECTIONS.length,9)
+ assert.equal(CHECKIN_SECTIONS.at(-1)?.title,'10. Registro interno — entrada')
  assert.equal(CHECKOUT_SECTIONS.length,9)
  assert.ok(CHECKIN_SECTIONS.flatMap(s=>s.fields).length>=65)
  assert.ok(CHECKOUT_SECTIONS.flatMap(s=>s.fields).length>=50)
