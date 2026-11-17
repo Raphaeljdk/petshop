@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { portalCliente, ownsPet, cleanEmail, imageData, petKeySchema, portalDate, bodyText, recommendationRank } from '@/lib/portal-care'
 import { getZettaAnimalsByClient } from '@/lib/zetta-client'
+import { artigoDeDiario } from '@/lib/portal-pet-blog'
 import { normalizarTelefonePresente } from '@/lib/portal-gift-phone'
 
 export const runtime = 'nodejs'
@@ -15,7 +16,9 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('memory'), petKey: petKeySchema,
     kind: z.enum(['diario', 'vacina_documento']), title: z.string().trim().min(2).max(120),
     notes: bodyText, imageData, weightKg: z.number().min(0.1).max(200).nullable().optional(),
-    eventAt: portalDate, nextAt: portalDate }).strict(),
+    eventAt: portalDate, nextAt: portalDate,
+    autorizarBlog: z.boolean().optional() }).strict(),
+  z.object({ action: z.literal('blog-consent'), id: z.string().min(1), accepted: z.boolean() }).strict(),
   z.object({ action: z.literal('remove-memory'), id: z.string().min(1) }).strict(),
   z.object({ action: z.literal('preferences'), remindersInApp: z.boolean(),
     remindersEmail: z.boolean(), remindersWhatsapp: z.boolean(),
@@ -62,6 +65,15 @@ export async function GET() {
       db.customerPreference.findMany({ where:{ clienteId, favorite:true },take:30,
         select:{ produto:{select:{ categoria:true,nome:true }} } }),
     ])
+    const publishedMemories = await db.portalPetMemory.findMany({
+      where: { kind:'diario', createdByAdmin:false, blogStatus:'publicado', blogConsentAt:{not:null} },
+      select: {
+        id:true, kind:true, title:true, notes:true, imageData:true, createdAt:true, eventAt:true,
+        blogConsentAt:true, blogStatus:true, createdByAdmin:true,
+      },
+      orderBy:{createdAt:'desc'},take:24,
+    })
+    const historias = publishedMemories.map(artigoDeDiario).filter((story) => story !== null)
     const pets = localPets.map((p) => ({ ...p, origem:'local' as const }))
     if (user.siggmaCliCod) {
       try {
@@ -103,7 +115,7 @@ export async function GET() {
         return { pet, agenda, inviteId:invite.id }
       }))
     return NextResponse.json({
-      articles, favorites:favorites.map((x) => x.articleId),
+      articles:[...articles, ...historias].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()), favorites:favorites.map((x) => x.articleId),
       memories, preferences: preferences || {
         remindersInApp:true, remindersEmail:false, remindersWhatsapp:false,
         marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false,
@@ -136,6 +148,8 @@ export async function POST(req: NextRequest) {
     if (data.action === 'memory') {
       if (!await ownsPet(user,data.petKey))
         return NextResponse.json({ error:'Pet não encontrado na sua conta.' }, { status:404 })
+      if (data.kind !== 'diario' && data.autorizarBlog)
+        return NextResponse.json({error:'Somente anotações do diário podem ser enviadas para o blog.'},{status:400})
       if (data.kind === 'vacina_documento' && !data.imageData)
         return NextResponse.json({ error:'Anexe uma foto do comprovante para registrar o documento.' }, { status:400 })
       const count = await db.portalPetMemory.count({where:{clienteId}})
@@ -148,8 +162,32 @@ export async function POST(req: NextRequest) {
         weightKg:data.weightKg ?? null,
         eventAt:data.eventAt ? new Date(data.eventAt) : new Date(),
         nextAt:data.nextAt ? new Date(data.nextAt) : null,
+        blogConsentAt:data.kind==='diario'&&data.autorizarBlog ? new Date() : null,
+        blogStatus:data.kind==='diario'&&data.autorizarBlog ? 'pendente' : 'privado',
       } })
-      return NextResponse.json({ id:item.id }, { status:201 })
+      return NextResponse.json({
+        id:item.id, note:data.kind==='diario'&&data.autorizarBlog
+          ? 'Diário salvo. Sua história foi enviada para revisão e ainda não aparece no blog.'
+          : 'Registro adicionado ao diário particular.',
+      }, { status:201 })
+    }
+    if (data.action === 'blog-consent') {
+      const record=await db.portalPetMemory.findFirst({
+        where:{id:data.id,clienteId,kind:'diario',createdByAdmin:false},
+        select:{id:true,blogStatus:true,blogConsentAt:true},
+      })
+      if(!record) return NextResponse.json({error:'Diário não encontrado na sua conta.'},{status:404})
+      if (data.accepted && record.blogStatus==='publicado')
+        return NextResponse.json({success:true,note:'Esta história já está publicada no blog.'})
+      const result=await db.portalPetMemory.updateMany({
+        where:{id:record.id,clienteId,kind:'diario',createdByAdmin:false},
+        data:data.accepted
+          ? {blogConsentAt:new Date(),blogStatus:'pendente',blogReviewedAt:null,blogReviewedBy:null}
+          : {blogConsentAt:null,blogStatus:'revogado'},
+      })
+      return NextResponse.json({success:result.count>0,note:data.accepted
+        ? 'Autorização registrada. A história ficará aguardando aprovação da equipe.'
+        : 'Autorização retirada. A história não aparecerá mais no blog.'})
     }
     if (data.action === 'remove-memory') {
       const result = await db.portalPetMemory.deleteMany({ where: { id:data.id, clienteId, createdByAdmin:false } })
