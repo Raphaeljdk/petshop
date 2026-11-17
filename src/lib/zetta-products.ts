@@ -299,7 +299,8 @@ export async function syncZettaProductsToLocal() {
           estoqueIlimitado,
           sku,
           zettaProCod: product.id,
-          ...(imageUrl ? { imageUrl } : {}),
+          // Uma imagem enviada manualmente pelo gestor não é substituída pelo Zetta.
+          ...(imageUrl && !existing.imageUrl?.startsWith('/api/produtos/imagens/') ? { imageUrl } : {}),
           // A publicação é controlada pela loja; sincronizar não deve reativar itens ocultos.
           ativo: existing.ativo,
         },

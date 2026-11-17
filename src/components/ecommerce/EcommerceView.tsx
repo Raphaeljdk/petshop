@@ -732,6 +732,63 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
 
   // dialog produto
   const [dialogProduto, setDialogProduto] = useState(false)
+  const [fotoSelecionada, setFotoSelecionada] = useState<File | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null)
+  const [salvandoProduto, setSalvandoProduto] = useState(false)
+
+  useEffect(() => {
+    if (!fotoSelecionada) {
+      setFotoPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(fotoSelecionada)
+    setFotoPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [fotoSelecionada])
+
+  async function prepararFotoParaUpload(arquivo: File): Promise<Blob> {
+    // Fotos grandes selecionadas no PC/celular são reduzidas no navegador
+    // antes de passar pela função Vercel (limite da plataforma: 4,5 MB).
+    if (arquivo.size <= 4 * 1024 * 1024) return arquivo
+
+    const objectUrl = URL.createObjectURL(arquivo)
+    const imagem = new window.Image()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        imagem.onload = () => resolve()
+        imagem.onerror = () => reject(new Error('Não foi possível abrir a fotografia.'))
+        imagem.src = objectUrl
+      })
+      const scale = Math.min(1, 1400 / Math.max(imagem.naturalWidth, imagem.naturalHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(imagem.naturalWidth * scale))
+      canvas.height = Math.max(1, Math.round(imagem.naturalHeight * scale))
+      const contexto = canvas.getContext('2d')
+      if (!contexto) throw new Error('Não foi possível preparar a imagem.')
+      contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height)
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (value) => value ? resolve(value) : reject(new Error('Falha ao preparar a imagem.')),
+          'image/jpeg',
+          0.78,
+        )
+      })
+      if (blob.size > 4 * 1024 * 1024) throw new Error('Imagem muito grande. Use uma fotografia menor.')
+      return blob
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }
+
+  function escolherFoto(arquivo?: File) {
+    if (!arquivo) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type) ||
+        arquivo.size === 0 || arquivo.size > 8 * 1024 * 1024) {
+      toast.error('Escolha uma imagem JPG, PNG ou WebP de até 8 MB.')
+      return
+    }
+    setFotoSelecionada(arquivo)
+  }
   const [editProduto, setEditProduto] = useState<Produto | null>(null)
   const [form, setForm] = useState<Record<string, unknown>>({})
   const [dialogVenda, setDialogVenda] = useState(false)
@@ -1056,6 +1113,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   /* ---------------------- ações produtos ---------------------- */
 
   function abrirNovoProduto() {
+    setFotoSelecionada(null)
     setEditProduto(null)
     setForm({
       nome: '',
@@ -1072,6 +1130,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
   }
 
   const abrirEdicaoProduto = (p: Produto) => {
+    setFotoSelecionada(null)
     setEditProduto(p)
     setForm({
       nome: p.nome,
@@ -1092,7 +1151,26 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       toast.error('Preencha nome e preço')
       return
     }
+    setSalvandoProduto(true)
     try {
+      let imageUrl = (form.imageUrl as string) || null
+      if (fotoSelecionada) {
+        const uploadForm = new FormData()
+        const fotoPreparada = await prepararFotoParaUpload(fotoSelecionada)
+        const extensao = fotoPreparada.type === 'image/jpeg' ? 'jpg' : fotoPreparada.type === 'image/png' ? 'png' : 'webp'
+        uploadForm.append('file', fotoPreparada, `produto.${extensao}`)
+        const response = await fetch('/api/produtos/imagens', {
+          method: 'POST',
+          credentials: 'same-origin',
+          body: uploadForm,
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok || typeof payload.imageUrl !== 'string') {
+          throw new Error(payload.error || 'Não foi possível enviar a fotografia.')
+        }
+        imageUrl = payload.imageUrl
+      }
+
       const body = {
         nome: form.nome,
         descricao: (form.descricao as string) || null,
@@ -1101,7 +1179,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         precoPromo: form.precoPromo ? Number(form.precoPromo) : null,
         estoque: Number(form.estoque) || 0,
         sku: (form.sku as string) || null,
-        imageUrl: (form.imageUrl as string) || null,
+        imageUrl,
         ativo: form.ativo ?? true,
       }
       const url = editProduto
@@ -1114,12 +1192,18 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         credentials: 'same-origin',
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Não foi possível salvar o produto.')
+      }
       toast.success(editProduto ? 'Produto atualizado' : 'Produto criado')
+      setFotoSelecionada(null)
       setDialogProduto(false)
       carregar()
-    } catch {
-      toast.error('Erro ao salvar produto')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar produto')
+    } finally {
+      setSalvandoProduto(false)
     }
   }
 
@@ -1498,7 +1582,7 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       </div>
 
       {/* Dialog produto */}
-      <Dialog open={dialogProduto} onOpenChange={setDialogProduto}>
+      <Dialog open={dialogProduto} onOpenChange={(open) => { if (salvandoProduto) return; setDialogProduto(open); if (!open) setFotoSelecionada(null) }}>
         <DialogContent className="sm:max-w-2xl max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg sm:text-xl">
@@ -1578,12 +1662,45 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
                               
 />
             </div>
-            <div>
-              <Label htmlFor="imageUrl">URL da imagem</Label>
+            <div className="sm:col-span-2 space-y-2">
+              <Label htmlFor="produtoImagemArquivo">Imagem do produto (computador)</Label>
+              <input
+                id="produtoImagemArquivo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={salvandoProduto}
+                onChange={(event) => escolherFoto(event.target.files?.[0])}
+                className="flex h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-xs file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs file:font-medium"
+              />
+              <p className="text-xs text-muted-foreground">JPEG, PNG ou WebP, até 8 MB. A imagem será otimizada ao salvar.</p>
+              {(fotoPreview || Boolean(form.imageUrl)) && (
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-2">
+                  <img
+                    src={fotoPreview || (form.imageUrl as string)}
+                    alt="Prévia da fotografia do produto"
+                    className="size-20 rounded-md border bg-white object-contain"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {fotoSelecionada ? 'Nova imagem selecionada' : 'Imagem atual'}
+                  </span>
+                  {fotoSelecionada && (
+                    <Button type="button" variant="outline" size="sm" disabled={salvandoProduto}
+                      onClick={() => setFotoSelecionada(null)}>
+                      Descartar seleção
+                    </Button>
+                  )}
+                </div>
+              )}
+              <Label htmlFor="imageUrl" className="block pt-2">Ou informe a URL da imagem (opcional)</Label>
               <Input
                 id="imageUrl"
                 value={(form.imageUrl as string) || ''}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                disabled={salvandoProduto}
+                onChange={(event) => {
+                  setFotoSelecionada(null)
+                  setForm((prev) => ({ ...prev, imageUrl: event.target.value }))
+                }}
+                placeholder="https://..."
               />
             </div>
             <div className="sm:col-span-2">
@@ -1603,8 +1720,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={salvarProduto} className="h-10">
-              Salvar
+            <Button onClick={salvarProduto} disabled={salvandoProduto} className="h-10">
+              {salvandoProduto ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>

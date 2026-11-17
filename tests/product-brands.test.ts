@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { getProductBrand, recoverCatalogImages, SEM_MARCA } from '../src/lib/product-brands'
+import { findKongClassicImage, getProductBrand, MARCA_PERSONALIZAVEIS, recoverCatalogImages, SEM_MARCA } from '../src/lib/product-brands'
 
 test('marca do Zetta prevalece e KONG e reconhecida em diferentes tipos de produto', () => {
   assert.equal(getProductBrand({ nome: 'Bola de borracha para cães', marca: 'Kong' }), 'Kong')
@@ -68,4 +68,27 @@ test('não transforma toda roupa ou cama em marca: preserva identificação conf
     getProductBrand({ nome: 'Cama', variantes: [{ nome: 'Cama Kong' }, { nome: 'Cama Jambo Pet' }] }),
     SEM_MARCA
   )
+})
+
+test('marca Personalizáveis já fica reservada para próximos lançamentos', () => {
+  assert.equal(getProductBrand({ nome: 'Coleira Matilha Prado Personalizáveis', marca: MARCA_PERSONALIZAVEIS }), MARCA_PERSONALIZAVEIS)
+  assert.equal(getProductBrand({ nome: 'Coleira Matilha Prado personalizados' }), MARCA_PERSONALIZAVEIS)
+})
+
+test('miniatura Kong usa brinquedo Classic vermelho real, não outro produto da Kong', () => {
+  const products = [
+    { nome: 'Kong SqueakAir Bola Amarela', imageUrl: 'https://example.test/bola.jpg' },
+    { nome: 'KONG Original Classic Vermelho', imageUrl: 'https://example.test/classic.jpg' },
+  ]
+  assert.equal(findKongClassicImage(products), 'https://example.test/classic.jpg')
+  assert.equal(findKongClassicImage(products.slice(0, 1)), null)
+  assert.equal(findKongClassicImage([
+    {
+      nome: 'Brinquedos Kong',
+      imageUrl: 'https://example.test/outro.jpg',
+      variantes: [
+        { nome: 'Kong Classic Medium Vermelho', imageUrl: 'https://example.test/classic-variante.jpg' },
+      ],
+    },
+  ]), 'https://example.test/classic-variante.jpg')
 })

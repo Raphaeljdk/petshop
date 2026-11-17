@@ -947,3 +947,15 @@ model AtendimentoFichaEvento {
   ficha AtendimentoFicha @relation(fields:[fichaId],references:[id],onDelete:Restrict)
   @@index([fichaId, createdAt])
 }
+
+/**
+ * Fotografias enviadas pelo gestor da Matilha Prado.
+ * Persistência independente do disco temporário das funções Vercel.
+ * O produto guarda apenas a URL da imagem e o estoque permanece intocado.
+ */
+model ProdutoImagem {
+  id        String   @id @default(cuid())
+  conteudo  Bytes    @db.ByteA
+  tipo      String
+  createdAt DateTime @default(now())
+}
