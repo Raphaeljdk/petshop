@@ -22,3 +22,7 @@
 ## Referências
 - NT 2023.004, regra YA04-10 e grupo de pagamento eletrônico: https://www.nfe.fazenda.gov.br/portal/exibirArquivo.aspx?AspxAutoDetectCookieSupport=1&conteudo=hoSIJ5lGBNc%3D
 - Exemplo de Pix não integrado e grupo card: https://atendimento.tecnospeed.com.br/hc/pt-br/articles/360010236774
+
+## Validação e publicação
+- PR #150 integrada após aprovação dos três workflows GitHub Actions: Release build, Authentication checks e Client invitation checks.
+- A publicação do código não equivale a transmitir NF-e nem obter autorização da SEFAZ. A próxima NF-e de homologação deverá usar novo número, sem alterar a rejeitada número 3.
