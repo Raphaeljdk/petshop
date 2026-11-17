@@ -141,7 +141,6 @@ export function BookingRequests() {
                     desiredAt: new Date(desired + ':00-03:00').toISOString(),
                     notes,
                     profissionalId:profissionalId||null,
-                    profissionalId:profissionalId||null,
                   }),
                 })
                 toast.success(
