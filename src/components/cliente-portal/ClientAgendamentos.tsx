@@ -109,6 +109,7 @@ export function ClientAgendamentos() {
             </p>
             <p className="truncate text-sm font-medium">{item.servico}</p>
             <p className="truncate text-xs text-muted-foreground">{item.pet?.nome || 'Pet'}</p>
+            {item.profissional?.nome && <p className="truncate text-xs text-primary">Profissional: {item.profissional.nome}</p>}
           </div>
           {!passado && item.status === 'agendado' && new Date(item.dataHora).getTime() > Date.now() + 24 * 60 * 60_000 && (
             <Button variant="outline" size="sm" type="button" onClick={() => void cancelarAgendamento(item)} className="text-xs text-destructive">Cancelar</Button>
