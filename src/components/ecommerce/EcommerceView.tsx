@@ -746,6 +746,40 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
     return () => URL.revokeObjectURL(url)
   }, [fotoSelecionada])
 
+  async function prepararFotoParaUpload(arquivo: File): Promise<Blob> {
+    // Fotos grandes selecionadas no PC/celular são reduzidas no navegador
+    // antes de passar pela função Vercel (limite da plataforma: 4,5 MB).
+    if (arquivo.size <= 4 * 1024 * 1024) return arquivo
+
+    const objectUrl = URL.createObjectURL(arquivo)
+    const imagem = new window.Image()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        imagem.onload = () => resolve()
+        imagem.onerror = () => reject(new Error('Não foi possível abrir a fotografia.'))
+        imagem.src = objectUrl
+      })
+      const scale = Math.min(1, 1400 / Math.max(imagem.naturalWidth, imagem.naturalHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(imagem.naturalWidth * scale))
+      canvas.height = Math.max(1, Math.round(imagem.naturalHeight * scale))
+      const contexto = canvas.getContext('2d')
+      if (!contexto) throw new Error('Não foi possível preparar a imagem.')
+      contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height)
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (value) => value ? resolve(value) : reject(new Error('Falha ao preparar a imagem.')),
+          'image/jpeg',
+          0.78,
+        )
+      })
+      if (blob.size > 4 * 1024 * 1024) throw new Error('Imagem muito grande. Use uma fotografia menor.')
+      return blob
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }
+
   function escolherFoto(arquivo?: File) {
     if (!arquivo) return
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type) ||
@@ -1122,7 +1156,8 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
       let imageUrl = (form.imageUrl as string) || null
       if (fotoSelecionada) {
         const uploadForm = new FormData()
-        uploadForm.append('file', fotoSelecionada)
+        const fotoPreparada = await prepararFotoParaUpload(fotoSelecionada)
+        uploadForm.append('file', fotoPreparada, 'produto.' + (fotoPreparada.type === 'image/jpeg' ? 'jpg' : 'webp'))
         const response = await fetch('/api/produtos/imagens', {
           method: 'POST',
           credentials: 'same-origin',
