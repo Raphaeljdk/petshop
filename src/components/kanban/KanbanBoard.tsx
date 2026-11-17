@@ -541,10 +541,6 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
       if (resProc.ok) {
         const data = (await resProc.json()) as Processo[]
         setProcessos(data)
-        onCountsChange?.({
-          novo: data.filter((p) => p.status === 'novo' && processoNoDia(p.createdAt, dataLocalIso(new Date()))).length,
-          andamento: data.filter((p) => p.status === 'em_andamento' && processoNoDia(p.createdAt, dataLocalIso(new Date()))).length,
-        })
       }
       if (resPets.ok) {
         setPets(await resPets.json())
@@ -554,11 +550,19 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
     } finally {
       setLoading(false)
     }
-  }, [onCountsChange])
+  }, [])
 
   useEffect(() => {
     carregar()
   }, [carregar])
+
+  useEffect(() => {
+    const hoje = dataLocalIso(new Date())
+    onCountsChange?.({
+      novo: processos.filter((p) => p.status === 'novo' && processoNoDia(p.createdAt, hoje)).length,
+      andamento: processos.filter((p) => p.status === 'em_andamento' && processoNoDia(p.createdAt, hoje)).length,
+    })
+  }, [processos, onCountsChange])
 
   const processosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
@@ -723,6 +727,8 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         toast.success(
           `${processo.pet?.nome || 'Pet'} finalizado — notificações registradas no sistema`
         )
+      } else if (novoStatus === 'cancelado') {
+        toast.success('Atendimento cancelado. Registro preservado no histórico.')
       } else {
         toast.success(`Movido para ${colunaTitulo}`)
       }
@@ -813,6 +819,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
       })
       if (!res.ok) throw new Error('post-failed')
       toast.success('Atendimento criado na coluna "Novo"')
+      setDiaSelecionado(dataLocalIso(new Date()))
       setNovoOpen(false)
       setNovoForm({
         petId: pets[0]?.id || '',
