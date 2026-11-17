@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { CalendarDays, ClipboardList, MapPin, RefreshCw } from 'lucide-react'
+import { CalendarDays, ClipboardList, MapPin, RefreshCw, Trash2, LockKeyhole } from 'lucide-react'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,8 +11,9 @@ type Area = 'kanban' | 'agenda' | 'entregas'
 type Tutor = { id: string; nome: string; pets: Array<{ id: string; nome: string; especie: string }> }
 type AgendaItem = {
   id: string; dataHora: string; status: string; servico: string
-  pet?: { nome: string }; cliente?: { nome: string; telefone?: string }
+  pet?: { nome: string }; cliente?: { nome: string; telefone?: string }; profissional?: { nome: string } | null
 }
+type Bloqueio = { id: string; inicio: string; fim: string; motivo: string; profissional: string; podeExcluir: boolean }
 type Entrega = {
   id: string; createdAt: string; tipoEntrega: string | null; statusEntrega: string
   nomeCliente: string; telefoneCliente: string | null
@@ -47,6 +48,11 @@ export function AndreOperations() {
   const [entregas, setEntregas] = useState<Entrega[]>([])
   const [loadingAgenda, setLoadingAgenda] = useState(false)
   const [loadingEntregas, setLoadingEntregas] = useState(false)
+  const [bloqueios, setBloqueios] = useState<Bloqueio[]>([])
+  const [bloqueioInicio, setBloqueioInicio] = useState(() => dateTimeLocal(new Date(Date.now() + 60 * 60_000)))
+  const [bloqueioFim, setBloqueioFim] = useState(() => dateTimeLocal(new Date(Date.now() + 120 * 60_000)))
+  const [bloqueioMotivo, setBloqueioMotivo] = useState('Almoço')
+  const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
 
   const carregarAgenda = useCallback(async () => {
     setLoadingAgenda(true)
@@ -66,6 +72,13 @@ export function AndreOperations() {
     } finally { setLoadingAgenda(false) }
   }, [])
 
+  const carregarBloqueios = useCallback(async () => {
+    try {
+      const result = await loadJson(await fetch('/api/agenda/bloqueios', { cache: 'no-store' }))
+      setBloqueios(result.items || [])
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao consultar bloqueios.') }
+  }, [])
+
   const carregarEntregas = useCallback(async () => {
     setLoadingEntregas(true)
     try {
@@ -77,9 +90,9 @@ export function AndreOperations() {
   }, [])
 
   useEffect(() => {
-    if (area === 'agenda') void carregarAgenda()
+    if (area === 'agenda') { void carregarAgenda(); void carregarBloqueios() }
     if (area === 'entregas') void carregarEntregas()
-  }, [area, carregarAgenda, carregarEntregas])
+  }, [area, carregarAgenda, carregarBloqueios, carregarEntregas])
 
   useEffect(() => {
     if (area !== 'agenda' || buscaTutor.trim().length < 2) { setTutores([]); return }
@@ -125,6 +138,34 @@ export function AndreOperations() {
     } finally { setSalvando(false) }
   }
 
+  async function bloquearHorario(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (salvandoBloqueio) return
+    const inicio = new Date(bloqueioInicio), fim = new Date(bloqueioFim)
+    if (!Number.isFinite(inicio.getTime()) || !Number.isFinite(fim.getTime()) || fim <= inicio) {
+      toast.error('Informe o início e o fim corretos do bloqueio.'); return
+    }
+    setSalvandoBloqueio(true)
+    try {
+      await loadJson(await fetch('/api/agenda/bloqueios', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inicio: inicio.toISOString(), fim: fim.toISOString(), motivo: bloqueioMotivo.trim() }),
+      }))
+      toast.success('Sua agenda foi bloqueada nesse período.')
+      await carregarBloqueios()
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível bloquear.') }
+    finally { setSalvandoBloqueio(false) }
+  }
+
+  async function removerBloqueio(id: string) {
+    if (!window.confirm('Liberar esse horário da agenda?')) return
+    try {
+      await loadJson(await fetch('/api/agenda/bloqueios?id=' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin' }))
+      toast.success('Horário liberado.')
+      await carregarBloqueios()
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível liberar.') }
+  }
+
   return <div className="mx-auto max-w-6xl space-y-5">
     <nav aria-label="Acesso operacional" className="flex flex-wrap gap-2">
       <Button type="button" size="sm" variant={area === 'kanban' ? 'default' : 'outline'} aria-pressed={area === 'kanban'} onClick={() => setArea('kanban')}><ClipboardList className="size-4" /> Kanban de pets</Button>
@@ -161,6 +202,22 @@ export function AndreOperations() {
           </label>
           <Button type="submit" disabled={!tutor || !petId || salvando} className="w-full">{salvando ? 'Agendando...' : 'Confirmar agendamento de banho'}</Button>
         </form>
+        <div className="border-t pt-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><LockKeyhole className="size-4"/>Travar minha agenda</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Bloqueie almoço, folgas e compromissos. Isso impede novos agendamentos no seu horário; não altera a agenda do colega.</p>
+          <form onSubmit={bloquearHorario} className="mt-3 space-y-3">
+            <label className="block text-sm font-medium">Início
+              <Input className="mt-1" type="datetime-local" required value={bloqueioInicio} onChange={e => setBloqueioInicio(e.target.value)} />
+            </label>
+            <label className="block text-sm font-medium">Fim
+              <Input className="mt-1" type="datetime-local" required value={bloqueioFim} onChange={e => setBloqueioFim(e.target.value)} />
+            </label>
+            <label className="block text-sm font-medium">Motivo
+              <Input className="mt-1" required minLength={2} maxLength={120} placeholder="Ex.: Almoço, folga ou compromisso" value={bloqueioMotivo} onChange={e=>setBloqueioMotivo(e.target.value)} />
+            </label>
+            <Button type="submit" variant="outline" disabled={salvandoBloqueio} className="w-full"><LockKeyhole className="size-4"/>{salvandoBloqueio ? 'Bloqueando...' : 'Bloquear horário'}</Button>
+          </form>
+        </div>
       </section>
       <section className="space-y-3 rounded-xl border bg-card p-4">
         <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Consultar agendamentos</h2><p className="text-xs text-muted-foreground">Últimos 7 dias e próximos 30 dias · somente leitura</p></div>
@@ -175,8 +232,18 @@ export function AndreOperations() {
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{item.status}</span>
             </div>
             <p className="mt-1">{dateDisplay(item.dataHora)}</p>
-            <p className="text-muted-foreground">Tutor: {item.cliente?.nome || 'Não identificado'}</p>
+            <p className="text-muted-foreground">Tutor: {item.cliente?.nome || 'Não identificado'} · Profissional: {item.profissional?.nome || 'A definir'}</p>
           </article>)}
+        </div>
+        <div className="border-t pt-3">
+          <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Horários bloqueados</h3><Button type="button" size="sm" variant="ghost" onClick={()=>void carregarBloqueios()}><RefreshCw className="size-3"/>Atualizar</Button></div>
+          {!bloqueios.length && <p className="text-sm text-muted-foreground">Nenhum bloqueio encontrado.</p>}
+          <div className="max-h-64 space-y-2 overflow-y-auto">
+            {bloqueios.map(b=><div key={b.id} className="flex items-start justify-between gap-2 rounded-lg border bg-muted/30 p-2 text-xs">
+              <div><strong>{b.profissional}</strong> · {b.motivo}<p className="mt-1">{dateDisplay(b.inicio)} até {dateDisplay(b.fim)}</p></div>
+              {b.podeExcluir && <Button type="button" size="sm" variant="ghost" aria-label={'Liberar bloqueio de '+b.profissional} onClick={()=>void removerBloqueio(b.id)}><Trash2 className="size-4"/></Button>}
+            </div>)}
+          </div>
         </div>
       </section>
     </div>}
