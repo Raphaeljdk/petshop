@@ -694,7 +694,13 @@ model PortalPetMemory {
   nextAt DateTime?
   processoId String?
   createdByAdmin Boolean @default(false)
+  // Publicação de diário do tutor: só com aceite expresso e revisão administrativa.
+  blogConsentAt DateTime?
+  blogStatus String @default("privado") // privado | pendente | publicado | recusado | revogado
+  blogReviewedAt DateTime?
+  blogReviewedBy String?
   createdAt DateTime @default(now())
+  @@index([blogStatus, blogConsentAt, createdAt])
   @@index([clienteId, petKey, eventAt])
   @@index([processoId])
 }

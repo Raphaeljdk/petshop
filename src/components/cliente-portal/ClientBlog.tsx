@@ -10,7 +10,7 @@ import { portalRequest } from './ExperienceProvider'
 
 type Article = {
   id:string; title:string; category:string; summary:string; body:string
-  imageUrl:string|null; productId:string|null; createdAt:string
+  imageUrl:string|null; productId:string|null; createdAt:string; isPetStory?:boolean
 }
 type BlogData = { articles:Article[]; favorites:string[] }
 type Props = { compact?:boolean; onOpenBlog?:()=>void; onShop?:()=>void }
@@ -43,7 +43,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
   ),[articles,query,category])
 
   async function toggle(id:string) {
-    if (busy) return
+    if (busy || id.startsWith('historia-pet:')) return
     setBusy(true)
     try {
       const saved = !favorites.includes(id)
@@ -84,10 +84,10 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
           <div className="space-y-4 text-sm leading-7">{selected.body.split(/\n{2,}/).filter(Boolean).map((p,i) =>
             <p key={i} className="whitespace-pre-line">{p}</p>)}</div>
           <div className="flex flex-wrap gap-2 border-t pt-4">
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => toggle(selected.id)}>
+            {!selected.isPetStory&&<Button size="sm" variant="outline" disabled={busy} onClick={() => toggle(selected.id)}>
               <Heart className={'mr-2 size-4 '+(favorites.includes(selected.id)?'fill-red-500 text-red-500':'')}/>
               {favorites.includes(selected.id)?'Salvo':'Salvar artigo'}
-            </Button>
+            </Button>}
             {selected.productId && <Button size="sm" variant="outline" onClick={onShop}><ShoppingBag className="mr-2 size-4"/>Ver produtos na loja</Button>}
             <Button size="sm" variant="outline" onClick={() => {
               if (navigator.share) void navigator.share({ title:selected.title, text:selected.summary }).catch(()=>{})
@@ -122,9 +122,9 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
             <p className="line-clamp-3 text-sm text-muted-foreground">{p.summary}</p>
             <div className="flex justify-between gap-2">
               <Button size="sm" onClick={()=>setSelected(p)}>Ler artigo</Button>
-              <Button size="icon" variant="outline" disabled={busy} aria-label="Salvar artigo" onClick={()=>toggle(p.id)}>
+              {!p.isPetStory&&<Button size="icon" variant="outline" disabled={busy} aria-label="Salvar artigo" onClick={()=>toggle(p.id)}>
                 <Heart className={'size-4 '+(favorites.includes(p.id)?'fill-red-500 text-red-500':'')}/>
-              </Button>
+              </Button>}
             </div>
           </CardContent>
         </Card>)}

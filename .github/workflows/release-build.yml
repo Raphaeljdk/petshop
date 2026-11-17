@@ -50,6 +50,7 @@ jobs:
       - run: bun test tests/agenda-bloqueios.test.ts
       - run: bun test tests/marketplace-product-match.test.ts
       - run: bun test tests/portal-care.test.ts
+      - run: bun test tests/portal-pet-blog.test.ts
       - run: bun test tests/portal-payments.test.ts
       - run: bun test tests/portal-gift-phone.test.ts
       - run: bun test tests/portal-gift-credit-phone.test.ts

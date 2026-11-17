@@ -19,9 +19,10 @@ type PlanRequest = {
 }
 type Gift = {id:string;clienteId:string;recipientName:string;recipientPhone:string|null;amountCents:number;status:string}
 type Referral = {id:string;invitedId:string;status:string}
+type PetBlogStory = {id:string;title:string;notes:string|null;imageData:string|null;blogStatus:string;createdAt:string}
 type PortalAdmin = {
   articles:Article[];plans:Array<{id:string;title:string;priceCents:number;active:boolean}>
-  requests:PlanRequest[];gifts:Gift[];referrals:Referral[]
+  requests:PlanRequest[];gifts:Gift[];referrals:Referral[];blogStories:PetBlogStory[]
   referralConfig:{active:boolean;awardCents:number;minimumPurchaseCents:number;validDays:number}|null
   integrations?:{
     subscriptions:{enabled:boolean;configured:boolean;validatedEndToEnd:boolean}
@@ -110,6 +111,32 @@ export function PortalEditorialAdmin() {
       <details open className="rounded-lg border p-3">
         <summary className="cursor-pointer font-semibold">Blog — criar e revisar artigos</summary>
         <div className="mt-4 space-y-3">
+          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            <h3 className="text-sm font-semibold">Histórias dos pets — autorização do tutor</h3>
+            <p className="text-xs text-muted-foreground">Somente diários com aceite expresso aparecem aqui. Confira o texto e a foto antes de publicar. Publicações são visíveis no blog para outros clientes do portal.</p>
+            {(data?.blogStories || []).map((story)=>(
+              <article key={story.id} className="flex flex-wrap gap-3 rounded-lg border bg-background p-3">
+                {story.imageData&&<img src={story.imageData} alt="Prévia da história autorizada" className="h-24 w-24 rounded-md object-cover"/>}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-semibold">{story.title}</p>
+                  <p className="text-xs text-muted-foreground">{story.blogStatus==='publicado'?'Publicado':'Aguardando aprovação'}</p>
+                  {story.notes&&<p className="whitespace-pre-wrap break-words text-xs">{story.notes}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    {story.blogStatus==='pendente'&&<>
+                      <Button size="sm" type="button" disabled={busy}
+                        onClick={()=>void submit({action:'blog-review',id:story.id,status:'publicado'})}>Aprovar e publicar</Button>
+                      <Button size="sm" type="button" variant="outline" disabled={busy}
+                        onClick={()=>void submit({action:'blog-review',id:story.id,status:'recusado'})}>Recusar</Button>
+                    </>}
+                    {story.blogStatus==='publicado'&&
+                      <Button size="sm" type="button" variant="outline" disabled={busy}
+                        onClick={()=>void submit({action:'blog-review',id:story.id,status:'revogado'})}>Retirar do blog</Button>}
+                  </div>
+                </div>
+              </article>
+            ))}
+            {(!data?.blogStories?.length)&&<p className="text-xs text-muted-foreground">Nenhuma história aguardando revisão ou publicada.</p>}
+          </div>
           <form onSubmit={async(e)=>{
             e.preventDefault()
             const ok=await submit({ action:editId?'article-update':'article-create',
