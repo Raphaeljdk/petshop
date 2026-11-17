@@ -6,7 +6,8 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_ORIGINAL_BYTES = 8 * 1024 * 1024
+// Vercel Functions recebem no máximo 4,5 MB por requisição. O navegador compacta imagens maiores.
+const MAX_ORIGINAL_BYTES = 4 * 1024 * 1024
 const MAX_WEBP_BYTES = 1500 * 1024
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const lengthHeader = Number(request.headers.get('content-length'))
     if (Number.isFinite(lengthHeader) && lengthHeader > MAX_ORIGINAL_BYTES + 128 * 1024) {
-      return NextResponse.json({ error: 'A imagem deve ter no máximo 8 MB.' }, { status: 413 })
+      return NextResponse.json({ error: 'A imagem enviada deve ter no máximo 4 MB.' }, { status: 413 })
     }
 
     const form = await request.formData()
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Selecione uma imagem do computador.' }, { status: 400 })
     }
     if (!ACCEPTED_TYPES.has(arquivo.type) || arquivo.size === 0 || arquivo.size > MAX_ORIGINAL_BYTES) {
-      return NextResponse.json({ error: 'Envie JPEG, PNG ou WebP de até 8 MB.' }, { status: 400 })
+      return NextResponse.json({ error: 'Envie JPEG, PNG ou WebP de até 4 MB após otimização.' }, { status: 400 })
     }
 
     const bytes = Buffer.from(await arquivo.arrayBuffer())
