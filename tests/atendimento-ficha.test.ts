@@ -20,6 +20,15 @@ test('não permite campos ou opções arbitrárias e preserva "não avaliado"',(
  assert.throws(()=>sanitizeFormAnswers('checkout',{saidaChecklist:['Procedimento não listado']}))
  assert.equal(answerCount({saude1:'Sim',peleRegioes:[],saude2:''}),1)
 })
+test('checkout aceita opção sem resposta, mas rejeita valores que não pertencem à lista',()=>{
+ assert.deepEqual(sanitizeFormAnswers('checkout',{
+  secaCondicao:'',seca1:'Adequado',saidaCondicao:['Tranquilo'],saidaFinalizador:'Aleksander',
+ }),{seca1:'Adequado',saidaCondicao:['Tranquilo'],saidaFinalizador:'Aleksander'})
+ assert.deepEqual(sanitizeFormAnswers('checkout',{secaCondicao:'  ',saidaFinalizador:'Aleksander'}),{saidaFinalizador:'Aleksander'})
+ assert.deepEqual(sanitizeFormAnswers('checkout',{secaCondicao:'Totalmente seca'}),{secaCondicao:'Totalmente seca'})
+ assert.throws(()=>sanitizeFormAnswers('checkout',{secaCondicao:'Opção inválida'}),/Valor inválido: secaCondicao/)
+ assert.throws(()=>sanitizeFormAnswers('checkout',{secaCondicao:12}),/Valor inválido: secaCondicao/)
+})
 test('novo banho precisa de aceite e checkout, histórico legado preservado',()=>{
  assert.equal(requiresFichaAtendimento('Banho e Tosa'),true)
  assert.equal(requiresFichaAtendimento('Spa Pet'),true)
