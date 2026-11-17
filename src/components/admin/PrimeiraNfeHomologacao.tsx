@@ -127,6 +127,10 @@ export function PrimeiraNfeHomologacao(){
    </div>
    <p className="font-semibold text-sm">PIS/COFINS — valores expressamente aprovados (CST 49, se aplicável)</p>
    <p className="text-xs text-muted-foreground">
+    Meio de pagamento fictício neste teste: Pix não integrado (tPag 17, tpIntegra 2).
+    Não representa recebimento real. Para emissão em produção, informar os dados verdadeiros do pagamento.
+   </p>
+   <p className="text-xs text-muted-foreground">
     Para este produto e esta operação de teste em SP, a contadora informou PIS/COFINS com
     base, alíquota e valor zerados (CST 49). Campos preenchidos conforme orientação
     repassada pela empresa em 16/11/2026; não representam rateio do Anexo I nem retenção
