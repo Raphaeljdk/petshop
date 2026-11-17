@@ -275,6 +275,7 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={prefs.groomingPhotoConsent}
         onChange={(e)=>setPrefs(p=>({...p,groomingPhotoConsent:e.target.checked}))}/>
         Autorizo registrar e exibir fotos de antes e depois dos atendimentos do meu pet neste portal privado.</label>
+      <p className="text-xs text-muted-foreground">Depois de salvar, sua escolha permanece registrada no perfil nos próximos acessos, até que você decida alterá-la.</p>
       <Button size="sm" disabled={busy} onClick={()=>void act({action:'preferences',...prefs},'Permissão atualizada.')}>Salvar autorização</Button>
       <div className="grid gap-3 sm:grid-cols-2">
         {mem.filter((m)=>['banho_antes','banho_depois'].includes(m.kind)).map((m)=>
