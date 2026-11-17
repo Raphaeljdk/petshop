@@ -216,6 +216,12 @@ export async function POST(req:NextRequest){
   const body=await readAuthBody(req)
   const p=preparar.safeParse(body)
   if(p.success){
+   // A regra confirmada para o Arm & Hammer 473 ml é zero em todos os seis
+   // campos de PIS/COFINS. O Anexo I do Simples é apurado fora da NF-e.
+   // Não permitir taxas, rateio do DAS ou retenção criados a partir dos percentuais do Anexo I.
+   const todosZero=[p.data.pis.base,p.data.pis.aliquota,p.data.pis.valor,
+    p.data.cofins.base,p.data.cofins.aliquota,p.data.cofins.valor].every(v=>v===0)
+   if(!todosZero)return fail('Neste teste do Arm & Hammer, informe 0 para base, alíquota e valor de PIS/COFINS, conforme orientação contábil repassada. Não aplicar repartição do Anexo I na NF-e.')
    for(const [nome,imposto] of [['PIS',p.data.pis],['COFINS',p.data.cofins]] as const){
     if(Math.abs(imposto.base*100-Math.round(imposto.base*100))>0.00001 ||
        Math.abs(imposto.valor*100-Math.round(imposto.valor*100))>0.00001)
