@@ -12,3 +12,11 @@ export function processoNoDia(criadoEm: string, dia: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return false
   return dataLocalIso(new Date(criadoEm)) === dia
 }
+
+/** Cancelamentos continuam no banco, mas não ocupam coluna no Kanban diário. */
+export function processoVisivelNoKanban(
+  processo: { createdAt: string; status: string },
+  dia: string
+): boolean {
+  return processo.status !== 'cancelado' && processoNoDia(processo.createdAt, dia)
+}
