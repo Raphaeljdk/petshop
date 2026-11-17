@@ -79,6 +79,7 @@ model Processo {
   servico         String
   responsavel     String?
   anamnese        String?
+  requiresFicha Boolean @default(false) // fluxos estéticos novos, preserva processos legados
   inicioAtendimento DateTime?
   fimAtendimento   DateTime?
   valorServico    Float    @default(0)
