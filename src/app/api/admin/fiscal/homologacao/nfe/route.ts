@@ -8,6 +8,7 @@ import {lerA1DeVariaveis,SefazComunicacaoError} from '@/lib/sefaz-sp-nfe'
 import {extrairCertificadoA1,assinarXmlNfeHomologacao,validarAssinaturaNfeHomologacao,AssinaturaNfeError} from '@/lib/nfe-assinatura-a1'
 import {validarXmlNfeXsdHomologacao,NfeXsdError} from '@/lib/nfe-validacao-xsd'
 import {gerarRascunhoNfe55,NfeRascunhoError} from '@/lib/nfe-xml-modelo55'
+import {PRODUTO_TESTE_INICIAL_ID,SKU_TESTE_INICIAL} from '@/lib/nfe-homologacao-preparo'
 import {montarLoteHomologacao,montarConsultaHomologacao,montarRetornoHomologacao,
  enviarSoapHomologacao,interpretarAutorizacaoHomologacao} from '@/lib/sefaz-sp-nfe-homologacao'
 
@@ -65,12 +66,27 @@ async function prepararTeste(input:z.infer<typeof preparar>){
  try {
  const empresa=await configValidada()
  etapa='carregamento do produto'
- const produto=await db.produto.findFirst({where:{sku:'7899669611657',ativo:true},
+ // Usar ID específico: o catálogo contém mais de um Kong ativo com o mesmo SKU.
+ const produto=await db.produto.findFirst({where:{id:PRODUTO_TESTE_INICIAL_ID,sku:SKU_TESTE_INICIAL,ativo:true},
   select:{id:true,nome:true,sku:true,ncm:true,cest:true,cfop:true,origem:true,csosn:true,
    unidadeFiscal:true,gtinFiscal:true,pisCst:true,cofinsCst:true}})
- if(!produto||produto.ncm!=='39269090'||produto.cfop!=='5102'||produto.csosn!=='102'
-  ||produto.origem!=='0'||produto.pisCst!=='49'||produto.cofinsCst!=='49'||produto.cest)
-  throw new NfeRascunhoError('Classificação do produto não corresponde à aprovada.')
+ if(!produto)
+  throw new NfeRascunhoError('Kong Extreme XXL não encontrado ou inativo. Nenhum XML de teste foi gerado.')
+ if(!/^\d{8}$/.test(produto.ncm||'')||!/^5\d{3}$/.test(produto.cfop||'')||
+   !produto.origem||!produto.unidadeFiscal||!/^\d{8}$|^\d{12,14}$/.test(produto.gtinFiscal||'')||
+   !produto.csosn||!produto.pisCst||!produto.cofinsCst)
+  throw new NfeRascunhoError('Kong Extreme XXL sem cadastro fiscal completo: confirmar NCM, CFOP, CSOSN, CST PIS/COFINS, origem, GTIN e CEST com a contadora.')
+ if(produto.csosn!=='102'||produto.pisCst!=='49'||produto.cofinsCst!=='49')
+  throw new NfeRascunhoError('Os códigos fiscais do Kong exigem um grupo de XML ainda não implementado para este teste. Não copiar códigos de outro produto.')
+ // Somente regra da própria operação, aprovada pela contadora, libera a preparação.
+ etapa='conferência da regra fiscal aprovada'
+ const regra=await db.regraFiscalAprovada.findFirst({where:{
+   ativo:true,ncm:produto.ncm!,cfop:produto.cfop!,origem:produto.origem!,
+   ufDestino:'SP',indicadorIE:'9',csosn:produto.csosn!,
+   pisCst:produto.pisCst!,cofinsCst:produto.cofinsCst!,cest:produto.cest,
+ }})
+ if(!regra)
+  throw new NfeRascunhoError('Falta registrar a aprovação fiscal do Kong Extreme XXL para venda interna em SP, com indicação expressa de CEST e tratamento PIS/COFINS.')
  etapa='leitura do certificado A1'
  const cred=credenciais()
  etapa='verificação de CNPJ e validade do A1'
