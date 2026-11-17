@@ -87,6 +87,7 @@ model Processo {
   updatedAt       DateTime @updatedAt
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
   notificacoes Notificacao[]
+  ficha AtendimentoFicha?
 }
 
 model Agendamento {
@@ -904,4 +905,44 @@ model EntregaLoteAuditoria {
   acao String @default("entregue")
   createdAt DateTime @default(now())
   @@index([createdAt])
+}
+
+
+// Formulários privados de banho/tosa: um par de fichas por atendimento.
+// Check-in congelado após envio ao tutor; aceite e check-out têm trilha de auditoria.
+model AtendimentoFicha {
+  id String @id @default(cuid())
+  processoId String @unique
+  petId String
+  clienteId String
+  checkin Json?
+  checkinStatus String @default("rascunho")
+  checkinById String?
+  checkinSubmittedAt DateTime?
+  tutorAceiteAt DateTime?
+  tutorAceiteUserId String?
+  tutorAceiteNome String?
+  tutorAceiteVersao String?
+  tutorAceiteHash String?
+  tutorAceiteIpHash String?
+  checkout Json?
+  checkoutById String?
+  checkoutFinalizadoAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  processo Processo @relation(fields:[processoId],references:[id],onDelete:Restrict)
+  eventos AtendimentoFichaEvento[]
+  @@index([clienteId, petId, createdAt])
+  @@index([checkinStatus, checkinSubmittedAt])
+}
+
+model AtendimentoFichaEvento {
+  id String @id @default(cuid())
+  fichaId String
+  actorId String
+  acao String
+  resumo String?
+  createdAt DateTime @default(now())
+  ficha AtendimentoFicha @relation(fields:[fichaId],references:[id],onDelete:Restrict)
+  @@index([fichaId, createdAt])
 }
