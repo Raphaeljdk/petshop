@@ -127,6 +127,7 @@ export function ClientStore({
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null)
   const [busca, setBusca] = useState('')
   const [marcaSelecionada, setMarcaSelecionada] = useState('todas')
+  const [buscaMarca, setBuscaMarca] = useState('')
   const [buscaAberta, setBuscaAberta] = useState(false)
   const buscaInputRef = useRef<HTMLInputElement>(null)
   const [ordenacao, setOrdenacao] = useState<
@@ -547,7 +548,11 @@ export function ClientStore({
 
           {!loading && produtos.length > 0 && (
             <div aria-label="Filtrar produtos por marca" className="mt-3 border-t border-border/70 pt-3">
-              <p className="mb-2 px-1 text-sm font-semibold">Marcas</p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="px-1 text-sm font-semibold">Marcas</p>
+                <Input type="search" className="h-9 max-w-[240px]" aria-label="Pesquisar marcas"
+                  placeholder="Pesquisar marca..." value={buscaMarca} onChange={(e) => setBuscaMarca(e.target.value)}/>
+              </div>
               <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Marcas disponíveis">
                 <Button
                   type="button"
@@ -559,7 +564,9 @@ export function ClientStore({
                 >
                   Todas
                 </Button>
-                {marcas.map((marca) => (
+                {marcas.filter(marca=>marca.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(
+                buscaMarca.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()
+              )).map((marca) => (
                   <Button
                     key={marca}
                     type="button"

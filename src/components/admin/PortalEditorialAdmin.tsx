@@ -8,16 +8,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { portalRequest } from '@/components/cliente-portal/ExperienceProvider'
+import { fileToCatalogImage } from '@/lib/catalog-image'
 
 type Article = {
   id:string;title:string;category:string;summary:string;body:string
-  imageUrl:string|null;productId:string|null;published:boolean
+  imageUrl:string|null;productId:string|null;published:boolean;readMinutes:number;publishAt:string|null
 }
 type PlanRequest = {
   id:string;clienteId:string;petKey:string;status:string;sessionsUsed:number
   plan:{ title:string;sessions:number }
 }
-type Gift = {id:string;clienteId:string;recipientName:string;amountCents:number;status:string}
+type Gift = {id:string;clienteId:string;recipientName:string;recipientEmail:string|null;recipientWhatsapp:string|null;voucherCode:string|null;amountCents:number;status:string}
 type Referral = {id:string;invitedId:string;status:string}
 type PortalAdmin = {
   articles:Article[];plans:Array<{id:string;title:string;priceCents:number;active:boolean}>
@@ -33,7 +34,7 @@ type PortalAdmin = {
 }
 const categories=['Cuidados','Comportamento','Brinquedos','Bem-estar','Novidades']
 const emptyArticle = {
-  title:'',category:'Cuidados',summary:'',body:'',imageUrl:'',productId:'',published:false,
+  title:'',category:'Cuidados',summary:'',body:'',imageUrl:'',productId:'',published:false,readMinutes:3,publishAt:'',
 }
 const money=(cents:number)=>(cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 
@@ -113,7 +114,8 @@ export function PortalEditorialAdmin() {
           <form onSubmit={async(e)=>{
             e.preventDefault()
             const ok=await submit({ action:editId?'article-update':'article-create',
-              ...(editId?{id:editId}:{}),...form,productId:form.productId||null })
+              ...(editId?{id:editId}:{}),...form,productId:form.productId||null,
+              publishAt:form.publishAt?new Date(form.publishAt).toISOString():null })
             if(ok){setForm({...emptyArticle});setEditId(null)}
           }} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -130,7 +132,31 @@ export function PortalEditorialAdmin() {
               <label className="space-y-1 text-xs sm:col-span-2">Corpo do artigo (60–16.000 caracteres; parágrafos separados por linha vazia)
                 <Textarea required minLength={60} maxLength={16000} rows={8} value={form.body} onChange={(e)=>setForm(f=>({...f,body:e.target.value}))}/>
               </label>
-              <label className="space-y-1 text-xs">URL HTTPS da imagem de capa (opcional)<Input type="url" value={form.imageUrl} onChange={(e)=>setForm(f=>({...f,imageUrl:e.target.value}))}/></label>
+              <div className="space-y-2 text-xs">
+                <label className="block font-medium" htmlFor="blog-image-file">Foto de capa do computador (JPG/PNG/WebP)</label>
+                <Input id="blog-image-file" type="file" accept="image/jpeg,image/png,image/webp"
+                  onChange={async(e)=>{const file=e.target.files?.[0];if(!file)return
+                    try{const imageUrl=await fileToCatalogImage(file);setForm(f=>({...f,imageUrl}))
+                      toast.success('Imagem pronta para salvar com o artigo.')
+                    }catch(error){toast.error(error instanceof Error?error.message:'Foto inválida.')}
+                    finally{e.target.value=''}
+                  }}/>
+                <label className="block" htmlFor="blog-image-url">Ou URL HTTPS (opcional)</label>
+                <Input id="blog-image-url" type="text" placeholder="https://..." value={form.imageUrl.startsWith('data:image/')?'':form.imageUrl}
+                  onChange={(e)=>setForm(f=>({...f,imageUrl:e.target.value}))}/>
+                {form.imageUrl&&<div className="flex items-center gap-3">
+                  <img src={form.imageUrl} className="size-20 rounded border object-cover" alt="Prévia da capa"/>
+                  <Button type="button" size="sm" variant="outline" onClick={()=>setForm(f=>({...f,imageUrl:''}))}>Remover foto</Button>
+                </div>}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-xs" htmlFor="blog-read-minutes">Tempo de leitura (minutos, editável)</label>
+                <Input id="blog-read-minutes" type="number" min={1} max={120} value={form.readMinutes}
+                  onChange={e=>setForm(f=>({...f,readMinutes:Number(e.target.value)}))}/>
+                <label className="block text-xs" htmlFor="blog-publish-at">Publicar a partir de (data e hora opcional)</label>
+                <Input id="blog-publish-at" type="datetime-local" value={form.publishAt}
+                  onChange={e=>setForm(f=>({...f,publishAt:e.target.value}))}/>
+              </div>
               <label className="space-y-1 text-xs">ID do produto relacionado (opcional)<Input value={form.productId} onChange={(e)=>setForm(f=>({...f,productId:e.target.value}))}/></label>
             </div>
             <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={form.published} onChange={(e)=>setForm(f=>({...f,published:e.target.checked}))}/>
@@ -142,11 +168,12 @@ export function PortalEditorialAdmin() {
           </form>
           <div className="space-y-2">
             {data?.articles.map((a)=><div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-              <div><strong>{a.title}</strong><p className="text-xs text-muted-foreground">{a.category} · {a.published?'Publicado':'Rascunho'}</p></div>
+              <div><strong>{a.title}</strong><p className="text-xs text-muted-foreground">{a.category} · {a.published?(a.publishAt&&new Date(a.publishAt)>new Date()?'Programado':'Publicado'):'Rascunho'} · {a.readMinutes||3} min</p></div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={()=>{setEditId(a.id);setForm({
                   title:a.title,category:a.category,summary:a.summary,body:a.body,
                   imageUrl:a.imageUrl||'',productId:a.productId||'',published:a.published,
+                  readMinutes:a.readMinutes||3,publishAt:a.publishAt?(()=>{const dt=new Date(a.publishAt);return new Date(dt.getTime()-dt.getTimezoneOffset()*60000).toISOString().slice(0,16)})():'',
                 })}}>Editar</Button>
                 {a.published&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>void submit({action:'article-unpublish',id:a.id})}>Despublicar</Button>}
               </div>
@@ -227,12 +254,20 @@ export function PortalEditorialAdmin() {
         <div className="mt-3 space-y-3">
           <label className="block space-y-1 text-xs">Referência do pagamento conferido<Input value={reference} onChange={(e)=>setReference(e.target.value)}/></label>
           {data?.gifts.map((g)=><div key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
-            <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p></div>
+            <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p>
+              <p className="text-muted-foreground">{g.recipientEmail||'Sem e-mail'} · {g.recipientWhatsapp||'Sem WhatsApp'}</p>
+            </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy||reference.trim().length<4}
-                onClick={()=>void submit({action:'gift-review',id:g.id,status:'pago',paymentVerified:true,paymentReference:reference})}>Confirmar pagamento</Button>
-              <Button size="sm" variant="outline" disabled={busy}
-                onClick={()=>void submit({action:'gift-review',id:g.id,status:'aguardando_pagamento',paymentVerified:false})}>Aguardar</Button>
+              {g.status==='pago' && g.voucherCode ? <>
+                <Button size="sm" variant="outline" onClick={()=>void navigator.clipboard?.writeText(g.voucherCode!).then(()=>toast.success('Código copiado.'))}>Copiar código</Button>
+                {g.recipientEmail&&<Button asChild size="sm" variant="outline"><a href={'mailto:'+encodeURIComponent(g.recipientEmail)+'?subject='+encodeURIComponent('Seu vale-presente Matilha Prado')+'&body='+encodeURIComponent('Olá, '+g.recipientName+'! Seu vale-presente Matilha Prado foi confirmado. Para resgatar, entre ou crie a sua conta com este e-mail em https://www.matilhaprado.com.br/login e informe o código '+g.voucherCode+'.')}>Preparar e-mail</a></Button>}
+                {g.recipientWhatsapp&&<Button asChild size="sm" variant="outline"><a target="_blank" rel="noopener noreferrer" href={'https://wa.me/'+(g.recipientWhatsapp.replace(/\D/g,'').length===11?'55':'')+g.recipientWhatsapp.replace(/\D/g,'')+'?text='+encodeURIComponent('Olá, '+g.recipientName+'! Seu vale-presente Matilha Prado foi confirmado. Entre ou crie sua conta com o e-mail informado em https://www.matilhaprado.com.br/login para resgatar o código '+g.voucherCode+'.')}>Preparar WhatsApp</a></Button>}
+              </> : <>
+                <Button size="sm" disabled={busy||reference.trim().length<4}
+                  onClick={()=>void submit({action:'gift-review',id:g.id,status:'pago',paymentVerified:true,paymentReference:reference})}>Confirmar pagamento</Button>
+                <Button size="sm" variant="outline" disabled={busy}
+                  onClick={()=>void submit({action:'gift-review',id:g.id,status:'aguardando_pagamento',paymentVerified:false})}>Aguardar</Button>
+              </>}
             </div>
           </div>)}
           {data?.referrals.map((r)=><div key={r.id} className="flex flex-wrap justify-between gap-2 rounded-lg border p-3 text-xs">

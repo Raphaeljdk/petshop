@@ -96,6 +96,20 @@ export function isClothingProduct(product: { nome?: string | null; categoria?: s
  */
 function catalogFamilyName(nome: string): string | null {
   const normalized = key(nome)
+  // Variações de título do mesmo item vistas no catálogo da Matilha Prado;
+  // outras cores/tamanhos continuam disponíveis como variações reais.
+  if (/^jaqueta maxi puffer camuflado laranja cachorro porte\b/.test(normalized))
+    return 'Jaqueta Maxi Puffer Camuflado/Laranja Cachorro Porte'
+  if (/^areia sanitaria gato milho mandioca biodegradavel 2kg grossa(?: great pets)?$/.test(normalized))
+    return 'Areia Sanitária Milho e Mandioca Great Pets 2 kg Grossa'
+  if (/^granulado de tofu areia (?:p|para) gatos 2kg great pets biodegradavel\b/.test(normalized)
+      && !/\b(?:lavanda|perfumado|carvao)\b/.test(normalized))
+    return 'Granulado de Tofu Great Pets Natural 2 kg'
+  if (/^comedouro (?:interativo )?sodapup mandala etray\b/.test(normalized) ||
+      /^comedouro interativo sodapup mandala etray\b/.test(normalized))
+    return 'Comedouro Sodapup Mandala Etray'
+  if (/^cama (?:com babado )?grace linen\b/.test(normalized))
+    return 'Cama Grace Linen'
   if (/^coleira de passeio azul\b/.test(normalized)) return 'Coleira de Passeio Azul'
   if (/^vestido pet luxo tweed laco lilas\b/.test(normalized)) {
     return 'Vestido Pet Luxo Tweed Laço Lilás'
@@ -185,6 +199,9 @@ export function catalogVariantDetails(nome: string) {
   const family = catalogFamilyName(original)
   if (family) {
     title = family
+    // Mesmo desenho de cama com versões de acabamento e preços distintos.
+    // Exibir as opções, não escolher arbitrariamente só um anúncio.
+    if (family === 'Cama Grace Linen') model = /^cama com babado/i.test(original) ? 'Com babado' : 'Padrão'
     // A forma "Rosa Ou Azul" indica cores disponíveis, não parte do nome.
   } else {
     title = title.replace(COLOR_CHOICES, '')

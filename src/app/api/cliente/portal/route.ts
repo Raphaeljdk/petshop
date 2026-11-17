@@ -19,15 +19,16 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('preferences'), remindersInApp: z.boolean(),
     remindersEmail: z.boolean(), remindersWhatsapp: z.boolean(),
     marketingEmail: z.boolean(), marketingWhatsapp: z.boolean(),
-    groomingPhotoConsent: z.boolean() }).strict(),
+    groomingPhotoConsent: z.boolean(), publicPetConsent: z.boolean().optional() }).strict(),
   z.object({ action: z.literal('plan-request'), planId: z.string().min(1), petKey: petKeySchema }).strict(),
   z.object({ action: z.literal('referral-code') }).strict(),
   z.object({ action: z.literal('referral-claim'), code: z.string().trim().min(4).max(32) }).strict(),
   z.object({ action: z.literal('gift-request'),
     recipientName: z.string().trim().min(2).max(120),
-    recipientEmail: z.union([z.string().email().max(200), z.literal('')]).optional(),
+    recipientEmail: z.string().trim().email().max(200),
+    recipientWhatsapp:z.string().trim().regex(/^\+?[0-9() .-]{10,20}$/,'Informe WhatsApp com DDD válido.'),
     message: z.string().trim().max(500).optional(),
-    amountCents: z.number().int().min(2000).max(50000) }).strict(),
+    amountCents: z.number().int().min(5000).max(50000) }).strict(),
   z.object({ action: z.literal('family-invite'), petKey: petKeySchema, email: z.string().email().max(200) }).strict(),
   z.object({ action: z.literal('family-response'), id: z.string().min(1), accepted: z.boolean() }).strict(),
   z.object({ action: z.literal('family-revoke'), id: z.string().min(1) }).strict(),
@@ -39,8 +40,8 @@ export async function GET() {
     const { user, clienteId } = await portalCliente()
     const [articles, favorites, memories, preferences, plans, requests,
       referral, claims, gifts, outgoing, incoming, localPets, products, likedProducts] = await Promise.all([
-      db.portalArticle.findMany({ where: { published: true }, orderBy: { createdAt: 'desc' },
-        take: 40, select: { id:true, title:true, category:true, summary:true, body:true, imageUrl:true, productId:true, createdAt:true } }),
+      db.portalArticle.findMany({ where: { published: true, OR:[{publishAt:null},{publishAt:{lte:new Date()}}] }, orderBy: { createdAt: 'desc' },
+        take: 40, select: { id:true, title:true, category:true, summary:true, body:true, imageUrl:true, productId:true, createdAt:true, readMinutes:true, publishAt:true } }),
       db.portalArticleFavorite.findMany({ where: { clienteId }, select: { articleId:true } }),
       db.portalPetMemory.findMany({ where: { clienteId }, orderBy: { eventAt: 'desc' }, take: 60 }),
       db.portalClientPreferences.findUnique({ where: { clienteId } }),
@@ -104,7 +105,7 @@ export async function GET() {
       articles, favorites:favorites.map((x) => x.articleId),
       memories, preferences: preferences || {
         remindersInApp:true, remindersEmail:false, remindersWhatsapp:false,
-        marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false,
+        marketingEmail:false, marketingWhatsapp:false, groomingPhotoConsent:false, publicPetConsent:false,
       },
       features: {
         subscriptionsEnabled:process.env.PORTAL_SUBSCRIPTIONS_ENABLED === 'true',
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
     const { user, clienteId } = await portalCliente()
     const data = actionSchema.parse(await experienceBody(req, 245000))
     if (data.action === 'favorite') {
-      const article = await db.portalArticle.findFirst({ where: { id:data.articleId, published:true }, select: { id:true } })
+      const article = await db.portalArticle.findFirst({ where: { id:data.articleId, published:true, OR:[{publishAt:null},{publishAt:{lte:new Date()}}] }, select: { id:true } })
       if (!article) return NextResponse.json({ error:'Artigo indisponível.' }, { status:404 })
       const key = { articleId_clienteId: { articleId:data.articleId, clienteId } }
       if (data.saved) await db.portalArticleFavorite.upsert({ where:key,
@@ -155,13 +156,25 @@ export async function POST(req: NextRequest) {
     }
     if (data.action === 'preferences') {
       await db.$transaction(async (tx) => {
+        const previous = await tx.portalClientPreferences.findUnique({
+          where:{clienteId},select:{publicPetConsent:true,publicPetConsentAt:true},
+        })
+        const consentAt = data.publicPetConsent === true
+          ? (previous?.publicPetConsentAt || new Date())
+          : null
         await tx.portalClientPreferences.upsert({ where: { clienteId },
           create: { clienteId, remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
             remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
-            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent,
+            publicPetConsent:data.publicPetConsent === true,
+            publicPetConsentAt:consentAt },
           update: { remindersInApp:data.remindersInApp, remindersEmail:data.remindersEmail,
             remindersWhatsapp:data.remindersWhatsapp, marketingEmail:data.marketingEmail,
-            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent },
+            marketingWhatsapp:data.marketingWhatsapp, groomingPhotoConsent:data.groomingPhotoConsent,
+            ...(data.publicPetConsent !== undefined ? {
+              publicPetConsent:data.publicPetConsent,
+              publicPetConsentAt:consentAt,
+            } : {}) },
         })
         // Revogação apaga as fotos anexadas pela equipe: não manter dados após retirada do consentimento.
         if (!data.groomingPhotoConsent) await tx.portalPetMemory.deleteMany({
@@ -212,10 +225,11 @@ export async function POST(req: NextRequest) {
       if (pendingGifts >= 5) return NextResponse.json({error:'Limite de 5 solicitações pendentes. Aguarde a análise da loja.'},{status:409})
       await db.portalGiftRequest.create({ data: {
         clienteId, recipientName:data.recipientName,
-        recipientEmail:data.recipientEmail ? cleanEmail(data.recipientEmail) : null,
+        recipientEmail:cleanEmail(data.recipientEmail),
+        recipientWhatsapp:data.recipientWhatsapp,
         amountCents:data.amountCents, message:data.message || null,
       } })
-      return NextResponse.json({ success:true, note:'Pedido recebido. O voucher só será emitido após aprovação e pagamento confirmado.' }, { status:201 })
+      return NextResponse.json({ success:true, note:'Pedido recebido. O voucher só será emitido após aprovação e pagamento confirmado. O presenteado precisará acessar sua própria conta com o e-mail informado.' }, { status:201 })
     }
     if (data.action === 'family-invite') {
       if (!await ownsPet(user,data.petKey))

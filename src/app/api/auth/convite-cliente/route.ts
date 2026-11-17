@@ -9,7 +9,7 @@ import { acceptClientInvitation, hashInvitation, officialInvitationClient } from
 const tokenSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('verify'), token: tokenSchema }).strict(),
-  z.object({ action: z.literal('accept'), token: tokenSchema, senha: passwordSchema, confirmarSenha: z.string().max(72) }).strict(),
+  z.object({ action: z.literal('accept'), token: tokenSchema, senha: passwordSchema, confirmarSenha: z.string().max(72), publicPetConsent: z.boolean().optional() }).strict(),
 ])
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     if (!invitation.clienteId) throw new AuthError('Convite legado. Solicite um novo acesso ao portal.', 410)
     const official = await officialInvitationClient(invitation.clienteId)
     if (official.email !== invitation.email) throw new AuthError('O cadastro mudou. Peça um novo convite à loja.', 409)
-    await acceptClientInvitation(data.token, await bcrypt.hash(data.senha, 12))
+    await acceptClientInvitation(data.token, await bcrypt.hash(data.senha, 12), data.publicPetConsent === true)
     return authJson({ success: true }, 201)
   } catch (error) { return authFailure(error) }
 }

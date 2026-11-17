@@ -4,6 +4,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { isServiceProduct, isUnlimitedBathProduct, officialStockFromSources } from '@/lib/product-stock'
 import { codigoCompartilhado } from '@/lib/product-sku-groups'
 import { catalogVariantDetails } from '@/lib/product-variants'
+import { catalogImageSchema } from '@/lib/catalog-image'
 
 
 type ConsolidatableProduct = {
@@ -284,6 +285,8 @@ export async function POST(req: NextRequest) {
       ativo,
     } = body
 
+    const checkedImage = catalogImageSchema.safeParse(imageUrl ?? null)
+    if (!checkedImage.success) return NextResponse.json({ error: 'Imagem inválida: envie uma foto JPG/PNG/WebP pequena ou uma URL HTTPS.' }, { status: 400 })
     if (!nome || !categoria || typeof preco !== 'number') {
       return NextResponse.json(
         { error: 'nome, categoria e preco são obrigatórios' },
@@ -307,7 +310,7 @@ export async function POST(req: NextRequest) {
         sku: sku || null,
         mlItemId: mlItemId || null,
         amazonAsin: amazonAsin || null,
-        imageUrl: imageUrl || null,
+        imageUrl: checkedImage.data || null,
         ativo: ativo !== undefined ? Boolean(ativo) : true,
       },
     })

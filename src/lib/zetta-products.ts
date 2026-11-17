@@ -299,7 +299,10 @@ export async function syncZettaProductsToLocal() {
           estoqueIlimitado,
           sku,
           zettaProCod: product.id,
-          ...(imageUrl ? { imageUrl } : {}),
+          // Uma foto enviada manualmente pelo painel tem prioridade sobre a galeria antiga.
+          // Sem isso, a próxima sincronização substituiria a foto escolhida no computador.
+          ...(imageUrl && !existing.imageUrl?.startsWith('data:image/')
+            ? { imageUrl } : {}),
           // A publicação é controlada pela loja; sincronizar não deve reativar itens ocultos.
           ativo: existing.ativo,
         },

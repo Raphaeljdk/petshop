@@ -13,6 +13,7 @@ import { ClientMinhasCompras } from '@/components/cliente-portal/ClientMinhasCom
 import { ClientVacinas } from '@/components/cliente-portal/ClientVacinas'
 import { ClientBlog } from '@/components/cliente-portal/ClientBlog'
 import { ClientCareHub } from '@/components/cliente-portal/ClientCareHub'
+import { ClientTermsAcceptance } from '@/components/cliente-portal/ClientTermsAcceptance'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/components/providers/AuthProvider'
@@ -131,6 +132,8 @@ function ClientPortalContent() {
           </div>
         </div>
       </header>
+
+      <ClientTermsAcceptance />
 
       {/* Tabs */}
       <nav aria-label="Navegação do cliente" className="portal-tabs sticky top-16 sm:top-18 z-30 bg-card border-b border-border">

@@ -11,7 +11,7 @@ export async function GET() {
     const agendamentos = await db.agendamento.findMany({
       where: { clienteId: usuario.cliente.id },
       orderBy: { dataHora: 'asc' },
-      include: { pet: true },
+      include: { pet: true, profissional:{select:{id:true,nome:true}} },
     })
     return NextResponse.json(agendamentos, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {

@@ -5,6 +5,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoPatchSchema } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
+import { validarBloqueioProfissional, mensagemAgenda } from '@/lib/agenda-bloqueios'
 type Params = { params: Promise<{ id: string }> }
 async function admin() {
   const user = await getUsuarioLogado()
@@ -43,6 +44,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (conflito) return NextResponse.json({ error: 'Já existe atendimento reservado para esse pet nesse horário.' }, { status: 409 })
     }
     const item = await db.$transaction(async tx => {
+      if(['agendado','confirmado'].includes(status) && (changes.dataHora || changes.profissionalId!==undefined || changes.status==='agendado'))
+        await validarBloqueioProfissional(tx,changes.profissionalId!==undefined?changes.profissionalId:existing.profissionalId,dataHora,undefined,id)
       const updated = await tx.agendamento.update({
         where: { id },
         data: {
@@ -63,6 +66,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     return NextResponse.json(item)
   } catch (error) {
+    const mensagem=mensagemAgenda(error)
+    if(mensagem)return NextResponse.json({error:mensagem},{status:409})
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues[0]?.message }, { status: 400 })
     console.error('agenda PATCH:', error)
     return NextResponse.json({ error: 'Erro ao atualizar agendamento.' }, { status: 500 })

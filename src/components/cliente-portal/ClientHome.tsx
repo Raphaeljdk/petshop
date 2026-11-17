@@ -59,6 +59,10 @@ interface ProdutoDestaque {
   categoria: string
 }
 
+interface BanhoResumo {
+  items: Array<{id:string;petKey:string;planTitle:string;status:string;sessions:number;used:number;remaining:number;expiresAt:string|null}>
+  totalRemaining:number
+}
 interface DashboardData {
   zettaLinked?: boolean
   cliente: { nome: string; telefone: string; email: string | null; cep?: string | null }
@@ -132,6 +136,7 @@ export function ClientHome({
   onIrParaCompras,
 }: ClientHomeProps) {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [banhos, setBanhos] = useState<BanhoResumo | null>(null)
   const [loading, setLoading] = useState(true)
   const [retry, setRetry] = useState(0)
 
@@ -139,7 +144,18 @@ export function ClientHome({
     let cancelado = false
     async function carregar() {
       try {
-        const res = await fetch('/api/cliente/dashboard', { credentials: 'same-origin' })
+        const [res, planoRes] = await Promise.all([
+          fetch('/api/cliente/dashboard', { credentials: 'same-origin' }),
+          fetch('/api/cliente/portal/planos-resumo', { cache:'no-store',credentials:'same-origin' }),
+        ])
+        if (planoRes.ok && !cancelado) {
+          const summary: unknown = await planoRes.json()
+          if (summary && typeof summary === 'object' && 'items' in summary &&
+            Array.isArray(summary.items) && 'totalRemaining' in summary &&
+            typeof summary.totalRemaining === 'number') {
+            setBanhos(summary as BanhoResumo)
+          }
+        }
         if (res.ok && !cancelado) {
           setData(await res.json())
         }
@@ -243,6 +259,29 @@ export function ClientHome({
           <div className="min-w-0"><p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">O próximo cuidado</p><h2 id="proximo-cuidado" className="break-words text-base font-semibold">{cuidado.title}</h2><p className="mt-1 break-words text-sm leading-6 text-muted-foreground">{cuidado.description}</p></div>
         </div>
         <Button type="button" onClick={cuidado.onClick} className="h-auto min-h-12 shrink-0 whitespace-normal rounded-xl px-4 py-3 text-center sm:max-w-56">{cuidado.action}<ArrowRight className="size-4 shrink-0" aria-hidden="true" /></Button>
+      </section>
+
+      <section aria-label="Seus planos de banho" className="rounded-2xl border bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="text-lg font-semibold">Meus banhos disponíveis</h2>
+            <p className="text-sm text-muted-foreground">Saldo atualizado após confirmação do pagamento e conclusão dos atendimentos.</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={onIrParaPets}>
+            {banhos?.items?.length ? 'Gerenciar meus planos' : 'Conhecer os planos'}
+          </Button>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <strong className="text-3xl tabular-nums text-primary">{banhos?.totalRemaining ?? '—'}</strong>
+          <span className="text-sm text-muted-foreground">banhos restantes em planos ativos</span>
+        </div>
+        {!!banhos?.items.length && <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {banhos.items.map(p => <div key={p.id} className="rounded-lg border px-3 py-2 text-sm">
+            <p className="font-medium">{p.planTitle}</p>
+            <p className="text-muted-foreground">{p.remaining} restantes · {p.used} utilizados · {p.status}</p>
+            {p.expiresAt && <p className="text-xs text-muted-foreground">Validade: {new Date(p.expiresAt).toLocaleDateString('pt-BR')}</p>}
+          </div>)}
+        </div>}
+        {!banhos?.items.length && <p className="mt-2 text-sm text-muted-foreground">Você ainda não possui um plano ativo. Acesse Meus Pets para solicitar e, quando disponível, contratar.</p>}
       </section>
 
       {/* ===== ATALHOS RÁPIDOS ===== */}

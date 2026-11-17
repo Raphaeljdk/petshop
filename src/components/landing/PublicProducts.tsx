@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, Loader2, Package, ShoppingBag, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, Loader2, Package, ShoppingBag, Sparkles, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { isClothingProduct } from '@/lib/product-variants'
@@ -19,6 +20,8 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   const [products, setProducts] = useState<PublicProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [brand, setBrand] = useState('todas')
+  const [brandQuery, setBrandQuery] = useState('')
+  const [catalogQuery, setCatalogQuery] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const resultsRef = useRef<HTMLHeadingElement>(null)
@@ -117,9 +120,12 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
   }
 
   const visible = useMemo(() => {
-    const filtered = brand === 'todas'
-      ? products
-      : products.filter((product) => getProductBrand(product) === brand)
+    const term = catalogQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    const filtered = products.filter((product) =>
+      (brand === 'todas' || getProductBrand(product) === brand) &&
+      (!term || [product.nome, product.categoria, getProductBrand(product)]
+        .join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(term))
+    )
 
     return [...filtered]
       .sort((a, b) => {
@@ -128,7 +134,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
         return aSemEstoque === bSemEstoque ? 0 : aSemEstoque ? 1 : -1
       })
       .slice(0, 12)
-  }, [products, brand])
+  }, [products, brand, catalogQuery])
 
   const money = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -193,17 +199,31 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                   </button>
                 </div>
               </div>
+              <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                <label className="relative block">
+                  <Search className="absolute left-3 top-3 size-4 text-muted-foreground" aria-hidden="true" />
+                  <Input aria-label="Pesquisar marcas" className="pl-9" value={brandQuery}
+                    onChange={(e) => setBrandQuery(e.target.value)} placeholder="Pesquisar marca..." />
+                </label>
+                <label className="relative block">
+                  <Search className="absolute left-3 top-3 size-4 text-muted-foreground" aria-hidden="true" />
+                  <Input aria-label="Pesquisar produtos na vitrine" className="pl-9" value={catalogQuery}
+                    onChange={(e) => setCatalogQuery(e.target.value)} placeholder="Pesquisar produto ou categoria..." />
+                </label>
+              </div>
               <div ref={brandsScrollerRef} className="boutique-brands-scroller"
                 role="group" aria-label="Filtrar vitrine por marca" tabIndex={0}>
                 <button type="button" className="boutique-category boutique-category-all"
                   aria-pressed={brand === 'todas'} aria-controls="boutique-results"
-                  onClick={() => selectBrand('todas')} style={{ '--category-order': 0 } as CSSProperties}>
+                  onClick={() => { setCatalogQuery(''); setBrandQuery(''); selectBrand('todas') }} style={{ '--category-order': 0 } as CSSProperties}>
                   <span className="boutique-category-art"><Grid2X2 className="size-8" aria-hidden="true" /></span>
                   <span className="boutique-category-name">Todas as marcas</span>
                   <span className="boutique-category-hint">{products.length} {products.length === 1 ? 'produto' : 'produtos'}</span>
                   {brand === 'todas' && <Check className="boutique-category-check size-4" aria-hidden="true" />}
                 </button>
-                {brandOptions.map((option, index) => (
+                {brandOptions.filter((option) => option.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(
+                  brandQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+                )).map((option, index) => (
                   <button
                     key={option.label}
                     type="button"
@@ -245,7 +265,7 @@ export function PublicProducts({ onBuy }: { onBuy: () => void }) {
                     : 'Selecione uma marca acima para filtrar.'}
                 </p>
               </div>
-              {brand !== 'todas' && (
+              {(brand !== 'todas' || catalogQuery) && (
                 <Button
                   type="button"
                   size="sm"

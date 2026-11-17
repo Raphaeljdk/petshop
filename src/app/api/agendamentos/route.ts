@@ -5,6 +5,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoSchema, statusAgenda } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
+import { validarBloqueioProfissional, mensagemAgenda } from '@/lib/agenda-bloqueios'
 
 export const dynamic = 'force-dynamic'
 async function admin() {
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
       if (!profissional) return NextResponse.json({ error: 'Profissional indisponível para novos agendamentos.' }, { status: 409 })
     }
     const item = await db.$transaction(async tx => {
+      await validarBloqueioProfissional(tx,data.profissionalId,dataHora)
       const created = await tx.agendamento.create({
         data: { clienteId: data.clienteId, petId: data.petId, dataHora, servico: data.servico,
           categoria: data.categoria || inferirCategoriaAgenda(data.servico),
@@ -88,6 +90,8 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json(item, { status: 201 })
   } catch (error) {
+    const mensagem=mensagemAgenda(error)
+    if(mensagem)return NextResponse.json({error:mensagem},{status:409})
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues[0]?.message || 'Dados inválidos.' }, { status: 400 })
     console.error('agenda POST:', error)
     return NextResponse.json({ error: 'Erro ao criar agendamento.' }, { status: 500 })

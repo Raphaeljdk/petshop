@@ -12,19 +12,21 @@ export type BrandableProduct = {
   marca?: string | null
 }
 
-const BRANDS = [
-  'Arm & Hammer',
-  'Alecrim Pet',
-  'Jambo Pet',
-  'Pet Head',
-  'ZippyPaws',
-  'Chuckit',
-  'Carnilove',
-  'Yowup',
-  'Kong',
-  'Petlon',
-  'Hydra',
-] as const
+const BRAND_ALIASES: ReadonlyArray<{ brand: string; aliases: string[] }> = [
+  { brand: 'Arm & Hammer', aliases: ['arm & hammer', 'arm and hammer', 'arm hammer'] },
+  { brand: 'Bonito Pra Cachorro', aliases: ['bonito pra cachorro', 'bonito para cachorro', 'bonito p cachorro'] },
+  { brand: 'Great Pets', aliases: ['great pets', 'great pet'] },
+  { brand: 'Jambo Pet', aliases: ['jambo pet', 'jambo'] },
+  { brand: 'Alecrim Pet', aliases: ['alecrim pet'] },
+  { brand: 'Pet Head', aliases: ['pet head'] },
+  { brand: 'ZippyPaws', aliases: ['zippypaws'] },
+  { brand: 'Chuckit', aliases: ['chuckit'] },
+  { brand: 'Carnilove', aliases: ['carnilove'] },
+  { brand: 'Yowup', aliases: ['yowup'] },
+  { brand: 'Kong', aliases: ['kong'] },
+  { brand: 'Petlon', aliases: ['petlon'] },
+  { brand: 'Hydra', aliases: ['hydra'] },
+]
 
 function normalize(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -32,17 +34,28 @@ function normalize(value: string) {
     .replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
-export function getProductBrand(product: BrandableProduct): string {
-  const original = product.marca?.trim()
-  if (original && original.length <= 80 && !/^(?:0|sem marca|nao informado|não informado|outros?|pet shop|generico|genérico)$/i.test(original)) {
-    return BRANDS.find((brand) => normalize(brand) === normalize(original)) || original
+function recognizableBrand(value: string): string | null {
+  const text = ' ' + normalize(value) + ' '
+  for (const { brand, aliases } of BRAND_ALIASES) {
+    if (aliases.some((alias) => text.includes(' ' + normalize(alias) + ' '))) return brand
   }
+  return null
+}
 
-  const text = ` ${normalize([product.nome, product.descricao || ''].join(' '))} `
-  for (const brand of BRANDS) {
-    if (text.includes(` ${normalize(brand)} `)) return brand
+export function getProductBrand(product: BrandableProduct): string {
+  const original = product.marca?.trim() || ''
+  // Marca explícita verificada é sempre preferida a menções em descrição.
+  const knownExplicit = recognizableBrand(original)
+  if (knownExplicit) return knownExplicit
+  // Os títulos de anúncios trazem a marca real mesmo quando o conector não a informa.
+  const byTitle = recognizableBrand(product.nome)
+  if (byTitle) return byTitle
+  if (original && original.length <= 80 &&
+    !/^(?:0|sem marca|nao informado|não informado|outros?|pet shop|generico|genérico|animal_[a-z_]+)$/i.test(original)) {
+    return original
   }
-  return SEM_MARCA
+  // Descrição é a última opção: compatibilidade e outras marcas podem aparecer ali.
+  return recognizableBrand(product.descricao || '') || SEM_MARCA
 }
 
 /**

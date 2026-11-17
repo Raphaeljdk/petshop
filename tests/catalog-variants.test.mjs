@@ -286,3 +286,47 @@ test('espuma de banho a seco vendida como shampoo e produto fisico, nao servico'
     nome:'Banho a seco',categoria:'Serviços',estoqueIlimitado:false,
   }),true)
 })
+
+test('reúne jaquetas duplicadas em uma família sem somar estoques espelhados',()=>{
+  const rows=groupCatalogProducts([
+    make('a','Jaqueta Maxi Puffer Camuflado/laranja Cachorro Porte Grande Camuflado',3,{preco:209.9,zettaProCod:12}),
+    make('b','Jaqueta Maxi Puffer Camuflado/laranja Cachorro Porte',3,{preco:209.9,mlItemId:'MLB34'}),
+  ])
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].estoque,3)
+  assert.equal(rows[0].variantes,undefined)
+})
+
+test('areia Great Pets Natural com títulos quase iguais é um anúncio',()=>{
+  const rows=groupCatalogProducts([
+    make('a','Granulado De Tofu Areia P Gatos 2kg Great Pets Biodegradável',8),
+    make('b','Granulado De Tofu Areia Para Gatos 2kg Great Pets Biodegradável Natural',8),
+    make('c','Granulado De Tofu Areia Para Gatos 2kg Great Pets Biodegradável Lavanda',2),
+  ])
+  assert.equal(rows.length,2)
+  assert.equal(rows.find(r=>r.nome==='Granulado de Tofu Great Pets Natural 2 kg')?.estoque,8)
+})
+
+test('Sodapup Mandala e cama Grace Linen viram famílias sem perder opções reais',()=>{
+  const rows=groupCatalogProducts([
+    make('mandala-a','Comedouro Interativo Sodapup Mandala Etray Para Cães De Alimentação Lenta',1),
+    make('mandala-b','Comedouro Sodapup Mandala Etray Interativo E Antiengasgo',1),
+    make('cama-padrao','Cama Grace Linen',1,{preco:279.9}),
+    make('cama-babado','Cama Com Babado Grace Linen',1,{preco:319.9}),
+  ])
+  assert.equal(rows.length,2)
+  assert.equal(rows.find(r=>r.nome==='Comedouro Sodapup Mandala Etray')?.estoque,1)
+  const cama=rows.find(r=>r.nome==='Cama Grace Linen')
+  assert.equal(cama?.variantes?.length,2)
+  assert.deepEqual(new Set(cama?.variantes?.map(v=>v.modeloLabel)),new Set(['Padrão','Com babado']))
+  assert.equal(cama?.estoque,2)
+})
+
+test('areia grossa milho e mandioca Great Pets fica em um único anúncio',()=>{
+  const rows=groupCatalogProducts([
+    make('sem-marca-no-titulo','Areia Sanitária Gato Milho Mandioca Biodegradável 2kg Grossa',7),
+    make('marca-no-titulo','Areia Sanitária Gato Milho Mandioca Biodegradável 2kg Grossa Great Pets',7),
+  ])
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].estoque,7)
+})

@@ -10,7 +10,7 @@ import { portalRequest } from './ExperienceProvider'
 
 type Article = {
   id:string; title:string; category:string; summary:string; body:string
-  imageUrl:string|null; productId:string|null; createdAt:string
+  imageUrl:string|null; productId:string|null; createdAt:string; readMinutes:number; publishAt:string|null
 }
 type BlogData = { articles:Article[]; favorites:string[] }
 type Props = { compact?:boolean; onOpenBlog?:()=>void; onShop?:()=>void }
@@ -78,7 +78,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
       <article className="overflow-hidden rounded-2xl border bg-card">
         {selected.imageUrl && <img src={selected.imageUrl} alt="" className="h-44 w-full object-cover sm:h-64" loading="lazy"/>}
         <div className="space-y-4 p-5 sm:p-8">
-          <p className="text-xs font-semibold uppercase text-primary">{selected.category} · {new Date(selected.createdAt).toLocaleDateString('pt-BR')}</p>
+          <p className="text-xs font-semibold uppercase text-primary">{selected.category} · {new Date(selected.createdAt).toLocaleDateString('pt-BR')} · {selected.readMinutes||3} min de leitura</p>
           <h1 className="text-2xl font-bold sm:text-3xl">{selected.title}</h1>
           <p className="text-sm font-medium text-muted-foreground">{selected.summary}</p>
           <div className="space-y-4 text-sm leading-7">{selected.body.split(/\n{2,}/).filter(Boolean).map((p,i) =>
@@ -117,7 +117,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
           {p.imageUrl ? <img src={p.imageUrl} alt="" loading="lazy" className="h-40 w-full object-cover"/> :
             <div className="flex h-28 items-center justify-center bg-primary/5"><BookOpen className="size-10 text-primary/40"/></div>}
           <CardContent className="space-y-3 p-4">
-            <p className="text-xs font-semibold text-primary">{p.category}</p>
+            <p className="text-xs font-semibold text-primary">{p.category} · {p.readMinutes||3} min de leitura</p>
             <h2 className="line-clamp-2 font-bold">{p.title}</h2>
             <p className="line-clamp-3 text-sm text-muted-foreground">{p.summary}</p>
             <div className="flex justify-between gap-2">

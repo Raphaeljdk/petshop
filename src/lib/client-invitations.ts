@@ -50,7 +50,7 @@ export async function issueClientInvitation(target: Awaited<ReturnType<typeof of
   return { invitation, token }
 }
 
-export async function acceptClientInvitation(token: string, senhaHash: string) {
+export async function acceptClientInvitation(token: string, senhaHash: string, publicPetConsent = false) {
   const tokenHash = hashInvitation(token)
   return db.$transaction(async tx => {
     const invitation = await tx.clientInvitation.findUnique({ where: { tokenHash } })
@@ -67,10 +67,18 @@ export async function acceptClientInvitation(token: string, senhaHash: string) {
       data: { usedAt: now },
     })
     if (claimed.count !== 1) throw new AuthError('Este convite não está mais disponível.', 410)
-    return tx.user.create({ data: {
+    const created = await tx.user.create({ data: {
       nome: client.nome, email: invitation.email, senha: senhaHash,
       role: 'CLIENTE', clienteId: invitation.clienteId,
     }, select: { id: true } })
+    if (publicPetConsent) {
+      await tx.portalClientPreferences.upsert({
+        where:{clienteId:invitation.clienteId},
+        create:{clienteId:invitation.clienteId,publicPetConsent:true,publicPetConsentAt:now},
+        update:{publicPetConsent:true,publicPetConsentAt:now},
+      })
+    }
+    return created
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 }
 

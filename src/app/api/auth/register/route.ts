@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const parsed = clientRegistrationSchema.safeParse(await readAuthBody(req))
     if (!parsed.success) return authJson({ success: false, error: 'Revise os campos indicados.', fields: fieldErrors(parsed.error) }, 400)
     authReady()
-    const { nome, email, senha, telefone, cpfCnpj, endereco, cep } = parsed.data
+    const { nome, email, senha, telefone, cpfCnpj, endereco, cep, publicPetConsent } = parsed.data
     if (!validCpfCnpj(cpfCnpj)) {
       return authJson({ success: false, error: 'Revise os campos indicados.', fields: { cpfCnpj: 'CPF ou CNPJ inválido.' } }, 400)
     }
@@ -23,13 +23,19 @@ export async function POST(req: NextRequest) {
       if (await tx.cliente.findUnique({ where: { email }, select: { id: true } })) {
         throw new AuthError('Já existe um atendimento com este e-mail. Procure a equipe para habilitar seu acesso.', 409)
       }
-      return tx.user.create({
+      const created = await tx.user.create({
         data: {
           nome, email, senha: senhaHash, role: 'CLIENTE',
           cliente: { create: { nome, email, telefone, cpfCnpj: normalizeCpfCnpj(cpfCnpj), endereco: endereco || null, cep: cep || null } },
         },
         select: { id: true, nome: true, email: true, role: true, clienteId: true },
       })
+      if (created.clienteId && publicPetConsent) {
+        await tx.portalClientPreferences.create({
+          data: { clienteId: created.clienteId, publicPetConsent:true, publicPetConsentAt:new Date() },
+        })
+      }
+      return created
     })
     let siggmaCliCod: number | null = null
     try {

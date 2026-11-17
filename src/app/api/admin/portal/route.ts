@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { imageData } from '@/lib/portal-care'
+import { catalogImageSchema } from '@/lib/catalog-image'
 import { paidSaleWhere } from '@/lib/sales-policy'
 import { awardReferralBySale } from '@/lib/portal-referral-awards'
 
@@ -16,7 +17,9 @@ const articleForm = z.object({
   category:z.enum(['Cuidados','Comportamento','Brinquedos','Bem-estar','Novidades']),
   summary:z.string().trim().min(15).max(320),
   body:z.string().trim().min(60).max(16000),
-  imageUrl:z.union([z.string().url().max(1000).refine((s)=>s.startsWith('https://')),z.literal('')]).optional(),
+  imageUrl:catalogImageSchema.optional(),
+  readMinutes:z.number().int().min(1).max(120).default(3),
+  publishAt:z.string().datetime({offset:true}).nullable().optional(),
   productId:z.string().max(100).nullable().optional(),
   published:z.boolean().default(false),
 })
@@ -56,7 +59,7 @@ export async function GET() {
       db.portalCarePlan.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
       db.portalCarePlanRequest.findMany({ where:{ status:{ in:['solicitado','ativo'] } }, take:100,
         orderBy:{ createdAt:'desc' }, include:{ plan:{ select:{ title:true,sessions:true } } } }),
-      db.portalGiftRequest.findMany({ where:{ status:{ in:['solicitado','aguardando_pagamento'] } }, take:100,
+      db.portalGiftRequest.findMany({ where:{ status:{ in:['solicitado','aguardando_pagamento','pago'] } }, take:100,
         orderBy:{ createdAt:'desc' } }),
       db.portalReferralClaim.findMany({ where:{ status:'aguardando_compra' }, take:100,
         orderBy:{ createdAt:'desc' } }),
@@ -104,6 +107,7 @@ export async function POST(req: NextRequest) {
       const article = {
         title:data.title, category:data.category, summary:data.summary, body:data.body,
         imageUrl:data.imageUrl || null, productId:data.productId || null, published:data.published,
+        readMinutes:data.readMinutes, publishAt:data.publishAt ? new Date(data.publishAt) : null,
       }
       if (article.productId && !await db.produto.findFirst({ where:{ id:article.productId, ativo:true }, select:{ id:true } }))
         return NextResponse.json({ error:'Produto relacionado não encontrado.' }, { status:400 })

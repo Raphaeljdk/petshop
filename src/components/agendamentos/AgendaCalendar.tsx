@@ -21,6 +21,7 @@ export type AgendaCalendarEntry = {
 }
 
 export type AgendaProfessional = { id: string; nome: string; especialidades: string | null; ativo: boolean }
+type Bloqueio = { id:string;profissionalId:string;inicio:string;fim:string;tipo:string;profissional:{nome:string} }
 type Vista = 'mes' | 'semana' | 'dia'
 const paleta: Record<CategoriaAgenda, string> = {
   Cirurgias: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300',
@@ -52,6 +53,7 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
   const [referencia,setReferencia]=useState(()=>new Date())
   const [vista,setVista]=useState<Vista>('mes')
   const [items,setItems]=useState<AgendaCalendarEntry[]>([])
+  const [bloqueios,setBloqueios]=useState<Bloqueio[]>([])
   const [loading,setLoading]=useState(true)
   const [erro,setErro]=useState<string|null>(null)
   const [truncado,setTruncado]=useState(false)
@@ -79,10 +81,13 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
       setLoading(true);setErro(null)
       try {
         const params=new URLSearchParams({inicio:de,fim:ate})
-        const res=await fetch('/api/agendamentos?'+params,{
-          credentials:'same-origin',cache:'no-store',signal:abort.signal,
-        })
+        const [res,blocksRes]=await Promise.all([
+          fetch('/api/agendamentos?'+params,{credentials:'same-origin',cache:'no-store',signal:abort.signal}),
+          fetch('/api/agenda/bloqueios?'+params,{credentials:'same-origin',cache:'no-store',signal:abort.signal}),
+        ])
         const data=await res.json().catch(()=>({}))
+        const blocks=await blocksRes.json().catch(()=>({}))
+        if(blocksRes.ok && !abort.signal.aborted)setBloqueios(blocks.items||[])
         if(!res.ok)throw new Error(data.error||'Falha ao consultar o calendário.')
         if(!abort.signal.aborted){
           setItems(data.items||[])
@@ -234,7 +239,14 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
                       onClick={()=>onCreateAt(day)}
                       className="pointer-events-auto rounded p-0.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"><Plus className="size-3.5"/></button>
                   </div>
-                  <div className="relative z-10 space-y-1">{events.slice(0,3).map(chip)}</div>
+                  <div className="relative z-10 space-y-1">
+                    {bloqueios.filter(b=>format(parseISO(b.inicio),'yyyy-MM-dd')===key &&
+                      (profissionalFiltro==='todos'||profissionalFiltro===b.profissionalId)).slice(0,2).map(b=>
+                      <div key={b.id} className="truncate rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-900" title={b.profissional.nome+' · '+b.tipo}>
+                        {format(parseISO(b.inicio),'HH:mm')} · {b.profissional.nome} · {b.tipo==='almoco'?'Almoço':b.tipo==='taxdog'?'TaxDog':'Bloqueado'}
+                      </div>)}
+                    {events.slice(0,3).map(chip)}
+                  </div>
                   {events.length>3&&<button type="button" onClick={()=>abrirDia(day)}
                     className="relative z-10 mt-1 w-full truncate rounded bg-muted px-1 py-1 text-left text-[11px] hover:bg-muted/80">
                     + {events.length-3} compromisso(s)
@@ -256,6 +268,13 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
               </select>
               <Button size="sm" variant="outline" onClick={()=>onCreateAt(referencia)}><Plus className="mr-1 size-4"/>Agendar neste dia</Button>
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {bloqueios.filter(b=>format(parseISO(b.inicio),'yyyy-MM-dd')===format(referencia,'yyyy-MM-dd') &&
+              (profissionalFiltro==='todos'||profissionalFiltro===b.profissionalId)).map(b=>
+              <span key={b.id} className="rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-950">
+                {b.profissional.nome} · {b.tipo==='almoco'?'Almoço':b.tipo==='taxdog'?'TaxDog':'Bloqueado'} · {format(parseISO(b.inicio),'HH:mm')}–{format(parseISO(b.fim),'HH:mm')}
+              </span>)}
           </div>
           {(()=>{
             const agendamentos=porDia.get(format(referencia,'yyyy-MM-dd'))||[]

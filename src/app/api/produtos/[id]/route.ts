@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { isUnlimitedBathProduct } from '@/lib/product-stock'
+import { catalogImageSchema } from '@/lib/catalog-image'
 
 export async function PUT(
   req: NextRequest,
@@ -69,7 +70,11 @@ export async function PUT(
     })
     if (mlItemId !== undefined) dados.mlItemId = mlItemId
     if (amazonAsin !== undefined) dados.amazonAsin = amazonAsin
-    if (imageUrl !== undefined) dados.imageUrl = imageUrl
+    if (imageUrl !== undefined) {
+      const checkedImage = catalogImageSchema.safeParse(imageUrl)
+      if (!checkedImage.success) return NextResponse.json({ error: 'Imagem inválida. Envie JPG/PNG/WebP ou URL HTTPS.' }, { status: 400 })
+      dados.imageUrl = checkedImage.data || null
+    }
     if (ativo !== undefined) dados.ativo = Boolean(ativo)
 
     const produto = await db.produto.update({

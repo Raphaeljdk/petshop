@@ -52,6 +52,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
   const [role, setRole] = useState(initialRole)
   const [busy, setBusy] = useState(false)
   const [remember, setRemember] = useState(false)
+  const [publicPetConsent, setPublicPetConsent] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const [help, setHelp] = useState(false)
@@ -95,7 +96,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
     if (inFlight.current) return
     const input = isRegister
       ? { nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
-          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }) }
+          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep, publicPetConsent }) }
       : isAdmin
         ? { role: 'ADMIN' as const, email: data.email, senha: data.senha, lembrar: remember }
         : { role: 'CLIENTE' as const, identificador: data.identificador, senha: data.senha, lembrar: remember }
@@ -110,7 +111,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
       if (isRegister) {
         await cadastrar({
           nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
-          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }),
+          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep, publicPetConsent }),
         })
       } else {
         await login(parsed.data as Parameters<typeof login>[0])
@@ -217,6 +218,17 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
               value={data.cep} onChange={e => update('cep', formatCep(e.target.value))} error={errors.cep} />
           </div>
         </details>}
+        {isRegister && !isAdmin && <div className="rounded-xl border p-3 text-xs leading-relaxed">
+          <p className="font-semibold">Autorização de imagem do pet (opcional)</p>
+          <p className="mt-1 text-muted-foreground">Seu pet poderá aparecer em fotos no portal e em páginas públicas do portal e blog da Matilha Prado somente se você autorizar. A autorização não é obrigatória para criar conta, comprar ou agendar; pode ser retirada em Meus Pets. Fotos privadas do banho têm autorização separada.</p>
+          <label className="mt-3 flex items-start gap-2">
+            <input type="checkbox" name="publicPetConsent" checked={publicPetConsent}
+              onChange={(e)=>setPublicPetConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary"/>
+            <span>Autorizo a utilização de imagens do meu pet em páginas públicas do portal e blog da Matilha Prado, após revisão da equipe.</span>
+          </label>
+          <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-medium text-primary underline">Ler informações de privacidade</a>
+        </div>}
+        {!isRegister && !isAdmin && <p className="rounded-lg bg-muted p-3 text-xs leading-5 text-muted-foreground">Fotos de pets podem aparecer em conteúdos da Matilha Prado somente com autorização expressa do tutor. Entrar na conta não concede essa autorização; você pode consultar ou alterar a preferência em Meus Pets.</p>}
         {!isRegister && <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 text-xs">
           <label className="flex cursor-pointer items-center gap-2">
             <input name="lembrar" type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="size-4 rounded accent-primary" />
