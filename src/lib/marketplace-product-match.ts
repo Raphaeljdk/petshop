@@ -11,7 +11,17 @@ export function pickMarketplaceProduct<T extends MarketplaceCandidate>(
   if(item.sku){
     const matches=candidates.filter(p=>p.sku===item.sku)
     if(matches.length===1)return matches[0]
-    if(matches.length>1)return null
+    if(matches.length>1){
+      // Um EAN/SKU pode estar espelhado em anúncios de múltiplos canais.
+      // Identificar a linha exata do canal evita baixar estoque no espelho errado.
+      if(item.externalProductId){
+        const exact=matches.filter(p=>channel==='mercadolivre'
+          ? p.mlItemId===item.externalProductId
+          : p.amazonAsin===item.externalProductId)
+        if(exact.length===1)return exact[0]
+      }
+      return null
+    }
   }
   const matches=candidates.filter(p=>channel==='mercadolivre'
     ?Boolean(item.externalProductId&&p.mlItemId===item.externalProductId)

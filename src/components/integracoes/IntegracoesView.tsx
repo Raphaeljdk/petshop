@@ -673,6 +673,12 @@ export function IntegracoesView() {
               </p>}
               {autoSync?.status?.status==='partial'&&
                 <p className="text-xs font-medium text-amber-800">Existem pendências de sincronização nos canais.</p>}
+              {autoSync?.issues?.some(issue=>issue.channel==='mercadolivre'&&issue.category==='permission')&&
+                <p className="text-xs font-semibold text-amber-900">
+                  Mercado Livre: leitura conectada, mas alterações de anúncios foram recusadas (HTTP 403).
+                  Confira Publicação e sincronização com leitura e escrita no DevCenter,
+                  reconecte a conta vendedora e revalide uma única publicação.
+                </p>}
               {autoSync?.issues?.length?(
                 <details className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 text-amber-950">
                   <summary className="cursor-pointer text-xs font-semibold">
@@ -706,7 +712,7 @@ export function IntegracoesView() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={mercadoLivre?.connected ? 'default' : 'secondary'}>
-                {mercadoLivre?.connected ? 'Conectado' : 'Pendente'}
+                {mercadoLivre?.connected ? 'Consulta funcionando' : 'Pendente'}
               </Badge>
               {mercadoLivre?.connected && (
                 <Button

@@ -43,7 +43,25 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
   const resolved: Array<{ productId: string; nome: string; quantidade: number; unitPrice: number }> = []
   for (const item of input.items) {
     const product = await resolveProduct(input.channel, item)
-    if (!product) throw new Error('Produto não encontrado no ERP local: ' + (item.sku || item.externalProductId || item.title || 'sem identificação'))
+    // Anúncios espelhados com o mesmo SKU não têm um livro de estoque
+    // compartilhado. Baixar apenas uma das linhas deixaria ML e Amazon com
+    // quantidades físicas divergentes, mesmo com ASIN identificado.
+    if(item.sku){
+      const mirrors=await db.produto.count({where:{sku:item.sku}})
+      if(mirrors>1)throw new Error('SKU '+item.sku+' existe em '+mirrors+
+        ' cadastros espelhados. Concilie o estoque físico e o vínculo dos anúncios antes de registrar a baixa; a venda ficou pendente, sem alterar o saldo.')
+    }
+    if(!product){
+      // Diferenciar ausência de SKU de duplicidade: jamais baixar estoque por
+      // chute entre linhas espelhadas do Mercado Livre, Amazon e catálogo.
+      if(item.sku){
+        const matches=await db.produto.count({where:{sku:item.sku}})
+        if(matches>1)throw new Error('SKU '+item.sku+
+          ' possui '+matches+' cadastros no ERP. A associação segura exige ASIN/item_id correspondente a apenas um deles; confira o vínculo dos anúncios.')
+      }
+      throw new Error('Produto não localizado com identificação única no ERP: '+
+        (item.sku||item.externalProductId||item.title||'sem identificação'))
+    }
     resolved.push({
       productId: product.id,
       nome: product.nome,
