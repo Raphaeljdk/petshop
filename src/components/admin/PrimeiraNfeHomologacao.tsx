@@ -17,7 +17,7 @@ type NotaTeste={
 const initial={
  nome:'',documento:'',logradouro:'',numero:'',bairro:'',municipio:'São Paulo',
  codigoMunicipio:'3550308',cep:'',valorUnitario:'',quantidade:'1',
- pisBase:'',pisAliquota:'',pisValor:'',cofinsBase:'',cofinsAliquota:'',cofinsValor:'',
+ pisBase:'0',pisAliquota:'0',pisValor:'0',cofinsBase:'0',cofinsAliquota:'0',cofinsValor:'0',
 }
 const txt=(v:string)=>v.replace(/\D/g,'')
 export function PrimeiraNfeHomologacao(){
@@ -42,11 +42,13 @@ export function PrimeiraNfeHomologacao(){
     setForm(f=>f.valorUnitario?f:{...f,valorUnitario:String(preparoJson.produto.preco)})
  },[])
  useEffect(()=>{atualizar().catch(e=>setErro(e.message))},[atualizar])
+ const camposPisCofinsZero:ReadonlyArray<keyof typeof initial>=
+  ['pisBase','pisAliquota','pisValor','cofinsBase','cofinsAliquota','cofinsValor']
  const field=(key:keyof typeof initial,label:string,type='text',step?:string)=>
   <div className="space-y-1" key={key}>
    <Label>{label}</Label>
    <Input value={form[key]} type={type} min={type==='number'?'0':undefined}
-    step={step} required
+    step={step} required readOnly={camposPisCofinsZero.includes(key)}
     onChange={e=>setForm(f=>({...f,[key]:key==='documento'||key==='cep'||key==='codigoMunicipio'
      ?txt(e.target.value):e.target.value}))}/>
   </div>
@@ -118,9 +120,11 @@ export function PrimeiraNfeHomologacao(){
     {field('codigoMunicipio','Código IBGE (7 dígitos)')}
    </div>
    <p className="font-semibold text-sm">PIS/COFINS — valores expressamente aprovados (CST 49, se aplicável)</p>
-   <p className="text-xs text-amber-700 dark:text-amber-300">
-    Não presuma alíquota ou valor zerado. Informe bases, percentuais e valores que a contadora
-    validou para o teste. O sistema confere os cálculos.
+   <p className="text-xs text-muted-foreground">
+    Para este produto e esta operação de teste em SP, a contadora informou PIS/COFINS com
+    base, alíquota e valor zerados (CST 49). Campos preenchidos conforme orientação
+    repassada pela empresa em 16/11/2026; não representam rateio do Anexo I nem retenção
+    na NF-e. O DAS do Simples Nacional é apurado separadamente.
    </p>
    <div className="grid gap-3 sm:grid-cols-3">
     {field('pisBase','Base PIS (R$)','number','0.01')}
