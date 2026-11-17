@@ -220,10 +220,12 @@ async function consultar(id:string){
 }
 export async function GET(){
  const denied=await admin();if(denied)return denied
- const documentos=await db.nfeHomologacao.findMany({orderBy:{createdAt:'desc'},take:15,
+ const documentos=await db.nfeHomologacao.findMany({where:{ambiente:2},orderBy:{createdAt:'desc'},take:15,
   select:{id:true,serie:true,numero:true,chave:true,status:true,codigoSefaz:true,
-   motivoSefaz:true,protocolo:true,recibo:true,createdAt:true}})
- return ok({ambiente:'homologacao',documentos,
+   motivoSefaz:true,protocolo:true,recibo:true,enviadaEm:true,createdAt:true}})
+ return ok({ambiente:'homologacao',documentos:documentos.map(n=>({
+   ...n,podeRetransmitir:podeRetransmitirHomologacao({...n,ambiente:2}),
+  })),
   aviso:'Apenas testes sem valor fiscal, sem movimentação de estoque ou venda.'})
 }
 export async function POST(req:NextRequest){
@@ -251,6 +253,11 @@ export async function POST(req:NextRequest){
   const a=acao.safeParse(body)
   if(!a.success)return fail('Dados ou confirmação fiscal inválidos.')
   if(a.data.acao==='consultar')return consultar(a.data.id)
+  if(a.data.acao==='retransmitir'){
+   if(a.data.confirmacao!=='RETRANSMITIR HOMOLOGACAO')
+    return fail('Confirmação explícita obrigatória para retransmitir a mesma NF-e de teste.')
+   return transmitir(a.data.id,true)
+  }
   if(a.data.confirmacao!=='TRANSMITIR HOMOLOGACAO')
    return fail('Confirmação explícita obrigatória para transmitir o teste.')
   return transmitir(a.data.id)
