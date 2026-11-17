@@ -24,6 +24,8 @@ const actions = z.discriminatedUnion('action', [
   articleForm.extend({ action:z.literal('article-create') }).strict(),
   articleForm.extend({ action:z.literal('article-update'), id:z.string().min(1) }).strict(),
   z.object({ action:z.literal('article-unpublish'), id:z.string().min(1) }).strict(),
+  z.object({action:z.literal('blog-review'),id:z.string().min(1),
+    status:z.enum(['publicado','recusado','revogado'])}).strict(),
   z.object({ action:z.literal('plan-create'), title:z.string().trim().min(4).max(100),
     description:z.string().trim().min(10).max(500),
     sessions:z.number().int().min(1).max(30), durationDays:z.number().int().min(7).max(365),
@@ -51,7 +53,7 @@ async function admin() {
 export async function GET() {
   try {
     if (!await admin()) return NextResponse.json({ error:'Acesso negado.' }, { status:403 })
-    const [articles,plans,requests,gifts,referrals,referralConfig] = await Promise.all([
+    const [articles,plans,requests,gifts,referrals,referralConfig,blogStories] = await Promise.all([
       db.portalArticle.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
       db.portalCarePlan.findMany({ orderBy:{ createdAt:'desc' }, take:100 }),
       db.portalCarePlanRequest.findMany({ where:{ status:{ in:['solicitado','ativo'] } }, take:100,
@@ -61,6 +63,12 @@ export async function GET() {
       db.portalReferralClaim.findMany({ where:{ status:'aguardando_compra' }, take:100,
         orderBy:{ createdAt:'desc' } }),
       db.portalReferralConfig.findUnique({where:{id:'default'}}),
+      db.portalPetMemory.findMany({
+        where:{kind:'diario',createdByAdmin:false,
+          blogConsentAt:{not:null},blogStatus:{in:['pendente','publicado']}},
+        select:{id:true,title:true,notes:true,imageData:true,createdAt:true,blogStatus:true},
+        orderBy:{createdAt:'desc'},take:50,
+      }),
     ])
     // Diagnostic metadata only: never expose environment variable values, tokens or domains here.
     const mpConfig = await db.configuracaoPagamento.findFirst({
@@ -89,7 +97,7 @@ export async function GET() {
         cronConfigured:Boolean(process.env.CRON_SECRET?.trim()),
       },
     }
-    return NextResponse.json({ articles,plans,requests,gifts,referrals,referralConfig,integrations },
+    return NextResponse.json({ articles,plans,requests,gifts,referrals,referralConfig,integrations,blogStories },
       { headers:{ 'Cache-Control':'private, no-store' } })
   } catch (error) { return experienceError(error) }
 }
@@ -117,6 +125,18 @@ export async function POST(req: NextRequest) {
     if (data.action === 'article-unpublish') {
       const updated = await db.portalArticle.updateMany({ where:{ id:data.id }, data:{ published:false } })
       return NextResponse.json({ success:updated.count > 0 })
+    }
+    if (data.action === 'blog-review') {
+      const sourceStatus = data.status==='revogado' ? 'publicado' : 'pendente'
+      const changed=await db.portalPetMemory.updateMany({
+        where:{id:data.id,kind:'diario',createdByAdmin:false,
+          blogConsentAt:{not:null},blogStatus:sourceStatus},
+        data:{blogStatus:data.status,blogReviewedAt:new Date(),blogReviewedBy:staff.id},
+      })
+      return NextResponse.json({success:changed.count>0,note:changed.count
+        ? (data.status==='publicado'?'História publicada no blog.':'História retirada ou recusada.')
+        : 'A autorização mudou ou o registro não está disponível.'},
+      {status:changed.count?200:409})
     }
     if (data.action === 'plan-create') {
       const row = await db.portalCarePlan.create({ data:{
