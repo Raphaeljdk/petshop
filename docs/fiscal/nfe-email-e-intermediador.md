@@ -24,3 +24,7 @@
 3. Implementar fluxo real seguro de autorização, cancelamento, inutilização, consulta e armazenamento.
 4. Gerar e disponibilizar o DANFE PDF verdadeiro, adequado ao documento autorizado, para anexar também ao e-mail.
 5. Habilitar o envio automático só depois de validar remetente e fazer teste controlado com o destinatário autorizado.
+
+## Release de código
+- CI da PR #148 aprovado (Release build, Authentication checks, Client invitation checks).
+- Módulos fiscal e envio por e-mail incorporados à branch main; envio automático continua desabilitado até configuração do remetente, autorização real e validação operacional.
