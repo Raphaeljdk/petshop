@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
+import {mapearConsultaSefaz} from '@/lib/fiscal-diagnostico-sefaz'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
@@ -283,11 +284,7 @@ export function FiscalView() {
     try{
       const response=await fetch('/api/admin/fiscal/provedor',{method:'POST',credentials:'same-origin'})
       const result=await response.json()
-      const codigoTecnico=typeof result.codigoTecnico==='string'&&/^[A-Z0-9_]{2,75}$/.test(result.codigoTecnico)?result.codigoTecnico:null
-      const codigoSefaz=Number.isInteger(result.codigo)&&result.codigo>=100&&result.codigo<=999?result.codigo:null
-      const categoria=typeof result.categoria==='string'&&/^[a-z-]{2,50}$/.test(result.categoria)?result.categoria:'consulta'
-      setDiagnosticoSefaz({mensagem:result.error||result.aviso||result.motivo||'Consulta concluída.',
-       codigoTecnico,codigoSefaz,categoria,ok:response.ok&&result.ok===true})
+      setDiagnosticoSefaz(mapearConsultaSefaz(result,response.ok))
       if(!response.ok) throw new Error(result.error||'Falha na consulta SEFAZ.')
       if (result.ok) toast.success(result.aviso||'Serviço SEFAZ em operação, sem emissão.')
       else toast.error(result.aviso||result.motivo||'SEFAZ não confirmou disponibilidade do serviço.')
