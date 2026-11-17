@@ -45,6 +45,9 @@ export function AndreOperations() {
   const [observacoes, setObservacoes] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [agenda, setAgenda] = useState<AgendaItem[]>([])
+  const [paginaAgenda, setPaginaAgenda] = useState(1)
+  const [totalAgenda, setTotalAgenda] = useState(0)
+  const [erroAgenda, setErroAgenda] = useState('')
   const [entregas, setEntregas] = useState<Entrega[]>([])
   const [loadingAgenda, setLoadingAgenda] = useState(false)
   const [loadingEntregas, setLoadingEntregas] = useState(false)
@@ -57,20 +60,19 @@ export function AndreOperations() {
   const carregarAgenda = useCallback(async () => {
     setLoadingAgenda(true)
     try {
-      const inicio = new Date()
-      inicio.setDate(inicio.getDate() - 7)
-      inicio.setHours(0, 0, 0, 0)
-      const fim = new Date()
-      fim.setDate(fim.getDate() + 30)
-      fim.setHours(23, 59, 59, 999)
-      const qs = new URLSearchParams({ inicio: inicio.toISOString(), fim: fim.toISOString() })
-      const result = await loadJson(await fetch('/api/agendamentos?' + qs.toString(), { cache: 'no-store' }))
-      setAgenda(result.items || [])
-      if (result.truncado) toast.info('A lista atingiu o limite. Consulte outro período com a administração.')
+      // Paginação permite consultar também os registros antigos, não apenas ±30 dias.
+      const result = await loadJson(await fetch('/api/agendamentos?pagina=' + paginaAgenda, {
+        credentials: 'same-origin', cache: 'no-store',
+      }))
+      setAgenda(Array.isArray(result.items) ? result.items : [])
+      setTotalAgenda(Number(result.total) || 0)
+      setErroAgenda('')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Falha ao consultar agenda.')
+      const message = error instanceof Error ? error.message : 'Falha ao consultar a agenda.'
+      setErroAgenda(message)
+      toast.error(message)
     } finally { setLoadingAgenda(false) }
-  }, [])
+  }, [paginaAgenda])
 
   const carregarBloqueios = useCallback(async () => {
     try {
@@ -132,6 +134,7 @@ export function AndreOperations() {
       setPetId('')
       setBuscaTutor('')
       setObservacoes('')
+      setPaginaAgenda(1)
       await carregarAgenda()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível agendar o banho.')
@@ -220,12 +223,13 @@ export function AndreOperations() {
         </div>
       </section>
       <section className="space-y-3 rounded-xl border bg-card p-4">
-        <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Consultar agendamentos</h2><p className="text-xs text-muted-foreground">Últimos 7 dias e próximos 30 dias · somente leitura</p></div>
+        <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Consultar agendamentos</h2><p className="text-xs text-muted-foreground">Histórico completo por páginas de 100 registros · somente leitura</p></div>
           <Button type="button" size="sm" variant="outline" disabled={loadingAgenda} onClick={() => void carregarAgenda()}><RefreshCw className="size-4" /> Atualizar</Button>
         </div>
         <div className="max-h-[580px] space-y-2 overflow-y-auto">
           {loadingAgenda && !agenda.length && <p className="text-sm text-muted-foreground">Carregando agenda...</p>}
-          {!loadingAgenda && !agenda.length && <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado no período.</p>}
+          {erroAgenda && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">Não foi possível consultar os agendamentos: {erroAgenda}. Tente atualizar ou entre novamente.</p>}
+          {!loadingAgenda && !erroAgenda && !agenda.length && <p className="text-sm text-muted-foreground">Nenhum agendamento registrado.</p>}
           {agenda.map(item => <article key={item.id} className="rounded-lg border p-3 text-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <strong>{item.pet?.nome || 'Pet'} · {item.servico}</strong>
@@ -235,6 +239,11 @@ export function AndreOperations() {
             <p className="text-muted-foreground">Tutor: {item.cliente?.nome || 'Não identificado'} · Profissional: {item.profissional?.nome || 'A definir'}</p>
           </article>)}
         </div>
+        {totalAgenda > 100 && <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs">
+          <Button type="button" size="sm" variant="outline" disabled={loadingAgenda || paginaAgenda === 1} onClick={() => setPaginaAgenda(n => Math.max(1,n-1))}>Anterior</Button>
+          <span>Página {paginaAgenda} de {Math.ceil(totalAgenda / 100)} · {totalAgenda} agendamentos</span>
+          <Button type="button" size="sm" variant="outline" disabled={loadingAgenda || paginaAgenda * 100 >= totalAgenda} onClick={() => setPaginaAgenda(n => n+1)}>Próxima</Button>
+        </div>}
         <div className="border-t pt-3">
           <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Horários bloqueados</h3><Button type="button" size="sm" variant="ghost" onClick={()=>void carregarBloqueios()}><RefreshCw className="size-3"/>Atualizar</Button></div>
           {!bloqueios.length && <p className="text-sm text-muted-foreground">Nenhum bloqueio encontrado.</p>}

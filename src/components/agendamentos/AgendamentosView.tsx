@@ -45,10 +45,11 @@ export function AgendamentosView() {
   const [especialidadesProfissional, setEspecialidadesProfissional] = useState('')
   const [savingProfessional, setSavingProfessional] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [erroAgenda, setErroAgenda] = useState('')
   const [saving, setSaving] = useState(false)
   const [buscar, setBuscar] = useState('')
   const [status, setStatus] = useState('todos')
-  const [periodo, setPeriodo] = useState('7dias')
+  const [periodo, setPeriodo] = useState('todos')
   const [total, setTotal] = useState(0)
   const [pagina, setPagina] = useState(1)
   const [formOpen, setFormOpen] = useState(false)
@@ -60,24 +61,29 @@ export function AgendamentosView() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    try {
-      const [res, resTut, resProf, resBloq] = await Promise.all([
-        fetch('/api/agendamentos?pagina=' + pagina, { cache: 'no-store', credentials: 'same-origin' }),
-        fetch('/api/clientes', { cache: 'no-store', credentials: 'same-origin' }),
-        fetch('/api/agenda/profissionais', { cache: 'no-store', credentials: 'same-origin' }),
-        fetch('/api/agenda/bloqueios', { cache: 'no-store', credentials: 'same-origin' }),
-      ])
-      const dados = await parseResponse(res)
-      const cs = await parseResponse(resTut)
-      const prof = await parseResponse(resProf)
-      const bloq = await parseResponse(resBloq)
-      setItems(dados.items || [])
-      setTotal(dados.total || 0)
-      setTutores(Array.isArray(cs) ? cs : [])
-      setProfissionais(Array.isArray(prof.items) ? prof.items : [])
-      setBloqueios(Array.isArray(bloq.items) ? bloq.items : [])
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível carregar agenda.') }
-    finally { setLoading(false) }
+    // A lista principal não pode sumir se clientes, profissionais ou bloqueios falharem.
+    const [resAgenda, resTutores, resProfissionais, resBloqueios] = await Promise.allSettled([
+      fetch('/api/agendamentos?pagina=' + pagina, { cache: 'no-store', credentials: 'same-origin' }).then(parseResponse),
+      fetch('/api/clientes', { cache: 'no-store', credentials: 'same-origin' }).then(parseResponse),
+      fetch('/api/agenda/profissionais', { cache: 'no-store', credentials: 'same-origin' }).then(parseResponse),
+      fetch('/api/agenda/bloqueios', { cache: 'no-store', credentials: 'same-origin' }).then(parseResponse),
+    ])
+    if (resAgenda.status === 'fulfilled') {
+      setItems(Array.isArray(resAgenda.value.items) ? resAgenda.value.items : [])
+      setTotal(resAgenda.value.total || 0)
+      setErroAgenda('')
+    } else {
+      const message = resAgenda.reason instanceof Error ? resAgenda.reason.message : 'Erro ao carregar agendamentos.'
+      setErroAgenda(message)
+      toast.error('Não foi possível carregar agendamentos: ' + message)
+    }
+    if (resTutores.status === 'fulfilled') setTutores(Array.isArray(resTutores.value) ? resTutores.value : [])
+    else toast.error('Não foi possível consultar tutores para novos agendamentos.')
+    if (resProfissionais.status === 'fulfilled') setProfissionais(Array.isArray(resProfissionais.value.items) ? resProfissionais.value.items : [])
+    else toast.error('Não foi possível consultar profissionais.')
+    if (resBloqueios.status === 'fulfilled') setBloqueios(Array.isArray(resBloqueios.value.items) ? resBloqueios.value.items : [])
+    else toast.error('Não foi possível consultar horários bloqueados. A lista de agendamentos continua disponível.')
+    setLoading(false)
   }, [pagina])
   useEffect(() => { void carregar() }, [carregar])
   useEffect(() => {
@@ -275,9 +281,9 @@ export function AgendamentosView() {
       </form>
     </CardContent></Card>}
     <AgendaCalendar onEdit={editarDaAgenda} onCreateAt={novoNaData} onStatusChange={alterarStatusDaAgenda} profissionais={profissionais} refreshKey={calendarRefresh}/>
-    <details className="rounded-2xl border bg-card p-3 sm:p-4">
+    <details open className="rounded-2xl border bg-card p-3 sm:p-4">
       <summary className="cursor-pointer rounded-md text-sm font-semibold hover:text-primary">
-        Abrir lista de agendamentos e histórico detalhado
+        Lista de agendamentos e histórico detalhado ({total})
       </summary>
       <div className="mt-4 space-y-3">
     <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
@@ -288,7 +294,8 @@ export function AgendamentosView() {
       <select aria-label="Status" className="h-10 rounded-md border bg-background px-3 text-sm" value={status} onChange={e=>setStatus(e.target.value)}>
         <option value="todos">Todos os status</option>{Object.entries(statusMap).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
     </div>
-    {loading?<SkeletonLoader type="list" count={5}/>:filtrados.length===0?<Card><CardContent className="py-12 text-center"><CalendarClock className="mx-auto size-8 text-muted-foreground"/><p className="mt-3 font-medium">Nenhum agendamento encontrado</p><p className="text-sm text-muted-foreground">Ajuste os filtros ou crie um agendamento.</p></CardContent></Card>:
+    {erroAgenda && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Falha ao consultar agendamentos: {erroAgenda}. Tente atualizar ou entre novamente.</p>}
+    {loading?<SkeletonLoader type="list" count={5}/>:erroAgenda ? null : filtrados.length===0?<Card><CardContent className="py-12 text-center"><CalendarClock className="mx-auto size-8 text-muted-foreground"/><p className="mt-3 font-medium">Nenhum agendamento encontrado</p><p className="text-sm text-muted-foreground">Nenhum registro nesse filtro. Selecione Todos ou Histórico para visualizar os anteriores.</p></CardContent></Card>:
       <div className="grid gap-3 lg:grid-cols-2">{filtrados.map(x=><Card key={x.id}><CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="rounded-xl bg-primary/10 p-3 text-primary"><CalendarDays className="size-5"/></div>
           <div><p className="font-semibold">{x.pet.nome} · {x.servico}</p><p className="text-xs text-muted-foreground">{x.cliente.nome} · {x.cliente.telefone}</p></div></div>
