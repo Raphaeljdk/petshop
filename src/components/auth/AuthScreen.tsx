@@ -304,7 +304,7 @@ export function AuthScreen() {
         <div className="container mx-auto px-6 story-grid">
           <div className="story-heading">
             <p className="eyebrow text-primary mb-5">Nossa história</p>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">Onde o amor pelos cães <span className="text-primary">virou propósito.</span></h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">Onde o amor pelos pets <span className="text-primary">virou propósito.</span></h2>
             <p className="mt-6 text-muted-foreground leading-relaxed">Conheça a família por trás da Matilha Prado.</p>
             <div className="mt-8 pt-6 border-t border-border flex gap-3 text-sm text-muted-foreground"><MapPin className="size-5 text-primary shrink-0" /><span>Av. Água Fria, 1647<br />Santana, São Paulo/SP</span></div>
           </div>
@@ -319,10 +319,10 @@ export function AuthScreen() {
                 E <em>&ldquo;Prado&rdquo;</em> é o nosso sobrenome, nossa família e a identidade que carregamos em tudo o que fazemos.
               </p>
               <p>
-                A Matilha Prado foi idealizada, construída e cuidada em cada detalhe por mim e pela minha esposa. Colocamos a mão na massa, escolhemos cada cantinho, cada detalhe e cada produto pensando em uma coisa: proporcionar aos cães uma experiência de cuidado, conforto e muito amor.
+                A Matilha Prado foi idealizada, construída e cuidada em cada detalhe por mim e pela minha esposa. Colocamos a mão na massa, escolhemos cada cantinho, cada detalhe e cada produto pensando em uma coisa: proporcionar aos pets uma experiência de cuidado, conforto e muito amor.
               </p>
               <p>
-                Abrimos nossas portas no dia <strong >21 de outubro de 2024</strong>, trazendo para <strong >Santana</strong> um espaço criado por quem realmente entende que nossos cães não são apenas animais de estimação — eles são parte da família.
+                Abrimos nossas portas no dia <strong >21 de outubro de 2024</strong>, trazendo para <strong >Santana</strong> um espaço criado por quem realmente entende que nossos pets não são apenas animais de estimação — eles são parte da família.
               </p>
               <p>
                 Aqui, cada serviço e cada produto é escolhido com muito carinho e responsabilidade.
@@ -334,7 +334,7 @@ export function AuthScreen() {
                 Tudo isso em um só lugar, pensado para cuidar, mimar e celebrar aqueles que tornam nossas vidas mais felizes.
               </p>
               <p>
-                Na Matilha Prado, acreditamos que cada cão tem sua personalidade, suas necessidades e seu jeitinho especial. Por isso, nosso propósito vai muito além de oferecer produtos e serviços.
+                Na Matilha Prado, acreditamos que cada pet tem sua personalidade, suas necessidades e seu jeitinho especial. Por isso, nosso propósito vai muito além de oferecer produtos e serviços.
               </p>
               <p>
                 Queremos que cada pet que entre pela nossa porta seja tratado como parte da nossa própria matilha.
