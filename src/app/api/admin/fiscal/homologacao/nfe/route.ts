@@ -179,18 +179,26 @@ async function transmitir(id:string,reenvio=false){
  const cred=credenciais()
  const chaves=extrairCertificadoA1(cred.pfx,cred.passphrase,'57199062000191')
  validarAssinaturaNfeHomologacao(nota.xmlAssinado,chaves.certificadoPem,nota.chave)
- const updated=await db.nfeHomologacao.updateMany({where:{id,status:'preparada',ambiente:2},
-  data:{status:'enviando',enviadaEm:new Date()}})
- if(updated.count!==1)return fail('Documento processado por outra solicitação.',409)
+ const where=reenvio
+  ?{id,status:'incerta',ambiente:2,codigoSefaz:217,recibo:null,protocolo:null,
+    enviadaEm:{lte:new Date(Date.now()-180_000)}}
+  :{id,status:'preparada',ambiente:2}
+ const updated=await db.nfeHomologacao.updateMany({where,
+  data:{status:'enviando',enviadaEm:new Date(),...(reenvio?{codigoSefaz:null,motivoSefaz:null}:{})}})
+ if(updated.count!==1)return fail('Documento processado por outra solicitação ou ainda sem reconciliação autorizada.',409)
  try{
   const lote=montarLoteHomologacao(semCabecalho(nota.xmlAssinado),String(nota.numero))
   const soap=await enviarSoapHomologacao('autorizacao',lote,cred)
   return ok(await registrarRetorno(id,soap,nota.chave,nota.xmlAssinado))
  }catch(err){
+  console.error('Falha no transporte NF-e homologação.',{
+   operacao:'autorizacao',categoria:err instanceof SefazComunicacaoError?err.categoria:'inesperado',
+   codigoTecnico:err instanceof SefazComunicacaoError?(err.codigoTecnico||null):null,
+  })
   await db.nfeHomologacao.updateMany({where:{id,status:'enviando'},data:{
    status:'incerta',motivoSefaz:'Comunicação indefinida: consultar antes de reenviar.',
   }})
-  if(err instanceof SefazComunicacaoError)return fail(err.message+' O número foi preservado.',502)
+  if(err instanceof SefazComunicacaoError)return fail(err.message+' O número foi preservado. Aguarde 3 minutos e consulte a mesma NF-e antes de qualquer reenvio.',502)
   return fail('Retorno da SEFAZ incerto; consulte o protocolo antes de nova tentativa.',502)
  }
 }
