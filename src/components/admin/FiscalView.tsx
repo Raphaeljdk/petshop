@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
+import {mapearConsultaSefaz} from '@/lib/fiscal-diagnostico-sefaz'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
@@ -141,7 +142,7 @@ export function FiscalView() {
   const [emissorStatus,setEmissorStatus] = useState<EmissorStatus|null>(null)
   const [consultandoFba,setConsultandoFba] = useState(false)
   const [testandoProvedor,setTestandoProvedor] = useState(false)
-  const [diagnosticoSefaz,setDiagnosticoSefaz] = useState<{mensagem:string;codigo:string;categoria:string}|null>(null)
+  const [diagnosticoSefaz,setDiagnosticoSefaz] = useState<{mensagem:string;codigoTecnico:string|null;codigoSefaz:number|null;categoria:string;ok:boolean}|null>(null)
   const [conciliandoId,setConciliandoId] = useState<string|null>(null)
   const [chaveFiscal,setChaveFiscal] = useState('')
   const [confirmadoFiscal,setConfirmadoFiscal] = useState(false)
@@ -283,9 +284,7 @@ export function FiscalView() {
     try{
       const response=await fetch('/api/admin/fiscal/provedor',{method:'POST',credentials:'same-origin'})
       const result=await response.json()
-      const codigo=typeof result.codigoTecnico==='string'&&/^[A-Z0-9_]{2,75}$/.test(result.codigoTecnico)?result.codigoTecnico:'NAO_INFORMADO'
-      const categoria=typeof result.categoria==='string'&&/^[a-z-]{2,50}$/.test(result.categoria)?result.categoria:'consulta'
-      setDiagnosticoSefaz({mensagem:result.error||result.aviso||result.motivo||'Consulta concluída.',codigo,categoria})
+      setDiagnosticoSefaz(mapearConsultaSefaz(result,response.ok))
       if(!response.ok) throw new Error(result.error||'Falha na consulta SEFAZ.')
       if (result.ok) toast.success(result.aviso||'Serviço SEFAZ em operação, sem emissão.')
       else toast.error(result.aviso||result.motivo||'SEFAZ não confirmou disponibilidade do serviço.')
@@ -401,7 +400,7 @@ export function FiscalView() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
           <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
-            <p className="mt-1 text-sm">Estamos construindo o emissor próprio de NF-e 55 diretamente com a SEFAZ-SP, inicialmente em homologação. A consulta de status do serviço não é uma emissão nem um credenciamento do CNPJ. Os pedidos do site e Amazon serão atendidos por este emissor quando concluirmos XML, assinatura, homologação e conferência fiscal. O Mercado Livre mantém seu Faturador para evitar notas duplicadas. Serviços e NFC-e exigem módulos específicos.</p>
+            <p className="mt-1 text-sm">Estamos implantando o emissor próprio de NF-e 55 diretamente com a SEFAZ-SP. O teste de serviço não emite nota. O preparo, assinatura A1, validação XSD e transmissão de TESTE foram implementados, mas ainda falta obter uma NF-e própria autorizada e homologar o fluxo completo. O emissor de produção para site e Amazon continua indisponível. O Mercado Livre mantém seu Faturador para evitar notas duplicadas. Serviços e NFC-e exigem módulos específicos.</p>
           </div>
         </div>
       </div>
@@ -426,8 +425,16 @@ export function FiscalView() {
       {diagnosticoSefaz&&<div role="status" className="space-y-2 rounded-xl border bg-muted/30 p-4 text-sm">
         <p className="font-semibold">Resultado do teste SEFAZ-SP · homologação</p>
         <p>{diagnosticoSefaz.mensagem}</p>
-        <p className="break-words text-xs">Categoria: {diagnosticoSefaz.categoria} · Código técnico: <strong>{diagnosticoSefaz.codigo}</strong></p>
-        <p className="text-xs text-muted-foreground">Envie este resultado ao suporte. O teste não emite nota fiscal.</p>
+        <p className="break-words text-xs">
+          Tipo de teste: NFeStatusServico4 (somente consulta)
+          {diagnosticoSefaz.codigoSefaz!==null&&<> · cStat: <strong>{diagnosticoSefaz.codigoSefaz}</strong></>}
+          {diagnosticoSefaz.codigoTecnico&&<> · Código técnico: <strong>{diagnosticoSefaz.codigoTecnico}</strong></>}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {diagnosticoSefaz.ok&&diagnosticoSefaz.codigoSefaz===107
+           ?'Status 107: serviço da SEFAZ-SP em operação em homologação. Não é uma autorização de NF-e (cStat 100) e não gera protocolo.'
+           :'Nenhuma NF-e é emitida nesta consulta. Se houver erro, confira a mensagem e o código técnico.'}
+        </p>
       </div>}
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
@@ -639,8 +646,8 @@ export function FiscalView() {
               </div>
             </details>
             <p className="text-xs text-muted-foreground">
-              A opção Produção abaixo registra uma preferência cadastral. O teste de conexão A1/SEFAZ
-              permanece no ambiente de homologação e não transmite NF-e.
+              Este painel verifica apenas a prontidão da emissão REAL. A opção Produção é uma preferência cadastral, não libera a emissão.
+              O teste NFeStatusServico4 não emite notas; a transmissão de NF-e de TESTE é uma ação separada e exige confirmação no histórico de homologação.
             </p>
           </div>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

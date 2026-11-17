@@ -9,6 +9,7 @@ import {extrairCertificadoA1,assinarXmlNfeHomologacao,validarAssinaturaNfeHomolo
 import {validarXmlNfeXsdHomologacao,NfeXsdError} from '@/lib/nfe-validacao-xsd'
 import {gerarRascunhoNfe55,NfeRascunhoError} from '@/lib/nfe-xml-modelo55'
 import {PRODUTO_TESTE_INICIAL_ID,SKU_TESTE_INICIAL} from '@/lib/nfe-homologacao-preparo'
+import {BLOQUEIO_NUMERACAO_HOMOLOGACAO,bloqueioNumeracaoValido} from '@/lib/nfe-homologacao-lock'
 import {montarLoteHomologacao,montarConsultaHomologacao,montarRetornoHomologacao,
  enviarSoapHomologacao,interpretarAutorizacaoHomologacao} from '@/lib/sefaz-sp-nfe-homologacao'
 
@@ -95,7 +96,11 @@ async function prepararTeste(input:z.infer<typeof preparar>){
  etapa='transação de homologação'
  return await db.$transaction(async tx=>{
   etapa='bloqueio de numeração'
-  await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(57199062000191)')
+  // A função advisory_lock retorna VOID: SELECT direto causa Prisma P2010.
+  // Executar via FROM e receber BOOLEAN evita a falha de desserialização.
+  const bloqueio=await tx.$queryRaw<Array<{locked:boolean}>>(BLOQUEIO_NUMERACAO_HOMOLOGACAO)
+  if(!bloqueioNumeracaoValido(bloqueio))
+   throw new NfeRascunhoError('Não foi possível reservar a numeração isolada de homologação. Nenhuma NF-e foi criada.')
   const ultimo=await tx.nfeHomologacao.findFirst({where:{serie:2},orderBy:{numero:'desc'},select:{numero:true}})
   const numero=(ultimo?.numero||0)+1
   if(numero>999999999)throw new NfeRascunhoError('Numeração de homologação esgotada.')
