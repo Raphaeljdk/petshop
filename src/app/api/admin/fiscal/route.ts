@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { configSchema, erroConfigEmitente } from '@/lib/fiscal-emitente'
+import {apuracaoParaRegime} from '@/lib/fiscal-apuracao-simples'
 import { avaliarProntidaoNfeProducao } from '@/lib/fiscal-prontidao-producao'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
@@ -73,6 +74,8 @@ export async function PUT(req: NextRequest) {
     const body = configSchema.safeParse(await req.json())
     if (!body.success) return NextResponse.json({ error: erroConfigEmitente(body.error) }, { status: 400 })
     const data = body.data
+    if(data.apuracaoTributaria!==apuracaoParaRegime(data.regimeTributario))
+      return NextResponse.json({error:'A apuração do Simples Nacional deve ocorrer pelo PGDAS-D/DAS. Não configurar impostos diretos ou rateio na NF-e.'},{status:400})
     const cnpj = data.cnpj?.replace(/\D/g, '') || null
     const cep = data.cep?.replace(/\D/g, '') || null
     const uf = data.uf?.trim().toUpperCase() || null
