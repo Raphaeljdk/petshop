@@ -80,7 +80,7 @@ export async function PUT(req:NextRequest,{params}:Route){
     ...(action==='enviar_checkin'?{checkinStatus:'pendente_aceite',checkinSubmittedAt:new Date()}:{})
    }:{
     checkout:answers as Prisma.InputJsonValue,checkoutById:user.id,
-    ...(action==='finalizar_checkout'?{checkoutFinalizadoAt:new Date()}:{})
+    ...(action==='finalizar_checkout'?{checkoutFinalizadoAt:new Date(),checkoutAceiteStatus:'pendente'}:{})
    }
    const where=isCheckin?{id:ficha.id,checkinStatus:'rascunho'}:
     {id:ficha.id,checkinStatus:'aceito',checkoutFinalizadoAt:null}
