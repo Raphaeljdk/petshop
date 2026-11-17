@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { isAndreOperator, canViewAppointments, canScheduleBath, canViewDeliveryAddresses, roleForTeamInvitation } from '../src/lib/operational-access'
 
 describe('permissões individuais do André', () => {
-  const andre = { email: 'Andre.MatilhaPrado@gmail.com', role: 'KANBAN' }
+  const andre = { email: 'Andreflavieira21@gmail.com', role: 'KANBAN' }
   const kanban = { email: 'agenda@matilha.prado@gmail.com', role: 'KANBAN' }
-  const cliente = { email: 'andre.matilhaprado@gmail.com', role: 'CLIENTE' }
+  const cliente = { email: 'andreflavieira21@gmail.com', role: 'CLIENTE' }
   test('o André com conta KANBAN pode agendar banho e consultar agenda e endereços', () => {
     expect(isAndreOperator(andre)).toBe(true)
     expect(canViewAppointments(andre)).toBe(true)
@@ -19,7 +19,9 @@ describe('permissões individuais do André', () => {
     expect(canViewAppointments(null)).toBe(false)
   })
   test('convite do André nunca cria administrador, inclusive com letras maiúsculas', () => {
-    expect(roleForTeamInvitation('Andre.MatilhaPrado@gmail.com')).toBe('KANBAN')
+    expect(roleForTeamInvitation('Andreflavieira21@gmail.com')).toBe('KANBAN')
+    expect(roleForTeamInvitation('andre.matilhaprado@gmail.com')).toBe('KANBAN')
+    expect(isAndreOperator({email:'andre.matilhaprado@gmail.com',role:'KANBAN'})).toBe(false)
     expect(roleForTeamInvitation(' matilhaprado@gmail.com ')).toBe('ADMIN')
   })
   test('ADMIN continua com acesso administrativo normal', () => {
