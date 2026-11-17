@@ -1,3 +1,4 @@
+ALTER TABLE "Processo" ADD COLUMN "requiresFicha" BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE TABLE "AtendimentoFicha" (
   "id" TEXT NOT NULL,
   "processoId" TEXT NOT NULL,
