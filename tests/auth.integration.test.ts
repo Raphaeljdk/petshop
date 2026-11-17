@@ -258,7 +258,7 @@ test('prévia XML fiscal exige ADMIN, respeita origem e não altera a venda', as
 
 
 test('convite de André cria KANBAN com agenda e endereços, sem privilégios de administrador', async () => {
-  const andreEmail = 'andre.matilhaprado@gmail.com'
+  const andreEmail = 'andreflavieira21@gmail.com'
   const code = randomBytes(32).toString('hex')
   await db.adminInvitation.create({
     data: {
@@ -268,7 +268,7 @@ test('convite de André cria KANBAN com agenda e endereços, sem privilégios de
     },
   })
   const registered = await post('/api/auth/register/admin', {
-    nome: 'André Operacional', email: 'Andre.MatilhaPrado@gmail.com',
+    nome: 'André Operacional', email: 'Andreflavieira21@gmail.com',
     senha: password, confirmarSenha: password, role: 'ADMIN', convite: code,
   })
   expect(registered.status).toBe(201)
