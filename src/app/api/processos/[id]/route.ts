@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { emitWebSocket } from '@/lib/realtime'
+import { canAdvanceServiceProcess } from '@/lib/atendimento-flow'
 
 export async function GET(
   _req: NextRequest,
@@ -60,6 +61,18 @@ export async function PATCH(
 
     if (status !== undefined && !['novo','em_andamento','aguardando_resposta','finalizado','cancelado'].includes(status)) {
       return NextResponse.json({ error: 'Status de atendimento inválido.' }, { status: 400 })
+    }
+    if (processoExistente.requiresFicha &&
+        (status==='em_andamento'||status==='finalizado')){
+      const ficha=await db.atendimentoFicha.findUnique({
+        where:{processoId:id},select:{checkinStatus:true,checkoutFinalizadoAt:true}
+      })
+      const error=canAdvanceServiceProcess({
+        requiresFicha:true,status,
+        checkinStatus:ficha?.checkinStatus,
+        checkoutCompleted:Boolean(ficha?.checkoutFinalizadoAt),
+      })
+      if(error)return NextResponse.json({error},{status:409})
     }
     const dadosAtualizacao: any = {}
     if (status !== undefined) dadosAtualizacao.status = status
