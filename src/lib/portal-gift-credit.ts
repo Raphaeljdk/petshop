@@ -1,9 +1,10 @@
 import type { Prisma } from '@prisma/client'
+import { normalizarTelefonePresente } from './portal-gift-phone'
 
 export class GiftCreditError extends Error {
   constructor(message:string,public status=409){super(message)}
 }
-type GiftDb = Pick<Prisma.TransactionClient,'portalGiftRequest'|'portalGiftRedemption'|'venda'>
+type GiftDb = Pick<Prisma.TransactionClient,'portalGiftRequest'|'portalGiftRedemption'|'venda'|'cliente'>
 export function moneyCents(n:number) { return Math.round(n*100) }
 export function giftCode(raw:string) {return raw.trim().toUpperCase()}
 export async function quoteGiftCredit(db:GiftDb,code:string,clienteId:string,clientEmail:string,totalCents:number) {
@@ -12,8 +13,15 @@ export async function quoteGiftCredit(db:GiftDb,code:string,clienteId:string,cli
   const voucher=await db.portalGiftRequest.findUnique({where:{voucherCode:giftCode(code)}})
   if(!voucher||voucher.status!=='pago'||!voucher.paidAt||voucher.balanceCents<=0)
     throw new GiftCreditError('Vale-presente inválido ou sem saldo disponível.')
+  // Vales antigos continuam vinculados ao e-mail já registrado; novos, ao telefone.
   if(voucher.recipientEmail && voucher.recipientEmail.toLowerCase()!==clientEmail.toLowerCase())
     throw new GiftCreditError('Este vale-presente pertence a outra conta.',403)
+  if(voucher.recipientPhone) {
+    const cliente=await db.cliente.findUnique({where:{id:clienteId},select:{telefone:true}})
+    const telefone=cliente?.telefone ? normalizarTelefonePresente(cliente.telefone) : null
+    if(!telefone || telefone!==voucher.recipientPhone)
+      throw new GiftCreditError('Este vale-presente pertence a outro telefone. Confirme seu telefone cadastrado.',403)
+  }
   if(!Number.isSafeInteger(totalCents)||totalCents<1)throw new GiftCreditError('Valor de compra inválido.')
   return {id:voucher.id,availableCents:voucher.balanceCents,
     appliedCents:Math.min(voucher.balanceCents,totalCents)}
