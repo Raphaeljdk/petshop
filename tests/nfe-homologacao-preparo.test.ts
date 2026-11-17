@@ -1,9 +1,9 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {prepararPrimeiraHomologacao,SKU_TESTE_INICIAL} from '../src/lib/nfe-homologacao-preparo'
+import {prepararPrimeiraHomologacao,SKU_TESTE_INICIAL,PRODUTO_TESTE_INICIAL_ID} from '../src/lib/nfe-homologacao-preparo'
 const produto={
-  id:'p-1',nome:'Brinquedo Bola Strong Ball Pequena Jambo Pet Laranja',sku:SKU_TESTE_INICIAL,ativo:true,
-  preco:52.99,ncm:'39269090',gtinFiscal:SKU_TESTE_INICIAL,cfop:'5102',
+  id:PRODUTO_TESTE_INICIAL_ID,nome:'Kong Extreme XXL Brinquedo Resistente Borracha Para Cães Grandes Preto',sku:SKU_TESTE_INICIAL,ativo:true,
+  preco:212,ncm:'40169990',gtinFiscal:SKU_TESTE_INICIAL,cfop:'5102',
   csosn:'102',pisCst:'49',cofinsCst:'49',cest:null,origem:'0',unidadeFiscal:'UN',
 }
 const empresa={
@@ -67,4 +67,29 @@ test('autorização registrada em homologação não habilita automaticamente no
  assert.equal(resultado.emissaoRealHabilitada,false)
  assert.equal(resultado.liberadoParaTransmitir,false)
  assert.ok(!resultado.pendencias.some(p=>p.includes('Nenhuma NF-e 55 própria autorizada')))
+})
+
+test('Kong com dados fiscais ausentes não pode preparar NF-e de teste',()=>{
+ const resultado=prepararPrimeiraHomologacao({
+  produto:{...produto,cfop:null,csosn:null,pisCst:null,cofinsCst:null},
+  emitente:{...empresa,serieNfe:2},documentos:[],
+  regrasAprovadas:0,certificadoConfigurado:true,
+ })
+ assert.equal(resultado.produto?.nome,produto.nome)
+ assert.equal(resultado.produto?.ncm,'40169990')
+ assert.equal(resultado.homologacaoDisponivelParaTeste,false)
+ assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CFOP')))
+ assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CSOSN')))
+ assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CST PIS')))
+ assert.ok(resultado.pendenciasProduto.some(p=>p.includes('aprova')))
+})
+test('rejeita escolha ambígua por SKU de outro cadastro Kong e não habilita produção',()=>{
+ const resultado=prepararPrimeiraHomologacao({
+  produto:{...produto,id:'outro-produto-com-mesmo-sku'},
+  emitente:{...empresa,serieNfe:2},documentos:[],
+  regrasAprovadas:1,certificadoConfigurado:true,
+ })
+ assert.equal(resultado.homologacaoDisponivelParaTeste,false)
+ assert.equal(resultado.emissaoRealHabilitada,false)
+ assert.ok(resultado.pendenciasProduto.some(p=>p.includes('não corresponde')))
 })
