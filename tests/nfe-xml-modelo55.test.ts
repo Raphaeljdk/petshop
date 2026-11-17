@@ -116,3 +116,26 @@ test('bloqueia CSOSN diferente do grupo implementado em vez de emitir ICMSSN102 
   venda.itens[0].produto.csosn='500'
   assert.throws(()=>gerarRascunhoNfe55(venda,empresa,entrada),/classificação/)
 })
+
+test('Arm & Hammer 473 ml em homologação: CST 49 zerado não faz rateio do DAS nem retenção na NF-e',()=>{
+  const {empresa,venda,entrada}=dados()
+  empresa.serieNfe=2
+  venda.total=136.9
+  venda.subtotalProdutos=136.9
+  venda.valorFrete=0
+  venda.descontoCupom=0
+  venda.itens=[{produtoId:'arm-hammer',quantidade:1,precoUnit:136.9,produto:{
+    nome:'Aditivo Agua Cães Enxágue Dental Arm Hammer Placa Bacteriana Tártaro 473ml',
+    sku:'742797096780',ncm:'33061000',cest:null,cfop:'5102',
+    origem:'0',csosn:'102',unidadeFiscal:'UN',
+  }}]
+  entrada.itens=[{produtoId:'arm-hammer',gtin:'742797096780',pisCst:'49',cofinsCst:'49',
+    pis:{base:0,aliquota:0,valor:0},cofins:{base:0,aliquota:0,valor:0}}]
+  const {xml}=gerarRascunhoNfe55(venda,empresa,entrada)
+  assert.match(xml,/<serie>2<\/serie>/)
+  assert.match(xml,/<PISOutr><CST>49<\/CST><vBC>0.00<\/vBC><pPIS>0.0000<\/pPIS><vPIS>0.00<\/vPIS><\/PISOutr>/)
+  assert.match(xml,/<COFINSOutr><CST>49<\/CST><vBC>0.00<\/vBC><pCOFINS>0.0000<\/pCOFINS><vCOFINS>0.00<\/vCOFINS><\/COFINSOutr>/)
+  assert.match(xml,/<vNF>136.90<\/vNF>/)
+  assert.doesNotMatch(xml,/<CEST>|<retTrib>|<vRetPIS>|<vRetCOFINS>|<vRetCSLL>|<vRetIRRF>/)
+  assert.doesNotMatch(xml,/<pPIS>2.76|<pCOFINS>12.74|<vICMS>[d]*[1-9]/)
+})
