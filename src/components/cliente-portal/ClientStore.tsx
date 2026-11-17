@@ -167,9 +167,9 @@ export function ClientStore({
   }, [refreshKey])
 
   const marcas = useMemo(
-    () => [...new Set(produtos.map(getProductBrand))].sort((a, b) =>
-      a === SEM_MARCA ? 1 : b === SEM_MARCA ? -1 : a.localeCompare(b, 'pt-BR')
-    ),
+    () => [...new Set(produtos.map(getProductBrand))]
+      .filter((marca) => marca !== SEM_MARCA)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [produtos]
   )
 
