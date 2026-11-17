@@ -5,6 +5,7 @@
  * Não altera cadastro, integrações, SKUs nem preços.
  */
 export const SEM_MARCA = 'Marca não identificada'
+export const MARCA_PERSONALIZAVEIS = 'Matilha Prado Personalizáveis'
 
 export type BrandableProduct = {
   nome: string
@@ -16,6 +17,7 @@ export type BrandableProduct = {
 
 /** Marcas reais presentes nas integrações e linhas comprovadas do catálogo. */
 const BRANDS = [
+  MARCA_PERSONALIZAVEIS,
   'Bonito pra Cachorro',
   'Great Pet',
   'Arm & Hammer',
@@ -32,6 +34,7 @@ const BRANDS = [
 ] as const
 
 const BRAND_ALIASES: Record<string, readonly string[]> = {
+  [MARCA_PERSONALIZAVEIS]: ['matilha prado personalizaveis', 'matilha prado personalizados', 'matilha prado personalizado'],
   'Bonito pra Cachorro': ['bonito pra cachorro', 'bonito para cachorro', 'bonito p cachorro', 'moletom maxi sport', 'casaco coelho laco branco', 'cama linho clean'],
   // A linha de tapetes Tapetim e as grafias Great Pets/Greet Pet apontam para Great Pet.
   'Great Pet': ['great pet', 'great pets', 'greatpets', 'greet pet', 'greet pets', 'tapetim'],
@@ -94,6 +97,24 @@ export function getProductBrand(product: BrandableProduct): string {
   ])
   // Se títulos equivalentes mencionarem fabricantes diferentes, exigir revisão.
   return matched.size === 1 ? [...matched][0] : SEM_MARCA
+}
+
+/** Imagem representativa da marca Kong: prioriza anúncio real do KONG Classic. */
+export function findKongClassicImage<T extends BrandableProduct & { imageUrl?: string | null }>(
+  products: readonly T[],
+): string | null {
+  const classic = (nome: string) => {
+    const normalized = normalize(nome)
+    return /\bkong\b.*\bclassic\b|\bclassic\b.*\bkong\b/.test(normalized)
+  }
+  for (const product of products) {
+    if (getProductBrand(product) !== 'Kong') continue
+    const variants = (product.variantes || []) as readonly (BrandableProduct & { imageUrl?: string | null })[]
+    const matchingVariant = variants.find((variant) => classic(variant.nome) && Boolean(variant.imageUrl))
+    if (matchingVariant?.imageUrl) return matchingVariant.imageUrl
+    if (classic(product.nome) && product.imageUrl) return product.imageUrl
+  }
+  return null
 }
 
 /**
