@@ -1,7 +1,8 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {envelopeSoapHomologacao,interpretarAutorizacaoHomologacao,
-  montarConsultaHomologacao,montarRetornoHomologacao,montarLoteHomologacao
+  montarConsultaHomologacao,montarRetornoHomologacao,montarLoteHomologacao,
+  classificarSituacaoHomologacao,podeRetransmitirHomologacao
 } from '../src/lib/sefaz-sp-nfe-homologacao'
 
 const chave='35261157199062000191550020000000011123456789'
@@ -40,4 +41,25 @@ test('lote só aceita XML assinado marcado para tpAmb 2; não confirma assinatur
  assert.throws(()=>montarLoteHomologacao('<NFe><tpAmb>1</tpAmb><Signature\/></NFe>','1'),/homologação/)
  const lote=montarLoteHomologacao('<NFe><tpAmb>2</tpAmb><Signature/></NFe>','1')
  assert.match(lote,/<indSinc>1<\/indSinc>/)
+})
+
+test('cStat 217 após timeout é consulta sem localização, não rejeição definitiva da emissão',()=>{
+ const xml='<soap:Envelope><soap:Body><retConsSitNFe><tpAmb>2</tpAmb><cStat>217</cStat>'+
+  '<xMotivo>Rejeição: NF-e não consta na base de dados da SEFAZ</xMotivo>'+
+  '</retConsSitNFe></soap:Body></soap:Envelope>'
+ const r=interpretarAutorizacaoHomologacao(xml,chave)
+ assert.equal(r.statusLote,217)
+ assert.equal(classificarSituacaoHomologacao(r),'incerta')
+})
+test('reenvio de homologação exige mesma nota incerta, cStat 217, prazo e ausência de protocolo',()=>{
+ const agora=Date.UTC(2026,10,17,2)
+ const item={ambiente:2,status:'incerta',codigoSefaz:217,recibo:null,protocolo:null,
+  enviadaEm:new Date(agora-180_000)}
+ assert.equal(podeRetransmitirHomologacao(item,agora),true)
+ assert.equal(podeRetransmitirHomologacao({...item,enviadaEm:new Date(agora-179_999)},agora),false)
+ assert.equal(podeRetransmitirHomologacao({...item,ambiente:1},agora),false)
+ assert.equal(podeRetransmitirHomologacao({...item,status:'autorizada'},agora),false)
+ assert.equal(podeRetransmitirHomologacao({...item,codigoSefaz:null},agora),false)
+ assert.equal(podeRetransmitirHomologacao({...item,recibo:'123'},agora),false)
+ assert.equal(podeRetransmitirHomologacao({...item,protocolo:'123'},agora),false)
 })
