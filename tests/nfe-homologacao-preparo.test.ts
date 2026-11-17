@@ -2,8 +2,8 @@ import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {prepararPrimeiraHomologacao,SKU_TESTE_INICIAL,PRODUTO_TESTE_INICIAL_ID} from '../src/lib/nfe-homologacao-preparo'
 const produto={
-  id:PRODUTO_TESTE_INICIAL_ID,nome:'Kong Extreme XXL Brinquedo Resistente Borracha Para Cães Grandes Preto',sku:SKU_TESTE_INICIAL,ativo:true,
-  preco:212,ncm:'40169990',gtinFiscal:SKU_TESTE_INICIAL,cfop:'5102',
+  id:PRODUTO_TESTE_INICIAL_ID,nome:'Arm & Hammer Enxágue Dental 473 ml Brinquedo Resistente Borracha Para Cães Grandes Preto',sku:SKU_TESTE_INICIAL,ativo:true,
+  preco:136.9,ncm:'33061000',gtinFiscal:SKU_TESTE_INICIAL,cfop:'5102',
   csosn:'102',pisCst:'49',cofinsCst:'49',cest:null,origem:'0',unidadeFiscal:'UN',
 }
 const empresa={
@@ -69,21 +69,21 @@ test('autorização registrada em homologação não habilita automaticamente no
  assert.ok(!resultado.pendencias.some(p=>p.includes('Nenhuma NF-e 55 própria autorizada')))
 })
 
-test('Kong com dados fiscais ausentes não pode preparar NF-e de teste',()=>{
+test('Arm & Hammer 473 ml com dados fiscais ausentes não pode preparar NF-e de teste',()=>{
  const resultado=prepararPrimeiraHomologacao({
   produto:{...produto,cfop:null,csosn:null,pisCst:null,cofinsCst:null},
   emitente:{...empresa,serieNfe:2},documentos:[],
   regrasAprovadas:0,certificadoConfigurado:true,
  })
  assert.equal(resultado.produto?.nome,produto.nome)
- assert.equal(resultado.produto?.ncm,'40169990')
+ assert.equal(resultado.produto?.ncm,'33061000')
  assert.equal(resultado.homologacaoDisponivelParaTeste,false)
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CFOP')))
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CSOSN')))
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CST PIS')))
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('aprova')))
 })
-test('rejeita escolha ambígua por SKU de outro cadastro Kong e não habilita produção',()=>{
+test('rejeita escolha ambígua por SKU de outro cadastro Arm & Hammer 473 ml e não habilita produção',()=>{
  const resultado=prepararPrimeiraHomologacao({
   produto:{...produto,id:'outro-produto-com-mesmo-sku'},
   emitente:{...empresa,serieNfe:2},documentos:[],
