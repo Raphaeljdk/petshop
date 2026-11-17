@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { emitWebSocket } from '@/lib/realtime'
+import { requiresFichaAtendimento } from '@/lib/atendimento-flow'
 
 export async function GET() {
   try {
@@ -50,10 +51,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Pet não encontrado' }, { status: 404 })
     }
 
+    const requiresFicha=requiresFichaAtendimento(String(servico))
+    if(requiresFicha&&status&&status!=='novo')return NextResponse.json({error:'Atendimento estético novo começa na fila de check-in para o tutor autorizar.'},{status:409})
+
     const processo = await db.processo.create({
       data: {
         petId,
         servico,
+        requiresFicha,
         responsavel: responsavel || null,
         anamnese: anamnese || null,
         valorServico: typeof valorServico === 'number' ? valorServico : 0,
