@@ -20,7 +20,7 @@ export async function GET(){
       }),
       db.configuracaoFiscal.findUnique({where:{id:'matilha-prado'},
         select:{
-          cnpj:true,inscricaoEstadual:true,regimeTributario:true,serieNfe:true,
+          cnpj:true,inscricaoEstadual:true,regimeTributario:true,apuracaoTributaria:true,serieNfe:true,
           ambiente:true,uf:true,razaoSocial:true,
         }}),
       db.notaFiscal.findMany({where:{modelo:'55',numero:{not:null}},
