@@ -13,6 +13,7 @@ type DiagnosticoProdutoTeste={
 type NotaTeste={
  id:string;serie:number;numero:number;chave:string;status:string
  codigoSefaz?:number|null;motivoSefaz?:string|null;protocolo?:string|null;recibo?:string|null
+ podeRetransmitir?:boolean
 }
 const initial={
  nome:'',documento:'',logradouro:'',numero:'',bairro:'',municipio:'São Paulo',
@@ -67,7 +68,12 @@ export function PrimeiraNfeHomologacao(){
      :'Situação: '+json.status+' · cStat '+(json.codigoSefaz??'não recebido')
    ))
    await atualizar()
-  }catch(e){setErro(e instanceof Error?e.message:'Falha ao consultar SEFAZ.')}
+  }catch(e){
+   setErro(e instanceof Error?e.message:'Falha ao consultar SEFAZ.')
+   // Após um timeout o servidor altera o status para "incerta".
+   // Recarregar em erro evita mostrar "preparada" e induzir um segundo envio.
+   try{await atualizar()}catch{/* preservar o erro original */}
+  }
   finally{setLoading(false)}
  }
  async function preparar(e:React.FormEvent){
@@ -157,6 +163,13 @@ export function PrimeiraNfeHomologacao(){
     {n.protocolo&&<p>Protocolo SEFAZ: {n.protocolo}</p>}
     {n.status==='autorizada'&&<a className="text-blue-600 underline" href={'/api/admin/fiscal/homologacao/nfe/xml?id='+encodeURIComponent(n.id)} download>Baixar XML autorizado (somente homologação)</a>}
     {n.motivoSefaz&&<p>{n.motivoSefaz}</p>}
+    {n.status==='incerta'&&<p className="text-amber-700 dark:text-amber-300">
+      Transmissão sem confirmação: consulte a mesma chave antes de retransmitir. Não prepare outra nota.
+     </p>}
+    {n.status==='incerta'&&n.codigoSefaz===217&&<p className="text-amber-700 dark:text-amber-300">
+      cStat 217: NF-e não localizada na consulta. Após 3 minutos da transmissão, atualize e confira
+      novamente; se continuar não localizada, é possível reenviar o MESMO XML assinado.
+     </p>}
     <div className="flex gap-2 flex-wrap">
      {n.status==='preparada'&&<Button type="button" size="sm" disabled={loading||!aceitaEnvio}
       onClick={()=>acao({acao:'transmitir',id:n.id,confirmacao:'TRANSMITIR HOMOLOGACAO'})}>
@@ -164,6 +177,12 @@ export function PrimeiraNfeHomologacao(){
      {!['preparada','autorizada'].includes(n.status)&&<Button type="button" size="sm"
       variant="outline" disabled={loading} onClick={()=>acao({acao:'consultar',id:n.id})}>
       Consultar situação na SEFAZ</Button>}
+     {n.podeRetransmitir&&<Button type="button" size="sm" variant="outline"
+      disabled={loading||!aceitaEnvio}
+      onClick={()=>{
+       if(window.confirm('A consulta retornou cStat 217 após o prazo de segurança. Deseja retransmitir EXATAMENTE a mesma NF-e assinada, série '+n.serie+' número '+n.numero+', sem criar outra chave?'))
+        void acao({acao:'retransmitir',id:n.id,confirmacao:'RETRANSMITIR HOMOLOGACAO'})
+      }}>Retransmitir a mesma NF-e</Button>}
     </div>
    </div>)}
   </div>
