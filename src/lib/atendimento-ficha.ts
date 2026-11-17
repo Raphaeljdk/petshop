@@ -64,7 +64,7 @@ export const CHECKIN_SECTIONS:FormSection[]=[
  multi('checkinComunicacoes','Ações e comunicações realizadas',['Tutor informado das condições','Alterações registradas fotograficamente','Cuidados específicos comunicados','Serviço ajustado às condições do pet','Procedimento suspenso/não iniciado por segurança']),
  text('checkinOrientacoes','Observações e orientações combinadas'),
  ]},
- {id:'equipeEntrada',title:'11. Registro interno — entrada',fields:[
+ {id:'equipeEntrada',title:'10. Registro interno — entrada',fields:[
  text('entradaResponsavel','Responsável pelo check-in'),
  text('entradaInicio','Horário de início (se realizado)'),
  multi('entradaMarcadores','Registros da equipe',['Check-in realizado','Fotografias de entrada registradas','Tutor comunicado sobre alterações']),
