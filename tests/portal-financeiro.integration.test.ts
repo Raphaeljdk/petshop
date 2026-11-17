@@ -89,6 +89,30 @@ test('vale-presente com destinatário é restrito ao e-mail autenticado',async()
   const json=await valid.json()
   expect(json.appliedCents).toBe(3500)
 })
+test('vale-presente novo exige telefone e restringe crédito à conta destinatária',async()=>{
+  const semTelefone=await post('/api/cliente/portal',{
+    action:'gift-request',recipientName:'Cliente B',recipientEmail:email('b'),amountCents:5000,
+  },a)
+  expect(semTelefone.status).toBe(400)
+
+  const pedido=await post('/api/cliente/portal',{
+    action:'gift-request',recipientName:'Cliente B',recipientPhone:'(11) 92222-2222',amountCents:5000,
+  },a)
+  expect(pedido.status).toBe(201)
+  const clienteA=await db.cliente.findUniqueOrThrow({where:{email:email('a')}})
+  const registrado=await db.portalGiftRequest.findFirstOrThrow({
+    where:{clienteId:clienteA.id,recipientName:'Cliente B'},orderBy:{createdAt:'desc'},
+  })
+  expect(registrado.recipientPhone).toBe('5511922222222')
+  expect(registrado.recipientEmail).toBeNull()
+
+  const codigo='MP-PRES-'+randomBytes(7).toString('hex').toUpperCase()
+  await db.portalGiftRequest.update({where:{id:registrado.id},data:{
+    status:'pago',paidAt:new Date(),balanceCents:5000,voucherCode:codigo,
+  }})
+  expect((await post('/api/cliente/portal/vale-validar',{code:codigo,totalCents:5000},a)).status).toBe(403)
+  expect((await post('/api/cliente/portal/vale-validar',{code:codigo,totalCents:5000},b)).status).toBe(200)
+})
 test('sem credenciais não simula cobrança recorrente e webhook não aceita assinatura ausente',async()=>{
   const client=await db.cliente.findUniqueOrThrow({where:{email:email('a')}})
   const pet=await db.pet.findFirstOrThrow({where:{clienteId:client.id}})
