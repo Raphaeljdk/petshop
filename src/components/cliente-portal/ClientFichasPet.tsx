@@ -6,13 +6,14 @@ import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {Checkbox} from '@/components/ui/checkbox'
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '@/components/ui/dialog'
-import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO} from '@/lib/atendimento-ficha'
+import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,CHECKOUT_ACEITE_TEXTO,CHECKOUT_ACEITE_VERSAO} from '@/lib/atendimento-ficha'
 import {FichaSections,asAnswers,dateTime} from '@/components/atendimentos/FichaSections'
 
 export type ClientFicha={
  id:string;petId:string;processoId:string;checkin:unknown;checkinStatus:string;
  checkinSubmittedAt:string|null;tutorAceiteAt:string|null;tutorAceiteNome:string|null;
- checkout:unknown;checkoutFinalizadoAt:string|null;createdAt:string;
+ checkout:unknown;checkoutFinalizadoAt:string|null;checkoutStatus:string;
+ checkoutAceiteAt:string|null;checkoutAceiteNome:string|null;createdAt:string;
  processo:{servico:string;createdAt:string;pet:{id:string;nome:string;raca:string|null}}
 }
 const labels:Record<string,string>={rascunho:'Rascunho interno',pendente_aceite:'Aguardando seu aceite',
@@ -25,18 +26,19 @@ export function ClientFichasPet({petNome,fichas,onUpdated}:{petNome:string;ficha
  const visible=fichas.filter(f=>f.checkinSubmittedAt)
  if(!visible.length)return null
  const pending=visible.filter(f=>f.checkinStatus==='pendente_aceite')
- async function answer(action:'aceitar'|'recusar'){
+ const pendingCheckout=visible.filter(f=>f.checkoutFinalizadoAt&&f.checkoutStatus==='pendente_aceite')
+ async function answer(action:'aceitar'|'recusar',kind:'checkin'|'checkout'='checkin'){
   if(!selected||busy)return
-  if(action==='recusar'&&!window.confirm('Confirmar que você NÃO autoriza o serviço? A equipe deverá tratar o atendimento antes de prosseguir.'))return
+  if(action==='recusar'&&!window.confirm(kind==='checkout'?'Deseja registrar discordância da ficha de saída? A equipe terá acesso ao registro.':'Confirmar que você NÃO autoriza o serviço? A equipe deverá tratar o atendimento antes de prosseguir.'))return
   setBusy(true)
   try{
-   const r=await fetch('/api/cliente/atendimentos/'+encodeURIComponent(selected.id)+'/aceite',{
+   const r=await fetch('/api/cliente/atendimentos/'+encodeURIComponent(selected.id)+(kind==='checkout'?'/aceite-checkout':'/aceite'),{
     method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
-    body:JSON.stringify({action,confirmed:checked,name,version:ACEITE_VERSAO}),
+    body:JSON.stringify({action,confirmed:checked,name,version:kind==='checkout'?CHECKOUT_ACEITE_VERSAO:ACEITE_VERSAO}),
    })
    const data=await r.json().catch(()=>null)
    if(!r.ok)throw Error(data?.error||'Não foi possível registrar sua resposta.')
-   toast.success(action==='aceitar'?'Sua autorização ficou registrada na ficha do pet.':'Sua recusa ficou registrada.')
+   toast.success(kind==='checkout'?(action==='aceitar'?'Sua ciência sobre o check-out foi registrada.':'Sua discordância da saída foi registrada.'):(action==='aceitar'?'Sua autorização ficou registrada na ficha do pet.':'Sua recusa ficou registrada.'))
    setSelected(null);setName('');setChecked(false);await onUpdated()
   }catch(e){toast.error(e instanceof Error?e.message:'Falha ao registrar aceite.')}
   finally{setBusy(false)}
@@ -47,11 +49,15 @@ export function ClientFichasPet({petNome,fichas,onUpdated}:{petNome:string;ficha
    <span><strong>Aguardando sua autorização:</strong> {f.processo.servico} · {dateTime(f.checkinSubmittedAt)}</span>
    <Button size="sm" onClick={()=>{setSelected(f);setChecked(false);setName('')}}>Ler ficha e responder</Button>
   </div>)}
+  {pendingCheckout.map(f=><div key={'checkout-'+f.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950">
+   <span><strong>Check-out aguardando seu aceite:</strong> {f.processo.servico} · {dateTime(f.checkoutFinalizadoAt)}</span>
+   <Button size="sm" onClick={()=>{setSelected(f);setChecked(false);setName('')}}>Ler saída e responder</Button>
+  </div>)}
   <details className="text-xs">
    <summary className="cursor-pointer text-muted-foreground">Ver histórico de check-in e check-out</summary>
    <div className="mt-2 space-y-2">
     {visible.map(f=><div key={f.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
-     <span>{dateTime(f.createdAt)} · {f.processo.servico} · <b>{labels[f.checkinStatus]||f.checkinStatus}</b>{f.checkoutFinalizadoAt?' · Check-out concluído':''}</span>
+     <span>{dateTime(f.createdAt)} · {f.processo.servico} · <b>{labels[f.checkinStatus]||f.checkinStatus}</b>{f.checkoutFinalizadoAt?' · Check-out finalizado':''}{f.checkoutFinalizadoAt&&f.checkoutStatus==='aceito'?' · Saída com aceite':f.checkoutStatus==='recusado'?' · Discordância registrada':f.checkoutStatus==='pendente_aceite'?' · Aguardando aceite da saída':''}</span>
      <Button size="sm" variant="outline" onClick={()=>{setSelected(f);setChecked(false);setName('')}}>Ver ficha</Button>
     </div>)}
    </div>
@@ -83,6 +89,22 @@ export function ClientFichasPet({petNome,fichas,onUpdated}:{petNome:string;ficha
      {selected.checkoutFinalizadoAt&&<>
       <p className="mt-3 text-sm font-semibold">Ficha de check-out — finalizado em {dateTime(selected.checkoutFinalizadoAt)}</p>
       <FichaSections sections={CHECKOUT_SECTIONS} answers={asAnswers(selected.checkout)} readonly/>
+      <div className="mt-3 rounded-lg border p-3 text-sm">
+       <p className="font-semibold">10. Ciência e aceite do tutor — check-out</p>
+       <p className="my-2 text-xs leading-relaxed">{CHECKOUT_ACEITE_TEXTO}</p>
+       {selected.checkoutStatus==='pendente_aceite'?<>
+        <label className="my-3 flex items-start gap-2 text-xs">
+         <Checkbox checked={checked} onCheckedChange={v=>setChecked(v===true)}/>
+         Li a ficha de saída e confirmo minha ciência sobre as informações e orientações apresentadas.
+        </label>
+        <label className="block text-xs font-semibold" htmlFor="checkout-tutor-nome">Nome completo para assinatura eletrônica</label>
+        <Input id="checkout-tutor-nome" className="mt-1" maxLength={140} value={name} onChange={e=>setName(e.target.value)} placeholder="Digite seu nome completo"/>
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+         <Button variant="outline" disabled={busy} onClick={()=>void answer('recusar','checkout')}>Registrar discordância</Button>
+         <Button disabled={busy||!checked||name.trim().length<3} onClick={()=>void answer('aceitar','checkout')}>Li e estou ciente</Button>
+        </div>
+       </>:<p className="mt-2 text-xs font-medium">{selected.checkoutStatus==='aceito'?'Aceite registrado':selected.checkoutStatus==='recusado'?'Discordância registrada':'Aceite de saída não solicitado'}{selected.checkoutAceiteAt?' · '+(selected.checkoutAceiteNome||'Tutor')+' · '+dateTime(selected.checkoutAceiteAt):''}</p>}
+      </div>
      </>}
      {!selected.checkoutFinalizadoAt&&<p className="rounded-md border p-3 text-xs text-muted-foreground">O check-out ficará disponível no histórico após a equipe finalizar a avaliação de saída.</p>}
     </>}
