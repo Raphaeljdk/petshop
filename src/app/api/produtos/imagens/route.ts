@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const foto = await db.produtoImagem.create({
-      data: { conteudo: otimizada, tipo: 'image/webp' },
+      data: { conteudo: new Uint8Array(otimizada), tipo: 'image/webp' },
       select: { id: true },
     })
     return NextResponse.json(
