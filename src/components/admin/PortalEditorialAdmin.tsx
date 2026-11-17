@@ -17,7 +17,7 @@ type PlanRequest = {
   id:string;clienteId:string;petKey:string;status:string;sessionsUsed:number
   plan:{ title:string;sessions:number }
 }
-type Gift = {id:string;clienteId:string;recipientName:string;amountCents:number;status:string}
+type Gift = {id:string;clienteId:string;recipientName:string;recipientPhone:string|null;amountCents:number;status:string}
 type Referral = {id:string;invitedId:string;status:string}
 type PortalAdmin = {
   articles:Article[];plans:Array<{id:string;title:string;priceCents:number;active:boolean}>
@@ -227,7 +227,7 @@ export function PortalEditorialAdmin() {
         <div className="mt-3 space-y-3">
           <label className="block space-y-1 text-xs">Referência do pagamento conferido<Input value={reference} onChange={(e)=>setReference(e.target.value)}/></label>
           {data?.gifts.map((g)=><div key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-xs">
-            <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p></div>
+            <div><strong>{g.recipientName}</strong><p>{money(g.amountCents)} · {g.status} · Cliente {g.clienteId}</p><p>{g.recipientPhone ? 'Telefone: +' + g.recipientPhone : 'Vale anterior à exigência de telefone'}</p></div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={busy||reference.trim().length<4}
                 onClick={()=>void submit({action:'gift-review',id:g.id,status:'pago',paymentVerified:true,paymentReference:reference})}>Confirmar pagamento</Button>
