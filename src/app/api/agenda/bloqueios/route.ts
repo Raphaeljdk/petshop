@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
-import { horarioFinal } from '@/lib/agenda-bloqueios'
 
 export const dynamic='force-dynamic'
 const schema=z.object({
