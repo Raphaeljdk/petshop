@@ -2,7 +2,7 @@ import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {prepararPrimeiraHomologacao,SKU_TESTE_INICIAL,PRODUTO_TESTE_INICIAL_ID} from '../src/lib/nfe-homologacao-preparo'
 const produto={
-  id:PRODUTO_TESTE_INICIAL_ID,nome:'Arm & Hammer Enxágue Dental 473 ml Brinquedo Resistente Borracha Para Cães Grandes Preto',sku:SKU_TESTE_INICIAL,ativo:true,
+  id:PRODUTO_TESTE_INICIAL_ID,nome:'Aditivo Agua Cães Enxágue Dental Arm Hammer Placa Bacteriana Tártaro 473ml',sku:SKU_TESTE_INICIAL,ativo:true,
   preco:136.9,ncm:'33061000',gtinFiscal:SKU_TESTE_INICIAL,cfop:'5102',
   csosn:'102',pisCst:'49',cofinsCst:'49',cest:null,origem:'0',unidadeFiscal:'UN',
 }
@@ -83,7 +83,7 @@ test('Arm & Hammer 473 ml com dados fiscais ausentes não pode preparar NF-e de 
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('CST PIS')))
  assert.ok(resultado.pendenciasProduto.some(p=>p.includes('aprova')))
 })
-test('rejeita escolha ambígua por SKU de outro cadastro Arm & Hammer 473 ml e não habilita produção',()=>{
+test('rejeita outro cadastro com mesmo nome e SKU diferente do Arm & Hammer 473 ml e não habilita produção',()=>{
  const resultado=prepararPrimeiraHomologacao({
   produto:{...produto,id:'outro-produto-com-mesmo-sku'},
   emitente:{...empresa,serieNfe:2},documentos:[],
