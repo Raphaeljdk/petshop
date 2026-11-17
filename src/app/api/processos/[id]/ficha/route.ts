@@ -65,6 +65,8 @@ export async function PUT(req:NextRequest,{params}:Route){
    const isCheckin=kind==='checkin'
    if(isCheckin&&ficha.checkinStatus!=='rascunho')
     return {error:'Check-in já enviado ao tutor. Seu conteúdo ficou bloqueado para proteger o aceite.',status:409}
+   if(!isCheckin&&processo.status==='novo')
+    return {error:'Registre o início do atendimento antes do check-out.',status:409}
    if(!isCheckin&&ficha.checkinStatus!=='aceito')
     return {error:'É necessário o aceite do tutor no check-in antes do check-out.',status:409}
    if(!isCheckin&&ficha.checkoutFinalizadoAt)
