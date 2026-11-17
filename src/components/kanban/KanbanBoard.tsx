@@ -67,7 +67,7 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { cn } from '@/lib/utils'
 import type { Pet, Processo, StatusProcesso } from '@/lib/types'
 import { AtendimentoFichaDialog } from '@/components/atendimentos/AtendimentoFichaDialog'
-import { dataLocalIso, processoNoDia } from '@/lib/kanban-dates'
+import { dataLocalIso, processoNoDia, processoVisivelNoKanban } from '@/lib/kanban-dates'
 
 interface KanbanBoardProps {
   onCountsChange?: (counts: { novo: number; andamento: number }) => void
@@ -567,7 +567,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
   const processosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return processos.filter((p) => {
-      if (p.status === 'cancelado' || !processoNoDia(p.createdAt, diaSelecionado)) return false
+      if (!processoVisivelNoKanban(p, diaSelecionado)) return false
       if (termo) {
         const petNome = (p.pet?.nome || '').toLowerCase()
         const donoNome = (p.pet?.cliente?.nome || '').toLowerCase()
