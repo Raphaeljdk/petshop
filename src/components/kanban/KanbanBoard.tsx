@@ -67,13 +67,14 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { cn } from '@/lib/utils'
 import type { Pet, Processo, StatusProcesso } from '@/lib/types'
 import { AtendimentoFichaDialog } from '@/components/atendimentos/AtendimentoFichaDialog'
+import { dataLocalIso, processoNoDia } from '@/lib/kanban-dates'
 
 interface KanbanBoardProps {
   onCountsChange?: (counts: { novo: number; andamento: number }) => void
   limitedAccess?: boolean
 }
 
-type ColunaId = 'novo' | 'em_andamento' | 'finalizado' | 'cancelado'
+type ColunaId = 'novo' | 'em_andamento' | 'finalizado'
 
 interface ColunaConfig {
   id: ColunaId
@@ -105,13 +106,6 @@ const COLUNAS: ColunaConfig[] = [
     cardBorder: 'border-l-green-400',
     dot: 'bg-green-500',
   },
-  {
-    id: 'cancelado',
-    titulo: 'Cancelado',
-    headerClass: 'bg-slate-100 border-slate-200 text-slate-700',
-    cardBorder: 'border-l-slate-400',
-    dot: 'bg-slate-500',
-  },
 ]
 
 const STATUS_PROCESSO_TO_COLUNA: Record<StatusProcesso, ColunaId | null> = {
@@ -119,7 +113,7 @@ const STATUS_PROCESSO_TO_COLUNA: Record<StatusProcesso, ColunaId | null> = {
   em_andamento: 'em_andamento',
   finalizado: 'finalizado',
   aguardando_resposta: 'em_andamento',
-  cancelado: 'cancelado',
+  cancelado: null,
 }
 
 const SERVICOS_FILTRO = [
@@ -136,7 +130,6 @@ const STATUS_FILTRO = [
   { value: 'novo', label: 'Novo' },
   { value: 'em_andamento', label: 'Em Andamento' },
   { value: 'finalizado', label: 'Finalizado' },
-  { value: 'cancelado', label: 'Cancelado' },
 ] as const
 
 const SERVICOS_PRESET = [
@@ -317,10 +310,6 @@ function CardProcesso({ processo, onAbrirAnamnese, onAbrirFicha, onMover }: Card
               {processo.status !== 'cancelado' && processo.status !== 'finalizado' && (
                 <Button type="button" size="sm" variant="outline" className="text-xs text-destructive"
                   onClick={(e) => { e.stopPropagation(); if (window.confirm('Cancelar este atendimento? O registro ficará no histórico.')) onMover('cancelado') }}>Cancelar atendimento</Button>
-              )}
-              {processo.status === 'cancelado' && (
-                <Button type="button" size="sm" variant="outline" className="text-xs"
-                  onClick={(e) => { e.stopPropagation(); onMover('novo') }}>Reabrir</Button>
               )}
             </div>
             {/* Linha 5: botões Avançar / Voltar em todos os tamanhos */}
@@ -520,6 +509,12 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
   const [busca, setBusca] = useState('')
   const [filtroServico, setFiltroServico] = useState<string>('todos')
   const [filtroStatus, setFiltroStatus] = useState<string>('todos')
+  const [diaSelecionado, setDiaSelecionado] = useState(() => dataLocalIso(new Date()))
+  const mudarDia = (deslocamento: number) => {
+    const data = new Date(`${diaSelecionado}T12:00:00`)
+    data.setDate(data.getDate() + deslocamento)
+    setDiaSelecionado(dataLocalIso(data))
+  }
 
   // confirmação ao mover para finalizado
   const [confirmFinalizar, setConfirmFinalizar] = useState<{
@@ -547,8 +542,8 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         const data = (await resProc.json()) as Processo[]
         setProcessos(data)
         onCountsChange?.({
-          novo: data.filter((p) => p.status === 'novo').length,
-          andamento: data.filter((p) => p.status === 'em_andamento').length,
+          novo: data.filter((p) => p.status === 'novo' && processoNoDia(p.createdAt, dataLocalIso(new Date()))).length,
+          andamento: data.filter((p) => p.status === 'em_andamento' && processoNoDia(p.createdAt, dataLocalIso(new Date()))).length,
         })
       }
       if (resPets.ok) {
@@ -568,6 +563,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
   const processosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return processos.filter((p) => {
+      if (p.status === 'cancelado' || !processoNoDia(p.createdAt, diaSelecionado)) return false
       if (termo) {
         const petNome = (p.pet?.nome || '').toLowerCase()
         const donoNome = (p.pet?.cliente?.nome || '').toLowerCase()
@@ -588,7 +584,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
       }
       return true
     })
-  }, [processos, busca, filtroServico, filtroStatus])
+  }, [processos, busca, filtroServico, filtroStatus, diaSelecionado])
 
   const colunasVisiveis = useMemo(
     () =>
@@ -603,7 +599,6 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
       novo: [],
       em_andamento: [],
       finalizado: [],
-      cancelado: [],
     }
     for (const p of processosFiltrados) {
       const col = STATUS_PROCESSO_TO_COLUNA[p.status]
@@ -840,7 +835,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
     [dragId, processos]
   )
 
-  const totalPets = processos.length
+  const totalPets = processosFiltrados.length
 
   /* ---------------------- render ---------------------- */
 
@@ -856,7 +851,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
             </Badge>
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Arraste cards entre colunas para atualizar o status
+            Atendimentos de {diaSelecionado.split('-').reverse().join('/')} · arraste os cards para atualizar o status
           </p>
         </div>
         <Button onClick={() => setNovoOpen(true)} className="h-9 sm:h-10 shrink-0">
@@ -868,6 +863,27 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
 
       {/* Filtros */}
       <div className="bg-card/50 border border-border rounded-xl p-3 sm:p-4 space-y-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[175px]">
+            <Label htmlFor="kanban-dia" className="text-xs mb-1 block">Dia dos atendimentos</Label>
+            <Input
+              id="kanban-dia"
+              type="date"
+              value={diaSelecionado}
+              onChange={(e) => { if (e.target.value) setDiaSelecionado(e.target.value) }}
+              className="h-9"
+            />
+          </div>
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => mudarDia(-1)} aria-label="Dia anterior">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setDiaSelecionado(dataLocalIso(new Date()))}>
+            Hoje
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => mudarDia(1)} aria-label="Próximo dia">
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
@@ -918,7 +934,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
         {temFiltrosAtivos && (
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-muted-foreground">
-              Mostrando {processosFiltrados.length} de {processos.length} processo(s)
+              Mostrando {processosFiltrados.length} atendimento(s) em {diaSelecionado.split('-').reverse().join('/')}
             </p>
             <Button
               variant="ghost"
@@ -944,7 +960,7 @@ export function KanbanBoard({ onCountsChange, limitedAccess = false }: KanbanBoa
           onDragCancel={onDragCancel}
         >
           {/* Desktop: grid 3 colunas */}
-          <div className="hidden md:grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="hidden md:grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {colunasVisiveis.map((col) => (
               <ColunaKanban
                 key={col.id}
