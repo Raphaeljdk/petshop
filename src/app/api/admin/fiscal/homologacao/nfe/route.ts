@@ -116,7 +116,9 @@ async function prepararTeste(input:z.infer<typeof preparar>){
    numero,codigoNumerico:String(randomInt(0,100000000)).padStart(8,'0'),
    naturezaOperacao:'Venda de mercadoria adquirida de terceiros',
    destinatario:{...input.destinatario,indicadorIE:'9'},
-   consumidorFinal:'1',pagamento:'17',modalidadeFrete:'9',
+   consumidorFinal:'1',pagamento:'17',
+   // Somente cenário fictício de HOMOLOGAÇÃO; não existe transação Pix real.
+   dadosPagamento:{tipoIntegracao:'2'},modalidadeFrete:'9',
    itens:[{produtoId:produto.id,gtin:produto.gtinFiscal||'SEM GTIN',
     pisCst:'49',cofinsCst:'49',pis:input.pis,cofins:input.cofins}],
   })
