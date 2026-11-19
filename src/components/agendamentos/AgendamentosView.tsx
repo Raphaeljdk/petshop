@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CalendarDays, Clock, History, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { CalendarClock, CalendarDays, Clock, History, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { addDays, format, isSameDay, parseISO, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -40,6 +40,7 @@ export function AgendamentosView() {
   const [items, setItems] = useState<Entry[]>([])
   const [tutores, setTutores] = useState<Tutor[]>([])
   const [profissionais, setProfissionais] = useState<AgendaProfessional[]>([])
+  const [servicosAdicionais, setServicosAdicionais] = useState<string[]>([])
   const [bloqueios, setBloqueios] = useState<AgendaBloqueio[]>([])
   const [nomeProfissional, setNomeProfissional] = useState('')
   const [especialidadesProfissional, setEspecialidadesProfissional] = useState('')
@@ -115,6 +116,9 @@ export function AgendamentosView() {
     setFormOpen(true)
   }
   const petsTutor = tutores.find(x => x.id === form.clienteId)?.pets || []
+  const sugestoesCategoria = form.categoria === 'Estéticos'
+    ? [...SUGESTOES_AGENDA.Estéticos, ...servicosAdicionais]
+    : SUGESTOES_AGENDA[form.categoria]
   const filtrados = useMemo(() => {
     const hoje = startOfDay(new Date())
     const term = buscar.trim().toLowerCase()
@@ -181,6 +185,19 @@ export function AgendamentosView() {
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar profissional.') }
     finally { setSavingProfessional(false) }
   }
+  async function excluirProfissional(profissional: AgendaProfessional) {
+    if (!window.confirm(`Excluir definitivamente ${profissional.nome}? Essa ação não pode ser desfeita. Profissionais com login, agendamentos ou bloqueios salvos não podem ser excluídos; nesses casos, use Desativar.`)) return
+    setSavingProfessional(true)
+    try {
+      await parseResponse(await fetch('/api/agenda/profissionais?id=' + encodeURIComponent(profissional.id), {
+        method: 'DELETE', credentials: 'same-origin',
+      }))
+      toast.success('Profissional excluído.')
+      setCalendarRefresh((n) => n + 1)
+      await carregar()
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível excluir profissional.') }
+    finally { setSavingProfessional(false) }
+  }
   async function cancelar(x: Entry) {
     if (!window.confirm('Cancelar agendamento de ' + x.pet.nome + '? Ele permanecerá no histórico.')) return
     setSaving(true)
@@ -218,6 +235,10 @@ export function AgendamentosView() {
         {profissionais.map(p=><div key={p.id} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-xs">
           <span><strong>{p.nome}</strong>{p.especialidades?' · '+p.especialidades:''}{!p.ativo?' (inativo)':''}</span>
           <Button type="button" size="sm" variant="outline" disabled={savingProfessional} onClick={()=>void alternarProfissional(p)}>{p.ativo?'Desativar':'Reativar'}</Button>
+          <Button type="button" size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+            aria-label={'Excluir profissional ' + p.nome} disabled={savingProfessional} onClick={()=>void excluirProfissional(p)}>
+            <Trash2 className="mr-1 size-3.5" />Excluir
+          </Button>
         </div>)}
         {!profissionais.length&&<p className="text-xs text-muted-foreground">Nenhum profissional cadastrado ainda.</p>}
       </div>
@@ -232,7 +253,7 @@ export function AgendamentosView() {
         </div>)}
       </div>
     </details>
-    <ConfiguracaoServicosEsteticos />
+    <ConfiguracaoServicosEsteticos onServicosAtualizados={setServicosAdicionais} />
     {formOpen && <Card className="border-primary/30"><CardContent className="p-4 sm:p-6">
       <form onSubmit={salvar} className="space-y-4">
         <div className="flex justify-between items-center"><h2 className="font-semibold">{editId?'Editar / remarcar':'Novo agendamento'}</h2><Button variant="ghost" type="button" onClick={()=>setFormOpen(false)} aria-label="Fechar"><X className="size-4"/></Button></div>
@@ -255,10 +276,10 @@ export function AgendamentosView() {
           <div className="space-y-1.5">
             <Label htmlFor="agenda-servico-opcao">Serviço sugerido</Label>
             <select id="agenda-servico-opcao" className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              value={SUGESTOES_AGENDA[form.categoria].includes(form.servico)?form.servico:''}
+              value={sugestoesCategoria.includes(form.servico)?form.servico:''}
               onChange={e=>setForm(f=>({...f,servico:e.target.value||f.servico}))}>
               <option value="">Descrição personalizada</option>
-              {SUGESTOES_AGENDA[form.categoria].map(s=><option key={s} value={s}>{s}</option>)}
+              {sugestoesCategoria.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
