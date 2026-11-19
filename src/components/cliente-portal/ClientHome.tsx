@@ -13,6 +13,7 @@ import {
   Heart,
   PawPrint,
   ArrowRight,
+  Droplets,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,19 @@ interface ProdutoDestaque {
   categoria: string
 }
 
+interface MeuPlanoInfo {
+  id: string
+  titulo: string
+  petNome: string
+  total: number
+  utilizadas: number
+  restantes: number
+  disponiveis: number
+  situacao: 'ativo' | 'esgotado' | 'vencido' | 'cancelado' | 'pendente'
+  expiresAt: string | null
+  cancelAtPeriodEnd: boolean
+}
+
 interface DashboardData {
   zettaLinked?: boolean
   cliente: { nome: string; telefone: string; email: string | null; cep?: string | null }
@@ -73,6 +87,7 @@ interface DashboardData {
   proximosAgendamentos: AgendamentoInfo[]
   ultimasCompras: CompraInfo[]
   produtosDestaque: ProdutoDestaque[]
+  meusPlanos?: MeuPlanoInfo[]
 }
 
 const ESPECIE_ICONE: Record<string, string> = {
@@ -244,6 +259,66 @@ export function ClientHome({
         </div>
         <Button type="button" onClick={cuidado.onClick} className="h-auto min-h-12 shrink-0 whitespace-normal rounded-xl px-4 py-3 text-center sm:max-w-56">{cuidado.action}<ArrowRight className="size-4 shrink-0" aria-hidden="true" /></Button>
       </section>
+
+      {/* Planos contratados: exibir somente pacotes com pagamento já confirmado. */}
+      {!!data.meusPlanos?.length && (
+        <section aria-labelledby="meus-planos" className="space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="meus-planos" className="flex items-center gap-2 text-base font-semibold">
+              <Droplets className="size-5 text-primary" aria-hidden="true" />
+              Meus planos de banho e cuidados
+            </h2>
+            <Button type="button" variant="outline" size="sm" onClick={onIrParaPets}>
+              Ver detalhes <ChevronRight className="ml-1 size-3.5" aria-hidden="true" />
+            </Button>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {data.meusPlanos.map((plano) => (
+              <div key={plano.id} className="space-y-3 rounded-xl border bg-background p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{plano.titulo}</p>
+                    <p className="text-xs text-muted-foreground">Pet: {plano.petNome}</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0">
+                    {{ ativo: 'Ativo', esgotado: 'Concluído', vencido: 'Vencido', cancelado: 'Cancelado', pendente: 'Pendente' }[plano.situacao]}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg bg-muted/60 p-2">
+                    <p className="text-xl font-bold">{plano.total}</p>
+                    <p className="text-[11px] text-muted-foreground">Contratadas</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/60 p-2">
+                    <p className="text-xl font-bold">{plano.utilizadas}</p>
+                    <p className="text-[11px] text-muted-foreground">Realizadas</p>
+                  </div>
+                  <div className="rounded-lg bg-primary/10 p-2">
+                    <p className="text-xl font-bold text-primary">{plano.disponiveis}</p>
+                    <p className="text-[11px] text-muted-foreground">Disponíveis</p>
+                  </div>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted" role="progressbar"
+                  aria-label={'Sessões realizadas de ' + plano.titulo} aria-valuemin={0}
+                  aria-valuemax={plano.total} aria-valuenow={plano.utilizadas}>
+                  <div className="h-full rounded-full bg-primary" style={{ width: (plano.total ? plano.utilizadas / plano.total * 100 : 0) + '%' }} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {plano.situacao === 'ativo'
+                    ? `Faltam ${plano.restantes} atendimento(s) para completar este plano.`
+                    : plano.situacao === 'vencido' || plano.situacao === 'cancelado'
+                      ? `${plano.restantes} sessão(ões) não utilizada(s), mas o plano não está mais disponível.`
+                      : 'Todas as sessões deste plano foram utilizadas.'}
+                  {plano.expiresAt && (
+                    <> · Validade: {new Date(plano.expiresAt).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</>
+                  )}
+                  {plano.cancelAtPeriodEnd && plano.situacao === 'ativo' && ' · Sem renovação automática'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ===== ATALHOS RÁPIDOS ===== */}
       <div className="stagger-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
