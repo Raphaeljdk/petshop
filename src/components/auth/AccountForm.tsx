@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useRef, useState, type ComponentProps, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ComponentProps, type FormEvent } from 'react'
 import {
   ArrowRight, Check, Eye, EyeOff, KeyRound, Loader2, LockKeyhole,
   Mail, MapPin, PawPrint, Phone, ShieldCheck, UserRound,
@@ -61,6 +61,20 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
   const messageRef = useRef<HTMLDivElement>(null)
   const isAdmin = role === 'ADMIN'
   const isRegister = mode === 'cadastro'
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('authError')
+    const messages: Record<string, string> = {
+      'google-unavailable': 'Não foi possível entrar com Google. Tente novamente ou use seu e-mail e senha.',
+      'google-session-expired': 'A sessão do Google expirou. Clique novamente em Continuar com Google.',
+      'google-cancelled': 'Entrada com Google cancelada.',
+      'google-invalid': 'Não foi possível confirmar a identidade com Google. Tente novamente.',
+      'google-existing-account': 'Você já possui cadastro na Matilha Prado. Entre com seu e-mail/telefone e senha e depois vincule o Google no portal.',
+      'google-login-required': 'Entre na sua conta de cliente antes de vincular o Google.',
+      'google-email-different': 'Para vincular o Google, utilize uma conta Google com o mesmo e-mail do cadastro Matilha Prado.',
+      'google-already-linked': 'Esta conta Google já está vinculada a outro acesso, ou você já vinculou outra conta.',
+    }
+    if (code && messages[code]) setMessage(messages[code])
+  }, [])
   const update = (name: keyof typeof data, value: string) => {
     setData(prev => ({ ...prev, [name]: value }))
     setErrors(prev => ({ ...prev, [name]: '' }))
@@ -157,6 +171,17 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
         </button>
       ))}
     </div>
+
+    {!isAdmin && <>
+      <a href={'/api/auth/google?intent=' + (isRegister ? 'cadastro' : 'login')}
+        className="mb-4 flex h-12 w-full items-center justify-center gap-3 rounded-xl border bg-background text-sm font-semibold shadow-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring">
+        <span aria-hidden="true" className="text-lg font-bold text-[#4285F4]">G</span>
+        Continuar com Google
+      </a>
+      <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
+        <span className="h-px flex-1 bg-border" /> ou continue com e-mail <span className="h-px flex-1 bg-border" />
+      </div>
+    </>}
 
     <form ref={formRef} onSubmit={submit} noValidate aria-busy={busy} className="space-y-4 sm:space-y-5">
       {message && <div ref={messageRef} tabIndex={-1} role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive outline-none">{message}</div>}
