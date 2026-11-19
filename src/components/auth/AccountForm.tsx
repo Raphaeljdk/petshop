@@ -9,10 +9,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { AuthRequestError, useAuth } from '@/components/providers/AuthProvider'
-import { adminRegistrationSchema, clientRegistrationSchema, fieldErrors, formatCep, formatCpfCnpj, formatPhone, loginSchema, passwordRules } from '@/lib/auth-validation'
+import { adminRegistrationSchema, clientRegistrationSchema, fieldErrors, formatCpfCnpj, formatPhone, loginSchema, passwordRules } from '@/lib/auth-validation'
 import { cn } from '@/lib/utils'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { PrivacyNotice } from './PrivacyNotice'
+import { RegistrationAddressFields } from './RegistrationAddressFields'
 
 export type AccountMode = 'login' | 'cadastro'
 export type AccountRole = 'CLIENTE' | 'ADMIN'
@@ -55,7 +56,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const [help, setHelp] = useState(false)
-  const [data, setData] = useState({ nome: '', email: '', telefone: '', identificador: '', cpfCnpj: '', endereco: '', cep: '', senha: '', confirmarSenha: '', convite: '' })
+  const [data, setData] = useState({ nome: '', email: '', telefone: '', identificador: '', cpfCnpj: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', senha: '', confirmarSenha: '', convite: '' })
   const inFlight = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
   const messageRef = useRef<HTMLDivElement>(null)
@@ -109,7 +110,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
     if (inFlight.current) return
     const input = isRegister
       ? { nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
-          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }) }
+          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, cep: data.cep, logradouro: data.logradouro, numero: data.numero, complemento: data.complemento, bairro: data.bairro, cidade: data.cidade, uf: data.uf }) }
       : isAdmin
         ? { role: 'ADMIN' as const, email: data.email, senha: data.senha, lembrar: remember }
         : { role: 'CLIENTE' as const, identificador: data.identificador, senha: data.senha, lembrar: remember }
@@ -124,7 +125,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
       if (isRegister) {
         await cadastrar({
           nome: data.nome, email: data.email, senha: data.senha, confirmarSenha: data.confirmarSenha, role,
-          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, endereco: data.endereco, cep: data.cep }),
+          ...(isAdmin ? { convite: data.convite } : { telefone: data.telefone, cpfCnpj: data.cpfCnpj, cep: data.cep, logradouro: data.logradouro, numero: data.numero, complemento: data.complemento, bairro: data.bairro, cidade: data.cidade, uf: data.uf }),
         })
       } else {
         await login(parsed.data as Parameters<typeof login>[0])
@@ -233,15 +234,7 @@ export function AccountForm({ initialMode = 'login', initialRole = 'CLIENTE', on
             </li>)}
           </ul>
         </div>}
-        {isRegister && !isAdmin && <details className="account-address rounded-xl border px-3.5 py-3">
-          <summary className="cursor-pointer text-sm font-medium">Adicionar endereço <span className="font-normal text-muted-foreground">(opcional)</span></summary>
-          <div className="mt-4 space-y-4">
-            <Field label="Endereço" icon={MapPin} name="endereco" autoComplete="street-address" maxLength={240} placeholder="Rua, número e bairro"
-              value={data.endereco} onChange={e => update('endereco', e.target.value)} error={errors.endereco} />
-            <Field label="CEP" icon={MapPin} name="cep" inputMode="numeric" autoComplete="postal-code" maxLength={9} placeholder="00000-000"
-              value={data.cep} onChange={e => update('cep', formatCep(e.target.value))} error={errors.cep} />
-          </div>
-        </details>}
+        {isRegister && !isAdmin && <RegistrationAddressFields value={data} onChange={update} errors={errors} disabled={busy} />}
         {!isRegister && <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 text-xs">
           <label className="flex cursor-pointer items-center gap-2">
             <input name="lembrar" type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="size-4 rounded accent-primary" />
