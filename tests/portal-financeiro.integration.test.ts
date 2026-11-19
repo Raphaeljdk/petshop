@@ -34,6 +34,8 @@ async function register(name:string){
   const response=await post('/api/auth/register',{
     nome:'Tutor '+name,email:email(name),cpfCnpj:cpfFor(name),telefone:name==='a'?'11911111111':'11922222222',
     senha:password,confirmarSenha:password,role:'CLIENTE',
+    cep:'01310100',logradouro:'Avenida Paulista',numero:'1234',complemento:'',
+    bairro:'Bela Vista',cidade:'São Paulo',uf:'SP',
   })
   expect(response.status).toBe(201)
   return response.headers.get('set-cookie')!.split(';')[0]
