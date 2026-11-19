@@ -401,7 +401,7 @@ export function FiscalView() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
           <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
-            <p className="mt-1 text-sm">Estamos implantando o emissor próprio de NF-e 55 diretamente com a SEFAZ-SP. O teste de serviço não emite nota. O preparo, assinatura A1, validação XSD e transmissão de TESTE foram implementados, mas ainda falta obter uma NF-e própria autorizada e homologar o fluxo completo. O emissor de produção para site e Amazon continua indisponível. O Mercado Livre mantém seu Faturador para evitar notas duplicadas. Serviços e NFC-e exigem módulos específicos.</p>
+            <p className="mt-1 text-sm">Estamos implantando o emissor próprio de NF-e 55 diretamente com a SEFAZ-SP. O teste de serviço não emite nota. O preparo, assinatura A1, validação XSD e transmissão de TESTE foram implementados; uma NF-e própria já foi autorizada em homologação. Ainda é necessário homologar o fluxo completo para produção. O emissor de produção para site e Amazon continua indisponível. O Mercado Livre mantém seu Faturador para evitar notas duplicadas. Serviços e NFC-e exigem módulos específicos.</p>
           </div>
         </div>
       </div>
@@ -485,7 +485,7 @@ export function FiscalView() {
             recebidos vieram do Pet Moura; as NF-e de marketplace possuem emissores próprios.
             A NFS-e nº 2 de 26/10/2026 foi emitida como teste pela empresa do novo sistema.
             Esses documentos não devem ser reemitidos ou misturados entre modelos e séries.
-            A emissão fiscal própria continua pendente de homologação e aprovação contábil.
+            A autorização de homologação já foi obtida; a emissão real continua bloqueada até implementação do fluxo de produção e aprovação contábil.
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div><h2 className="font-semibold">Pedidos e emissão centralizada</h2><p className="text-xs text-muted-foreground">Use o teste seguro para identificar pendências antes de emitir em qualquer canal.</p></div>
