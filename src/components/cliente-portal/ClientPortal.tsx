@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, Syringe, BookOpen } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
@@ -48,6 +48,26 @@ function ClientPortalContent() {
   const [repeatItems, setRepeatItems] = useState<CarrinhoItem[] | null>(null)
   const [repeating, setRepeating] = useState(false)
   const [cartUi, setCartUi] = useState<ClientCartUiState | null>(null)
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const linked = url.searchParams.get('google') === 'connected'
+    const error = url.searchParams.get('googleError')
+    const messages: Record<string, string> = {
+      'google-email-different': 'Entre no Google com o mesmo e-mail cadastrado na Matilha Prado.',
+      'google-already-linked': 'Esta conta Google já está vinculada a outro acesso.',
+      'google-login-required': 'Entre na sua conta antes de vincular o Google.',
+      'google-session-expired': 'O vínculo com o Google expirou. Tente novamente.',
+      'google-cancelled': 'Vínculo com Google cancelado.',
+    }
+    if (linked) toast.success('Conta Google vinculada! Agora você pode entrar sem senha.')
+    if (error) toast.error(messages[error] || 'Não foi possível vincular o Google. Tente novamente.')
+    if (linked || error) {
+      url.searchParams.delete('google')
+      url.searchParams.delete('googleError')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+    }
+  }, [])
 
   async function repeatPurchase(id: string) {
     if (repeating) return
@@ -117,6 +137,14 @@ function ClientPortalContent() {
                 >
                   {cartUi.itemCount > 99 ? '99+' : cartUi.itemCount}
                 </span>
+              </Button>
+            )}
+            {!user.googleVinculado && (
+              <Button variant="outline" size="sm" asChild className="h-9 shrink-0" title="Vincular Google a este cadastro">
+                <a href="/api/auth/google?intent=vincular" aria-label="Vincular minha conta ao Google">
+                  <span className="text-base font-bold text-[#4285F4]" aria-hidden="true">G</span>
+                  <span className="hidden sm:inline ml-1">Vincular Google</span>
+                </a>
               </Button>
             )}
             <Avatar className="size-9 sm:size-10">

@@ -9,6 +9,7 @@ export interface UserLogado {
   role: 'ADMIN' | 'CLIENTE' | 'KANBAN'
   clienteId?: string | null
   siggmaCliCod?: number | null
+  googleVinculado?: boolean
 }
 export interface ClienteSessao {
   id: string
@@ -62,7 +63,7 @@ async function readSession(signal?: AbortSignal): Promise<SessaoUser> {
   if (!data?.autenticado || !data.user || !['ADMIN', 'CLIENTE', 'KANBAN'].includes(data.user.role)) return SESSAO_INICIAL
   return {
     autenticado: true,
-    user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null, siggmaCliCod: data.user.siggmaCliCod ?? null },
+    user: { id: data.user.id, nome: data.user.nome, email: data.user.email, role: data.user.role, clienteId: data.user.clienteId ?? null, siggmaCliCod: data.user.siggmaCliCod ?? null, googleVinculado: Boolean(data.user.googleVinculado) },
     cliente: data.cliente ?? null,
   }
 }
