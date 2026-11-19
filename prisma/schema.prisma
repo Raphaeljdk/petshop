@@ -643,6 +643,7 @@ model ImportacaoFiscalProduto {
  */
 model ServicoEsteticoConfig {
   chave String @id
+  nome String? // preenchido apenas para serviços criados pelo administrador
   precoCentavos Int?
   precosPorRaca Json @default("[]")
   duracaoMinutos Int?

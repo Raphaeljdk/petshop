@@ -26,6 +26,8 @@ function errorResponse(error: unknown) {
   if (error instanceof z.ZodError) {
     return NextResponse.json({ error: error.issues[0]?.message || 'Dados inválidos.' }, { status: 400 })
   }
+  if ((error as { code?: string })?.code === 'P2034')
+    return NextResponse.json({ error: 'A agenda foi atualizada. Tente novamente.' }, { status: 409 })
   console.error('profissionais da agenda:', error)
   return NextResponse.json({ error: 'Erro ao consultar profissionais.' }, { status: 500 })
 }
@@ -87,5 +89,39 @@ export async function PATCH(req: NextRequest) {
       select: { id: true, nome: true, especialidades: true, ativo: true },
     })
     return NextResponse.json(item)
+  } catch (error) { return errorResponse(error) }
+}
+
+/** Exclusão definitiva apenas quando não apaga vínculos e histórico da agenda. */
+export async function DELETE(req: NextRequest) {
+  const denied = await authorize()
+  if (denied) return denied
+  try {
+    assertSameOrigin(req)
+    const id = req.nextUrl.searchParams.get('id')
+    if (!id || id.length > 100) return NextResponse.json({ error: 'Profissional inválido.' }, { status: 400 })
+
+    const resultado = await db.$transaction(async (tx) => {
+      const profissional = await tx.profissionalAgenda.findUnique({
+        where: { id },
+        select: { userId: true, _count: { select: { agendamentos: true, bloqueios: true } } },
+      })
+      if (!profissional) return 'nao_encontrado' as const
+      if (profissional.userId) return 'login_vinculado' as const
+      if (profissional._count.agendamentos > 0) return 'historico' as const
+      if (profissional._count.bloqueios > 0) return 'bloqueios' as const
+      await tx.profissionalAgenda.delete({ where: { id } })
+      return 'excluido' as const
+    }, { isolationLevel: 'Serializable' })
+
+    if (resultado === 'nao_encontrado')
+      return NextResponse.json({ error: 'Profissional não encontrado.' }, { status: 404 })
+    if (resultado === 'login_vinculado')
+      return NextResponse.json({ error: 'Profissional vinculado a uma conta de acesso. Desative-o para preservar a agenda individual.' }, { status: 409 })
+    if (resultado === 'historico')
+      return NextResponse.json({ error: 'Profissional possui agendamentos no histórico. Para preservar os vínculos, use Desativar.' }, { status: 409 })
+    if (resultado === 'bloqueios')
+      return NextResponse.json({ error: 'Profissional possui bloqueios de agenda. Remova os bloqueios antes de excluir ou use Desativar.' }, { status: 409 })
+    return NextResponse.json({ success: true })
   } catch (error) { return errorResponse(error) }
 }
