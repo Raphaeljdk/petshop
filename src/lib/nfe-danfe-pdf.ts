@@ -7,7 +7,7 @@ import {nfeRealAutorizadaParaEmail,type NfeParaEmail} from './fiscal-nfe-email'
  * SEFAZ efetivamente autorizou. Exige validação visual/contábil antes de usar.
  */
 export class DanfeError extends Error {}
-type No = Element
+type No = NonNullable<ReturnType<InstanceType<typeof DOMParser>['parseFromString']>['documentElement']>
 const ns='http://www.portalfiscal.inf.br/nfe'
 const unico=(node:No,tag:string):No=>{
  const arr=node.getElementsByTagNameNS(ns,tag)
