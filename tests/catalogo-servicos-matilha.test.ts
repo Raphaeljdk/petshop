@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { lerPrecosPorRaca, precosPorRacaSchema } from '../src/lib/precos-por-raca'
 import {
   CATALOGO_ESTETICO_MATILHA,
+  chaveServicoPersonalizado,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
 } from '../src/lib/catalogo-servicos-matilha'
@@ -42,6 +43,27 @@ describe('Catálogo estético sem valores fictícios', () => {
     expect(dados.find((s) => s.chave === 'banho')?.precosPorRaca).toHaveLength(2)
     expect(dados.find((s) => s.chave === 'tosa-modalidade-a-definir')?.precosPorRaca).toEqual([])
     expect(dados.find((s) => s.chave === 'tosa-modalidade-a-definir')?.precoCentavos).toBeNull()
+  })
+
+  test('cria chave estável para nome personalizado, sem confundir nomes equivalentes', () => {
+    expect(chaveServicoPersonalizado('Tosa Higiênica')).toBe('personalizado-tosa-higienica')
+    expect(chaveServicoPersonalizado('  TOSA  higiênica  ')).toBe('personalizado-tosa-higienica')
+    expect(chaveServicoPersonalizado('🐶')).toBeNull()
+  })
+
+  test('inclui serviços personalizados pendentes sem mexer nos nove serviços originais', () => {
+    const chave = chaveServicoPersonalizado('Tosa Higiênica')!
+    const items = listarServicosParaConfiguracao([{
+      chave, nome: 'Tosa Higiênica', precoCentavos: null, precosPorRaca: [],
+      duracaoMinutos: null, regrasPreco: null, observacoes: null,
+      confirmado: false, updatedAt: '2026-11-19T00:00:00.000Z',
+    }])
+    expect(items).toHaveLength(10)
+    expect(items.slice(0, 9).map((item) => item.chave)).toEqual(CATALOGO_ESTETICO_MATILHA.map((item) => item.chave))
+    expect(items[9]).toMatchObject({
+      chave, nome: 'Tosa Higiênica', precoCentavos: null, precosPorRaca: [],
+      duracaoMinutos: null, confirmado: false,
+    })
   })
 
   test('não permite confirmar sem duração e sem regra/preço', () => {
