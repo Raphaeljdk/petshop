@@ -72,6 +72,7 @@ export async function GET() {
         role: user.role,
         clienteId: user.clienteId,
         siggmaCliCod: resolvedSiggmaCliCod,
+        googleVinculado: user.googleVinculado,
         cliente: clienteCompleto,
       },
       cliente: clienteCompleto,
