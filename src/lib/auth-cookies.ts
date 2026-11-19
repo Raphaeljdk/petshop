@@ -25,6 +25,8 @@ function getSecret(): string {
   return DEV_SECRET
 }
 export function assertAuthConfigured(): void { getSecret() }
+// Utilizado apenas no servidor para assinar estados temporários de OAuth.
+export function getOAuthCookieSecret(): string { return getSecret() }
 
 export const COOKIE_NAME = 'matilha_token'
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 dias em segundos
@@ -44,6 +46,7 @@ export interface UsuarioLogado {
   role: 'ADMIN' | 'CLIENTE' | 'KANBAN'
   clienteId: string | null
   siggmaCliCod: number | null
+  googleVinculado: boolean
   cliente: {
     id: string
     nome: string
@@ -111,6 +114,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
         role: true,
         clienteId: true,
         siggmaCliCod: true,
+        googleSub: true,
         ativo: true,
         cliente: {
           select: {
@@ -136,6 +140,7 @@ export async function getUsuarioLogado(): Promise<UsuarioLogado | null> {
       role: user.role as 'ADMIN' | 'CLIENTE' | 'KANBAN',
       clienteId: user.clienteId,
       siggmaCliCod: user.siggmaCliCod,
+      googleVinculado: Boolean(user.googleSub),
       cliente: user.cliente
         ? {
             id: user.cliente.id,
