@@ -17,6 +17,7 @@ import { ImportarXmlNotasCompra } from '@/components/admin/ImportarXmlNotasCompr
 import { ReaproveitarFiscalSku } from '@/components/admin/ReaproveitarFiscalSku'
 import { PreparoHomologacaoNfe } from '@/components/admin/PreparoHomologacaoNfe'
 import { PrimeiraNfeHomologacao } from '@/components/admin/PrimeiraNfeHomologacao'
+import { ProntidaoNfeReal } from '@/components/admin/ProntidaoNfeReal'
 import { AuditoriaTributariaSaida } from '@/components/admin/AuditoriaTributariaSaida'
 
 type Config = {
@@ -490,6 +491,7 @@ export function FiscalView() {
             <div><h2 className="font-semibold">Pedidos e emissão centralizada</h2><p className="text-xs text-muted-foreground">Use o teste seguro para identificar pendências antes de emitir em qualquer canal.</p></div>
             <Badge variant="outline">NF-e 55</Badge>
           </div>
+          <ProntidaoNfeReal/>
           <PreparoHomologacaoNfe/>
           <PrimeiraNfeHomologacao/>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 p-3">
@@ -557,6 +559,11 @@ export function FiscalView() {
                         setChaveFiscal('');setConfirmadoFiscal(false)
                       }}>Registrar NF-e emitida</Button>
                     )}
+                    {v.notaFiscal?.status==='autorizada'&&v.notaFiscal?.emissor==='matilha_prado'&&<a
+                      className="inline-flex h-9 items-center gap-1 rounded-md border px-3 text-xs font-medium"
+                      href={'/api/admin/fiscal/notas/danfe?id='+encodeURIComponent(v.notaFiscal.id)}>
+                      <Download className="size-4"/>DANFE PDF
+                    </a>}
                     {(v.canal==='mercadolivre'||v.canal==='mercado_livre')&&(<>
                       <Button size="sm" variant="outline" disabled={consultando===v.id} onClick={()=>void operacaoMeli(v,'consultar')}>
                         {consultando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<Search className="mr-1 size-4"/>}Consultar NF-e
