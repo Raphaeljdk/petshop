@@ -50,7 +50,7 @@ export function googleConfig() {
 
 export function createGoogleFlow(intent: GoogleIntent, userId?: string): GoogleFlow {
   return {
-    intent, userId,
+    intent, ...(userId ? { userId } : {}),
     state: randomBytes(32).toString('base64url'),
     nonce: randomBytes(32).toString('base64url'),
     verifier: randomBytes(48).toString('base64url'),
