@@ -15,7 +15,9 @@ function cleared(req: NextRequest, path: string) {
 }
 
 function failed(req: NextRequest, code: string) {
-  return cleared(req, '/login?authError=' + encodeURIComponent(code))
+  const flow = readGoogleFlow(req.cookies.get(GOOGLE_FLOW_COOKIE)?.value)
+  const destination = flow?.intent === 'vincular' ? '/?googleError=' : '/login?authError='
+  return cleared(req, destination + encodeURIComponent(code))
 }
 
 export async function GET(req: NextRequest) {
