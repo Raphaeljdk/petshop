@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/brand/Logo'
 import { useAuth } from '@/components/providers/AuthProvider'
-import { formatCep, formatCpfCnpj, formatPhone } from '@/lib/auth-validation'
+import { formatCpfCnpj, formatPhone } from '@/lib/auth-validation'
+import { EMPTY_REGISTRATION_ADDRESS } from '@/lib/registration-address'
+import { RegistrationAddressFields } from './RegistrationAddressFields'
 import { PrivacyNotice } from './PrivacyNotice'
 
 export function GoogleCompleteRegistration() {
@@ -17,7 +19,7 @@ export function GoogleCompleteRegistration() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [fields, setFields] = useState<Record<string, string>>({})
-  const [data, setData] = useState({ telefone: '', cpfCnpj: '', endereco: '', cep: '' })
+  const [data, setData] = useState({ telefone: '', cpfCnpj: '', ...EMPTY_REGISTRATION_ADDRESS })
 
   useEffect(() => {
     let alive = true
@@ -99,20 +101,7 @@ export function GoogleCompleteRegistration() {
             placeholder="000.000.000-00" />
           {fields.cpfCnpj && <p id="google-document-error" className="mt-1 text-xs text-destructive">{fields.cpfCnpj}</p>}
         </div>
-        <details className="rounded-xl border p-3">
-          <summary className="cursor-pointer text-sm font-medium">Adicionar endereço (opcional)</summary>
-          <div className="mt-3 space-y-3">
-            <div>
-              <label htmlFor="google-address" className="mb-1 block text-xs">Endereço</label>
-              <Input id="google-address" autoComplete="street-address" value={data.endereco} onChange={e => update('endereco', e.target.value)} maxLength={240} />
-            </div>
-            <div>
-              <label htmlFor="google-zip" className="mb-1 block text-xs">CEP</label>
-              <Input id="google-zip" autoComplete="postal-code" inputMode="numeric" value={data.cep} onChange={e => update('cep', formatCep(e.target.value))} />
-              {fields.cep && <p className="mt-1 text-xs text-destructive">{fields.cep}</p>}
-            </div>
-          </div>
-        </details>
+        <RegistrationAddressFields value={data} onChange={update} errors={fields} disabled={busy} />
         <Button type="submit" disabled={busy} className="h-12 w-full rounded-xl">
           {busy ? <><Loader2 className="size-4 animate-spin" /> Finalizando...</> : 'Concluir meu cadastro'}
         </Button>
