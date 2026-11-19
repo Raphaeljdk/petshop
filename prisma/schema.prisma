@@ -13,6 +13,7 @@ model User {
   id        String   @id @default(cuid())
   nome      String
   email     String   @unique
+  googleSub String?  @unique // identificador único verificado pelo Google (não usar e-mail como identidade)
   senha     String
   role      String   @default("CLIENTE") // ADMIN | CLIENTE
   clienteId String?  @unique
