@@ -87,7 +87,13 @@ export function readGoogleFlow(raw: string | undefined): GoogleFlow | null {
   if (typeof result.state !== 'string' || typeof result.nonce !== 'string' || typeof result.verifier !== 'string') return null
   if (![result.state, result.nonce, result.verifier].every(value => /^[A-Za-z0-9_-]{30,128}$/.test(value))) return null
   if (result.intent === 'vincular' && (typeof result.userId !== 'string' || !result.userId)) return null
-  return result as GoogleFlow
+  return {
+    intent: result.intent as GoogleIntent,
+    state: result.state,
+    nonce: result.nonce,
+    verifier: result.verifier,
+    ...(typeof result.userId === 'string' ? { userId: result.userId } : {}),
+  }
 }
 
 export function safeStateMatch(expected: string, received: string | null) {
