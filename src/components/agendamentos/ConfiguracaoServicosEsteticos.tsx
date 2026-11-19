@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { PREFIXO_SERVICO_PERSONALIZADO } from '@/lib/catalogo-servicos-matilha'
 import { LIMITE_PRECOS_POR_RACA, precosPorRacaSchema, type PrecoPorRaca } from '@/lib/precos-por-raca'
 
 type Servico = {
@@ -61,8 +62,16 @@ function lerDuracao(valor: string) {
   return Number(texto)
 }
 
-export function ConfiguracaoServicosEsteticos() {
+const obterPersonalizados = (lista: Servico[]) => lista
+  .filter((item) => item.chave.startsWith(PREFIXO_SERVICO_PERSONALIZADO))
+  .map((item) => item.nome)
+
+export function ConfiguracaoServicosEsteticos({ onServicosAtualizados }: {
+  onServicosAtualizados?: (nomes: string[]) => void
+}) {
   const [items, setItems] = useState<Servico[]>([])
+  const [nomeNovoServico, setNomeNovoServico] = useState('')
+  const [creating, setCreating] = useState(false)
   const [drafts, setDrafts] = useState<Record<string, Rascunho>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -80,11 +89,33 @@ export function ConfiguracaoServicosEsteticos() {
         if (!mounted) return
         setItems(data.items)
         setDrafts(Object.fromEntries(data.items.map((s) => [s.chave, editar(s)])))
+        onServicosAtualizados?.(obterPersonalizados(data.items))
       })
       .catch((reason) => { if (mounted) setError(reason instanceof Error ? reason.message : 'Erro ao carregar serviços.') })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
-  }, [])
+  }, [onServicosAtualizados])
+
+  async function criarServico(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setCreating(true)
+    try {
+      const response = await fetch('/api/admin/agenda/servicos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin', body: JSON.stringify({ nome: nomeNovoServico }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Não foi possível cadastrar o serviço.')
+      const item = data.item as Servico
+      setItems((prev) => [...prev, item])
+      setDrafts((prev) => ({ ...prev, [item.chave]: editar(item) }))
+      onServicosAtualizados?.([...obterPersonalizados(items), item.nome])
+      setNomeNovoServico('')
+      toast.success('Serviço cadastrado. Configure preço e duração abaixo.')
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : 'Erro ao cadastrar serviço.')
+    } finally { setCreating(false) }
+  }
 
   function alterar<K extends keyof Rascunho>(chave: string, campo: K, value: Rascunho[K]) {
     setDrafts((prev) => ({ ...prev, [chave]: { ...prev[chave], [campo]: value } }))
@@ -178,6 +209,19 @@ export function ConfiguracaoServicosEsteticos() {
         Os dados não são publicados no site, não ativam reservas automáticas e não configuram impostos.
         Marque como confirmado somente após receber as informações oficiais da equipe.
       </p>
+      <form onSubmit={criarServico} className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
+        <div className="min-w-48 flex-1 space-y-1">
+          <Label htmlFor="novo-servico-estetico">Novo serviço *</Label>
+          <Input id="novo-servico-estetico" type="text" minLength={2} maxLength={80} required
+            value={nomeNovoServico} onChange={(e) => setNomeNovoServico(e.target.value)}
+            placeholder="Ex.: Tosa higiênica" disabled={creating || loading} />
+        </div>
+        <Button type="submit" size="sm" disabled={creating || loading}>
+          {creating ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Plus className="mr-1 size-4" />}
+          Criar serviço
+        </Button>
+        <p className="w-full text-xs text-muted-foreground">O novo serviço ficará pendente até você preencher e confirmar os dados. Não será publicado automaticamente no site.</p>
+      </form>
       {loading && <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Carregando...</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
