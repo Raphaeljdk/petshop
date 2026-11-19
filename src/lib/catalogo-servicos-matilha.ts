@@ -11,7 +11,17 @@ export const CATALOGO_ESTETICO_MATILHA = SERVICOS_ESTETICOS_MATILHA.map((nome) =
   nome,
 }))
 
+export const PREFIXO_SERVICO_PERSONALIZADO = 'personalizado-'
+
+/** Chave previsível e única; não se altera ao editar preços ou duração. */
+export function chaveServicoPersonalizado(nome: string) {
+  const slug = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return slug ? PREFIXO_SERVICO_PERSONALIZADO + slug : null
+}
+
 export type ConfiguracaoServico = {
+  nome?: string | null
   chave: string
   precoCentavos: number | null
   precosPorRaca?: unknown
@@ -37,7 +47,11 @@ export function configuracaoPodeSerConfirmada(data: {
 
 export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[]) {
   const porChave = new Map(registros.map((item) => [item.chave, item]))
-  return CATALOGO_ESTETICO_MATILHA.map((servico) => ({
+  const personalizados = registros
+    .filter((item) => item.chave.startsWith(PREFIXO_SERVICO_PERSONALIZADO) && !!item.nome?.trim())
+    .map((item) => ({ chave: item.chave, nome: item.nome!.trim() }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  return [...CATALOGO_ESTETICO_MATILHA, ...personalizados].map((servico) => ({
     ...servico,
     precoCentavos: porChave.get(servico.chave)?.precoCentavos ?? null,
     precosPorRaca: lerPrecosPorRaca(porChave.get(servico.chave)?.precosPorRaca),
