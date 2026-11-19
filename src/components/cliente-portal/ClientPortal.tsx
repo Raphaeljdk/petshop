@@ -119,6 +119,14 @@ function ClientPortalContent() {
                 </span>
               </Button>
             )}
+            {!user.googleVinculado && (
+              <Button variant="outline" size="sm" asChild className="h-9 shrink-0" title="Vincular Google a este cadastro">
+                <a href="/api/auth/google?intent=vincular" aria-label="Vincular minha conta ao Google">
+                  <span className="text-base font-bold text-[#4285F4]" aria-hidden="true">G</span>
+                  <span className="hidden sm:inline ml-1">Vincular Google</span>
+                </a>
+              </Button>
+            )}
             <Avatar className="size-9 sm:size-10">
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
                 {iniciais || 'CL'}
