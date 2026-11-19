@@ -108,8 +108,7 @@ function pdf(paginas:Pagina[]):Buffer{
 export function gerarDanfePdfAutorizado(n:NfeParaEmail):Buffer{
  if(!nfeRealAutorizadaParaEmail(n))
   throw new DanfeError('DANFE indisponível: exige NF-e real autorizada com XML nfeProc e protocolo.')
- const documento=new DOMParser({errorHandler:{warning:()=>{},error:()=>{throw new DanfeError('XML inválido.')},
-  fatalError:()=>{throw new DanfeError('XML malformado.')}}}).parseFromString(n.xmlAutorizado!,'text/xml')
+ const documento=new DOMParser({onError:()=>{throw new DanfeError('XML malformado.')}}).parseFromString(n.xmlAutorizado!,'text/xml')
  const raiz=documento.documentElement
  if(raiz.localName!=='nfeProc'||raiz.namespaceURI!==ns)
   throw new DanfeError('O arquivo não é XML nfeProc da SEFAZ.')
