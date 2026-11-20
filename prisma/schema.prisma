@@ -643,6 +643,7 @@ model ImportacaoFiscalProduto {
  */
 model ServicoEsteticoConfig {
   chave String @id
+  nome String? @db.VarChar(80) // serviços personalizados; itens padrão usam o catálogo estático
   precoCentavos Int?
   precosPorRaca Json @default("[]")
   duracaoMinutos Int?
