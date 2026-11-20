@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { legacyProducts } from '@/lib/product-compat'
 import { officialStockFromSources } from '@/lib/product-stock'
+import { resumirPlanoDeCuidados } from '@/lib/portal-care-plan-summary'
 
 export async function GET() {
   try {
@@ -140,6 +141,32 @@ export async function GET() {
         }))
     }
 
+    // Somente planos com aprovação/pagamento registrado aparecem como comprados.
+    const pedidosDePlanos = await db.portalCarePlanRequest.findMany({
+      where: {
+        clienteId: cliente.id,
+        approvedAt: { not: null },
+        status: { in: ['ativo', 'cancelado'] },
+      },
+      select: {
+        id: true, petKey: true, status: true, sessionsUsed: true,
+        startsAt: true, expiresAt: true, cancelAtPeriodEnd: true,
+        plan: { select: { title: true, description: true, sessions: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    })
+    const meusPlanos = pedidosDePlanos.map((pedido) => ({
+      id: pedido.id,
+      titulo: pedido.plan.title,
+      descricao: pedido.plan.description,
+      petNome: petsResumo.find((pet) => pet.id === pedido.petKey)?.nome || 'Pet vinculado',
+      startsAt: pedido.startsAt,
+      expiresAt: pedido.expiresAt,
+      cancelAtPeriodEnd: pedido.cancelAtPeriodEnd,
+      ...resumirPlanoDeCuidados(pedido, agora),
+    }))
+
     return NextResponse.json({
       cliente: {
         nome: cliente.nome,
@@ -169,6 +196,7 @@ export async function GET() {
         })),
       })),
       produtosDestaque,
+      meusPlanos,
     })
   } catch (e) {
     console.error('cliente dashboard erro:', e)

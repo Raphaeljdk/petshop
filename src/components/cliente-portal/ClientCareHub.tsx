@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { portalRequest } from './ExperienceProvider'
+import { resumirPlanoDeCuidados } from '@/lib/portal-care-plan-summary'
 
 type Pet = { id:string; nome:string; especie:string; porte:string|null; fotoUrl:string|null }
 type Memory = {
@@ -337,17 +338,49 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
           <Button size="sm" disabled={!petKey||busy} onClick={()=>void act({action:'plan-request',planId:plan.id,petKey},'Solicitação enviada.')}>Solicitar para {petName}</Button>
         </div>)}
       </div>
-      {!data.plans.length&&<p className="text-sm text-muted-foreground">A Matilha Prado ainda não publicou planos.</p>}
-      {data.requests.filter((r)=>r.petKey===petKey).map((r)=><div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3" key={r.id}>
-        <p className="text-xs">{r.plan.title}: {r.status} · sessões utilizadas: {r.sessionsUsed}/{r.plan.sessions}
-          {r.expiresAt&&' · validade até '+date(r.expiresAt)}
-          {r.cancelAtPeriodEnd&&' · renovação cancelada'}
-        </p>
-        {data.features?.subscriptionsEnabled && ['solicitado','checkout_pendente'].includes(r.status) && <Button size="sm" disabled={busy}
-          onClick={()=>void manageSubscription(r.id,'start')}>Assinar mensalmente pelo Mercado Pago</Button>}
-        {r.providerSubscriptionId && !r.cancelAtPeriodEnd && <Button size="sm" variant="outline" disabled={busy}
-          onClick={()=>{if(window.confirm('Cancelar as próximas cobranças recorrentes deste plano?'))void manageSubscription(r.id,'cancel')}}>Cancelar renovação</Button>}
-      </div>)}
+      {!data.plans.length&&<p className="text-sm text-muted-foreground">Nenhum novo plano disponível no momento. Seus planos já contratados continuam listados abaixo.</p>}
+      {data.requests.some((r)=>r.petKey===petKey) && (
+        <h3 className="text-sm font-semibold">Meus planos para {petName}</h3>
+      )}
+      {data.requests.filter((r)=>r.petKey===petKey).map((r)=>{
+        const resumo = resumirPlanoDeCuidados(r)
+        const contratado = ['ativo','cancelado'].includes(r.status)
+        return <div className="space-y-3 rounded-lg border p-3" key={r.id}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-sm">{r.plan.title}</strong>
+            <span className="rounded-full border px-2 py-1 text-xs">
+              {{ ativo:'Ativo', esgotado:'Concluído', vencido:'Vencido', cancelado:'Cancelado', pendente:'Aguardando aprovação/pagamento' }[resumo.situacao]}
+            </span>
+          </div>
+          {contratado ? <>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-muted/40 p-2"><strong className="block text-lg">{resumo.total}</strong><span className="text-xs text-muted-foreground">Contratadas</span></div>
+              <div className="rounded-lg bg-muted/40 p-2"><strong className="block text-lg">{resumo.utilizadas}</strong><span className="text-xs text-muted-foreground">Realizadas</span></div>
+              <div className="rounded-lg bg-primary/10 p-2"><strong className="block text-lg text-primary">{resumo.disponiveis}</strong><span className="text-xs text-muted-foreground">Disponíveis</span></div>
+            </div>
+            <div role="progressbar" aria-label={'Progresso do plano ' + r.plan.title}
+              aria-valuemin={0} aria-valuemax={resumo.total} aria-valuenow={resumo.utilizadas}
+              className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{width:(resumo.total ? resumo.utilizadas/resumo.total*100 : 0)+'%'}} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {resumo.situacao==='ativo'
+                ? `Faltam ${resumo.restantes} atendimento(s) para completar o plano.`
+                : resumo.situacao==='esgotado'
+                  ? 'Todas as sessões do plano foram realizadas.'
+                  : `${resumo.restantes} sessão(ões) não utilizada(s); plano sem disponibilidade para novos usos.`}
+              {r.expiresAt&&' · Validade até '+date(r.expiresAt)}
+              {r.cancelAtPeriodEnd&&' · Renovação cancelada'}
+            </p>
+          </> : <p className="text-xs text-muted-foreground">Solicitação registrada. Nenhuma sessão fica disponível antes da aprovação do pagamento.</p>}
+          <div className="flex flex-wrap gap-2">
+            {data.features?.subscriptionsEnabled && ['solicitado','checkout_pendente'].includes(r.status) && <Button size="sm" disabled={busy}
+              onClick={()=>void manageSubscription(r.id,'start')}>Assinar mensalmente pelo Mercado Pago</Button>}
+            {r.providerSubscriptionId && !r.cancelAtPeriodEnd && <Button size="sm" variant="outline" disabled={busy}
+              onClick={()=>{if(window.confirm('Cancelar as próximas cobranças recorrentes deste plano?'))void manageSubscription(r.id,'cancel')}}>Cancelar renovação</Button>}
+          </div>
+        </div>
+      })}
       <p className="text-xs text-muted-foreground">
         {data.features?.subscriptionsEnabled
           ? 'O plano só fica ativo após confirmação de pagamento no Mercado Pago. Renovações são gerenciadas pelo provedor.'
