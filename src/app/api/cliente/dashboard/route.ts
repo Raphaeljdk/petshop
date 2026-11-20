@@ -151,7 +151,7 @@ export async function GET() {
       select: {
         id: true, petKey: true, status: true, sessionsUsed: true,
         startsAt: true, expiresAt: true, cancelAtPeriodEnd: true,
-        plan: { select: { title: true, sessions: true } },
+        plan: { select: { title: true, description: true, sessions: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 30,
