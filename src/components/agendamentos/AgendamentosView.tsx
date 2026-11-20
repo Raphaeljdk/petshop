@@ -13,6 +13,7 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { StatusAgendamento } from '@/lib/types'
 import { AgendaCalendar, type AgendaCalendarEntry, type AgendaProfessional } from './AgendaCalendar'
 import { ConfiguracaoServicosEsteticos } from './ConfiguracaoServicosEsteticos'
+import { ConfiguracaoAgendaOnline } from './ConfiguracaoAgendaOnline'
 import { CATEGORIAS_AGENDA, SUGESTOES_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
 
 type Entry = AgendaCalendarEntry
@@ -252,6 +253,7 @@ export function AgendamentosView() {
         </div>)}
       </div>
     </details>
+    <ConfiguracaoAgendaOnline />
     <ConfiguracaoServicosEsteticos onServicoCriado={nome => setServicosPersonalizados(prev => Array.from(new Set([...prev, nome])))} />
     {formOpen && <Card className="border-primary/30"><CardContent className="p-4 sm:p-6">
       <form onSubmit={salvar} className="space-y-4">
