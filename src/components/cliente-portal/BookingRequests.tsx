@@ -11,7 +11,8 @@ import { toast } from 'sonner'
 
 export type Booking = {
   id: string; petName: string; service: string; desiredAt: string; status: string
-  confirmedAt: string | null; reply: string | null
+  confirmedAt: string | null; confirmationRef: string | null; reply: string | null
+  cliente?: { nome: string }
 }
 
 type Disponibilidade = {
