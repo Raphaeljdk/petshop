@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { CheckCircle2, CircleHelp, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -70,6 +70,19 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
   const [nomeNovo, setNomeNovo] = useState('')
   const [mostrarNovo, setMostrarNovo] = useState(false)
   const [criando, setCriando] = useState(false)
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    const abrir = () => {
+      setMostrarNovo(true)
+      if (detailsRef.current) {
+        detailsRef.current.open = true
+        detailsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+    window.addEventListener('matilha:novo-servico', abrir)
+    return () => window.removeEventListener('matilha:novo-servico', abrir)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -199,7 +212,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
   const confirmados = items.filter((s) => s.confirmado).length
 
   return (
-    <details className="rounded-xl border bg-card p-3 sm:p-4">
+    <details ref={detailsRef} id="configurar-servicos" className="rounded-xl border bg-card p-3 sm:p-4">
       <summary className="cursor-pointer text-sm font-semibold">
         Configurar serviços, preços e duração ({loading ? 'carregando' : `${confirmados}/${items.length} confirmados`})
       </summary>
