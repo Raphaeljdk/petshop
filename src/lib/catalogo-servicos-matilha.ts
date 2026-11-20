@@ -5,14 +5,24 @@ import { lerPrecosPorRaca } from './precos-por-raca'
  * Fonte unica para a configuracao interna. A chave nunca vem de dados de clientes.
  * Os registros nao habilitam automaticamente reserva ou publicacao de valores.
  */
+export function slugServico(nome: string): string {
+  return nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+// Chave determinística: o banco impede o mesmo serviço personalizado duas vezes.
+export function chaveServicoPersonalizado(nome: string): string {
+  return 'personalizado-' + slugServico(nome)
+}
+
 export const CATALOGO_ESTETICO_MATILHA = SERVICOS_ESTETICOS_MATILHA.map((nome) => ({
-  chave: nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+  chave: slugServico(nome),
   nome,
 }))
 
 export type ConfiguracaoServico = {
   chave: string
+  nome?: string | null
   precoCentavos: number | null
   precosPorRaca?: unknown
   duracaoMinutos: number | null
@@ -37,7 +47,11 @@ export function configuracaoPodeSerConfirmada(data: {
 
 export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[]) {
   const porChave = new Map(registros.map((item) => [item.chave, item]))
-  return CATALOGO_ESTETICO_MATILHA.map((servico) => ({
+  const personalizados = registros
+    .filter(item => item.chave.startsWith('personalizado-') && !!item.nome?.trim())
+    .map(item => ({ chave: item.chave, nome: item.nome!.trim() }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  return [...CATALOGO_ESTETICO_MATILHA, ...personalizados].map((servico) => ({
     ...servico,
     precoCentavos: porChave.get(servico.chave)?.precoCentavos ?? null,
     precosPorRaca: lerPrecosPorRaca(porChave.get(servico.chave)?.precosPorRaca),

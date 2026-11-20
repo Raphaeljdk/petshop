@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { CheckCircle2, CircleHelp, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -61,12 +61,28 @@ function lerDuracao(valor: string) {
   return Number(texto)
 }
 
-export function ConfiguracaoServicosEsteticos() {
+export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCriado?: (nome: string) => void } = {}) {
   const [items, setItems] = useState<Servico[]>([])
   const [drafts, setDrafts] = useState<Record<string, Rascunho>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [nomeNovo, setNomeNovo] = useState('')
+  const [mostrarNovo, setMostrarNovo] = useState(false)
+  const [criando, setCriando] = useState(false)
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    const abrir = () => {
+      setMostrarNovo(true)
+      if (detailsRef.current) {
+        detailsRef.current.open = true
+        detailsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+    window.addEventListener('matilha:novo-servico', abrir)
+    return () => window.removeEventListener('matilha:novo-servico', abrir)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -128,6 +144,33 @@ export function ConfiguracaoServicosEsteticos() {
     })
   }
 
+  async function criarServico(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nome = nomeNovo.trim()
+    if (nome.length < 2) { toast.error('Informe o nome do novo serviço.'); return }
+    setCriando(true)
+    try {
+      const res = await fetch('/api/admin/agenda/servicos', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Não foi possível cadastrar o serviço.')
+      const item = data.item as Servico
+      setItems(prev => [...prev, item])
+      setDrafts(prev => ({ ...prev, [item.chave]: editar(item) }))
+      setNomeNovo('')
+      setMostrarNovo(false)
+      onServicoCriado?.(item.nome)
+      toast.success('Serviço cadastrado! Agora configure o preço, a duração e marque como conferido.')
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : 'Não foi possível cadastrar o serviço.')
+    } finally {
+      setCriando(false)
+    }
+  }
+
   async function salvar(chave: string) {
     const rascunho = drafts[chave]
     if (!rascunho) return
@@ -169,7 +212,7 @@ export function ConfiguracaoServicosEsteticos() {
   const confirmados = items.filter((s) => s.confirmado).length
 
   return (
-    <details className="rounded-xl border bg-card p-3 sm:p-4">
+    <details ref={detailsRef} id="configurar-servicos" className="rounded-xl border bg-card p-3 sm:p-4">
       <summary className="cursor-pointer text-sm font-semibold">
         Configurar serviços, preços e duração ({loading ? 'carregando' : `${confirmados}/${items.length} confirmados`})
       </summary>
@@ -178,6 +221,31 @@ export function ConfiguracaoServicosEsteticos() {
         Os dados não são publicados no site, não ativam reservas automáticas e não configuram impostos.
         Marque como confirmado somente após receber as informações oficiais da equipe.
       </p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
+        <div>
+          <p className="text-sm font-semibold">Cadastrar novo serviço</p>
+          <p className="text-xs text-muted-foreground">Inclua um serviço estético além dos já cadastrados. Ele também aparecerá na agenda administrativa.</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" aria-expanded={mostrarNovo}
+          onClick={() => setMostrarNovo(value => !value)} disabled={loading || criando}>
+          <Plus className="mr-1.5 size-4" /> Novo serviço
+        </Button>
+      </div>
+      {mostrarNovo && <form onSubmit={criarServico} className="mt-3 flex flex-col gap-2 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Label htmlFor="novo-servico-estetico">Nome do novo serviço *</Label>
+          <Input id="novo-servico-estetico" name="nome" required minLength={2} maxLength={80}
+            placeholder="Ex.: Banho terapêutico" value={nomeNovo} onChange={event => setNomeNovo(event.target.value)}
+            disabled={criando} autoFocus />
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setMostrarNovo(false)} disabled={criando}>Cancelar</Button>
+          <Button type="submit" size="sm" disabled={criando || nomeNovo.trim().length < 2}>
+            {criando ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Plus className="mr-1.5 size-4" />}
+            Salvar serviço
+          </Button>
+        </div>
+      </form>}
       {loading && <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Carregando...</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
