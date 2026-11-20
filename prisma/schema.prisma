@@ -112,6 +112,17 @@ model Agendamento {
   @@index([profissionalId, dataHora])
 }
 
+// Configuração explícita de atendimento online. Sem habilitação ou horários fictícios por padrão.
+model AgendaOnlineConfig {
+  id String @id @default("padrao")
+  enabled Boolean @default(false)
+  diasSemana String @default("")
+  abre String @default("")
+  fecha String @default("")
+  intervaloMinutos Int @default(30)
+  updatedAt DateTime @updatedAt
+}
+
 // Profissionais da agenda: independentes de contas de login; registros antigos continuam sem atribuição.
 model ProfissionalAgenda {
   id String @id @default(cuid())
