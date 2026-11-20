@@ -63,6 +63,7 @@ interface ProdutoDestaque {
 interface MeuPlanoInfo {
   id: string
   titulo: string
+  descricao: string
   petNome: string
   total: number
   utilizadas: number
