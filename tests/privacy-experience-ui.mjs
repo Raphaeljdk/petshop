@@ -40,7 +40,7 @@ try {
     const body = path === '/api/auth/me' ? (signedIn ? { autenticado: true, user: { ...customer, role: 'CLIENTE', clienteId: customer.id }, cliente: customer } : { autenticado: false })
       : path === '/api/cliente/dashboard' ? currentDashboard
         : path === '/api/cliente/fidelidade' ? { config: null, earned: 0, used: 0, balance: 0, redemptions: [] }
-          : path === '/api/cliente/agendamentos/servicos' ? { configured: false, writeConfigured: false, services: [], fallback: 'solicitacao-equipe' }
+          : path === '/api/cliente/agendamentos/horarios' ? { enabled: false, services: [], professionals: [], slots: [] }
             : path === '/api/cliente/pets' ? currentDashboard.pets : []
     return route.fulfill({ json: body })
   })
@@ -86,7 +86,7 @@ try {
   }
   await page.getByRole('button', { name: 'Ver meu agendamento' }).click()
   await page.waitForURL('**/#agendamentos')
-  await page.getByRole('heading', { name: 'Solicitar pelo portal', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Agendar pelo site', exact: true }).waitFor()
   currentDashboard = { ...dashboard, stats: { ...dashboard.stats, processosAtivos: 1 } }
   await page.goto(base)
   await page.getByRole('heading', { name: 'Tem cuidado acontecendo por aqui.' }).waitFor()
