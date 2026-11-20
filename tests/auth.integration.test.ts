@@ -29,7 +29,7 @@ function cpfFor(name: string) {
   digits.push(String(digit(10)))
   return digits.join('')
 }
-const client = (name: string) => ({ nome: 'Cliente de Teste', email: email(name), telefone: '(11) 99999-1234', cpfCnpj: cpfFor(name), senha: password, confirmarSenha: password, role: 'CLIENTE' })
+const client = (name: string) => ({ nome: 'Cliente de Teste', email: email(name), telefone: '(11) 99999-1234', cpfCnpj: cpfFor(name), senha: password, confirmarSenha: password, role: 'CLIENTE', cep: '01310100', logradouro: 'Avenida Paulista', numero: '1234', complemento: '', bairro: 'Bela Vista', cidade: 'São Paulo', uf: 'SP' })
 const clientLogin = (identificador: string, senha = password) => ({
   role: 'CLIENTE' as const,
   identificador,
@@ -78,7 +78,31 @@ test('cadastro de cliente normaliza os dados, cria sessão e não retorna a senh
   const session = await me.json()
   expect(session.autenticado).toBe(true)
   expect(session.cliente.telefone).toBe('11999991234')
+  expect(session.cliente.cep).toBe('01310100')
+  expect(session.cliente.endereco).toBe('Avenida Paulista, 1234 - Bela Vista - São Paulo/SP')
   expect(me.headers.get('cache-control')).toBe('no-store')
+})
+
+test('endereço completo é obrigatório no cadastro tradicional e validado no servidor', async () => {
+  const baseClient = client('endereco-required')
+  const missing = { ...baseClient } as Record<string, unknown>
+  delete missing.cep
+  const noCep = await post('/api/auth/register', missing)
+  expect(noCep.status).toBe(400)
+  expect((await noCep.json()).fields.cep).toBeTruthy()
+
+  const noStreet = await post('/api/auth/register', { ...baseClient, logradouro: '' })
+  expect(noStreet.status).toBe(400)
+  expect((await noStreet.json()).fields.logradouro).toBeTruthy()
+
+  const noNumber = await post('/api/auth/register', { ...baseClient, numero: '' })
+  expect(noNumber.status).toBe(400)
+  expect((await noNumber.json()).fields.numero).toBeTruthy()
+
+  const badUf = await post('/api/auth/register', { ...baseClient, uf: 'XX' })
+  expect(badUf.status).toBe(400)
+  expect((await badUf.json()).fields.uf).toBeTruthy()
+  expect(await db.user.findUnique({ where: { email: baseClient.email } })).toBeNull()
 })
 
 test('cadastro público rejeita tentativa de elevar o papel e campos malformados', async () => {

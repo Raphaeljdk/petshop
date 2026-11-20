@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { bcrypt, COOKIE_NAME, criarToken } from '@/lib/auth-cookies'
 import { AuthError, authFailure, authJson, authReady, limitAuthAttempts, readAuthBody } from '@/lib/auth-http'
 import { fieldErrors } from '@/lib/auth-validation'
+import { composeRegistrationAddress, registrationAddressShape } from '@/lib/registration-address'
 import { GOOGLE_PENDING_COOKIE, googleCookieOptions, readGooglePending } from '@/lib/google-oauth'
 import { ensurePortalUserSiggmaLink, validCpfCnpj } from '@/lib/siggma/customer'
 
@@ -14,9 +15,7 @@ const schema = z.object({
     .refine(v => /^[1-9]{2}\d{8,9}$/.test(v), 'Informe o telefone com DDD.'),
   cpfCnpj: z.string().max(18).transform(v => v.replace(/\D/g, ''))
     .refine(v => validCpfCnpj(v), 'Informe um CPF ou CNPJ válido.'),
-  endereco: z.string().trim().max(240).optional(),
-  cep: z.string().max(10).transform(v => v.replace(/\D/g, ''))
-    .refine(v => !v || v.length === 8, 'Informe um CEP válido.').optional(),
+  ...registrationAddressShape,
 }).strict()
 
 export async function POST(req: NextRequest) {
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
           cliente: {
             create: {
               nome: pending.nome, email: pending.email, telefone: data.telefone,
-              cpfCnpj: data.cpfCnpj, endereco: data.endereco || null, cep: data.cep || null,
+              cpfCnpj: data.cpfCnpj, endereco: composeRegistrationAddress(data), cep: data.cep,
             },
           },
         },

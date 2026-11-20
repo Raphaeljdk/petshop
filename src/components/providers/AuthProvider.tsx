@@ -34,8 +34,13 @@ export interface CadastroDados {
   role: 'ADMIN' | 'CLIENTE'
   telefone?: string
   cpfCnpj?: string
-  endereco?: string
   cep?: string
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cidade?: string
+  uf?: string
   convite?: string
 }
 export class AuthRequestError extends Error {

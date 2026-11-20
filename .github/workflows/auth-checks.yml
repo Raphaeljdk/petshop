@@ -52,6 +52,8 @@ jobs:
           bun run typecheck
       - name: Google OAuth security unit tests
         run: bun test tests/google-oauth.unit.test.ts
+      - name: Registration address validation tests
+        run: bun test tests/registration-address.unit.test.ts
       - name: Authentication integration tests
         run: bun run test:auth
       - name: Customer portal financial privacy tests

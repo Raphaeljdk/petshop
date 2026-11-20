@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { registrationAddressShape } from '@/lib/registration-address'
 
 export const emailSchema = z.string().trim().toLowerCase().max(254).email('Informe um e-mail válido.')
 export const passwordRules = [
@@ -31,9 +32,7 @@ export const clientRegistrationSchema = z.object({
   telefone: phoneSchema,
   cpfCnpj: z.string().max(18).transform(value => value.replace(/\D/g, ''))
     .refine(value => value.length === 11 || value.length === 14, 'Informe CPF ou CNPJ válido.'),
-  endereco: z.string().trim().max(240, 'Use até 240 caracteres.').optional(),
-  cep: z.string().max(10).transform(value => value.replace(/\D/g, ''))
-    .refine(value => !value || value.length === 8, 'Informe os 8 números do CEP.').optional(),
+  ...registrationAddressShape,
 }).strict().refine(passwordsMatch, confirmationError)
 
 export const adminRegistrationSchema = z.object({
