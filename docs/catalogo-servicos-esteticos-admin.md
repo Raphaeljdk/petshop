@@ -28,3 +28,14 @@ Implementação em 02/11/2026, preparada enquanto se aguarda confirmação opera
 
 - `bun test tests/catalogo-servicos-matilha.test.ts` para lista, chaves, rascunhos, valores múltiplos, raça duplicada, valor inválido e condição de confirmação;
 - TypeScript, CI e build antes da integração.
+
+
+## Serviços estéticos personalizados (20/11/2026)
+
+- Na mesma seção **Agenda Matilha Prado → Configurar serviços, preços e duração**, a administração pode clicar em **Novo serviço**, informar o nome e clicar em **Salvar serviço**.
+- O nome é salvo na coluna opcional `ServicoEsteticoConfig.nome`, adicionada por migração. A chave estável `personalizado-{slug}` impede cadastro duplicado mesmo em duas requisições simultâneas.
+- O serviço novo aparece na lista de configuração com preço de referência, duração, valores por raça, regras e observações; começa como **Pendente**.
+- Também aparece em **Novo agendamento → Tipo: Estéticos → Serviço sugerido** na agenda administrativa. O texto continua editável.
+- Serviço personalizado NÃO é automaticamente anunciado ou disponibilizado para reservas de clientes, nem habilita emissão fiscal. Isso exige validação operacional específica.
+- API restrita a ADMIN: `GET /api/admin/agenda/servicos` lista; `POST` cria nome; `PUT` edita a configuração existente. O POST exige mesma origem e impede nomes iguais aos predefinidos ou já criados. PUT não aceita chaves não cadastradas.
+- O catálogo anterior de nove serviços, a agenda histórica e os preços configurados continuam preservados.
