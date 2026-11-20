@@ -280,6 +280,7 @@ export function ClientHome({
                   <div className="min-w-0">
                     <p className="font-semibold">{plano.titulo}</p>
                     <p className="text-xs text-muted-foreground">Pet: {plano.petNome}</p>
+                    {plano.descricao && <p className="mt-1 text-xs text-muted-foreground">{plano.descricao}</p>}
                   </div>
                   <Badge variant="outline" className="shrink-0">
                     {{ ativo: 'Ativo', esgotado: 'Concluído', vencido: 'Vencido', cancelado: 'Cancelado', pendente: 'Pendente' }[plano.situacao]}
