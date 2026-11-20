@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { lerPrecosPorRaca, precosPorRacaSchema } from '../src/lib/precos-por-raca'
 import {
   CATALOGO_ESTETICO_MATILHA,
+  chaveServicoPersonalizado,
+  slugServico,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
 } from '../src/lib/catalogo-servicos-matilha'
@@ -42,6 +44,45 @@ describe('Catálogo estético sem valores fictícios', () => {
     expect(dados.find((s) => s.chave === 'banho')?.precosPorRaca).toHaveLength(2)
     expect(dados.find((s) => s.chave === 'tosa-modalidade-a-definir')?.precosPorRaca).toEqual([])
     expect(dados.find((s) => s.chave === 'tosa-modalidade-a-definir')?.precoCentavos).toBeNull()
+  })
+
+  test('gera chave estável para serviços personalizados e normaliza acentos', () => {
+    expect(slugServico('Banho terapêutico')).toBe('banho-terapeutico')
+    expect(chaveServicoPersonalizado(' Banho Terapêutico ')).toBe('personalizado-banho-terapeutico')
+    expect(chaveServicoPersonalizado('banho   TERAPÊUTICO')).toBe('personalizado-banho-terapeutico')
+  })
+
+  test('lista novos serviços persistidos sem perder os nove serviços padrão', () => {
+    const item = {
+      chave: chaveServicoPersonalizado('Banho terapêutico'),
+      nome: 'Banho terapêutico',
+      precoCentavos: 12500,
+      precosPorRaca: [{ raca: 'Golden Retriever', precoCentavos: 15500 }],
+      duracaoMinutos: 90, regrasPreco: null, observacoes: 'Produto especial',
+      confirmado: true, updatedAt: '2026-11-20T00:00:00.000Z',
+    }
+    const itens = listarServicosParaConfiguracao([item])
+    expect(itens).toHaveLength(10)
+    expect(itens[0].nome).toBe('Banho')
+    expect(itens[9]).toMatchObject({
+      chave: 'personalizado-banho-terapeutico',
+      nome: 'Banho terapêutico',
+      precoCentavos: 12500,
+      duracaoMinutos: 90,
+      confirmado: true,
+    })
+    expect(itens[9].precosPorRaca).toEqual([{ raca: 'Golden Retriever', precoCentavos: 15500 }])
+    expect(itens.find(x => x.chave === 'banho')?.precoCentavos).toBeNull()
+  })
+
+  test('não mostra registro não cadastrado como serviço personalizado', () => {
+    const items = listarServicosParaConfiguracao([{
+      chave: 'arbitrario', nome: 'Falso serviço',
+      precoCentavos: null, precosPorRaca: [],
+      duracaoMinutos: null, regrasPreco: null, observacoes: null,
+      confirmado: false, updatedAt: null,
+    }])
+    expect(items).toHaveLength(9)
   })
 
   test('não permite confirmar sem duração e sem regra/preço', () => {
