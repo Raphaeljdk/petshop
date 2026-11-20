@@ -58,6 +58,26 @@ export function AgendamentosView() {
   const [historico, setHistorico] = useState<Array<{ id: string; acao: string; createdAt: string; detalhe: string | null }>>([])
   const [verHistoricoId, setVerHistoricoId] = useState<string | null>(null)
   const [calendarRefresh, setCalendarRefresh] = useState(0)
+  const [servicosPersonalizados, setServicosPersonalizados] = useState<string[]>([])
+  useEffect(() => {
+    let active = true
+    fetch('/api/admin/agenda/servicos', { cache: 'no-store', credentials: 'same-origin' })
+      .then(parseResponse)
+      .then(data => {
+        if (active) setServicosPersonalizados(
+          (data.items as Array<{ nome: string; chave: string }>)
+            .filter(item => item.chave.startsWith('personalizado-')).map(item => item.nome)
+        )
+      })
+      .catch(() => {}) // A lista de sugestões padrão permanece disponível se a consulta falhar.
+    return () => { active = false }
+  }, [])
+  const servicosSugeridos = useMemo(
+    () => form.categoria === 'Estéticos'
+      ? Array.from(new Set([...SUGESTOES_AGENDA.Estéticos, ...servicosPersonalizados]))
+      : SUGESTOES_AGENDA[form.categoria],
+    [form.categoria, servicosPersonalizados]
+  )
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -232,7 +252,7 @@ export function AgendamentosView() {
         </div>)}
       </div>
     </details>
-    <ConfiguracaoServicosEsteticos />
+    <ConfiguracaoServicosEsteticos onServicoCriado={nome => setServicosPersonalizados(prev => Array.from(new Set([...prev, nome])))} />
     {formOpen && <Card className="border-primary/30"><CardContent className="p-4 sm:p-6">
       <form onSubmit={salvar} className="space-y-4">
         <div className="flex justify-between items-center"><h2 className="font-semibold">{editId?'Editar / remarcar':'Novo agendamento'}</h2><Button variant="ghost" type="button" onClick={()=>setFormOpen(false)} aria-label="Fechar"><X className="size-4"/></Button></div>
@@ -255,10 +275,10 @@ export function AgendamentosView() {
           <div className="space-y-1.5">
             <Label htmlFor="agenda-servico-opcao">Serviço sugerido</Label>
             <select id="agenda-servico-opcao" className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              value={SUGESTOES_AGENDA[form.categoria].includes(form.servico)?form.servico:''}
+              value={servicosSugeridos.includes(form.servico)?form.servico:''}
               onChange={e=>setForm(f=>({...f,servico:e.target.value||f.servico}))}>
               <option value="">Descrição personalizada</option>
-              {SUGESTOES_AGENDA[form.categoria].map(s=><option key={s} value={s}>{s}</option>)}
+              {servicosSugeridos.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
