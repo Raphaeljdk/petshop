@@ -159,6 +159,7 @@ export async function GET() {
     const meusPlanos = pedidosDePlanos.map((pedido) => ({
       id: pedido.id,
       titulo: pedido.plan.title,
+      descricao: pedido.plan.description,
       petNome: petsResumo.find((pet) => pet.id === pedido.petKey)?.nome || 'Pet vinculado',
       startsAt: pedido.startsAt,
       expiresAt: pedido.expiresAt,
