@@ -6,6 +6,8 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import {
   CATALOGO_ESTETICO_MATILHA,
+  chaveServicoPersonalizado,
+  slugServico,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
 } from '@/lib/catalogo-servicos-matilha'
@@ -42,7 +44,7 @@ export async function GET() {
   try {
     const rows = await db.servicoEsteticoConfig.findMany({
       select: {
-        chave: true, precoCentavos: true, precosPorRaca: true, duracaoMinutos: true,
+        chave: true, nome: true, precoCentavos: true, precosPorRaca: true, duracaoMinutos: true,
         regrasPreco: true, observacoes: true, confirmado: true, updatedAt: true,
       },
     })
@@ -52,14 +54,53 @@ export async function GET() {
   } catch (error) { return erro(error) }
 }
 
+const novoServicoSchema = z.object({
+  nome: z.string().trim().min(2, 'Informe o nome do serviço.').max(80, 'Use até 80 caracteres.'),
+}).strict()
+
+// Apenas a administração cria serviços; não habilita automaticamente reservas públicas.
+export async function POST(req: NextRequest) {
+  const denied = await exigirAdmin()
+  if (denied) return denied
+  try {
+    assertSameOrigin(req)
+    const { nome } = novoServicoSchema.parse(await req.json())
+    const chave = chaveServicoPersonalizado(nome)
+    if (chave === 'personalizado-' || chave.length > 100) {
+      return NextResponse.json({ error: 'Informe um nome de serviço válido.' }, { status: 400 })
+    }
+    if (CATALOGO_ESTETICO_MATILHA.some(servico => slugServico(servico.nome) === slugServico(nome))) {
+      return NextResponse.json({ error: 'Esse serviço já existe no catálogo padrão.' }, { status: 409 })
+    }
+    const jaExiste = await db.servicoEsteticoConfig.findUnique({ where: { chave }, select: { chave: true } })
+    if (jaExiste) return NextResponse.json({ error: 'Já existe um serviço com esse nome.' }, { status: 409 })
+    const registro = await db.servicoEsteticoConfig.create({
+      data: { chave, nome, confirmado: false },
+    })
+    const item = listarServicosParaConfiguracao([registro]).find(servico => servico.chave === chave)
+    return NextResponse.json({ item }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+      return NextResponse.json({ error: 'Já existe um serviço com esse nome.' }, { status: 409 })
+    }
+    return erro(error)
+  }
+}
+
 export async function PUT(req: NextRequest) {
   const denied = await exigirAdmin()
   if (denied) return denied
   try {
     assertSameOrigin(req)
     const entrada = campos.parse(await req.json())
-    if (!CATALOGO_ESTETICO_MATILHA.some((s) => s.chave === entrada.chave))
-      return NextResponse.json({ error: 'Serviço não faz parte do catálogo confirmado.' }, { status: 400 })
+    const padrao = CATALOGO_ESTETICO_MATILHA.some(servico => servico.chave === entrada.chave)
+    if (!padrao) {
+      // Uma chave arbitrária enviada pelo navegador não autoriza criar registro.
+      if (!entrada.chave.startsWith('personalizado-') ||
+          !(await db.servicoEsteticoConfig.findUnique({ where: { chave: entrada.chave }, select: { nome: true } }))?.nome) {
+        return NextResponse.json({ error: 'Serviço não cadastrado. Use Novo serviço antes de configurar.' }, { status: 400 })
+      }
+    }
     if (entrada.confirmado && !configuracaoPodeSerConfirmada(entrada))
       return NextResponse.json({
         error: 'Para confirmar o serviço, informe a duração e um preço de referência, um preço por raça ou as regras de cobrança.',
