@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ShoppingCart,
   Trash2,
@@ -36,6 +37,7 @@ import { getProductBrand, MARCA_PERSONALIZAVEIS, SEM_MARCA } from '@/lib/product
 import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog'
 import { StoreHero } from '@/components/cliente-portal/StoreHero'
 import { StorePromoCarousel } from '@/components/cliente-portal/StorePromoCarousel'
+import { FloatingCartButton } from '@/components/cliente-portal/FloatingCartButton'
 import { useExperience } from './ExperienceProvider'
 import { ProductActions } from './ProductActions'
 
@@ -101,6 +103,8 @@ export function ClientStore({
   const [loadError, setLoadError] = useState(false)
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>(() => repeatItems || [])
   const [checkoutOpen, setCheckoutOpen] = useState(() => Boolean(repeatItems?.length))
+  const [cartDockMounted, setCartDockMounted] = useState(false)
+  useEffect(() => setCartDockMounted(true), [])
   const [observacoes, setObservacoes] = useState('')
   const [finalizando, setFinalizando] = useState(false)
   const [cepCliente, setCepCliente] = useState<string | null>(null)
@@ -462,7 +466,7 @@ export function ClientStore({
       {!loading && (
         <section
           id="catalogo-loja"
-          className="store-toolbar sticky top-2 z-30 rounded-2xl border bg-background/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:p-3"
+          className="store-toolbar relative z-0 rounded-2xl border bg-background p-3 shadow-sm sm:p-4"
         >
           <div className="flex items-center gap-2">
             <Button
@@ -547,8 +551,11 @@ export function ClientStore({
 
           {!loading && produtos.length > 0 && (
             <div aria-label="Filtrar produtos por marca" className="mt-3 border-t border-border/70 pt-3">
-              <p className="mb-2 px-1 text-sm font-semibold">Marcas</p>
-              <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Marcas disponíveis">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p className="text-sm font-semibold">Filtrar por marca</p>
+                <span className="text-xs text-muted-foreground sm:hidden">Deslize para ver todas</span>
+              </div>
+              <div className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0" role="group" aria-label="Marcas disponíveis">
                 <Button
                   type="button"
                   size="sm"
@@ -689,6 +696,15 @@ export function ClientStore({
 
       {!loading && !loadError && produtos.length === 0 && (
         <Card><CardContent className="p-8 sm:p-12 text-center"><Package className="size-12 text-muted-foreground/40 mx-auto mb-3" /><p className="text-muted-foreground">Nenhum produto disponível no momento.</p></CardContent></Card>
+      )}
+
+      {cartDockMounted && cartItemCount > 0 && !checkoutOpen && createPortal(
+        <FloatingCartButton
+          itemCount={cartItemCount}
+          total={subtotal}
+          onClick={() => setCheckoutOpen(true)}
+        />,
+        document.body,
       )}
 
       <Sheet open={checkoutOpen} onOpenChange={(open) => {
