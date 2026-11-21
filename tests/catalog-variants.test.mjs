@@ -256,15 +256,15 @@ test('pedido com item_id ML compartilhado baixa apenas o SKU da variação corre
 })
 
 
-test('cron publica somente produtos com estoque fisico no ERP',()=>{
+test('estoque físico do ERP é pré-requisito, não autorização automática para publicar',()=>{
   assert.equal(shouldPublishLocalStock(1,true),true)
   assert.equal(shouldPublishLocalStock(0,true),false)
   assert.equal(shouldPublishLocalStock(7,false),false)
 })
 
-test('ML: pausado com estoque precisa ser ativado, com 0 nao',()=>{
-  assert.equal(decideMercadoLivreListing(3,{status:'paused',subStatus:['paused_by_seller'],quantity:3}).action,'activate')
-  assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['out_of_stock'],quantity:0}).action,'update-stock-and-activate')
+test('ML: anuncio pausado nao pode ser reativado por cron ou sincronizacao generica',()=>{
+  assert.equal(decideMercadoLivreListing(3,{status:'paused',subStatus:['paused_by_seller'],quantity:3}).action,'none')
+  assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['out_of_stock'],quantity:0}).action,'none')
   assert.equal(decideMercadoLivreListing(0,{status:'paused',quantity:0}).action,'none')
   assert.equal(decideMercadoLivreListing(0,{status:'active',quantity:3}).action,'update-stock')
 })
