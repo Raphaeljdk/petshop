@@ -5,7 +5,7 @@ import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-a
 import { isServiceProduct, safeStock } from '@/lib/product-stock'
 import { codigoCompartilhado } from '@/lib/product-sku-groups'
 import { notifyRestockSubscribers } from '@/lib/restock-notifications'
-import { decideMercadoLivreListing,shouldPublishLocalStock } from '@/lib/marketplace-publish-policy'
+import { decideMercadoLivreListing } from '@/lib/marketplace-publish-policy'
 
 export type InventorySyncResult = {
   products:number
@@ -43,11 +43,10 @@ export async function syncLocalStockToMarketplaces(
       estoqueIlimitado:true,mlItemId:true,amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true},
   })
   const products=all.filter(p=>!isServiceProduct(p))
-  const publish=products.filter(p=>shouldPublishLocalStock(p.estoque,true)&&!p.ativo)
-  const hide=products.filter(p=>!shouldPublishLocalStock(p.estoque,true)&&p.ativo)
-  const localPublished=publish.length?(await db.produto.updateMany({
-    where:{id:{in:publish.map(p=>p.id)},ativo:false,estoque:{gt:0}},data:{ativo:true},
-  })).count:0
+  // Nunca reativar produtos descontinuados/ocultos só porque estoque > 0.
+  // A loja só pode publicar novamente por ação explícita do administrador.
+  const localPublished=0
+  const hide=products.filter(p=>p.estoque<=0&&p.ativo)
   const localHidden=hide.length?(await db.produto.updateMany({
     where:{id:{in:hide.map(p=>p.id)},ativo:true,estoque:{lte:0}},data:{ativo:false},
   })).count:0
@@ -117,6 +116,9 @@ export async function syncLocalStockToMarketplaces(
   let mlOperations=0
   for(const product of products){
     const quantity=safeStock(product.estoque)
+    // Produto ocultado manualmente não pode voltar a vender em outro canal
+    // apenas porque o ERP registrou um estoque positivo.
+    if(!product.ativo&&quantity>0)continue
     const sku=codigoCompartilhado(product.sku)
     if(sku&&divergentSkus.has(sku)){
       if(!issuesAlreadyReported.has(sku)){
