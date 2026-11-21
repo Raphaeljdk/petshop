@@ -125,15 +125,17 @@ function ClientPortalContent() {
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
+                size="sm"
                 onClick={cartUi.open}
                 aria-label={`Abrir carrinho com ${cartUi.itemCount} item(ns)`}
-                className="relative size-10 shrink-0 rounded-full border-border bg-background p-0 shadow-sm"
+                className="relative h-10 shrink-0 gap-2 rounded-xl border-primary bg-primary px-2.5 text-primary-foreground shadow-md shadow-primary/25 transition-shadow hover:bg-primary/90 hover:shadow-lg sm:px-3"
+                title={`Abrir carrinho com ${cartUi.itemCount} item(ns)`}
               >
-                <ShoppingCart className="size-4" />
+                <ShoppingCart className="size-5 shrink-0" />
+                <span className="hidden text-sm font-bold sm:inline">Carrinho</span>
                 <span
                   aria-hidden="true"
-                  className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm"
+                  className="flex min-w-5 items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-[11px] font-extrabold leading-none text-primary"
                 >
                   {cartUi.itemCount > 99 ? '99+' : cartUi.itemCount}
                 </span>
