@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { marketplaceSyncStatus,runMarketplacesSync } from '@/lib/marketplace-auto-sync'
+import { stockWritesEnabled } from '@/lib/marketplace-stock-safety'
 import { db } from '@/lib/db'
 
 export const runtime='nodejs'
@@ -19,7 +20,7 @@ export async function GET(){
       orderBy:{updatedAt:'desc'},take:12,select:{channel:true,title:true,category:true,
         error:true,retryAfter:true,updatedAt:true}}),
   ])
-  return NextResponse.json({enabled:true,intervalMinutes:30,status,issues},
+  return NextResponse.json({enabled:true,stockWritesEnabled:stockWritesEnabled(),intervalMinutes:30,status,issues},
     {headers:{'Cache-Control':'private, no-store'}})
 }
 export async function POST(){
