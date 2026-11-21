@@ -43,9 +43,10 @@ export function decideMercadoLivreListing(stock: number, listing: MarketplaceLis
     return {action:status==='active'&&quantityNeedsUpdate?'update-stock':'none'}
   }
   if (status==='paused') {
-    // Pausa simples (sem moderação) pode ser reativada por solicitação do lojista.
-    // Para pausado por falta de saldo, restaure primeiro a quantidade.
-    return {action:quantityNeedsUpdate?'update-stock-and-activate':'activate'}
+    // Nunca reativar um anúncio pausado pelo vendedor sem comando explícito.
+    // Nem o botão genérico "Sincronizar agora" equivale à autorização de reativar.
+    // Reposição futura exige confirmação do SKU, estoque físico e publicação.
+    return {action:'none'}
   }
   return {action:quantityNeedsUpdate?'update-stock':'none'}
 }
