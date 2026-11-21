@@ -1,0 +1,39 @@
+# Contenção de estoque — Matilha Prado / 21-11-2026
+
+## Sintomas reportados
+- Produtos descontinuados voltam a ser anunciados, inclusive Adoleta e Damascoto.
+- Quantidades do Mercado Livre e da Amazon divergem do estoque físico, para mais e para menos.
+- Ajustes manuais parecem ser desfeitos após atualizar uma página.
+- Existe um cron de marketplace a cada 30 minutos no Vercel.
+
+## Raízes identificadas
+1. As APIs `GET /api/cliente/produtos` e `GET /api/public/produtos` chamavam `syncZettaProductsToLocal()`, que grava `Produto.estoque` com valores da API do Zetta/Siggma. **Leituras não podem escrever estoque.**
+2. O cron `/api/cron/marketplaces` executava importação de pedidos e depois atualizações automáticas de quantidade/reativação, com base em `Produto.estoque` potencialmente divergente.
+3. `syncLocalStockToMarketplaces()` tratava todo produto oculto com estoque positivo como candidato a republicação, sem status "descontinuado".
+4. Anúncio Mercado Livre pausado com quantidade positiva era reativado automaticamente.
+5. Produtos novos importados do ML ou Amazon podiam inicializar `Produto.estoque` com a quantidade anunciada, sem contagem física.
+6. Há SKUs compartilhados por cadastros espelhados; vendas desses itens ficam pendentes da associação única, sem baixa automática segura.
+
+## Contenção implementada
+- Leituras da loja usam somente o banco local; nenhuma chamada Zetta/Siggma ou escrita de estoque e sem cache público de quantidade.
+- Cron de 30 minutos **continua importando vendas**; **não escreve automaticamente estoques**, não reativa anúncios nem publica produtos. Gate `MARKETPLACE_STOCK_WRITES_ENABLED` (somente valor literal `true` permite escritas). Deixar **ausente/desativado** após publicação.
+- O botão de sincronização manual de vendas usa a mesma trava; `force` não desativa a proteção.
+- Uma reativação automática de produto oculto ou de anúncio pausado deixou de ser permitida também se as escritas forem reabilitadas no futuro.
+- Catálogos ML/Amazon importados continuam registrando quantidades anunciadas como referência, mas novos produtos entram com estoque físico 0 e ocultos até conferência.
+- Conferência física não reativa automaticamente produtos anteriormente ocultos. O administrador deverá publicar expressamente.
+
+## Ações operacionais urgentes após publicar a contenção
+1. Exportar os atuais SKUs, estoque físico conferido, quantidades e status de anúncios de ambos os marketplaces. **Não somar os estoques de cada canal.**
+2. Revisar anúncios com saldo físico zero e quantidade anunciada positiva: pausar/zerar MANUALMENTE no Mercado Livre e na Amazon. A trava evita novas escritas, mas não corrige anúncios já ativos.
+3. Conferir os SKUs espelhados e variações, vinculando IDs ML/ASIN aos produtos corretos. Não fundir ou excluir registros sem validação das vendas e histórico.
+4. Conferir pedidos pendentes que não deram baixa, evitar devolução ou reativação incorreta, e reconciliar saldos com a equipe.
+5. Antes de liberar escritas futuras, homologar numa base isolada o fluxo **ERP físico confirmado → quantidade por SKU/variante nos marketplaces**, com livro de movimentações, bloqueio definitivo de produtos descontinuados, auditoria por fonte, read-back da API e tratamento de erros/concorrência.
+
+## Verificações
+- Teste de política `bun test tests/marketplace-publish-policy.test.ts`.
+- Confirmar que `GET` da loja não chama `syncZettaProductsToLocal` e não altera `Produto.updatedAt`.
+- CI build/typecheck; testes de autenticação e fluxo de compras.
+- Verificar status no painel de Integrações: **escritas de estoque suspensas**.
+- Não executar API de reativação de anúncios durante homologação sem autorização do responsável e sem saldos físicos reais.
+
+> **Aviso:** alteração de código ainda não é mitigação em produção. Precisa de release validado na Vercel. Até lá a rotina antiga continua executando.
