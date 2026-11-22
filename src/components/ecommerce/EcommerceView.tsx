@@ -79,6 +79,30 @@ import { getProductBrand, SEM_MARCA } from '@/lib/product-brands'
 const fmtMoeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+type ResultadoMarketplaceHub = {
+  marketplaceSync?: {
+    status: 'unchanged' | 'suspended' | 'attention' | 'submitted'
+    mercadoLivreUpdated?: number
+    amazonUpdated?: number
+    blockedListings?: number
+    errors?: string[]
+  }
+}
+function informarSincronizacaoDoHub(resultado: ResultadoMarketplaceHub) {
+  const sync=resultado.marketplaceSync
+  if(!sync||sync.status==='unchanged')return
+  if(sync.status==='suspended'){
+    toast.warning('Estoque salvo no Hub. Envio a ML/Amazon suspenso até a conferência dos SKUs.')
+    return
+  }
+  if(sync.status==='attention'){
+    toast.warning('Salvo no Hub; confira as pendências de sincronização: '+
+      (sync.errors?.[0]||'Um dos canais não confirmou o envio.'))
+    return
+  }
+  toast.info('Quantidade enviada aos canais vinculados. A disponibilidade final depende da confirmação do marketplace.')
+}
+
 /* --------------------------------------------------------------------- */
 /* Helpers de cores                                                      */
 /* --------------------------------------------------------------------- */
@@ -1196,7 +1220,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         const error = await res.json().catch(() => ({}))
         throw new Error(error.error || 'Não foi possível salvar o produto.')
       }
-      toast.success(editProduto ? 'Produto atualizado' : 'Produto criado')
+      const payload = await res.json().catch(() => ({})) as ResultadoMarketplaceHub
+      toast.success(editProduto ? 'Produto atualizado no Hub' : 'Produto criado no Hub')
+      informarSincronizacaoDoHub(payload)
       setFotoSelecionada(null)
       setDialogProduto(false)
       carregar()
@@ -1230,7 +1256,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         body: JSON.stringify({ ativo: !p.ativo }),
       })
       if (!res.ok) throw new Error()
-      toast.success(`Produto ${!p.ativo ? 'ativado' : 'desativado'}`)
+      const payload=await res.json().catch(() => ({})) as ResultadoMarketplaceHub
+      toast.success(`Produto ${!p.ativo ? 'ativado' : 'desativado'} no Hub`)
+      informarSincronizacaoDoHub(payload)
       setProdutos((prev) =>
         prev.map((x) => (x.id === p.id ? { ...x, ativo: !p.ativo } : x))
       )
@@ -1251,7 +1279,9 @@ export function EcommerceView({ refreshSignal }: { refreshSignal?: number }) {
         body: JSON.stringify(dados),
       })
       if (!res.ok) throw new Error()
-      toast.success('Produto atualizado')
+      const payload=await res.json().catch(() => ({})) as ResultadoMarketplaceHub
+      toast.success('Produto atualizado no Hub')
+      informarSincronizacaoDoHub(payload)
       setProdutos((prev) =>
         prev.map((x) => (x.id === p.id ? { ...x, ...dados } : x))
       )
