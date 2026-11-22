@@ -209,10 +209,10 @@ test('pet profiles reject a pet belonging to another ERP customer', async () => 
   )
 })
 
-test('reorder caps quantities, refreshes ERP prices and excludes unavailable products', async () => {
+test('reorder caps quantities using the Hub, ignoring legacy Zetta balances', async () => {
   const h = harness()
   h.state.client = { id: 'alice' }
-  h.state.official = { preco: 17, estoque: 2 }
+  h.state.official = { preco: 999, estoque: 999 } // simula saldo Zetta divergente
   h.state.db.venda = {
     findFirst: async (args) => {
       assert.equal(args.where.clienteId, 'alice')
@@ -225,8 +225,9 @@ test('reorder caps quantities, refreshes ERP prices and excludes unavailable pro
               id: 'p',
               nome: 'Ração',
               ativo: true,
-              preco: 10,
-              estoque: 20,
+              preco: 17,
+              estoque: 2,
+              estoqueHub:2,
               zettaProCod: 1,
             },
           },
