@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { inventoryActionForSaleStatus, canDeleteSaleWithoutLosingStockHistory } from '../src/lib/sale-stock-policy'
+import { inventoryActionForSaleStatus, canDeleteSaleWithoutLosingStockHistory, debitForSale, creditReleasedReservation } from '../src/lib/sale-stock-policy'
 
 describe('Movimentações de estoque do Hub', () => {
   test('confirmar venda de 1 unidade representa saída, nunca entrada', () => {
     const saldoAntes = 10
-    const quantidadeVendida = 1
-    const saldoDepois = saldoAntes - quantidadeVendida
+    const movimento = debitForSale(1)
+    expect(movimento).toEqual({decrement:1})
+    const saldoDepois = saldoAntes - movimento.decrement
     expect(saldoDepois).toBe(9)
     expect(saldoDepois).toBeLessThan(saldoAntes)
   })
@@ -15,6 +16,7 @@ describe('Movimentações de estoque do Hub', () => {
   })
 
   test('cancelar uma reserva pendente devolve apenas unidades reservadas', () => {
+    expect(creditReleasedReservation(1)).toEqual({increment:1})
     expect(inventoryActionForSaleStatus('pendente','cancelada')).toBe('release-reservation')
     expect(inventoryActionForSaleStatus('cancelada','cancelada')).toBe('none')
   })
@@ -38,6 +40,13 @@ describe('Movimentações de estoque do Hub', () => {
     expect(canDeleteSaleWithoutLosingStockHistory({
       status:'concluida',marketplaceOrderId:null,
     })).toBe(false)
+  })
+
+  test('rejeita quantidades fracionárias, zero ou negativas na movimentação',()=>{
+    expect(()=>debitForSale(-1)).toThrow()
+    expect(()=>debitForSale(0)).toThrow()
+    expect(()=>debitForSale(1.5)).toThrow()
+    expect(()=>creditReleasedReservation(0)).toThrow()
   })
 
   test('vendas locais pendentes/canceladas ainda permitem exclusão controlada', () => {
