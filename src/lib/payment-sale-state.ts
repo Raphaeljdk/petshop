@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { updateGiftRedemption } from '@/lib/portal-gift-credit'
 import { awardReferralForPaidSale } from '@/lib/portal-referral-awards'
+import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
 
 export type PaymentSalePatch = {
   mercadoPagoId?: string | null
@@ -16,9 +17,9 @@ export async function applyPaymentSaleState(
   vendaId: string,
   patch: PaymentSalePatch
 ) {
-  return db.$transaction(
+  const update=await db.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`payment:${vendaId}`}))`
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sale:${vendaId}`}))`
 
       const current = await tx.venda.findUnique({
         where: { id: vendaId },
@@ -29,6 +30,7 @@ export async function applyPaymentSaleState(
                 select: {
                   id: true,
                   estoque: true,
+                  estoqueIlimitado: true,
                 },
               },
             },
@@ -45,6 +47,7 @@ export async function applyPaymentSaleState(
         // Uma venda pendente já reservou o saldo no ERP local.
         // Restitua qualquer produto, independentemente do vínculo legado.
         for (const item of current.itens) {
+          if(item.produto?.estoqueIlimitado)continue
           const produto = await tx.produto.update({
             where: { id: item.produtoId },
             data: { estoque: { increment: item.quantidade } },
@@ -74,8 +77,11 @@ export async function applyPaymentSaleState(
       })
       if(patch.status==='concluida'&&current.status==='pendente')
         await awardReferralForPaidSale(tx,vendaId)
-      return result
+      return {result,productIds:firstPendingCancellation
+        ?current.itens.filter(item=>!item.produto?.estoqueIlimitado).map(item=>item.produtoId):[]}
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   )
+  if(update?.productIds.length)await syncStockAfterHubWrite(update.productIds)
+  return update?.result??null
 }
