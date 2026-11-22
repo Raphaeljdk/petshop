@@ -6,6 +6,20 @@
  * Cancelar concluída: zero automaticamente; devolução depende de conferência física.
  * Reabrir cancelada: bloquear sem conciliação, evitando duas baixas da mesma venda.
  */
+function validPositiveQuantity(quantity:number){
+  if(!Number.isInteger(quantity)||quantity<=0)
+    throw new Error('Quantidade de movimentação inválida: deve ser um inteiro positivo.')
+  return quantity
+}
+/** Uma venda sempre representa SAÍDA física do Hub. */
+export function debitForSale(quantity:number){
+  return {decrement:validPositiveQuantity(quantity)}
+}
+/** Só reservas canceladas sem saída física podem voltar ao saldo automaticamente. */
+export function creditReleasedReservation(quantity:number){
+  return {increment:validPositiveQuantity(quantity)}
+}
+
 export type SaleInventoryAction = 'none' | 'release-reservation' | 'manual-review'
 
 export function inventoryActionForSaleStatus(
