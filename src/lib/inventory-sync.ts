@@ -175,6 +175,12 @@ export async function syncLocalStockToMarketplaces(
             await putIssue('mercadolivre',id,product.id,product.nome,
               decision.reason||'Estado do anúncio não permite atualização automática.','blocked_status')
               .catch(console.error)
+          }else if(decision.action==='none'&&String(remote.status).toLowerCase()==='paused'&&
+            remote.quantity!==quantity){
+            blockedListings++
+            const msg='Anúncio pausado: estoque salvo no Hub, mas a quantidade no Mercado Livre não foi alterada. Reative explicitamente no Hub quando a publicação for permitida.'
+            if(!issuesAlreadyReported.has(id)){ errors.push(product.nome+' / Mercado Livre: '+msg);issuesAlreadyReported.add(id) }
+            await putIssue('mercadolivre',id,product.id,product.nome,msg,'blocked_status').catch(console.error)
           }else if(decision.action!=='none'&&
             (mlOperations>=MAX_ML_OPERATIONS||Date.now()-stockStartedAt>MAX_STOCK_SYNC_MS)){
             blockedListings++
