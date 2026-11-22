@@ -92,11 +92,13 @@ export async function PUT(
         reason:'Estoque salvo no Hub. Envio ML/Amazon suspenso até conciliação de SKUs e liberação segura.' } })
     try {
       const result=await syncLocalStockToMarketplaces({
-        productIds:[produto.id],
+        productIds:[produto.id],force:true,
         explicitlyPublishIds:!produtoExistente.ativo&&produto.ativo?[produto.id]:[],
       })
       return NextResponse.json({ ...produto, marketplaceSync: {
-        status:result.errors.length||result.blockedListings?'attention':'submitted',
+        status:result.errors.length||result.blockedListings?'attention':
+          result.mercadoLivreUpdated+result.amazonUpdated+result.mercadoLivreActivated>0
+            ?'submitted':'unchanged',
         mercadoLivreUpdated:result.mercadoLivreUpdated,amazonUpdated:result.amazonUpdated,
         blockedListings:result.blockedListings,errors:result.errors,
       } })
