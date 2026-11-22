@@ -47,13 +47,12 @@ export async function syncLocalStockToMarketplaces(
   const selected=options.productIds
     ?products.filter(p=>options.productIds!.includes(p.id))
     :products
-  // Nunca reativar produtos descontinuados/ocultos só porque estoque > 0.
-  // A loja só pode publicar novamente por ação explícita do administrador.
+  // "ativo" representa permissão de publicação controlada pelo gestor.
+  // Estoque zero torna o produto indisponível, mas NÃO muda essa preferência.
+  // Assim, reabastecer pelo Hub restaura a quantidade dos produtos autorizados,
+  // sem reativar os itens descontinuados manualmente.
   const localPublished=0
-  const hide=selected.filter(p=>p.estoque<=0&&p.ativo)
-  const localHidden=hide.length?(await db.produto.updateMany({
-    where:{id:{in:hide.map(p=>p.id)},ativo:true,estoque:{lte:0}},data:{ativo:false},
-  })).count:0
+  const localHidden=0
 
   const errors:string[]=[]
   let mercadoLivreUpdated=0,mercadoLivreActivated=0,amazonUpdated=0,blockedListings=0
