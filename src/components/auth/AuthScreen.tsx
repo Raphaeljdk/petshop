@@ -19,6 +19,7 @@ import { HeroCarousel } from '@/components/landing/HeroCarousel'
 import { PublicProducts } from '@/components/landing/PublicProducts'
 import { AtendimentoMenu } from '@/components/landing/AtendimentoMenu'
 import { ServicosEsteticos } from '@/components/landing/ServicosEsteticos'
+import { LandingBlog } from '@/components/landing/LandingBlog'
 import { InstallAppCard } from '@/components/pwa/InstallAppCard'
 
 export function AuthScreen() {
@@ -209,6 +210,7 @@ export function AuthScreen() {
       </section>
 
       </HeroCarousel>
+      <LandingBlog />
       <ServicosEsteticos />
       <PublicProducts onBuy={abrirLogin} />
 

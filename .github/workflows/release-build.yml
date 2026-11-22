@@ -48,6 +48,7 @@ jobs:
       - run: bun test tests/kanban-dates.test.ts
       - run: bun test tests/operational-access.test.ts
       - run: bun test tests/agenda-bloqueios.test.ts
+      - run: bun test tests/agenda-online.test.ts
       - run: bun test tests/agenda-visibilidade.test.ts
       - run: bun test tests/marketplace-product-match.test.ts
       - run: bun test tests/marketplace-publish-policy.test.ts

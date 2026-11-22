@@ -64,10 +64,14 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
     {loading ? <div className="grid gap-3 sm:grid-cols-2">{[0,1].map((n)=><div key={n} className="h-28 animate-pulse rounded-xl bg-muted"/>)}</div> :
       articles.length ? <div className="grid gap-3 sm:grid-cols-2">
         {articles.slice(0,2).map((article) => <button type="button" key={article.id}
-          onClick={onOpenBlog} className="rounded-xl border bg-card p-4 text-left transition-shadow hover:shadow-md">
-          <p className="text-xs font-semibold text-primary">{article.category}</p>
-          <h3 className="mt-1 font-semibold">{article.title}</h3>
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{article.summary}</p>
+          onClick={onOpenBlog} className="overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-md">
+          {article.imageUrl ? <img src={article.imageUrl} alt="" loading="lazy" className="aspect-video w-full object-cover" />
+            : <div className="flex h-24 items-center justify-center bg-primary/5"><BookOpen className="size-8 text-primary/30" /></div>}
+          <div className="p-4">
+            <p className="text-xs font-semibold text-primary">{article.category}</p>
+            <h3 className="mt-1 font-semibold">{article.title}</h3>
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{article.summary}</p>
+          </div>
         </button>)}
       </div> : <p className="text-sm text-muted-foreground">Novos conteúdos estão sendo preparados.</p>}
   </section>
