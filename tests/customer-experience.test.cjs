@@ -25,6 +25,7 @@ function harness() {
     }).outputText
     const localRequire = (id) => {
       if (id === '@/lib/realtime') return { emitWebSocket: async () => {} }
+      if (id === '@/lib/stock-sync-after-write') return { syncStockAfterHubWrite: async () => ({status:'suspended'}) }
       if (id === '@/lib/db') return { db: state.db }
       if (id === '@/lib/auth-helpers' || id === '@/lib/auth-cookies')
         return {
@@ -451,14 +452,23 @@ test('motoboy quotes all authorized regions, including eastern and southern oute
 test('checkout recalculates regional motoboy price and persists the correct order total', async () => {
   const h = shippingHarness()
   h.state.client = { id: 'shipping-client', endereco: 'Rua de teste, 123' }
-  const product = { id: 'product', nome: 'Ração', ativo: true, preco: 50, estoqueHub: 10 }
+  const product = { id: 'product', nome: 'Ração', ativo: true, preco: 50, estoque:10, estoqueHub: 10, estoqueIlimitado:false }
   h.state.db.produto = { findMany: async () => [product] }
   let saved
   h.state.db.$transaction = async fn => fn({
-    produto: { findUnique: async () => product, update: async () => product },
+    produto: {
+      findUnique: async () => product,
+      updateMany: async ({data}) => {
+        assert.deepEqual(data.estoque,{decrement:2},'Checkout deve BAIXAR duas unidades')
+        return {count:1}
+      },
+      findUniqueOrThrow: async () => ({estoque:8}),
+      update: async () => product,
+    },
     venda: { create: async ({ data }) => {
       saved = data
-      return { id: 'order', ...data, createdAt: new Date(), updatedAt: new Date() }
+      return { id: 'order', ...data, itens:data.itens.create.map(item=>({...item,produto:product})),
+        createdAt: new Date(), updatedAt: new Date() }
     } },
   })
   const route = h.load('src/app/api/cliente/carrinho/route.ts')
