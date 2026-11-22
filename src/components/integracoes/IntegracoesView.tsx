@@ -36,6 +36,7 @@ import type {
 import { toast } from 'sonner'
 import { groupMarketplaceListings } from '@/lib/product-variants'
 import { Input } from '@/components/ui/input'
+import { SkuReconciliationAudit } from './SkuReconciliationAudit'
 
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
@@ -706,6 +707,8 @@ export function IntegracoesView() {
           </div>
         </CardContent>
       </Card>
+
+      <SkuReconciliationAudit />
 
       <Card className={mercadoLivre?.connected ? 'border-green-300' : 'border-amber-300'}>
         <CardHeader>
