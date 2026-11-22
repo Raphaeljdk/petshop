@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { quantityToPublishFromHub } from '@/lib/marketplace-stock-safety'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import { mercadoLivreItemsByIds, mercadoLivreUpdateListingStatus, mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
 import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-api'
@@ -124,7 +125,7 @@ export async function syncLocalStockToMarketplaces(
   for(const product of selected){
     // Hub é a autoridade: produto oculto/descontinuado publica ZERO,
     // independentemente de saldos físicos ainda registrados.
-    const quantity=product.ativo?safeStock(product.estoque):0
+    const quantity=quantityToPublishFromHub(product)
     const sku=codigoCompartilhado(product.sku)
     if(sku&&duplicatedSkus.has(sku)){
       if(!issuesAlreadyReported.has(sku)){
