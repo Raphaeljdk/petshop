@@ -489,3 +489,39 @@ test('checkout recalculates regional motoboy price and persists the correct orde
   assert.equal(rejected.status, 400)
   assert.equal(saved, null, 'Unsupported CEP must not create an order')
 })
+
+test('checkout de produto legado Zetta debita Hub -1 sem consultar estoque externo', async () => {
+  const h=shippingHarness()
+  h.state.client={id:'cliente-hub',endereco:'Rua Teste, 123'}
+  h.state.official=null // Se o checkout consultar o Zetta, a venda falharia.
+  const product={id:'antigo-zetta',nome:'Brinquedo',preco:40,precoPromo:null,
+    estoque:3,estoqueHub:3,estoqueIlimitado:false,ativo:true,zettaProCod:117}
+  h.state.db.produto={findMany:async()=>[product]}
+  let debito=0
+  let gravado=0
+  h.state.db.$transaction=async fn=>fn({
+    produto:{
+      findUnique:async()=>product,
+      updateMany:async ({where,data})=>{
+        assert.equal(where.estoque.gte,1)
+        assert.deepEqual(data.estoque,{decrement:1})
+        debito++
+        return {count:1}
+      },
+      findUniqueOrThrow:async()=>({estoque:2}),
+      update:async ({data})=>{gravado=data.estoqueHub;return product},
+    },
+    venda:{create:async ({data})=>({
+      id:'venda-zetta-convertida',...data,
+      itens:data.itens.create.map(item=>({...item,produto:product})),
+      createdAt:new Date(),updatedAt:new Date(),
+    })},
+  })
+  const route=h.load('src/app/api/cliente/carrinho/route.ts')
+  const response=await route.POST(h.request('/api/cliente/carrinho','POST',{
+    itens:[{produtoId:product.id,quantidade:1}],tipoEntrega:'retirada',
+  }))
+  assert.equal(response.status,201,JSON.stringify(await response.json()))
+  assert.equal(debito,1,'A venda deve descontar uma vez, e não importar a quantidade Zetta')
+  assert.equal(gravado,2,'Estoque Hub deve refletir saldo após a saída')
+})
