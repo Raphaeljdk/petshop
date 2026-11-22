@@ -46,7 +46,10 @@ export function decideMercadoLivreListing(stock: number, listing: MarketplaceLis
   if (status==='paused') {
     // O cron nunca reativa anúncios pausados. O único caminho permitido
     // é o gestor ativar EXPLICITAMENTE o produto no Hub.
-    if(options.explicitAdminActivation && qty > 0)
+    // Reposição automática só quando o canal identifica falta de estoque
+    // (não uma pausa manual do vendedor). O Hub deve manter o produto ativo.
+    const pausedForStockout=substatus.includes('out_of_stock')&&!substatus.includes('paused_by_seller')
+    if((options.explicitAdminActivation || pausedForStockout) && qty > 0)
       return { action:quantityNeedsUpdate?'update-stock-and-activate':'activate' }
     return {action:'none'}
   }
