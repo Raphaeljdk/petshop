@@ -5,6 +5,7 @@ import { emitWebSocket } from '@/lib/realtime'
 import { officialStockFromSources } from '@/lib/product-stock'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
+import { debitForSale } from '@/lib/sale-stock-policy'
 
 const STATUS_VALIDOS = new Set(['concluida', 'pendente', 'cancelada'])
 const CANAIS_VALIDOS = new Set(['loja', 'site', 'mercado_livre', 'amazon'])
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest) {
           // mais unidades que o saldo do ERP próprio.
           const atualizado = await tx.produto.updateMany({
             where: { id: item.produtoId, estoque: { gte: item.quantidade } },
-            data: { estoque: { decrement: item.quantidade } },
+            data: { estoque: debitForSale(item.quantidade) },
           })
           if (atualizado.count !== 1) throw new Error('Estoque insuficiente para ' + produto.nome)
           const saldo = await tx.produto.findUniqueOrThrow({ where: { id: item.produtoId }, select: { estoque: true } })
