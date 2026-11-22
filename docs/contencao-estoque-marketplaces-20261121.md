@@ -35,6 +35,17 @@
 - A chave `MARKETPLACE_STOCK_WRITES_ENABLED=true` libera o envio automático **somente depois da homologação dos vínculos e estoques**. Enquanto ausente, o Hub salva os valores, mas responde `suspended`; não apresentar como sincronizado.
 - A interface do Hub apresenta o status do envio (submetido, suspenso ou com divergência), sem tratar o sucesso do banco local como prova de atualização nos marketplaces.
 
+## Auditoria de sinal de movimentação (+/-) e compra pelo site
+
+- **Saída confirmada: -Q**. As vendas locais, importadas de marketplaces e as compras do portal usam a mesma operação `debitForSale(Q)`, que aplica `estoque: {decrement:Q}` atomicamente, com checagem de saldo onde a reserva pode ser recusada.
+- **Reserva pendente cancelada: +Q**. A liberação ocorre uma única vez, com `creditReleasedReservation(Q)`. Serviços com `estoqueIlimitado` não recebem incrementos indevidos.
+- **Venda concluída cancelada: zero automático**. A mercadoria já pode ter saído fisicamente. O operador confere a devolução e faz entrada no Hub (sem inventar estoque no cancelamento).
+- **Venda cancelada reaberta:** exige conciliação e nova venda; não recobrar o mesmo estoque arbitrariamente.
+- **Pedido importado de marketplace:** não pode ser excluído, pois a remoção da chave `marketplaceOrderId` permitiria ao cron importar o pedido outra vez e debitar novamente.
+- **Sincronização pós-movimentação:** mudanças confirmadas no Hub tentam atualizar os marketplaces vinculados imediatamente quando a proteção de escrita estiver liberada; o cron permanece como conciliação eventual.
+- **Checkout e recompra do portal:** nem mesmo itens com `zettaProCod` consultam Zetta/Siggma. Consulta de preços e disponibilidade usa exclusivamente `Produto.estoque` e a baixa do checkout é atômica, com atualização de `estoqueHub`.
+- **Regressões:** `tests/sale-stock-policy.test.ts` verifica débito -1, liberação +1 e prevenção de cancelamentos sem devolução; `tests/customer-experience.test.cjs` verifica checkout legado com -1 e recompra sem estoque externo.
+
 ## Ações operacionais urgentes após publicar a contenção
 1. Exportar os atuais SKUs, estoque físico conferido, quantidades e status de anúncios de ambos os marketplaces. **Não somar os estoques de cada canal.**
 2. Revisar anúncios com saldo físico zero e quantidade anunciada positiva: pausar/zerar MANUALMENTE no Mercado Livre e na Amazon. A trava evita novas escritas, mas não corrige anúncios já ativos.
