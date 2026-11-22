@@ -33,7 +33,7 @@ function issueType(error:unknown){
 }
 
 export async function syncLocalStockToMarketplaces(
-  options:{force?:boolean}={}
+  options:{force?:boolean; productIds?:string[]}={}
 ):Promise<InventorySyncResult>{
   // O estoque físico único e o SKU do ERP determinam a publicação na vitrine.
   // As quantidades observadas em ML/Amazon não se somam ao estoque físico.
@@ -43,10 +43,13 @@ export async function syncLocalStockToMarketplaces(
       estoqueIlimitado:true,mlItemId:true,amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true},
   })
   const products=all.filter(p=>!isServiceProduct(p))
+  const selected=options.productIds
+    ?products.filter(p=>options.productIds!.includes(p.id))
+    :products
   // Nunca reativar produtos descontinuados/ocultos só porque estoque > 0.
   // A loja só pode publicar novamente por ação explícita do administrador.
   const localPublished=0
-  const hide=products.filter(p=>p.estoque<=0&&p.ativo)
+  const hide=selected.filter(p=>p.estoque<=0&&p.ativo)
   const localHidden=hide.length?(await db.produto.updateMany({
     where:{id:{in:hide.map(p=>p.id)},ativo:true,estoque:{lte:0}},data:{ativo:false},
   })).count:0
@@ -55,15 +58,19 @@ export async function syncLocalStockToMarketplaces(
   let mercadoLivreUpdated=0,mercadoLivreActivated=0,amazonUpdated=0,blockedListings=0
   const mlCounts=new Map<string,number>()
   const skuStocks=new Map<string,Set<number>>()
+  const skuCounts=new Map<string,number>()
   for(const product of products){
     if(product.mlItemId)mlCounts.set(product.mlItemId,(mlCounts.get(product.mlItemId)||0)+1)
     const sku=codigoCompartilhado(product.sku)
     if(sku){const vals=skuStocks.get(sku)||new Set<number>()
-      vals.add(safeStock(product.estoque));skuStocks.set(sku,vals)}
+      vals.add(safeStock(product.estoque));skuStocks.set(sku,vals)
+      skuCounts.set(sku,(skuCounts.get(sku)||0)+1)}
   }
   const ambiguousIds=new Set([...mlCounts.entries()].filter(([,n])=>n>1).map(([id])=>id))
   const divergentSkus=new Set([...skuStocks.entries()]
     .filter(([,s])=>s.size>1).map(([sku])=>sku))
+  const duplicatedSkus=new Set([...skuCounts.entries()]
+    .filter(([,count])=>count>1).map(([sku])=>sku))
   const blocked=await db.marketplaceStockIssue.findMany({
     where:{resolvedAt:null,retryAfter:{gt:new Date()}},select:{id:true,category:true},
   })
@@ -91,7 +98,7 @@ export async function syncLocalStockToMarketplaces(
   let mlToken:string|null=null
   let mlSellerId:string|null=null
   let remoteItems=new Map<string,Awaited<ReturnType<typeof mercadoLivreItemsByIds>>[number]>()
-  const mlIds=[...new Set(products.map(p=>p.mlItemId).filter((v):v is string=>Boolean(v)))]
+  const mlIds=[...new Set(selected.map(p=>p.mlItemId).filter((v):v is string=>Boolean(v)))]
   if(mlIds.length){
     try{
       const access=await mercadoLivreAccessToken()
@@ -114,15 +121,16 @@ export async function syncLocalStockToMarketplaces(
   const MAX_STOCK_SYNC_MS=180_000
   const stockStartedAt=Date.now()
   let mlOperations=0
-  for(const product of products){
-    const quantity=safeStock(product.estoque)
-    // Produto ocultado manualmente não pode voltar a vender em outro canal
-    // apenas porque o ERP registrou um estoque positivo.
-    if(!product.ativo&&quantity>0)continue
+  for(const product of selected){
+    // Hub é a autoridade: produto oculto/descontinuado publica ZERO,
+    // independentemente de saldos físicos ainda registrados.
+    const quantity=product.ativo?safeStock(product.estoque):0
     const sku=codigoCompartilhado(product.sku)
-    if(sku&&divergentSkus.has(sku)){
+    if(sku&&duplicatedSkus.has(sku)){
       if(!issuesAlreadyReported.has(sku)){
-        errors.push('SKU '+sku+': há saldos físicos divergentes; requer conferência antes de sincronizar.')
+        errors.push('SKU '+sku+': '+skuCounts.get(sku)+' cadastros espelhados'+
+          (divergentSkus.has(sku)?' com saldos divergentes':'')+
+          '. Conferir vínculo e estoque único antes de enviar alterações aos canais.')
         issuesAlreadyReported.add(sku)
       }
       blockedListings++
@@ -237,7 +245,7 @@ export async function syncLocalStockToMarketplaces(
     :{configured:false,sent:0,pending:0,errors:[] as string[]}
 
   return {
-    products:products.length,mercadoLivreUpdated,mercadoLivreActivated,amazonUpdated,
+    products:selected.length,mercadoLivreUpdated,mercadoLivreActivated,amazonUpdated,
     localPublished,localHidden,skippedUnlinked:0,
     blockedListings,restockNotifications,
     errors:[...errors,...restockNotifications.errors].slice(0,50),
