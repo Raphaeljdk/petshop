@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { inventoryActionForSaleStatus,canDeleteSaleWithoutLosingStockHistory } from '@/lib/sale-stock-policy'
 import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
+import { creditReleasedReservation } from '@/lib/sale-stock-policy'
 
 const STATUS_VALIDOS = new Set(['concluida', 'pendente', 'cancelada'])
 const CANAIS_VALIDOS = new Set(['loja', 'site', 'mercado_livre', 'amazon'])
@@ -58,7 +59,7 @@ export async function PATCH(
           if(!item.produto || item.produto.estoqueIlimitado)continue
           const atualizado=await tx.produto.update({
             where:{id:item.produtoId},
-            data:{estoque:{increment:item.quantidade}},
+            data:{estoque:creditReleasedReservation(item.quantidade)},
             select:{estoque:true},
           })
           await tx.produto.update({where:{id:item.produtoId},
@@ -126,7 +127,7 @@ export async function DELETE(
           if(!item.produto||item.produto.estoqueIlimitado)continue
           const atualizado=await tx.produto.update({
             where:{id:item.produtoId},
-            data:{estoque:{increment:item.quantidade}},
+            data:{estoque:creditReleasedReservation(item.quantidade)},
             select:{estoque:true},
           })
           await tx.produto.update({where:{id:item.produtoId},
