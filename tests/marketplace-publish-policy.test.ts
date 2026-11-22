@@ -11,6 +11,8 @@ test('saldo positivo publica no ERP; zero despublica',()=>{
 test('ML pausado pelo vendedor nao pode ser reativado por sync automatica',()=>{
  assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['paused_by_seller'],quantity:0}).action,'none')
  assert.equal(decideMercadoLivreListing(4,{status:'paused',quantity:4}).action,'none')
+ assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['out_of_stock'],quantity:0}).action,'update-stock-and-activate')
+ assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['paused_by_seller','out_of_stock'],quantity:0}).action,'none')
 })
 test('escritas nos marketplaces dependem de opt-in explicito',()=>{
  assert.equal(stockWritesEnabled(undefined),false)
