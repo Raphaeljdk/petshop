@@ -26,7 +26,8 @@ export function quantityToPublishFromHub(product: Pick<HubStockSnapshot,'estoque
 export function hubChangeNeedsMarketplaceSync(before: HubStockSnapshot, after: HubStockSnapshot): boolean {
   const linked=Boolean(after.mlItemId||after.amazonAsin)
   if(!linked)return false
-  return quantityToPublishFromHub(before)!==quantityToPublishFromHub(after)
+  return before.ativo!==after.ativo
+    ||quantityToPublishFromHub(before)!==quantityToPublishFromHub(after)
     ||before.mlItemId!==after.mlItemId ||before.amazonAsin!==after.amazonAsin
     ||before.sku!==after.sku
 }
