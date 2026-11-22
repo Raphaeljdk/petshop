@@ -559,13 +559,12 @@
     inset: 0;
     background: linear-gradient(90deg, #071f3ab8 0%, #071f3a4d 48%, transparent 78%);
   }
+  /* A loja já possui cabeçalho e navegação fixos. Filtros não devem entrar por trás deles. */
   .store-toolbar {
-    position: sticky;
-    top: 8.75rem;
-    z-index: 20;
+    position: relative;
+    z-index: 0;
     box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(14px);
-    background: color-mix(in srgb, var(--card) 94%, transparent);
+    background: var(--card);
   }
   .product-card-v2 {
     border-color: color-mix(in srgb, var(--border) 82%, transparent);
@@ -623,7 +622,6 @@
   }
 }
 @media (max-width: 639px) {
-  .store-toolbar { top: 7.7rem; }
   .store-promo-slide::after { background: linear-gradient(0deg, #071f3acc 0%, #071f3a33 72%, transparent 100%); }
   .admin-product-list-row [data-slot='card-content'] { grid-template-columns: auto minmax(0, 1fr); }
 }
@@ -635,23 +633,17 @@
 .floating-cart-dock {
   position: fixed;
   z-index: 45;
-  top: calc(5rem + env(safe-area-inset-top, 0px));
+  top: auto;
+  bottom: 1.25rem;
   right: 1.25rem;
-  bottom: auto;
+  width: min(21rem, calc(100vw - 2.5rem));
 }
 .store-promo-carousel:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
 .store-promo-carousel, .product-gallery { touch-action: pan-y pinch-zoom; }
 #catalogo-loja { scroll-margin-top: 10rem; }
 @media (max-width: 767px) {
-  .floating-cart-dock {
-    top: calc(4.75rem + env(safe-area-inset-top, 0px));
-    left: auto;
-    right: .75rem;
-    bottom: auto;
-    width: min(20rem, calc(100vw - 1.5rem));
-  }
-  .floating-cart-button { min-width: 0; padding-inline: .75rem; }
-  .store-toolbar { top: 4.5rem; }
+  /* No celular o carrinho destacado permanece no cabeçalho para não cobrir o WhatsApp móvel e a barra inferior. */
+  .floating-cart-dock { display: none; }
   #catalogo-loja { scroll-margin-top: 5rem; }
 }
 .boutique-section { position: relative; isolation: isolate; overflow: clip; background: radial-gradient(ellipse at 10% 8%, #ffedd599, transparent 40%), radial-gradient(ellipse at 95% 25%, #ccfbf155, transparent 35%), var(--background); }
