@@ -22,6 +22,17 @@
 - Catálogos ML/Amazon importados continuam registrando quantidades anunciadas como referência, mas novos produtos entram com estoque físico 0 e ocultos até conferência.
 - Conferência física não reativa automaticamente produtos anteriormente ocultos. O administrador deverá publicar expressamente.
 
+## Regra final — Hub é o estoque principal
+
+- **Hub → ML/Amazon**: ao alterar a quantidade no cadastro do Hub, o `PUT /api/produtos/[id]` salva o estoque físico e tenta enviar a quantidade aos anúncios vinculados, quando as escritas estiverem liberadas. O retorno diferencia saldo salvo, envio submetido e pendências por canal.
+- Cada solicitação tenta sincronizar **somente o produto alterado**. A verificação periódica de 30 minutos continua como reconciliação e importação de pedidos; não lê estoque remoto como fonte de saldo físico.
+- Ao desativar um produto no Hub, a quantidade publicada passa a **zero**. Quando for reativado explicitamente, o sistema pode solicitar a ativação do anúncio pausado do Mercado Livre (sem contornar moderação, estado encerrado ou inconsistências de SKU).
+- Produtos ocultos **não são reativados só porque o estoque aumentou**. Adicionar estoque em um item descontinuado não o publica.
+- SKUs presentes em múltiplos cadastros são bloqueados para envio automático até conciliação das identidades e da quantidade física única. A mesma regra vale para edições manuais e o cron.
+- A Amazon confirma inicialmente apenas o recebimento da solicitação de atualização, não a publicação definitiva. A equipe deve conferir retorno assíncrono e saldo efetivamente anunciado.
+- A chave `MARKETPLACE_STOCK_WRITES_ENABLED=true` libera o envio automático **somente depois da homologação dos vínculos e estoques**. Enquanto ausente, o Hub salva os valores, mas responde `suspended`; não apresentar como sincronizado.
+- A interface do Hub apresenta o status do envio (submetido, suspenso ou com divergência), sem tratar o sucesso do banco local como prova de atualização nos marketplaces.
+
 ## Ações operacionais urgentes após publicar a contenção
 1. Exportar os atuais SKUs, estoque físico conferido, quantidades e status de anúncios de ambos os marketplaces. **Não somar os estoques de cada canal.**
 2. Revisar anúncios com saldo físico zero e quantidade anunciada positiva: pausar/zerar MANUALMENTE no Mercado Livre e na Amazon. A trava evita novas escritas, mas não corrige anúncios já ativos.
