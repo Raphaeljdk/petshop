@@ -38,12 +38,15 @@ export async function syncLocalStockToMarketplaces(
 ):Promise<InventorySyncResult>{
   // O estoque físico único e o SKU do ERP determinam a publicação na vitrine.
   // As quantidades observadas em ML/Amazon não se somam ao estoque físico.
+  // Conferir duplicidade contra TODOS os produtos cadastrados no Hub,
+  // inclusive espelhos sem anúncio vinculado. Limitar a busca a anúncios
+  // fazia um SKU duplicado parecer único e liberava uma escrita insegura.
   const all=await db.produto.findMany({
-    where:{OR:[{mlItemId:{not:null}},{amazonAsin:{not:null}}]},
     select:{id:true,nome:true,categoria:true,sku:true,ativo:true,estoque:true,
       estoqueIlimitado:true,mlItemId:true,amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true},
   })
-  const products=all.filter(p=>!isServiceProduct(p))
+  const physical=all.filter(p=>!isServiceProduct(p))
+  const products=physical.filter(p=>Boolean(p.mlItemId||p.amazonAsin))
   const selected=options.productIds
     ?products.filter(p=>options.productIds!.includes(p.id))
     :products
@@ -57,9 +60,11 @@ export async function syncLocalStockToMarketplaces(
   const errors:string[]=[]
   let mercadoLivreUpdated=0,mercadoLivreActivated=0,amazonUpdated=0,blockedListings=0
   const mlCounts=new Map<string,number>()
+  const asinCounts=new Map<string,number>()
   const skuStocks=new Map<string,Set<number>>()
   const skuCounts=new Map<string,number>()
-  for(const product of products){
+  for(const product of physical){
+    if(product.amazonAsin)asinCounts.set(product.amazonAsin,(asinCounts.get(product.amazonAsin)||0)+1)
     if(product.mlItemId)mlCounts.set(product.mlItemId,(mlCounts.get(product.mlItemId)||0)+1)
     const sku=codigoCompartilhado(product.sku)
     if(sku){const vals=skuStocks.get(sku)||new Set<number>()
@@ -218,7 +223,18 @@ export async function syncLocalStockToMarketplaces(
     }
 
     if(product.amazonAsin){
-      if(!product.sku){
+      if((asinCounts.get(product.amazonAsin)||0)>1){
+        const key='asin:'+product.amazonAsin
+        if(!issuesAlreadyReported.has(key)){
+          const msg='Amazon ASIN '+product.amazonAsin+' está vinculado a '+
+            asinCounts.get(product.amazonAsin)+' cadastros no Hub; conferir Seller SKU e variante antes do envio.'
+          errors.push(msg)
+          issuesAlreadyReported.add(key)
+          await putIssue('amazon',product.sku||product.amazonAsin,product.id,product.nome,
+            msg,'variant_mapping').catch(console.error)
+        }
+        blockedListings++
+      }else if(!product.sku){
         errors.push(product.nome+' / Amazon: SKU ausente; estoque não enviado.')
       }else if(quantity!==safeStock(product.estoqueAmazon)){
         const issueId='amazon:'+product.sku
