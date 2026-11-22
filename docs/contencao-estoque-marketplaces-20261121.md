@@ -28,6 +28,8 @@
 - Cada solicitação tenta sincronizar **somente o produto alterado**. A verificação periódica de 30 minutos continua como reconciliação e importação de pedidos; não lê estoque remoto como fonte de saldo físico.
 - Ao desativar um produto no Hub, a quantidade publicada passa a **zero**. Quando for reativado explicitamente, o sistema pode solicitar a ativação do anúncio pausado do Mercado Livre (sem contornar moderação, estado encerrado ou inconsistências de SKU).
 - Produtos ocultos **não são reativados só porque o estoque aumentou**. Adicionar estoque em um item descontinuado não o publica.
+- Produto **ativo** que fica sem estoque permanece ativo no cadastro, mas indisponível para vendas com saldo zero; ao receber novas unidades no Hub, volta a enviar a quantidade. No Mercado Livre, a reativação automática só é permitida quando o anúncio estava pausado **exclusivamente por falta de estoque**; pausa feita pelo vendedor continua exigindo comando explícito.
+- A consulta à página do catálogo não altera estoques. Os registros de estoque usados na loja refletem o Hub, não somas de ML/Amazon.
 - SKUs presentes em múltiplos cadastros são bloqueados para envio automático até conciliação das identidades e da quantidade física única. A mesma regra vale para edições manuais e o cron.
 - A Amazon confirma inicialmente apenas o recebimento da solicitação de atualização, não a publicação definitiva. A equipe deve conferir retorno assíncrono e saldo efetivamente anunciado.
 - A chave `MARKETPLACE_STOCK_WRITES_ENABLED=true` libera o envio automático **somente depois da homologação dos vínculos e estoques**. Enquanto ausente, o Hub salva os valores, mas responde `suspended`; não apresentar como sincronizado.
