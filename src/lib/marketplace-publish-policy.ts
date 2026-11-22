@@ -21,7 +21,8 @@ export function shouldPublishLocalStock(stock: number, hasMarketplaceLink: boole
 }
 export type MlListingAction = 'none'|'update-stock'|'activate'|'update-stock-and-activate'|'blocked'
 
-export function decideMercadoLivreListing(stock: number, listing: MarketplaceListingSnapshot): {
+export function decideMercadoLivreListing(stock: number, listing: MarketplaceListingSnapshot,
+  options: { explicitAdminActivation?: boolean } = {}): {
   action: MlListingAction
   reason?: string
 } {
@@ -43,9 +44,10 @@ export function decideMercadoLivreListing(stock: number, listing: MarketplaceLis
     return {action:status==='active'&&quantityNeedsUpdate?'update-stock':'none'}
   }
   if (status==='paused') {
-    // Nunca reativar um anúncio pausado pelo vendedor sem comando explícito.
-    // Nem o botão genérico "Sincronizar agora" equivale à autorização de reativar.
-    // Reposição futura exige confirmação do SKU, estoque físico e publicação.
+    // O cron nunca reativa anúncios pausados. O único caminho permitido
+    // é o gestor ativar EXPLICITAMENTE o produto no Hub.
+    if(options.explicitAdminActivation && qty > 0)
+      return { action:quantityNeedsUpdate?'update-stock-and-activate':'activate' }
     return {action:'none'}
   }
   return {action:quantityNeedsUpdate?'update-stock':'none'}
