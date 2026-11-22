@@ -34,7 +34,7 @@ function issueType(error:unknown){
 }
 
 export async function syncLocalStockToMarketplaces(
-  options:{force?:boolean; productIds?:string[]}={}
+  options:{force?:boolean; productIds?:string[]; explicitlyPublishIds?:string[]}={}
 ):Promise<InventorySyncResult>{
   // O estoque físico único e o SKU do ERP determinam a publicação na vitrine.
   // As quantidades observadas em ML/Amazon não se somam ao estoque físico.
@@ -167,7 +167,9 @@ export async function syncLocalStockToMarketplaces(
             'O anúncio pertence a outra conta vendedora. Conferir vínculo e vendedor na integração.','permission')
             .catch(console.error)
         }else{
-          const decision=decideMercadoLivreListing(quantity,remote)
+          const decision=decideMercadoLivreListing(quantity,remote,{
+            explicitAdminActivation:options.explicitlyPublishIds?.includes(product.id)===true,
+          })
           if(decision.action==='blocked'){
             blockedListings++
             await putIssue('mercadolivre',id,product.id,product.nome,
