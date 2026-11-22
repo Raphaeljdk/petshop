@@ -91,7 +91,10 @@ export async function PUT(
       marketplaceSync: { status: 'suspended',
         reason:'Estoque salvo no Hub. Envio ML/Amazon suspenso até conciliação de SKUs e liberação segura.' } })
     try {
-      const result=await syncLocalStockToMarketplaces({productIds:[produto.id]})
+      const result=await syncLocalStockToMarketplaces({
+        productIds:[produto.id],
+        explicitlyPublishIds:!produtoExistente.ativo&&produto.ativo?[produto.id]:[],
+      })
       return NextResponse.json({ ...produto, marketplaceSync: {
         status:result.errors.length||result.blockedListings?'attention':'submitted',
         mercadoLivreUpdated:result.mercadoLivreUpdated,amazonUpdated:result.amazonUpdated,
