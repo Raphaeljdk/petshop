@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { updateGiftRedemption } from '@/lib/portal-gift-credit'
 import { awardReferralForPaidSale } from '@/lib/portal-referral-awards'
 import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
+import { creditReleasedReservation } from '@/lib/sale-stock-policy'
 
 export type PaymentSalePatch = {
   mercadoPagoId?: string | null
@@ -50,7 +51,7 @@ export async function applyPaymentSaleState(
           if(item.produto?.estoqueIlimitado)continue
           const produto = await tx.produto.update({
             where: { id: item.produtoId },
-            data: { estoque: { increment: item.quantidade } },
+            data: { estoque: creditReleasedReservation(item.quantidade) },
             select: { estoque: true },
           })
           await tx.produto.update({
