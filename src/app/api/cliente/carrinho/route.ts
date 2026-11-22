@@ -8,7 +8,6 @@ import {
   melhorEnvioDefaultPackage,
 } from '@/lib/melhor-envio'
 import { emitWebSocket } from '@/lib/realtime'
-import { getZettaProduct, zettaProductPrice, zettaProductStock } from '@/lib/zetta-products'
 import {
   calcularComissaoCupom,
   CupomValidationError,
@@ -18,6 +17,8 @@ import { officialStockFromSources } from '@/lib/product-stock'
 import { reserveGiftCredit,GiftCreditError,moneyCents } from '@/lib/portal-gift-credit'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 import { awardReferralBySale } from '@/lib/portal-referral-awards'
+import { debitForSale } from '@/lib/sale-stock-policy'
+import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
 
 class CheckoutError extends Error {
   constructor(
@@ -175,46 +176,8 @@ export async function POST(req: NextRequest) {
           throw new CheckoutError('Produto não encontrado ou indisponível.', 404)
         }
 
-        if (produto.zettaProCod) {
-          let official
-          try {
-            official = await getZettaProduct(produto.zettaProCod)
-          } catch (error) {
-            console.error('[checkout] falha ao validar produto no Zetta:', error)
-            throw new CheckoutError(
-              `Não foi possível validar o estoque de ${produto.nome} no ERP. Tente novamente em instantes.`,
-              503
-            )
-          }
-
-          if (official.excluido) {
-            throw new CheckoutError(`${produto.nome} não está mais disponível.`)
-          }
-
-          const estoque = zettaProductStock(official)
-          const precoUnit = zettaProductPrice(official)
-
-          if (precoUnit <= 0) {
-            throw new CheckoutError(
-              `${produto.nome} está sem preço válido no ERP. A compra foi bloqueada.`
-            )
-          }
-
-          if (!produto.estoqueIlimitado && estoque < item.quantidade) {
-            throw new CheckoutError(
-              `Estoque insuficiente para ${official.nome || produto.nome}. Disponível: ${estoque}.`
-            )
-          }
-
-          return {
-            produtoId: produto.id,
-            quantidade: item.quantidade,
-            precoUnit,
-            estoqueConfirmado: estoque,
-            zettaProCod: produto.zettaProCod,
-          }
-        }
-
+        // O Hub Matilha Prado é a única fonte de estoque e preço operacional.
+        // Nunca consultar Zetta/Siggma no checkout nem repor cache importado.
         const estoqueDisponivel = officialStockFromSources(produto)
         if (!produto.estoqueIlimitado && estoqueDisponivel < item.quantidade) {
           throw new CheckoutError(
@@ -227,20 +190,9 @@ export async function POST(req: NextRequest) {
           quantidade: item.quantidade,
           precoUnit: produto.precoPromo ?? produto.preco,
           estoqueConfirmado: estoqueDisponivel,
-          zettaProCod: null,
         }
       })
     )
-
-    const temProdutoZetta = itensValidados.some((item) => item.zettaProCod)
-    const temProdutoLocal = itensValidados.some((item) => !item.zettaProCod)
-
-    if (temProdutoZetta && temProdutoLocal) {
-      throw new CheckoutError(
-        'Para manter estoque e faturamento consistentes, finalize produtos do Siggma e produtos locais em compras separadas.',
-        409
-      )
-    }
 
     // ---------- Venda ----------
     const venda = await db.$transaction(async (tx) => {
@@ -265,39 +217,21 @@ export async function POST(req: NextRequest) {
           throw new CheckoutError('Produto não encontrado ou inativo.')
         }
 
-        // Produto local continua usando controle transacional no Neon.
-        if (!item.zettaProCod) {
-          if (!produto.estoqueIlimitado) {
-            const estoqueDisponivel = officialStockFromSources(produto)
-            if (estoqueDisponivel < item.quantidade) {
-              throw new CheckoutError(
-                `Estoque insuficiente para ${produto.nome}. Disponível: ${estoqueDisponivel}.`
-              )
-            }
-
-            const usaHubComoFonte = produto.estoqueHub > 0
-
-            await tx.produto.update({
-              where: { id: item.produtoId },
-              data: {
-                estoque: estoqueDisponivel - item.quantidade,
-                ...(usaHubComoFonte
-                  ? { estoqueHub: produto.estoqueHub - item.quantidade }
-                  : {}),
-              },
-            })
-          }
-        } else {
-          // Mantém o cache local alinhado ao que acabou de ser lido do ERP.
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: {
-              preco: item.precoUnit,
-              estoque: item.estoqueConfirmado,
-              estoqueZetta: item.estoqueConfirmado,
-              precoPromo: null,
-            },
+        // Todos os produtos físicos, inclusive cadastros legados Zetta,
+        // consomem o saldo ÚNICO do Hub. Uma venda equivale a uma baixa (-Q).
+        if(!produto.estoqueIlimitado){
+          const baixou=await tx.produto.updateMany({
+            where:{id:item.produtoId,ativo:true,estoque:{gte:item.quantidade}},
+            data:{estoque:debitForSale(item.quantidade)},
           })
+          if(baixou.count!==1)
+            throw new CheckoutError('Estoque insuficiente ou alterado para '+produto.nome+
+              '. Atualize o carrinho e tente novamente.',409)
+          const atualizado=await tx.produto.findUniqueOrThrow({
+            where:{id:item.produtoId},select:{estoque:true},
+          })
+          await tx.produto.update({where:{id:item.produtoId},
+            data:{estoqueHub:atualizado.estoque}})
         }
 
         subtotal += item.precoUnit * item.quantidade
@@ -387,6 +321,9 @@ export async function POST(req: NextRequest) {
       try {await ensureFiscalDraftForSale(venda.id)}
       catch(err){console.error('[checkout] rascunho fiscal do vale-presente:',err)}
     }
+    const movimentados=[...new Set(venda.itens
+      .filter((item)=>!item.produto.estoqueIlimitado).map((item)=>item.produtoId))]
+    const marketplaceSync=await syncStockAfterHubWrite(movimentados)
     await emitWebSocket('venda:nova', {
       id: venda.id,
       total: venda.total,
@@ -399,6 +336,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ...venda,
+        marketplaceSync,
         createdAt: venda.createdAt.toISOString(),
         updatedAt: venda.updatedAt.toISOString(),
         cliente: venda.cliente
