@@ -4,6 +4,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { emitWebSocket } from '@/lib/realtime'
 import { officialStockFromSources } from '@/lib/product-stock'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
+import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
 
 const STATUS_VALIDOS = new Set(['concluida', 'pendente', 'cancelada'])
 const CANAIS_VALIDOS = new Set(['loja', 'site', 'mercado_livre', 'amazon'])
@@ -177,7 +178,10 @@ export async function POST(req: NextRequest) {
       canal: venda.canal,
     })
 
-    return NextResponse.json(venda, { status: 201 })
+    const changedIds=statusFinal!=='cancelada'
+      ?[...new Set(venda.itens.filter(item=>!item.produto.estoqueIlimitado).map(item=>item.produtoId))]:[]
+    const marketplaceSync=await syncStockAfterHubWrite(changedIds)
+    return NextResponse.json({...venda,marketplaceSync}, { status: 201 })
   } catch (e) {
     console.error('vendas POST erro:', e)
     return NextResponse.json(
