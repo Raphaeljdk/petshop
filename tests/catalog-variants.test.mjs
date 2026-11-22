@@ -264,7 +264,7 @@ test('estoque físico do ERP é pré-requisito, não autorização automática p
 
 test('ML: anuncio pausado nao pode ser reativado por cron ou sincronizacao generica',()=>{
   assert.equal(decideMercadoLivreListing(3,{status:'paused',subStatus:['paused_by_seller'],quantity:3}).action,'none')
-  assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['out_of_stock'],quantity:0}).action,'none')
+  assert.equal(decideMercadoLivreListing(4,{status:'paused',subStatus:['out_of_stock'],quantity:0}).action,'update-stock-and-activate')
   assert.equal(decideMercadoLivreListing(0,{status:'paused',quantity:0}).action,'none')
   assert.equal(decideMercadoLivreListing(0,{status:'active',quantity:3}).action,'update-stock')
 })
