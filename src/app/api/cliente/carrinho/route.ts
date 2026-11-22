@@ -168,7 +168,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ---------- Validação final de preço e estoque ----------
-    // Produtos vinculados ao ERP nunca confiam no cache local antes da cobrança.
+    // Produtos e preços são validados no Hub Matilha Prado antes da reserva;
+    // a transação confirma o saldo novamente para impedir concorrência.
     const itensValidados = await Promise.all(
       itens.map(async (item) => {
         const produto = byId.get(item.produtoId)
