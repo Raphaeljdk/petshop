@@ -36,6 +36,7 @@ import type {
 import { toast } from 'sonner'
 import { groupMarketplaceListings } from '@/lib/product-variants'
 import { Input } from '@/components/ui/input'
+import { SkuReconciliationAudit } from './SkuReconciliationAudit'
 
 type EstadoIntegracoes = {
   pagamento: ConfiguracaoPagamento | null
@@ -108,6 +109,7 @@ type AmazonItems = {
 }
 type AutoSyncState={
   enabled:boolean
+  stockWritesEnabled:boolean
   intervalMinutes:number
   status:{
     status:string
@@ -421,7 +423,7 @@ export function IntegracoesView() {
         `Mercado Livre sincronizado: ${data.created || 0} novo(s) e ${data.updated || 0} atualizado(s).`
       )
       if (data.created) {
-        toast.info('Os produtos novos com estoque físico disponível entram na vitrine; sem saldo confirmado, ficam ocultos.')
+        toast.info('Produtos importados ficam ocultos até conferência do estoque físico e publicação manual.')
       }
       setMlRefresh((value) => value + 1)
       setMercadoLivre((current) =>
@@ -453,7 +455,7 @@ export function IntegracoesView() {
     const quantity=Number(raw)
     if(!window.confirm(
       'Confirma que conferiu o estoque físico de '+product.nome+' e há '+quantity+
-      ' unidade(s) disponíveis? A vitrine será '+(quantity>0?'publicada.':'ocultada.')
+      ' unidade(s) disponíveis? A vitrine será '+(quantity===0?'ocultada.':'mantida no estado atual, sem reativação.')
     ))return
     setStockSaving(true)
     try{
@@ -467,7 +469,7 @@ export function IntegracoesView() {
       })
       const data=await response.json().catch(()=>null)
       if(!response.ok)throw new Error(data?.error||'Não foi possível confirmar o estoque.')
-      toast.success('Estoque físico registrado: '+quantity+' unidade(s). A vitrine foi ajustada; o Mercado Livre será atualizado quando autorizado.')
+      toast.success('Estoque físico registrado: '+quantity+' unidade(s). A publicação manual foi preservada; confirme o anúncio no Mercado Livre separadamente.')
       setStockSelected(null);setStockDraft('')
       setMlRefresh(v=>v+1)
     }catch(error){
@@ -613,7 +615,7 @@ export function IntegracoesView() {
       }else if(data.imported||data.mercadoLivreUpdated||data.amazonUpdated){
         toast.success((data.imported||0)+' pedido(s) importado(s); '+(data.mercadoLivreUpdated||0)+
           ' anúncios ML e '+(data.amazonUpdated||0)+' anúncios Amazon atualizados/enviados.')
-      }else toast.info('Nenhum ajuste de estoque necessário nesta execução.')
+      }else toast.info('Consulta de vendas concluída. Escritas de estoque permanecem suspensas quando a proteção estiver ativa.')
       await loadAutoSync()
       setMlRefresh(v=>v+1);setAmazonRefresh(v=>v+1)
     } catch(error){
@@ -642,7 +644,7 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              Sincronização automática a cada 30 minutos: produtos com estoque no ERP são publicados na vitrine e anúncios elegíveis do Mercado Livre são reativados. Sem estoque, permanecem ocultos ou pausados. Bloqueios e permissões do canal são respeitados.
+              A cada 30 minutos o Hub consulta novas vendas dos marketplaces. Atualizações de estoque e reativação automática de anúncios estão suspensas por segurança até a conferência do estoque físico e dos SKUs duplicados.
             </p>
             <Button
               type="button"
@@ -653,9 +655,14 @@ export function IntegracoesView() {
               disabled={marketplaceSalesSyncing}
             >
               <RefreshCw className={`size-4 ${marketplaceSalesSyncing ? 'animate-spin' : ''}`} />
-              {marketplaceSalesSyncing ? 'Sincronizando...' : 'Sincronizar agora'}
+              {marketplaceSalesSyncing ? 'Sincronizando...' : 'Consultar novas vendas agora'}
             </Button>
             <div className="mt-3 space-y-2">
+              {autoSync && !autoSync.stockWritesEnabled && <p role="alert" className="rounded-lg border border-amber-400 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
+                Proteção ativa: o sistema não envia quantidades ao Mercado Livre/Amazon nem reativa anúncios automaticamente.
+                Confira e pause manualmente os anúncios que ainda anunciam produtos sem estoque nos marketplaces.
+                Os pedidos continuam sendo importados para o Hub quando identificados com segurança.
+              </p>}
               <p className="text-xs text-blue-800">
                 <strong>Atualização automática: a cada 30 minutos</strong>
                 {autoSync?.status?.lastFinishedAt
@@ -700,6 +707,8 @@ export function IntegracoesView() {
           </div>
         </CardContent>
       </Card>
+
+      <SkuReconciliationAudit />
 
       <Card className={mercadoLivre?.connected ? 'border-green-300' : 'border-amber-300'}>
         <CardHeader>

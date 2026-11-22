@@ -52,7 +52,8 @@ export async function POST() {
         nome: item.title,
         categoria: item.productType || 'Amazon',
       })
-      const estoqueOperacional = existing?.estoque ?? sourceStock
+      // Anúncio não prova estoque físico para novos produtos.
+      const estoqueOperacional = existing?.estoque ?? 0
 
       const marketplaceData = {
         nome: item.title,
@@ -83,7 +84,7 @@ export async function POST() {
             ...marketplaceData,
             descricao: null,
             precoPromo: null,
-            estoqueHub: sourceStock,
+            estoqueHub: 0,
             estoqueZetta: 0,
             estoqueMercadoLivre: 0,
             estoqueAmazon: sourceStock,

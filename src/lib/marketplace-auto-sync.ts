@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { syncMarketplaceSalesToLocal } from '@/lib/marketplace-sync'
 import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
+import { stockWritesEnabled } from '@/lib/marketplace-stock-safety'
 
 // A rotina nao usa estoques externos como saldos fisicos.
 // Primeiro importa pedidos pagos, depois distribui o saldo do ERP.
@@ -27,7 +28,17 @@ export async function runMarketplacesSync(options: { force?: boolean } = {}) {
   if(!acquired.count)return {ok:true,busy:true,status:await marketplaceSyncStatus()}
   try{
     const sales=await syncMarketplaceSalesToLocal()
-    const stock=await syncLocalStockToMarketplaces({force:options.force})
+    // Segurança: após divergências no estoque, NÃO escrever quantidades nos canais
+    // nem reativar anúncios com base no ERP até haver conferência e opt-in explícito.
+    // A importação de pedidos permanece ativa para não perder baixas legítimas.
+    const stock=stockWritesEnabled()
+      ?await syncLocalStockToMarketplaces({force:options.force})
+      :{
+        products:0,mercadoLivreUpdated:0,mercadoLivreActivated:0,amazonUpdated:0,
+        localPublished:0,localHidden:0,skippedUnlinked:0,blockedListings:0,
+        restockNotifications:{configured:false,sent:0,pending:0,errors:[] as string[]},
+        errors:[] as string[],
+      }
     const errors=[
       ...(sales.mercadoLivreError?['Mercado Livre pedidos: '+sales.mercadoLivreError]:[]),
       ...(sales.amazonError?['Amazon pedidos: '+sales.amazonError]:[]),
@@ -47,7 +58,7 @@ export async function runMarketplacesSync(options: { force?: boolean } = {}) {
       lastBlockedListings:stock.blockedListings,lastAmazonUpdated:amazon,lastSalesImported:imported,
       lastErrors:errors.slice(0,25).join('\n').slice(0,5000)||null,
     }})
-    return {ok:errors.length===0,busy:false,
+    return {ok:errors.length===0,busy:false,stockWritesEnabled:stockWritesEnabled(),
       checked:{mercadoLivre:sales.mercadoLivre?.checked||0,amazon:sales.amazon?.checked||0},
       imported,mercadoLivreUpdated:ml,mercadoLivreActivated:stock.mercadoLivreActivated,
       localPublished:stock.localPublished,localHidden:stock.localHidden,

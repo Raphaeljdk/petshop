@@ -61,7 +61,8 @@ export async function POST() {
         nome: item.title,
         categoria: item.categoryId ? categories.get(item.categoryId) || 'Mercado Livre' : 'Mercado Livre',
       })
-      const estoqueOperacional = existing?.estoque ?? sourceStock
+      // Anúncio não prova estoque físico para novos produtos.
+      const estoqueOperacional = existing?.estoque ?? 0
 
       const marketplaceData = {
         nome: item.title,
@@ -95,7 +96,7 @@ export async function POST() {
             ...marketplaceData,
             descricao: null,
             precoPromo: null,
-            estoqueHub: sourceStock,
+            estoqueHub: 0,
             estoqueZetta: 0,
             estoqueMercadoLivre: sourceStock,
             estoqueAmazon: 0,
@@ -103,7 +104,7 @@ export async function POST() {
             amazonAsin: null,
             // Itens novos com estoque válido já entram disponíveis na
             // vitrine. O cron revê essa regra a cada 30 minutos.
-            ativo: sourceStock > 0,
+            ativo: false,
           },
         })
         created += 1

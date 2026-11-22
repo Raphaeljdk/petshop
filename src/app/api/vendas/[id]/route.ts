@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
-import { officialStockFromSources } from '@/lib/product-stock'
+import { inventoryActionForSaleStatus,canDeleteSaleWithoutLosingStockHistory } from '@/lib/sale-stock-policy'
+import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
+import { creditReleasedReservation } from '@/lib/sale-stock-policy'
 
 const STATUS_VALIDOS = new Set(['concluida', 'pendente', 'cancelada'])
 const CANAIS_VALIDOS = new Set(['loja', 'site', 'mercado_livre', 'amazon'])
 
-function deveRestaurarHub(produto: {
-  estoqueHub: number
-  mlItemId: string | null
-  amazonAsin: string | null
-}) {
-  return (
-    produto.estoqueHub > 0 ||
-    (!produto.mlItemId && !produto.amazonAsin)
-  )
-}
 
 export async function PATCH(
   req: NextRequest,
@@ -46,7 +38,7 @@ export async function PATCH(
     }
 
     const venda = await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`venda-status:${id}`}))`
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sale:${id}`}))`
 
       const atual = await tx.venda.findUnique({
         where: { id },
@@ -55,76 +47,48 @@ export async function PATCH(
 
       if (!atual) return null
 
-      const statusAtual = String(atual.status)
-      const proximoStatus = status ?? statusAtual
-      const estavaReservando = statusAtual !== 'cancelada'
-      const vaiReservar = proximoStatus !== 'cancelada'
-
-      if (estavaReservando && !vaiReservar) {
-        // Cancelar devolve apenas o que esta venda local reservou.
-        for (const item of atual.itens) {
-          const produto = item.produto
-          if (!produto || produto.estoqueIlimitado || produto.zettaProCod) continue
-
-          const restaurarHub = deveRestaurarHub(produto)
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: {
-              estoque: { increment: item.quantidade },
-              ...(restaurarHub
-                ? { estoqueHub: { increment: item.quantidade } }
-                : {}),
-            },
+      const statusAtual=String(atual.status)
+      const proximoStatus=status ?? statusAtual
+      const movimento=inventoryActionForSaleStatus(statusAtual,proximoStatus)
+      if(movimento==='manual-review')
+        throw new Error('Uma venda cancelada não pode ser reaberta automaticamente. Crie uma nova venda após conferir o estoque físico.')
+      if(movimento==='release-reservation'){
+        // Venda pendente apenas reservou unidades, sem saída física: devolver ao Hub.
+        // NUNCA condicionar o espelho do Hub a saldo anterior positivo.
+        for(const item of atual.itens){
+          if(!item.produto || item.produto.estoqueIlimitado)continue
+          const atualizado=await tx.produto.update({
+            where:{id:item.produtoId},
+            data:{estoque:creditReleasedReservation(item.quantidade)},
+            select:{estoque:true},
           })
-        }
-      } else if (!estavaReservando && vaiReservar) {
-        // Reabrir uma venda cancelada volta a reservar estoque.
-        for (const item of atual.itens) {
-          const produto = item.produto
-          if (!produto || produto.estoqueIlimitado) continue
-          if (produto.zettaProCod) {
-            throw new Error(
-              `A venda contém ${produto.nome}, controlado pelo Zetta. Reabra a venda pelo fluxo oficial do ERP.`
-            )
-          }
-
-          const disponivel = officialStockFromSources(produto)
-          if (disponivel < item.quantidade) {
-            throw new Error(
-              `Estoque insuficiente para reabrir a venda de ${produto.nome}. Disponível: ${disponivel}.`
-            )
-          }
-
-          const usaHubComoFonte = produto.estoqueHub > 0
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: {
-              estoque: disponivel - item.quantidade,
-              ...(usaHubComoFonte
-                ? { estoqueHub: produto.estoqueHub - item.quantidade }
-                : {}),
-            },
-          })
+          await tx.produto.update({where:{id:item.produtoId},
+            data:{estoqueHub:atualizado.estoque}})
         }
       }
+      // Cancelamento de venda concluída NÃO significa mercadoria devolvida.
+      // Repor apenas por conferência física no cadastro do Hub.
 
       const dados: any = {}
       if (status !== undefined) dados.status = status
       if (observacoes !== undefined) dados.observacoes = observacoes
       if (canal !== undefined) dados.canal = canal
 
-      return tx.venda.update({
+      const updated=await tx.venda.update({
         where: { id },
         data: dados,
         include: { cliente: true, itens: { include: { produto: true } } },
       })
+      return {updated,produtoIds:movimento==='release-reservation'
+        ?[...new Set(atual.itens.filter(item=>!item.produto?.estoqueIlimitado).map(item=>item.produtoId))]:[]}
     })
 
     if (!venda) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    return NextResponse.json(venda)
+    const sync=await syncStockAfterHubWrite(venda.produtoIds)
+    return NextResponse.json({...venda.updated,marketplaceSync:sync})
   } catch (e) {
     console.error('venda PATCH erro:', e)
     return NextResponse.json(
@@ -149,44 +113,37 @@ export async function DELETE(
 
     const { id } = await params
 
-    const deleted = await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`venda-delete:${id}`}))`
-
-      const vendaExistente = await tx.venda.findUnique({
-        where: { id },
-        include: { itens: { include: { produto: true } } },
-      })
-      if (!vendaExistente) return false
-
-      // Se a venda já estava cancelada, o estoque já foi devolvido. Não
-      // restaura novamente ao excluir, evitando inflação de saldo.
-      if (vendaExistente.status !== 'cancelada') {
-        for (const item of vendaExistente.itens) {
-          const produto = item.produto
-          if (!produto || produto.estoqueIlimitado || produto.zettaProCod) continue
-
-          const restaurarHub = deveRestaurarHub(produto)
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: {
-              estoque: { increment: item.quantidade },
-              ...(restaurarHub
-                ? { estoqueHub: { increment: item.quantidade } }
-                : {}),
-            },
+    const deleted=await db.$transaction(async (tx)=>{
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sale:${id}`}))`
+      const venda=await tx.venda.findUnique({where:{id},
+        include:{itens:{include:{produto:true}}}})
+      if(!venda)return {status:'missing' as const,produtoIds:[] as string[]}
+      if(!canDeleteSaleWithoutLosingStockHistory(venda))
+        return {status:'blocked' as const,produtoIds:[] as string[]}
+      const produtoIds:string[]=[]
+      if(venda.status==='pendente'){
+        // Liberação de reserva de venda pendente; concluídas jamais são deletadas.
+        for(const item of venda.itens){
+          if(!item.produto||item.produto.estoqueIlimitado)continue
+          const atualizado=await tx.produto.update({
+            where:{id:item.produtoId},
+            data:{estoque:creditReleasedReservation(item.quantidade)},
+            select:{estoque:true},
           })
+          await tx.produto.update({where:{id:item.produtoId},
+            data:{estoqueHub:atualizado.estoque}})
+          produtoIds.push(item.produtoId)
         }
       }
-
-      await tx.venda.delete({ where: { id } })
-      return true
+      await tx.venda.delete({where:{id}})
+      return {status:'deleted' as const,produtoIds:[...new Set(produtoIds)]}
     })
-
-    if (!deleted) {
-      return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true })
+    if(deleted.status==='missing')
+      return NextResponse.json({error:'Venda não encontrada'},{status:404})
+    if(deleted.status==='blocked')
+      return NextResponse.json({error:'Vendas concluídas ou importadas de marketplaces não podem ser excluídas: preserve o histórico. Para devoluções, confira o produto no Hub.'},{status:409})
+    const sync=await syncStockAfterHubWrite(deleted.produtoIds)
+    return NextResponse.json({success:true,marketplaceSync:sync})
   } catch (e) {
     console.error('venda DELETE erro:', e)
     return NextResponse.json(

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { isUnlimitedBathProduct } from '@/lib/product-stock'
+import { hubChangeNeedsMarketplaceSync, stockWritesEnabled } from '@/lib/marketplace-stock-safety'
+import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
+
+export const runtime = 'nodejs'
+export const maxDuration = 120
 
 export async function PUT(
   req: NextRequest,
@@ -77,7 +82,32 @@ export async function PUT(
       data: dados,
     })
 
-    return NextResponse.json(produto)
+    // O Hub sempre salva primeiro. O retorno distingue "salvo no Hub"
+    // de "confirmado nos canais" para não prometer uma sincronização que falhou.
+    const needsSync=hubChangeNeedsMarketplaceSync(produtoExistente,produto)
+    if(!needsSync) return NextResponse.json({ ...produto,
+      marketplaceSync: { status: 'unchanged' } })
+    if(!stockWritesEnabled()) return NextResponse.json({ ...produto,
+      marketplaceSync: { status: 'suspended',
+        reason:'Estoque salvo no Hub. Envio ML/Amazon suspenso até conciliação de SKUs e liberação segura.' } })
+    try {
+      const result=await syncLocalStockToMarketplaces({
+        productIds:[produto.id],force:true,
+        explicitlyPublishIds:!produtoExistente.ativo&&produto.ativo?[produto.id]:[],
+      })
+      return NextResponse.json({ ...produto, marketplaceSync: {
+        status:result.errors.length||result.blockedListings?'attention':
+          result.mercadoLivreUpdated+result.amazonUpdated+result.mercadoLivreActivated>0
+            ?'submitted':'unchanged',
+        mercadoLivreUpdated:result.mercadoLivreUpdated,amazonUpdated:result.amazonUpdated,
+        blockedListings:result.blockedListings,errors:result.errors,
+      } })
+    } catch(syncError) {
+      console.error('[hub] saldo salvo, envio aos marketplaces falhou:',syncError)
+      return NextResponse.json({ ...produto, marketplaceSync: {
+        status:'attention', errors:['Estoque salvo no Hub, mas a atualização dos canais falhou. Verificar pendências.'],
+      } })
+    }
   } catch (e) {
     console.error('produto PUT erro:', e)
     return NextResponse.json({ error: 'Erro ao atualizar produto' }, { status: 500 })

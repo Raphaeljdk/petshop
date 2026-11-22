@@ -21,7 +21,8 @@ export function shouldPublishLocalStock(stock: number, hasMarketplaceLink: boole
 }
 export type MlListingAction = 'none'|'update-stock'|'activate'|'update-stock-and-activate'|'blocked'
 
-export function decideMercadoLivreListing(stock: number, listing: MarketplaceListingSnapshot): {
+export function decideMercadoLivreListing(stock: number, listing: MarketplaceListingSnapshot,
+  options: { explicitAdminActivation?: boolean } = {}): {
   action: MlListingAction
   reason?: string
 } {
@@ -43,9 +44,14 @@ export function decideMercadoLivreListing(stock: number, listing: MarketplaceLis
     return {action:status==='active'&&quantityNeedsUpdate?'update-stock':'none'}
   }
   if (status==='paused') {
-    // Pausa simples (sem moderação) pode ser reativada por solicitação do lojista.
-    // Para pausado por falta de saldo, restaure primeiro a quantidade.
-    return {action:quantityNeedsUpdate?'update-stock-and-activate':'activate'}
+    // O cron nunca reativa anúncios pausados. O único caminho permitido
+    // é o gestor ativar EXPLICITAMENTE o produto no Hub.
+    // Reposição automática só quando o canal identifica falta de estoque
+    // (não uma pausa manual do vendedor). O Hub deve manter o produto ativo.
+    const pausedForStockout=substatus.includes('out_of_stock')&&!substatus.includes('paused_by_seller')
+    if((options.explicitAdminActivation || pausedForStockout) && qty > 0)
+      return { action:quantityNeedsUpdate?'update-stock-and-activate':'activate' }
+    return {action:'none'}
   }
   return {action:quantityNeedsUpdate?'update-stock':'none'}
 }

@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getClienteLogado } from '@/lib/auth-helpers'
 import { experienceError } from '@/lib/customer-experience'
-import {
-  getZettaProduct,
-  zettaProductPrice,
-  zettaProductStock,
-} from '@/lib/zetta-products'
 import { officialStockFromSources } from '@/lib/product-stock'
 
 export async function GET(req: NextRequest) {
@@ -38,29 +33,12 @@ export async function GET(req: NextRequest) {
     const results = await Promise.all(
       [...grouped.values()].map(async ({ produto, quantidade }) => {
         if (!produto.ativo) return { skipped: `${produto.nome}: indisponível.` }
-        let current = produto
-        if (produto.zettaProCod) {
-          try {
-            const official = await getZettaProduct(produto.zettaProCod)
-            if (official.excluido || official.inativo)
-              return { skipped: `${produto.nome}: indisponível.` }
-            current = {
-              ...produto,
-              preco: zettaProductPrice(official),
-              precoPromo: null,
-              estoque: zettaProductStock(official),
-            }
-          } catch {
-            return {
-              skipped: `${produto.nome}: estoque não confirmado no momento.`,
-            }
-          }
-        }
-        const estoqueDisponivel = current.estoqueIlimitado
+        // Produtos antigos importados também usam exclusivamente o estoque
+        // e o preço atuais no Hub Matilha Prado, sem reimportar números do Zetta.
+        const current=produto
+        const estoqueDisponivel=current.estoqueIlimitado
           ? quantidade
-          : produto.zettaProCod
-            ? current.estoque
-            : officialStockFromSources(current)
+          : officialStockFromSources(current)
         const qty = current.estoqueIlimitado
           ? quantidade
           : Math.min(quantidade, estoqueDisponivel)

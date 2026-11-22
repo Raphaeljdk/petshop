@@ -51,7 +51,7 @@ export async function POST(req:NextRequest) {
   const verifiedMlId=String(data.mlItemId)
   const product=await db.produto.findUnique({where:{id:data.productId},
     select:{id:true,nome:true,categoria:true,estoqueIlimitado:true,mlItemId:true,
-      estoque:true,estoqueMercadoLivre:true}})
+      estoque:true,estoqueMercadoLivre:true,ativo:true}})
   if(!product||product.mlItemId!==data.mlItemId||isServiceProduct(product))
     return NextResponse.json({error:'Produto físico não encontrado ou vínculo alterado.'},{status:404})
   if(product.estoque!==expectedQty)
@@ -60,7 +60,9 @@ export async function POST(req:NextRequest) {
     const result=await db.$transaction(async tx=>{
       const updated=await tx.produto.updateMany({
         where:{id:product.id,estoque:expectedQty,mlItemId:verifiedMlId},
-        data:{estoque:verifiedQty,estoqueHub:verifiedQty,ativo:verifiedQty>0},
+        data:{estoque:verifiedQty,estoqueHub:verifiedQty,
+          // Conferência não é permissão para reativar produto descontinuado.
+          ativo:verifiedQty>0?product.ativo:false},
       })
       if(!updated.count) return null
       await tx.marketplaceStockConfirmation.create({data:{
@@ -68,7 +70,7 @@ export async function POST(req:NextRequest) {
         previousStock:product.estoque,confirmedStock:verifiedQty,
         marketplaceStockSeen:product.estoqueMercadoLivre,
       }})
-      return {productId:product.id,stock:verifiedQty,published:verifiedQty>0}
+      return {productId:product.id,stock:verifiedQty,published:verifiedQty>0&&product.ativo}
     })
     if(!result)return NextResponse.json({error:'O estoque foi alterado por outra operação. Atualize a lista.'},{status:409})
     return NextResponse.json({success:true,...result},

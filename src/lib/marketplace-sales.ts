@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 import { pickMarketplaceProduct } from '@/lib/marketplace-product-match'
+import { debitForSale } from '@/lib/sale-stock-policy'
 
 export type MarketplaceChannel = 'mercadolivre' | 'amazon'
 export type MarketplaceSaleItem = {
@@ -104,7 +105,7 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
       // O saldo não pode ficar negativo; a divergência é sinalizada ao operador.
       const update = await tx.produto.updateMany({
         where: { id, estoque: { gte: quantidade } },
-        data: { estoque: { decrement: quantidade } },
+        data: { estoque: debitForSale(quantidade) },
       })
       if (!update.count) {
         await tx.produto.update({ where: { id }, data: { estoque: 0, estoqueHub: 0 } })

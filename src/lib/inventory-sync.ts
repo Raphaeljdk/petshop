@@ -1,11 +1,12 @@
 import { db } from '@/lib/db'
+import { quantityToPublishFromHub } from '@/lib/marketplace-stock-safety'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
 import { mercadoLivreItemsByIds, mercadoLivreUpdateListingStatus, mercadoLivreUpdateStock } from '@/lib/mercado-livre-items'
 import { amazonUpdateListingQuantity, AmazonSpApiError } from '@/lib/amazon-sp-api'
 import { isServiceProduct, safeStock } from '@/lib/product-stock'
 import { codigoCompartilhado } from '@/lib/product-sku-groups'
 import { notifyRestockSubscribers } from '@/lib/restock-notifications'
-import { decideMercadoLivreListing,shouldPublishLocalStock } from '@/lib/marketplace-publish-policy'
+import { decideMercadoLivreListing } from '@/lib/marketplace-publish-policy'
 
 export type InventorySyncResult = {
   products:number
@@ -33,38 +34,48 @@ function issueType(error:unknown){
 }
 
 export async function syncLocalStockToMarketplaces(
-  options:{force?:boolean}={}
+  options:{force?:boolean; productIds?:string[]; explicitlyPublishIds?:string[]}={}
 ):Promise<InventorySyncResult>{
   // O estoque físico único e o SKU do ERP determinam a publicação na vitrine.
   // As quantidades observadas em ML/Amazon não se somam ao estoque físico.
+  // Conferir duplicidade contra TODOS os produtos cadastrados no Hub,
+  // inclusive espelhos sem anúncio vinculado. Limitar a busca a anúncios
+  // fazia um SKU duplicado parecer único e liberava uma escrita insegura.
   const all=await db.produto.findMany({
-    where:{OR:[{mlItemId:{not:null}},{amazonAsin:{not:null}}]},
     select:{id:true,nome:true,categoria:true,sku:true,ativo:true,estoque:true,
       estoqueIlimitado:true,mlItemId:true,amazonAsin:true,estoqueMercadoLivre:true,estoqueAmazon:true},
   })
-  const products=all.filter(p=>!isServiceProduct(p))
-  const publish=products.filter(p=>shouldPublishLocalStock(p.estoque,true)&&!p.ativo)
-  const hide=products.filter(p=>!shouldPublishLocalStock(p.estoque,true)&&p.ativo)
-  const localPublished=publish.length?(await db.produto.updateMany({
-    where:{id:{in:publish.map(p=>p.id)},ativo:false,estoque:{gt:0}},data:{ativo:true},
-  })).count:0
-  const localHidden=hide.length?(await db.produto.updateMany({
-    where:{id:{in:hide.map(p=>p.id)},ativo:true,estoque:{lte:0}},data:{ativo:false},
-  })).count:0
+  const physical=all.filter(p=>!isServiceProduct(p))
+  const products=physical.filter(p=>Boolean(p.mlItemId||p.amazonAsin))
+  const selected=options.productIds
+    ?products.filter(p=>options.productIds!.includes(p.id))
+    :products
+  // "ativo" representa permissão de publicação controlada pelo gestor.
+  // Estoque zero torna o produto indisponível, mas NÃO muda essa preferência.
+  // Assim, reabastecer pelo Hub restaura a quantidade dos produtos autorizados,
+  // sem reativar os itens descontinuados manualmente.
+  const localPublished=0
+  const localHidden=0
 
   const errors:string[]=[]
   let mercadoLivreUpdated=0,mercadoLivreActivated=0,amazonUpdated=0,blockedListings=0
   const mlCounts=new Map<string,number>()
+  const asinCounts=new Map<string,number>()
   const skuStocks=new Map<string,Set<number>>()
-  for(const product of products){
+  const skuCounts=new Map<string,number>()
+  for(const product of physical){
+    if(product.amazonAsin)asinCounts.set(product.amazonAsin,(asinCounts.get(product.amazonAsin)||0)+1)
     if(product.mlItemId)mlCounts.set(product.mlItemId,(mlCounts.get(product.mlItemId)||0)+1)
     const sku=codigoCompartilhado(product.sku)
     if(sku){const vals=skuStocks.get(sku)||new Set<number>()
-      vals.add(safeStock(product.estoque));skuStocks.set(sku,vals)}
+      vals.add(safeStock(product.estoque));skuStocks.set(sku,vals)
+      skuCounts.set(sku,(skuCounts.get(sku)||0)+1)}
   }
   const ambiguousIds=new Set([...mlCounts.entries()].filter(([,n])=>n>1).map(([id])=>id))
   const divergentSkus=new Set([...skuStocks.entries()]
     .filter(([,s])=>s.size>1).map(([sku])=>sku))
+  const duplicatedSkus=new Set([...skuCounts.entries()]
+    .filter(([,count])=>count>1).map(([sku])=>sku))
   const blocked=await db.marketplaceStockIssue.findMany({
     where:{resolvedAt:null,retryAfter:{gt:new Date()}},select:{id:true,category:true},
   })
@@ -92,7 +103,7 @@ export async function syncLocalStockToMarketplaces(
   let mlToken:string|null=null
   let mlSellerId:string|null=null
   let remoteItems=new Map<string,Awaited<ReturnType<typeof mercadoLivreItemsByIds>>[number]>()
-  const mlIds=[...new Set(products.map(p=>p.mlItemId).filter((v):v is string=>Boolean(v)))]
+  const mlIds=[...new Set(selected.map(p=>p.mlItemId).filter((v):v is string=>Boolean(v)))]
   if(mlIds.length){
     try{
       const access=await mercadoLivreAccessToken()
@@ -115,12 +126,16 @@ export async function syncLocalStockToMarketplaces(
   const MAX_STOCK_SYNC_MS=180_000
   const stockStartedAt=Date.now()
   let mlOperations=0
-  for(const product of products){
-    const quantity=safeStock(product.estoque)
+  for(const product of selected){
+    // Hub é a autoridade: produto oculto/descontinuado publica ZERO,
+    // independentemente de saldos físicos ainda registrados.
+    const quantity=quantityToPublishFromHub(product)
     const sku=codigoCompartilhado(product.sku)
-    if(sku&&divergentSkus.has(sku)){
+    if(sku&&duplicatedSkus.has(sku)){
       if(!issuesAlreadyReported.has(sku)){
-        errors.push('SKU '+sku+': há saldos físicos divergentes; requer conferência antes de sincronizar.')
+        errors.push('SKU '+sku+': '+skuCounts.get(sku)+' cadastros espelhados'+
+          (divergentSkus.has(sku)?' com saldos divergentes':'')+
+          '. Conferir vínculo e estoque único antes de enviar alterações aos canais.')
         issuesAlreadyReported.add(sku)
       }
       blockedListings++
@@ -156,12 +171,20 @@ export async function syncLocalStockToMarketplaces(
             'O anúncio pertence a outra conta vendedora. Conferir vínculo e vendedor na integração.','permission')
             .catch(console.error)
         }else{
-          const decision=decideMercadoLivreListing(quantity,remote)
+          const decision=decideMercadoLivreListing(quantity,remote,{
+            explicitAdminActivation:options.explicitlyPublishIds?.includes(product.id)===true,
+          })
           if(decision.action==='blocked'){
             blockedListings++
             await putIssue('mercadolivre',id,product.id,product.nome,
               decision.reason||'Estado do anúncio não permite atualização automática.','blocked_status')
               .catch(console.error)
+          }else if(decision.action==='none'&&String(remote.status).toLowerCase()==='paused'&&
+            remote.quantity!==quantity){
+            blockedListings++
+            const msg='Anúncio pausado: estoque salvo no Hub, mas a quantidade no Mercado Livre não foi alterada. Reative explicitamente no Hub quando a publicação for permitida.'
+            if(!issuesAlreadyReported.has(id)){ errors.push(product.nome+' / Mercado Livre: '+msg);issuesAlreadyReported.add(id) }
+            await putIssue('mercadolivre',id,product.id,product.nome,msg,'blocked_status').catch(console.error)
           }else if(decision.action!=='none'&&
             (mlOperations>=MAX_ML_OPERATIONS||Date.now()-stockStartedAt>MAX_STOCK_SYNC_MS)){
             blockedListings++
@@ -200,7 +223,18 @@ export async function syncLocalStockToMarketplaces(
     }
 
     if(product.amazonAsin){
-      if(!product.sku){
+      if((asinCounts.get(product.amazonAsin)||0)>1){
+        const key='asin:'+product.amazonAsin
+        if(!issuesAlreadyReported.has(key)){
+          const msg='Amazon ASIN '+product.amazonAsin+' está vinculado a '+
+            asinCounts.get(product.amazonAsin)+' cadastros no Hub; conferir Seller SKU e variante antes do envio.'
+          errors.push(msg)
+          issuesAlreadyReported.add(key)
+          await putIssue('amazon',product.sku||product.amazonAsin,product.id,product.nome,
+            msg,'variant_mapping').catch(console.error)
+        }
+        blockedListings++
+      }else if(!product.sku){
         errors.push(product.nome+' / Amazon: SKU ausente; estoque não enviado.')
       }else if(quantity!==safeStock(product.estoqueAmazon)){
         const issueId='amazon:'+product.sku
@@ -235,7 +269,7 @@ export async function syncLocalStockToMarketplaces(
     :{configured:false,sent:0,pending:0,errors:[] as string[]}
 
   return {
-    products:products.length,mercadoLivreUpdated,mercadoLivreActivated,amazonUpdated,
+    products:selected.length,mercadoLivreUpdated,mercadoLivreActivated,amazonUpdated,
     localPublished,localHidden,skippedUnlinked:0,
     blockedListings,restockNotifications,
     errors:[...errors,...restockNotifications.errors].slice(0,50),
