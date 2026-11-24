@@ -78,10 +78,12 @@ export async function dispatchNfeEmails(){
    const nome=nota.venda.cliente?.nome?.trim()||'cliente'
    const chave=nota.chaveAcesso as string
    const xml=nota.xmlAutorizado as string
+   const {gerarDanfePdfAutorizado}=await import('@/lib/nfe-danfe-pdf')
+   const danfe=gerarDanfePdfAutorizado(nota)
    const emailBody='Olá, '+nome+'!\n\nSua NF-e da Matilha Prado foi autorizada pela SEFAZ.'+
     '\nNúmero: '+(nota.numero??'')+' | Série: '+(nota.serie??'')+
     '\nChave de acesso: '+chave+
-    '\n\nO XML autorizado está anexado a este e-mail. Guarde o documento para seus registros.'+
+    '\n\nO XML autorizado e o DANFE em PDF estão anexados a este e-mail. Guarde os documentos para seus registros.'+
     '\n\nEquipe Matilha Prado'
    const response=await fetch('https://api.resend.com/emails',{
     method:'POST',
@@ -92,6 +94,8 @@ export async function dispatchNfeEmails(){
      text:emailBody,...(cfg.replyTo?{reply_to:cfg.replyTo}:{}),
      attachments:[{
       filename:'NFe-'+chave+'.xml',content:Buffer.from(xml,'utf8').toString('base64'),
+     },{
+      filename:'DANFE-'+chave+'.pdf',content:danfe.toString('base64'),
      }],
     }),
     signal:AbortSignal.timeout(12000),
