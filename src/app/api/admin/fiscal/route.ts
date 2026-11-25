@@ -6,6 +6,8 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 
+import { intervaloFiscal, periodoFiscal } from '@/lib/fiscal-periodo'
+
 export const dynamic = 'force-dynamic'
 
 async function authorize() {
@@ -16,10 +18,12 @@ async function authorize() {
 }
 
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const denied = await authorize()
   if (denied) return denied
   try {
+    const periodo = periodoFiscal(req.nextUrl.searchParams.get('periodo'))
+    const intervalo = intervaloFiscal(periodo)
     const [config, notas, vendas, produtosAtivos, produtosSemClassificacao] = await Promise.all([
       db.configuracaoFiscal.findUnique({ where: { id: 'matilha-prado' } }),
       db.notaFiscal.findMany({
@@ -33,7 +37,8 @@ export async function GET() {
         },
       }),
       db.venda.findMany({
-        orderBy: { createdAt: 'desc' }, take: 150,
+        where: intervalo ? { createdAt: intervalo } : undefined,
+        orderBy: { createdAt: 'desc' }, ...(intervalo ? {} : {take:150}),
         select: {
           id: true, total: true, canal: true, status: true,
           marketplaceOrderId: true, marketplaceBuyerName: true, mercadoPagoStatus: true,
