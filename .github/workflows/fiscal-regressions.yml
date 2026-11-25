@@ -1,0 +1,16 @@
+name: Fiscal regressions
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  fiscal:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://user:pass@127.0.0.1:5432/matilha
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun test tests/fiscal-periodo.test.ts tests/nfe-real-liberacao.test.ts
