@@ -150,6 +150,7 @@ export function FiscalView() {
   const [copiandoResumo,setCopiandoResumo] = useState<string|null>(null)
   const [gerandoPrevia,setGerandoPrevia] = useState<string|null>(null)
   const [montandoNfe,setMontandoNfe] = useState<string|null>(null)
+  const [periodoVenda,setPeriodoVenda] = useState<'hoje'|'semana'|'mes'|'todas'>('hoje')
   const [buscaVenda, setBuscaVenda] = useState('')
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -160,14 +161,15 @@ export function FiscalView() {
   const [editandoAnuncioOriginal, setEditandoAnuncioOriginal] = useState(false)
 
   const carregar = useCallback(async () => {
+    setLoading(true)
     try {
-      const result = await jsonRes(await fetch('/api/admin/fiscal', { cache: 'no-store' })) as FiscalData
+      const result = await jsonRes(await fetch('/api/admin/fiscal?periodo='+periodoVenda, { cache: 'no-store' })) as FiscalData
       setData(result)
       setConfig(camposEditaveisEmitente({ ...EMPTY, ...(result.config || {}) }) as Config)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao carregar fiscal.')
     } finally { setLoading(false) }
-  }, [])
+  }, [periodoVenda])
 
   const carregarProdutos = useCallback(async (page: number, busca: string, filtro: FiltroFiscal) => {
     try {
@@ -511,6 +513,10 @@ export function FiscalView() {
             <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
             <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. O ERP só poderá transmitir NF-e quando implementarmos o XML oficial completo, assinatura digital, consulta e aprovação da contabilidade.</p>
             <p className="mt-1">Gerar XML de prévia baixa um documento interno de pendências. Montar NF-e 55 abre o novo formulário para gerar um rascunho com a estrutura nacional XML 4.00 apenas em homologação, restrito a algumas operações do Simples Nacional e sem validação XSD 010f ou reforma tributária completa. Nenhum dos dois arquivos é uma NF-e assinada ou autorizada. Evite duplicidades com notas já emitidas nos marketplaces ou Mercado Pago.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Período das vendas">
+            {([['hoje','Hoje'],['semana','Semana'],['mes','Mês'],['todas','Recentes']] as const).map(([p,label])=>
+              <Button key={p} size="sm" variant={periodoVenda===p?'default':'outline'} aria-pressed={periodoVenda===p} onClick={()=>setPeriodoVenda(p)}>{label}</Button>)}
           </div>
           <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
