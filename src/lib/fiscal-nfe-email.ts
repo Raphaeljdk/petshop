@@ -53,7 +53,12 @@ export async function enqueueNfeEmails(){
  return {enfileiradas}
 }
 
-export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=invitationMailConfig()){
+export function configuracaoEmailFiscal(){
+ const mail=invitationMailConfig()
+ const from=process.env.RESEND_FROM_EMAIL?.trim()||mail.from
+ return {...mail,from,configured:Boolean(mail.key&&from)}
+}
+export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=configuracaoEmailFiscal()){
  if(!cfg.configured) return {enviadas:0,erros:0,indisponivel:true}
  const agora=Date.now(), janela=new Date(agora-23*3600_000), espera=new Date(agora-5*60_000)
  const entregas=await db.nfeEmailDelivery.findMany({where:{OR:[

@@ -6,13 +6,13 @@ import { lerA1DeVariaveis } from './sefaz-sp-nfe'
 import { enviarSoapProducao, type ServicoReal } from './sefaz-sp-nfe-homologacao'
 import { consultaReal, exigir, interpretarRetornoReal, inutilizacaoDisponivel, pedidoInutilizacao, retornoInutilizacao, loteCancelamento, montarLoteReal, pedidoCancelamento, retornoCancelamento } from './nfe-real-protocolo'
 import { intermediadorAmazon, carregarLiberacao, carregarOperacao, complementoFiscal, gerarParaVenda, type ComplementoFiscal, type TransacaoFiscal } from './nfe-real-venda'
-import { invitationMailConfig } from './client-invitations'
+import { configuracaoEmailFiscal } from './fiscal-nfe-email'
 import { emailSchema } from './auth-validation'
 
 type Runtime={agora?:()=>Date;amazon:typeof intermediadorAmazon; db:PrismaClient; habilitado:()=>boolean; chaves:(cnpj:string)=>ChavesA1; enviar:(servico:ServicoReal,xml:string)=>Promise<string>}
 export function emissaoAtivaNoServidor(){
  return process.env.VERCEL_ENV==='production'&&process.env.NODE_ENV!=='test'&&process.env.NFE_REAL_HABILITADA==='true'
-  &&process.env.NFE_EMAIL_AUTOMATICO_ENABLED==='true'&&invitationMailConfig().configured
+  &&process.env.NFE_EMAIL_AUTOMATICO_ENABLED==='true'&&configuracaoEmailFiscal().configured
 }
 function credenciais(){
  return lerA1DeVariaveis({SEFAZ_NFE_A1_PFX_BASE64:process.env.SEFAZ_NFE_A1_PFX_BASE64,SEFAZ_NFE_A1_SENHA:process.env.SEFAZ_NFE_A1_SENHA})
