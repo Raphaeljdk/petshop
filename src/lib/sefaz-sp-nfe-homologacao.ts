@@ -14,6 +14,7 @@ const SERVICOS={
  consulta:{url:SEFAZ_SP.homologacao.consulta,ns:NS+'/wsdl/NFeConsultaProtocolo4',acao:'nfeConsultaNF'},
 } as const
 type Operacao=keyof typeof SERVICOS
+export type ServicoReal=Operacao | 'cancelamento' | 'inutilizacao'
 type Credenciais={pfx:Buffer;passphrase:string}
 
 function campoXml(xml:string,tag:string):string|null{
@@ -103,19 +104,33 @@ export function montarLoteHomologacao(xmlAssinado:string,idLote:string):string{
 }
 export function envelopeSoapHomologacao(operacao:Operacao,conteudo:string):string{
  if(Buffer.byteLength(conteudo,'utf8')>550_000)throw Error('Solicitação SEFAZ excede limite.')
- const svc=SERVICOS[operacao]
+ return envelope(SERVICOS[operacao].ns,conteudo)
+}
+function envelope(ns:string,conteudo:string){
  return '<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">'+
-  '<soap12:Body><nfeDadosMsg xmlns="'+svc.ns+'">'+conteudo+
+  '<soap12:Body><nfeDadosMsg xmlns="'+ns+'">'+conteudo+
   '</nfeDadosMsg></soap12:Body></soap12:Envelope>'
 }
 /** Sem rota pública. Evita resposta parcial, HTTPS sem verificação e excesso de dados. */
 export async function enviarSoapHomologacao(operacao:Operacao,xml:string,cred:Credenciais):Promise<string>{
- const svc=SERVICOS[operacao],url=new URL(svc.url)
- const payload=envelopeSoapHomologacao(operacao,xml)
+ return enviarSoap(SERVICOS[operacao],xml,cred,operacao==='autorizacao')
+}
+export function enviarSoapProducao(operacao:ServicoReal,xml:string,cred:Credenciais){
+ if(process.env.VERCEL_ENV!=='production'||process.env.NODE_ENV==='test')throw Error('Transporte real indisponível neste ambiente.')
+ const svc=operacao==='cancelamento'
+  ? {url:'https://nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx',ns:NS+'/wsdl/NFeRecepcaoEvento4',acao:'nfeRecepcaoEvento'}
+  : operacao==='inutilizacao' ? {url:'https://nfe.fazenda.sp.gov.br/ws/nfeinutilizacao4.asmx',ns:NS+'/wsdl/NFeInutilizacao4',acao:'nfeInutilizacaoNF'}
+  : {...SERVICOS[operacao],url:SERVICOS[operacao].url.replace('https://homologacao.','https://')}
+ return enviarSoap(svc,xml,cred,operacao==='autorizacao')
+}
+async function enviarSoap(svc:{url:string;ns:string;acao:string},xml:string,cred:Credenciais,autorizacao:boolean):Promise<string>{
+ if(Buffer.byteLength(xml)>550_000)throw Error('Solicitação SEFAZ excede limite.')
+ const url=new URL(svc.url)
+ const payload=envelope(svc.ns,xml)
  return new Promise<string>((resolve,reject)=>{
   const req=httpsRequest(url,{method:'POST',pfx:cred.pfx,passphrase:cred.passphrase,
    minVersion:'TLSv1.2',maxVersion:'TLSv1.2',servername:url.hostname,
-   ca:[...rootCertificates,ICP_BRASIL_V10],rejectUnauthorized:true,timeout:operacao==='autorizacao'?30_000:20_000,
+   ca:[...rootCertificates,ICP_BRASIL_V10],rejectUnauthorized:true,timeout:autorizacao?30_000:20_000,
    headers:{
     'Content-Type':'application/soap+xml; charset=utf-8; action="'+svc.ns+'/'+svc.acao+'"',
     'Content-Length':String(Buffer.byteLength(payload)),

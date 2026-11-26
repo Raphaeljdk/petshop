@@ -219,6 +219,7 @@ model Venda {
   itens   ItemVenda[]
   reviews ProductReview[]
   notaFiscal NotaFiscal?
+  reservaNfe NfeRealReserva?
   presenteUsado PortalGiftRedemption?
 
   @@index([cupomId])
@@ -578,6 +579,7 @@ model AgendaEvento {
  * Inicialmente apenas revenda interna de SP a consumidor final não contribuinte.
  */
 model RegraFiscalAprovada {
+  aprovacoesProducao NfeRealAprovacao[]
   id String @id @default(cuid())
   ncm String
   cfop String
@@ -1002,4 +1004,93 @@ model ProdutoImagem {
   conteudo  Bytes    @db.ByteA
   tipo      String
   createdAt DateTime @default(now())
+}
+
+model NfeRealSequencia {
+  cnpj String
+  modelo String @default("55")
+  serie Int
+  ambiente Int @default(1)
+  primeiroNumero Int
+  proximoNumero Int
+  referenciaNumeracao String
+  referenciaContabil String
+  referenciaSchema String
+  exclusivo Boolean @default(false)
+  habilitado Boolean @default(false)
+  updatedAt DateTime @default(now())
+  reservas NfeRealReserva[]
+  @@id([cnpj, modelo, serie, ambiente])
+}
+
+model NfeRealReserva {
+  id String @id @default(cuid())
+  vendaId String @unique
+  venda Venda @relation(fields: [vendaId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  cnpj String
+  modelo String @default("55")
+  serie Int
+  numero Int
+  ambiente Int @default(1)
+  sequencia NfeRealSequencia @relation(fields:[cnpj,modelo,serie,ambiente], references:[cnpj,modelo,serie,ambiente],onDelete:Restrict,onUpdate:NoAction)
+  status String @default("reservada")
+  chave String? @unique
+  xmlAssinado String?
+  dadosOperacao Json?
+  emitidaEm DateTime?
+  enviadaEm DateTime?
+  consultaAusenteEm DateTime?
+  recibo String?
+  codigo Int?
+  motivo String?
+  revisao Int @default(0)
+  createdAt DateTime @default(now())
+  historico NfeRealHistorico[]
+  cancelamento NfeRealCancelamento?
+  inutilizacao NfeRealInutilizacao?
+  @@unique([cnpj,modelo,serie,numero,ambiente])
+}
+
+model NfeRealHistorico {
+  id String @id @default(cuid())
+  reservaId String
+  reserva NfeRealReserva @relation(fields:[reservaId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  acao String
+  usuarioId String
+  documento String?
+  createdAt DateTime @default(now())
+  @@index([reservaId,createdAt])
+}
+
+model NfeRealCancelamento {
+  reservaId String @id
+  reserva NfeRealReserva @relation(fields:[reservaId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  xmlPedido String
+  status String
+  protocolo String?
+  xmlProcessado String?
+  motivo String?
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model NfeRealAprovacao {
+  regraId String
+  regra RegraFiscalAprovada @relation(fields:[regraId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  sku String
+  revisaoRegra DateTime
+  baseZeroCst49 Boolean @default(false)
+  referencia String
+  criadaEm DateTime @default(now())
+  @@id([regraId,sku])
+}
+
+model NfeRealInutilizacao {
+  reservaId String @id
+  reserva NfeRealReserva @relation(fields:[reservaId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  xmlPedido String
+  status String
+  protocolo String?
+  xmlProcessado String?
+  motivo String?
+  updatedAt DateTime @default(now()) @updatedAt
 }

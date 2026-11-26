@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { camposEditaveisEmitente } from '@/lib/fiscal-emitente'
 import {mapearConsultaSefaz} from '@/lib/fiscal-diagnostico-sefaz'
+import { NfeRealVenda } from '@/components/admin/NfeRealVenda'
 import { NfeXmlDraftForm } from '@/components/admin/NfeXmlDraftForm'
 import { ConsultaAutomaticaTributaria } from '@/components/admin/ConsultaAutomaticaTributaria'
 import { ImportarFiscalZetta } from '@/components/admin/ImportarFiscalZetta'
@@ -402,7 +403,7 @@ export function FiscalView() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-5 shrink-0"/>
           <div><p className="font-semibold">Central fiscal da Matilha Prado · todos os canais</p>
-            <p className="mt-1 text-sm">Estamos implantando o emissor próprio de NF-e 55 diretamente com a SEFAZ-SP. O teste de serviço não emite nota. O preparo, assinatura A1, validação XSD e transmissão de TESTE foram implementados, mas ainda falta obter uma NF-e própria autorizada e homologar o fluxo completo. O emissor de produção para site e Amazon continua indisponível. O Mercado Livre mantém seu Faturador para evitar notas duplicadas. Serviços e NFC-e exigem módulos específicos.</p>
+            <p className="mt-1 text-sm">Para emitir a NF-e 55, selecione uma venda concluída e abra NF-e própria · série 2. O painel do emitente mostra a conciliação e as aprovações fiscais de produção. Pedidos Amazon exigem conferência do faturador e do intermediador. As vendas do Mercado Livre usam o Faturador da plataforma.</p>
           </div>
         </div>
       </div>
@@ -441,7 +442,7 @@ export function FiscalView() {
       <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Emissor Mercado Pago · fluxo manual sem outro provedor</p>
-          <p className="mt-1 text-xs text-muted-foreground">O A1 já está configurado no Mercado Pago. Use o Sistema de Gestão para emitir notas de vendas ali registradas. Ainda não há API pública de emissão fiscal externa confirmada para pedidos do site/Amazon. O ERP copia os dados do pedido e registra a chave fiscal para conciliação, sem gerar cobrança duplicada.</p>
+          <p className="mt-1 text-xs text-muted-foreground">O A1 já está configurado no Mercado Pago. Use o Sistema de Gestão para emitir notas de vendas ali registradas. Ainda não há API pública de emissão fiscal externa confirmada para pedidos do site/Amazon. O ERP registra a chave emitida para conciliação.</p>
           <p className="mt-1 text-xs text-muted-foreground">Confirme as condições comerciais do Sistema de Gestão na conta: ausência de cobrança por nota não garante isenção da mensalidade.</p>
         </div>
         <Button size="sm" type="button" variant="outline"
@@ -486,7 +487,7 @@ export function FiscalView() {
             recebidos vieram do Pet Moura; as NF-e de marketplace possuem emissores próprios.
             A NFS-e nº 2 de 26/10/2026 foi emitida como teste pela empresa do novo sistema.
             Esses documentos não devem ser reemitidos ou misturados entre modelos e séries.
-            A emissão fiscal própria continua pendente de homologação e aprovação contábil.
+            A emissão própria usa a série 2.
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div><h2 className="font-semibold">Pedidos e emissão centralizada</h2><p className="text-xs text-muted-foreground">Use o teste seguro para identificar pendências antes de emitir em qualquer canal.</p></div>
@@ -511,7 +512,7 @@ export function FiscalView() {
           </div>}
           <div className="rounded-lg border p-3 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">Como emitir as NF-e das vendas do site</p>
-            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. O ERP só poderá transmitir NF-e quando implementarmos o XML oficial completo, assinatura digital, consulta e aprovação da contabilidade.</p>
+            <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. Abra NF-e própria na venda concluída para conferir os dados, reservar e transmitir após a liberação fiscal.</p>
             <p className="mt-1">Gerar XML de prévia baixa um documento interno de pendências. Montar NF-e 55 abre o novo formulário para gerar um rascunho com a estrutura nacional XML 4.00 apenas em homologação, restrito a algumas operações do Simples Nacional e sem validação XSD 010f ou reforma tributária completa. Nenhum dos dois arquivos é uma NF-e assinada ou autorizada. Evite duplicidades com notas já emitidas nos marketplaces ou Mercado Pago.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2" aria-label="Período das vendas">
@@ -573,6 +574,7 @@ export function FiscalView() {
                       </>)}
                     </>)}
                   </div>
+                  {['site','amazon'].includes(v.canal)&&<NfeRealVenda vendaId={v.id} onChange={()=>void carregar()}/>}
                   {montandoNfe===v.id&&<NfeXmlDraftForm vendaId={v.id} onClose={()=>setMontandoNfe(null)}/>}
                   {conciliandoId===v.id&&(
                     <div className="w-full space-y-3 rounded-xl border p-3">
@@ -639,7 +641,7 @@ export function FiscalView() {
                   {data.prontidaoNfeProducao.concluido} de {data.prontidaoNfeProducao.total} verificações concluídas ou pré-configuradas
                 </p>
               </div>
-              <Badge variant="outline" className="text-amber-700 dark:text-amber-300">Emissão própria bloqueada</Badge>
+              <Badge variant="outline" className="text-amber-700 dark:text-amber-300">{data.prontidaoNfeProducao.emissaoRealHabilitada?'Emissor disponível':'Emissão própria bloqueada'}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">{data.prontidaoNfeProducao.aviso}</p>
             <details className="text-sm">
@@ -718,7 +720,7 @@ export function FiscalView() {
               <div><p className="text-sm font-semibold">Preenchimento fiscal do catálogo</p>
                 <p className="text-xs text-muted-foreground">{produtos.indicadores.total} fichas por SKU, de {produtos.indicadores.anuncios ?? 0} anúncios originais · dados do banco</p>
               </div>
-              <Badge variant="outline" className="text-amber-700 dark:text-amber-300">NF-e própria não liberada</Badge>
+              <Badge variant="outline" className="text-amber-700 dark:text-amber-300">{data?.emissaoConfigurada?'Emissor próprio habilitado':'Liberação da série 2 pendente'}</Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {([

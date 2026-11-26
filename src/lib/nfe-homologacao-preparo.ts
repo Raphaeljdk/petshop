@@ -36,7 +36,7 @@ export function prepararPrimeiraHomologacao(input:{
   const observacoes:string[]=[]
   const pendenciasProduto:string[]=[]
   const faltando=(mensagem:string)=>{observacoes.push(mensagem);pendenciasProduto.push(mensagem)}
-  if(!p)faltando('Arm & Hammer Enxágue Dental 473 ml não encontrado no catálogo.')
+  if(!p)faltando('Produto Arm & Hammer Enxágue Dental 473 ml não encontrado no catálogo.')
   else {
     if(p.id!==PRODUTO_TESTE_INICIAL_ID||p.sku!==SKU_TESTE_INICIAL)
       faltando('O produto selecionado não corresponde ao Arm & Hammer Enxágue Dental 473 ml escolhido para o teste.')
@@ -69,7 +69,7 @@ export function prepararPrimeiraHomologacao(input:{
   observacoes.push('A série 2 deve continuar exclusiva do emissor próprio. Conferir o histórico externo antes de reservar numeração real.')
   if(autorizacoesHomologacao===0)
     observacoes.push('Nenhuma NF-e 55 própria autorizada em homologação consta no banco. Preparar, assinar, validar e transmitir o teste para obter cStat 100 e protocolo.')
-  observacoes.push('A1, assinatura XMLDSig, CST 49, XSD e transmissão de TESTE estão implementados. Emissão real em produção, controle idempotente da numeração e DANFE ainda exigem implementação e testes específicos.')
+  observacoes.push('O teste usa assinatura XMLDSig e os valores de CST 49 aprovados para o produto. Confira a liberação das vendas no painel do emitente.')
   observacoes.push('Tributação PIS/COFINS e IBS/CBS deve estar aprovada para cada operação; códigos preenchidos não comprovam cálculo validado.')
   return {
     tipo:'PREPARACAO_NFE_55_HOMOLOGACAO',

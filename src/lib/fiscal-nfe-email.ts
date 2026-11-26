@@ -1,5 +1,6 @@
 import {db} from '@/lib/db'
 import {invitationMailConfig} from '@/lib/client-invitations'
+import {gerarDanfeAutorizado} from './nfe-danfe'
 import {emailSchema} from '@/lib/auth-validation'
 
 /**
@@ -26,16 +27,15 @@ export function nfeRealAutorizadaParaEmail(n:NfeParaEmail):boolean{
  const match=xml.match(/<(?:\w+:)?protNFe\b[^>]*>[\s\S]*?<\/(?:\w+:)?protNFe\s*>/)
  if(!match)return false
  const prot=match[0]
- return tag(prot,'tpAmb')==='1'&&
+ return tag(xml.slice(0,match.index),'tpAmb')==='1'&&tag(prot,'tpAmb')==='1'&&
   ['100','150'].includes(tag(prot,'cStat')||'')&&
   tag(prot,'chNFe')===n.chaveAcesso&&tag(prot,'nProt')===n.protocolo
 }
 
 export async function enqueueNfeEmails(){
- // Segurança: esse emissor de produção ainda NÃO está liberado.
  // Não descobrir notas de outro emissor, mesmo se tiverem XML autorizado.
  const notas=await db.notaFiscal.findMany({where:{
-  modelo:'55',status:'autorizada',emissor:'matilha_prado',
+  modelo:'55',status:'autorizada',emissor:'matilha_prado',entregaEmail:null,
   chaveAcesso:{not:null},protocolo:{not:null},xmlAutorizado:{not:null},
  },select:{
   id:true,modelo:true,status:true,emissor:true,chaveAcesso:true,protocolo:true,xmlAutorizado:true,
@@ -53,18 +53,21 @@ export async function enqueueNfeEmails(){
  return {enfileiradas}
 }
 
-export async function dispatchNfeEmails(){
- const cfg=invitationMailConfig()
+export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=invitationMailConfig()){
  if(!cfg.configured) return {enviadas:0,erros:0,indisponivel:true}
- const entregas=await db.nfeEmailDelivery.findMany({where:{status:'pendente'},
+ const agora=Date.now(), janela=new Date(agora-23*3600_000), espera=new Date(agora-5*60_000)
+ const entregas=await db.nfeEmailDelivery.findMany({where:{OR:[
+  {status:'pendente'}, {status:{in:['enviando','tentar_novamente']},createdAt:{gt:janela},attemptedAt:{lt:espera}},
+ ]},
   orderBy:{createdAt:'asc'},take:20})
  let enviadas=0,erros=0
  for(const entrega of entregas){
   const claimed=await db.nfeEmailDelivery.updateMany({
-   where:{id:entrega.id,status:'pendente'},
+   where:{id:entrega.id,status:entrega.status,attemptedAt:entrega.attemptedAt},
    data:{status:'enviando',attemptedAt:new Date()},
   })
   if(claimed.count!==1)continue
+  let podeRepetir=false
   try{
    const nota=await db.notaFiscal.findUnique({where:{id:entrega.notaFiscalId},select:{
     modelo:true,status:true,emissor:true,chaveAcesso:true,protocolo:true,xmlAutorizado:true,
@@ -81,21 +84,24 @@ export async function dispatchNfeEmails(){
    const emailBody='Olá, '+nome+'!\n\nSua NF-e da Matilha Prado foi autorizada pela SEFAZ.'+
     '\nNúmero: '+(nota.numero??'')+' | Série: '+(nota.serie??'')+
     '\nChave de acesso: '+chave+
-    '\n\nO XML autorizado está anexado a este e-mail. Guarde o documento para seus registros.'+
+    '\n\nO XML autorizado e o DANFE em PDF estão anexados a este e-mail. Guarde o documento para seus registros.'+
     '\n\nEquipe Matilha Prado'
-   const response=await fetch('https://api.resend.com/emails',{
+   const pdf=gerarDanfeAutorizado(xml).toString('base64')
+   podeRepetir=true
+   const response=await enviar('https://api.resend.com/emails',{
     method:'POST',
     headers:{Authorization:'Bearer '+cfg.key,'Content-Type':'application/json',
      'Idempotency-Key':'nfe-autorizada-'+entrega.notaFiscalId},
     body:JSON.stringify({
      from:cfg.from,to:[email.data],subject:'Sua NF-e autorizada | Matilha Prado',
      text:emailBody,...(cfg.replyTo?{reply_to:cfg.replyTo}:{}),
-     attachments:[{
+     attachments:[{filename:'DANFE-'+chave+'.pdf',content:pdf},{
       filename:'NFe-'+chave+'.xml',content:Buffer.from(xml,'utf8').toString('base64'),
      }],
     }),
     signal:AbortSignal.timeout(12000),
    })
+   podeRepetir=response.status>=500||[408,429].includes(response.status)||response.ok
    const resposta=await response.json().catch(()=>null)
    if(!response.ok||typeof resposta?.id!=='string')
     throw Error('Provedor não confirmou o envio HTTP '+response.status)
@@ -104,10 +110,10 @@ export async function dispatchNfeEmails(){
    }})
    enviadas++
   }catch(err){
-   // Sem reenvio automático depois de resposta incerta; revisar no Resend primeiro.
+   // Reutilizar a mesma chave dentro da janela de idempotência do provedor.
    console.error('[nfe-email] envio não confirmado',entrega.id,
     err instanceof Error?err.message:'erro desconhecido')
-   await db.nfeEmailDelivery.update({where:{id:entrega.id},data:{status:'erro'}})
+   await db.nfeEmailDelivery.update({where:{id:entrega.id},data:{status:podeRepetir&&entrega.createdAt>janela?'tentar_novamente':'erro'}})
    erros++
   }
  }

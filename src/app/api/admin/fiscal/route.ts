@@ -1,3 +1,4 @@
+import { situacaoEmissao } from '@/lib/nfe-real-prontidao'
 import { NextRequest, NextResponse } from 'next/server'
 import { configSchema, erroConfigEmitente } from '@/lib/fiscal-emitente'
 import {apuracaoParaRegime} from '@/lib/fiscal-apuracao-simples'
@@ -55,15 +56,15 @@ export async function GET(req: NextRequest) {
       ]}}),
     ])
     const prontidaoNfeProducao = avaliarProntidaoNfeProducao({
-      empresa:config,
+      empresa:config,operacional:await situacaoEmissao(config),
       certificadoRegistrado:!!(process.env.SEFAZ_NFE_A1_PFX_BASE64?.trim() && process.env.SEFAZ_NFE_A1_SENHA),
       produtosAtivos,produtosSemClassificacao,
     })
     return NextResponse.json({
       config, notas, vendas, prontidaoNfeProducao,
-      emissaoConfigurada: false,
+      emissaoConfigurada: prontidaoNfeProducao.emissaoRealHabilitada,
       emissaoMercadoLivreHabilitada: process.env.MERCADO_LIVRE_NFE_EMISSAO_HABILITADA === 'true',
-      emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Site e Amazon seguem aguardando provedor de emissão.',
+      emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Confira a liberação da série 2 no painel do emitente.',
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('fiscal GET', error)

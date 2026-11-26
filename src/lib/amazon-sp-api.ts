@@ -319,7 +319,8 @@ async function amazonRequest<T>(
 
 async function amazonGet<T>(
   pathname: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const config = amazonSpApiConfig()
   const token = await amazonAccessToken()
@@ -330,6 +331,7 @@ async function amazonGet<T>(
   }
 
   const response = await fetch(url, {
+    signal,
     cache: 'no-store',
     headers: {
       'x-amz-access-token': token,
@@ -822,4 +824,18 @@ export async function amazonUpdateListingQuantity(
       marketplaceIds: config.marketplaceId,
     }
   )
+}
+
+export type PedidoAmazonFiscal={
+ orderId?:string; salesChannel?:{marketplaceId?:string};programs?:string[]
+ proceeds?:{grandTotal?:{amount?:string|number;currencyCode?:string}}
+ fulfillment?:{fulfilledBy?:string;fulfillmentStatus?:string}
+ tax?:{taxInvoicing?:{invoiceStatus?:string}}
+}
+export async function pedidoAmazonFiscal(id:string){
+ const config=amazonSpApiConfig()
+ const result=await amazonGet<{order?:PedidoAmazonFiscal}>('/orders/2026-01-01/orders/'+encodeURIComponent(id),{
+  includedData:'FULFILLMENT,TAX,PROCEEDS',
+ },AbortSignal.timeout(12000))
+ return {order:result.order,sellerId:config.sellerId,marketplaceId:config.marketplaceId}
 }

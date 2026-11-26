@@ -5,7 +5,9 @@ const nextConfig = {
   // libxml2-wasm usa node:module e artefatos WASM; não empacotar com webpack.
   serverExternalPackages: ["libxml2-wasm"],
 
-  /* config options here */
+  outputFileTracingIncludes: {
+    '/api/admin/fiscal/**/*': ['./public/fiscal-schemas/*.zip', './node_modules/libxml2-wasm/**/*.wasm'],
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
