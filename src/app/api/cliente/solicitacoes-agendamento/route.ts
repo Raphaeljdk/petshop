@@ -16,6 +16,7 @@ export async function GET() {
         where: { clienteId: user.cliente.id },
         orderBy: { createdAt: 'desc' },
         take: 100,
+        include:{pagamentoVenda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}}},
       }),
     )
   } catch (error) {
@@ -34,9 +35,10 @@ export async function POST(req: NextRequest) {
         service: z.string().trim().min(3).max(120),
         desiredAt: z.string().datetime(),
         notes: z.string().trim().max(1000).optional(),
+        gravataIdeia: z.string().trim().max(400).optional(),
         gravataFoto: z.string().max(400000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/).optional(),
       })
-      .strict()
+      .strict().refine(v=>!v.gravataIdeia||!!v.gravataFoto,'Envie a foto junto da ideia.')
       .parse(await experienceBody(req, 420000))
     const desired = new Date(input.desiredAt)
     if (
@@ -53,7 +55,8 @@ export async function POST(req: NextRequest) {
     if (!pet)
       return NextResponse.json({ error: 'Pet não encontrado' }, { status: 404 })
     const catalogo = await consultarCatalogoPublico(pet.raca, desired)
-    if (!catalogo.servicos.some(s => s.nome === input.service))
+    const servico = catalogo.servicos.find(s => s.nome === input.service)
+    if (!servico)
       return NextResponse.json({ error: 'Serviço indisponível para esta raça, data ou horário. Consulte a equipe pelo WhatsApp.' }, { status: 409 })
     if (input.gravataFoto && !input.service.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('banho'))
       return NextResponse.json({ error: 'A gravata personalizada está disponível nos serviços de banho.' }, { status: 400 })
@@ -69,6 +72,7 @@ export async function POST(req: NextRequest) {
         data: {
           ...input,
           gravataPrecoCentavos: input.gravataFoto ? 500 : 0,
+          servicoPrecoCentavos: servico.precoCentavos,
           desiredAt: desired,
           clienteId: user.cliente!.id,
           petName: pet.nome,
