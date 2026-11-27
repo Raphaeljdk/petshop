@@ -14,6 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
+    const cadastro = await db.cliente.findUnique({ where: { id: cliente.id }, select: { numeroCliente: true } })
     let petsResumo: Array<{
       id: string
       nome: string
@@ -169,6 +170,7 @@ export async function GET() {
 
     return NextResponse.json({
       cliente: {
+        numeroCliente: cadastro?.numeroCliente ?? null,
         nome: cliente.nome,
         telefone: cliente.telefone,
         email: cliente.email,
