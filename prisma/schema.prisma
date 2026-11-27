@@ -428,6 +428,8 @@ model ProductReview {
 
 model BookingRequest {
   id String @id @default(cuid())
+  gravataFoto String? @db.Text
+  gravataPrecoCentavos Int @default(0)
   clienteId String
   petKey String
   petName String
