@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { portalRequest } from './ExperienceProvider'
-import { SERVICOS_ESTETICOS_MATILHA } from '@/lib/agenda-servicos'
+import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { toast } from 'sonner'
 
 export type Booking = {
@@ -21,11 +21,14 @@ export type Booking = {
   cliente?: { nome: string }
 }
 
+type CatalogoDisponivel = { motivo: string | null; servicos: Array<{ chave: string; nome: string; precoCentavos: number; duracaoMinutos: number }> }
+
 type DirectBookingConfig = {
   configured: boolean
   writeConfigured: boolean
   services: Array<{ id: number; nome: string }>
   fallback: string | null
+  catalogo?: CatalogoDisponivel
 }
 
 const dateLabel = (value: string) =>
@@ -48,7 +51,10 @@ export function BookingRequests() {
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [petKey, setPetKey] = useState('')
-  const [service, setService] = useState('Banho')
+  const [service, setService] = useState('')
+  const [catalogo, setCatalogo] = useState<CatalogoDisponivel | null>(null)
+  const [consultando, setConsultando] = useState(false)
+  const [erroCatalogo, setErroCatalogo] = useState('')
   const [serviceId, setServiceId] = useState('')
   const [desired, setDesired] = useState('')
   const [notes, setNotes] = useState('')
@@ -86,6 +92,22 @@ export function BookingRequests() {
     return () => clearInterval(timer)
   }, [load])
 
+  useEffect(() => {
+    let cancelado = false
+    setCatalogo(null); setErroCatalogo(''); setService('')
+    if (!petKey || !desired) { setConsultando(false); return }
+    const quando = new Date(desired + ':00-03:00')
+    if (!Number.isFinite(quando.getTime()) || quando.getTime() <= Date.now()) {
+      setConsultando(false); setErroCatalogo('Escolha uma data futura.'); return
+    }
+    setConsultando(true)
+    portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos?petKey=' + encodeURIComponent(petKey) + '&quando=' + encodeURIComponent(quando.toISOString()))
+      .then(data => { if (!cancelado) setCatalogo(data.catalogo ?? null) })
+      .catch(e => { if (!cancelado) setErroCatalogo(e instanceof Error ? e.message : 'Erro na consulta.') })
+      .finally(() => { if (!cancelado) setConsultando(false) })
+    return () => { cancelado = true }
+  }, [petKey, desired])
+
   if (!ready) return null
 
   const directMode =
@@ -95,6 +117,11 @@ export function BookingRequests() {
     .filter(item => item.petId === petKey && item.status === 'concluido' && item.servico.trim())
     .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
     .map(item => item.servico.trim()))).slice(0, 4)
+
+  const disponiveis = catalogo?.servicos ?? []
+  const selecionado = disponiveis.find(s => s.nome === service)
+  const whatsapp = matilhaWhatsAppUrl('Olá! Gostaria de consultar serviços e horários para ' + (pets.find(p => p.id === petKey)?.nome || 'meu pet') + (desired ? ' em ' + desired.replace('T', ' às ') : '') + '.')
+  const preco = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   return (
     <Card>
@@ -166,7 +193,7 @@ export function BookingRequests() {
               required
               className="mt-1 h-11 w-full rounded-md border bg-background px-3"
               value={petKey}
-              onChange={(e) => setPetKey(e.target.value)}
+              onChange={(e) => { setPetKey(e.target.value); setCatalogo(null); setService('') }}
             >
               <option value="">Selecione seu pet</option>
               {pets.map((p) => (
@@ -191,30 +218,24 @@ export function BookingRequests() {
                 ))}
               </select>
             ) : (
-              <Input
-                id="request-service"
-                required
-                minLength={3}
-                maxLength={120}
-                value={service}
-                list="matilha-servicos-esteticos"
-                placeholder="Selecione uma sugestão ou descreva o cuidado"
-                onChange={(e) => setService(e.target.value)}
-              />
+              <select id="request-service" required disabled={consultando || !disponiveis.length} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
+                <option value="">{consultando ? 'Consultando...' : 'Selecione o serviço'}</option>
+                {disponiveis.map(s => <option value={s.nome} key={s.chave}>{s.nome} · {preco(s.precoCentavos)} · {s.duracaoMinutos} min</option>)}
+              </select>
             )}
             {!directMode && (
               <>
-                <datalist id="matilha-servicos-esteticos">
-                  {SERVICOS_ESTETICOS_MATILHA.map((servico) => <option key={servico} value={servico} />)}
-                </datalist>
+                {selecionado && <p className="mt-1 text-xs text-muted-foreground">Valor: {preco(selecionado.precoCentavos)} · Duração prevista: {selecionado.duracaoMinutos} min.</p>}
+                {(!petKey || !desired) && <p className="mt-1 text-xs text-muted-foreground">Escolha o pet e a data para consultar os serviços.</p>}
+                {erroCatalogo && <p className="mt-1 text-xs text-destructive">{erroCatalogo}</p>}
+                {catalogo && !disponiveis.length && <p className="mt-1 text-xs text-muted-foreground">{catalogo.motivo === 'raca-nao-cadastrada' ? 'A raça não consta na tabela de serviços confirmados.' : 'Não encontramos serviços disponíveis neste horário.'}</p>}
+                {petKey && desired && !consultando && !disponiveis.length && <Button asChild variant="outline" size="sm" className="mt-2"><a href={whatsapp} target="_blank" rel="noopener noreferrer">Consultar pelo WhatsApp</a></Button>}
                 {sugestoesRecentes.length > 0 && <div className="mt-2 space-y-1">
                   <p className="text-xs font-medium">Últimos serviços concluídos deste pet</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {sugestoesRecentes.map(nome => <Button key={nome} type="button" size="sm" variant="outline" disabled={busy} onClick={() => setService(nome)}>{nome}</Button>)}
+                    {sugestoesRecentes.map(nome => <Button key={nome} type="button" size="sm" variant="outline" disabled={busy || !disponiveis.some(s => s.nome === nome)} onClick={() => setService(nome)}>{nome}</Button>)}
                   </div>
-                  <p className="text-xs text-muted-foreground">Selecione para solicitar novamente; a equipe confirma a disponibilidade.</p>
                 </div>}
-                <p className="mt-1 text-xs text-muted-foreground">Sugestões: banho, tosa, hidratação, unhas, subpelos, desembolo e ouvidos. Pode descrever outro cuidado estético.</p>
               </>
             )}
           </div>
@@ -228,7 +249,7 @@ export function BookingRequests() {
               type="datetime-local"
               required
               value={desired}
-              onChange={(e) => setDesired(e.target.value)}
+              onChange={(e) => { setDesired(e.target.value); setCatalogo(null); setService('') }}
             />
           </div>
 
@@ -247,7 +268,7 @@ export function BookingRequests() {
             disabled={
               busy ||
               !pets.length ||
-              (directMode && (!serviceId || !petKey.startsWith('zetta:')))
+              (directMode ? (!serviceId || !petKey.startsWith('zetta:')) : (consultando || !selecionado))
             }
           >
             {busy
