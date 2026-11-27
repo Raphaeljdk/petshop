@@ -1,5 +1,6 @@
 import { SERVICOS_ESTETICOS_MATILHA } from './agenda-servicos'
 import { lerPrecosPorRaca } from './precos-por-raca'
+import { lerGruposPorte, gruposPorteConfirmaveis } from './servicos-grupos-porte'
 
 /**
  * Fonte unica para a configuracao interna. A chave nunca vem de dados de clientes.
@@ -25,6 +26,7 @@ export type ConfiguracaoServico = {
   nome?: string | null
   precoCentavos: number | null
   precosPorRaca?: unknown
+  gruposPorte?: unknown
   duracaoMinutos: number | null
   regrasPreco: string | null
   observacoes: string | null
@@ -55,6 +57,8 @@ export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[])
     ...servico,
     precoCentavos: porChave.get(servico.chave)?.precoCentavos ?? null,
     precosPorRaca: lerPrecosPorRaca(porChave.get(servico.chave)?.precosPorRaca),
+    gruposPorte: lerGruposPorte(porChave.get(servico.chave)?.gruposPorte),
+    gruposConfirmados: Boolean(porChave.get(servico.chave)?.confirmado && gruposPorteConfirmaveis(porChave.get(servico.chave)?.gruposPorte)),
     duracaoMinutos: porChave.get(servico.chave)?.duracaoMinutos ?? null,
     regrasPreco: porChave.get(servico.chave)?.regrasPreco ?? null,
     observacoes: porChave.get(servico.chave)?.observacoes ?? null,
