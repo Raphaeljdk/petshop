@@ -14,13 +14,14 @@ const actions = z.discriminatedUnion('action',[
  z.object({action:z.literal('confirmar-equipe'),extraId:z.string().min(1).max(100),aceitar:z.boolean()}).strict(),
  z.object({action:z.literal('realizar'),extraId:z.string().min(1).max(100)}).strict(),
  z.object({action:z.literal('cobrar'),extraId:z.string().min(1).max(100)}).strict(),
+ z.object({action:z.literal('vincular-agendamento'),bookingId:z.string().min(1).max(100)}).strict(),
 ])
 async function contexto(id:string) {
  const user=await getUsuarioLogado()
  const staff=!!user&&['ADMIN','KANBAN'].includes(user.role)
  if(!user||(!staff&&(user.role!=='CLIENTE'||!user.clienteId)))return null
  const processo=await db.processo.findFirst({where:{id,...(!staff?{pet:{clienteId:user.clienteId!}}:{})},
-  select:{id:true,servico:true,status:true,valorServico:true,pet:{select:{nome:true,raca:true,clienteId:true}},
+  select:{id:true,petId:true,bookingRequestId:true,servico:true,status:true,valorServico:true,pet:{select:{nome:true,raca:true,clienteId:true}},
    ficha:{select:{checkinStatus:true,checkoutFinalizadoAt:true}}}})
  return processo?{user,staff,processo}:null
 }
@@ -31,12 +32,13 @@ export async function GET(_req:NextRequest,{params}:Route) {
  try {
   const {id}=await params;const ctx=await contexto(id)
   if(!ctx)return json({error:'Comanda não encontrada.'},404)
-  const [extras,vendas,catalogo]=await Promise.all([
+  const [extras,vendas,catalogo,solicitacoes]=await Promise.all([
    db.comandaServicoExtra.findMany({where:{processoId:id},include:{venda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}}},orderBy:{createdAt:'asc'}}),
    db.venda.findMany({where:{comandaProcessoId:id,comandaExtra:null},select:{id:true,total:true,status:true,mercadoPagoStatus:true,statusEntrega:true,itens:{select:{quantidade:true,precoUnit:true,produto:{select:{nome:true}}}}},orderBy:{createdAt:'asc'}}),
    aberto(ctx.processo)?consultarCatalogoPublico(ctx.processo.pet.raca,new Date()):Promise.resolve({servicos:[]}),
+   ctx.staff&&!ctx.processo.bookingRequestId&&aberto(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
   ])
-  return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},aberto:aberto(ctx.processo),extras,vendas,servicos:catalogo.servicos})
+  return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},aberto:aberto(ctx.processo),extras,vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
  }catch(e){return experienceError(e)}
 }
 export async function POST(req:NextRequest,{params}:Route) {
@@ -50,9 +52,21 @@ export async function POST(req:NextRequest,{params}:Route) {
   if(input.action==='solicitar'&&!cotacao)return json({error:'Serviço não disponível neste momento para a raça.'},409)
   const result=await db.$transaction(async tx=>{
    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'comanda:'+id}))`
-   const p=await tx.processo.findUnique({where:{id},select:{status:true,pet:{select:{clienteId:true,nome:true}},ficha:{select:{checkinStatus:true,checkoutFinalizadoAt:true}}}})
+   const p=await tx.processo.findUnique({where:{id},select:{status:true,petId:true,bookingRequestId:true,pet:{select:{clienteId:true,nome:true}},ficha:{select:{checkinStatus:true,checkoutFinalizadoAt:true}}}})
    if(!p||(!ctx.staff&&p.pet.clienteId!==ctx.user.clienteId))return {error:'Comanda não encontrada.',status:404}
    if(input.action!=='cobrar'&&!aberto(p))return {error:'Atendimento encerrado.',status:409}
+   if(input.action==='vincular-agendamento'){
+    if(!ctx.staff||p.bookingRequestId)return {error:'Apenas a equipe pode vincular um agendamento ainda não utilizado.',status:409}
+    const booking=await tx.bookingRequest.findFirst({where:{id:input.bookingId,clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null},include:{cliente:{select:{user:{select:{id:true}}}}}})
+    if(!booking)return {error:'Agendamento confirmado não encontrado ou já vinculado.',status:409}
+    await tx.processo.update({where:{id},data:{bookingRequestId:booking.id}})
+    if(booking.gravataFoto&&booking.gravataPrecoCentavos===500){
+     const tutor=booking.cliente.user
+     if(!tutor)throw Error('Conta do tutor indisponível.')
+     await tx.comandaServicoExtra.create({data:{processoId:id,chaveServico:'gravata-personalizada',nome:'Gravata personalizada com foto',precoCentavos:500,duracaoMinutos:0,motivo:'Personalização escolhida no agendamento.',origem:'tutor',status:'autorizado',solicitadoPorId:tutor.id,aceitoPorId:tutor.id,respondidoEm:booking.createdAt,equipePorId:ctx.user.id,equipeEm:new Date()}})
+    }
+    return {ok:true}
+   }
    if(input.action==='solicitar'&&cotacao){
     const duplicado=await tx.comandaServicoExtra.findFirst({where:{processoId:id,chaveServico:cotacao.chave,status:{notIn:['recusado','cancelado','realizado']}}})
     if(duplicado)return {error:'Já existe uma solicitação deste serviço.',status:409}
