@@ -29,7 +29,7 @@ export async function POST(req:NextRequest){
    await tx.bookingRequest.update({where:{id:b.id},data:{pagamentoVendaId:venda.id}})
    return venda
   },{isolationLevel:'Serializable'})
-  if('error'in result)return NextResponse.json({error:result.error},{status:result.status})
+  if('error'in result && typeof result.status==='number')return NextResponse.json({error:result.error},{status:result.status})
   return NextResponse.json(result)
  }catch(e){return experienceError(e)}
 }
