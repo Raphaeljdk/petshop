@@ -72,6 +72,7 @@ export interface CriarOrderInput {
   card?: CardOrderData
   boleto?: BoletoOrderData
   attemptKey?: string
+  singleInvoice?: boolean
 }
 
 export interface OrderPagamentoResultado {
@@ -325,7 +326,7 @@ function simulado(vendaId: string, metodo: CriarOrderInput['metodo']): OrderPaga
 function idempotencyKey(input: CriarOrderInput) {
   return createHash('sha256')
     .update(
-      ['matilha-prado', input.vendaId, input.metodo, input.attemptKey || 'initial'].join(':')
+      ['matilha-prado', input.vendaId, input.singleInvoice?'booking':input.metodo, input.attemptKey || 'initial'].join(':')
     )
     .digest('hex')
 }
