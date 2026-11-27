@@ -39,10 +39,10 @@ export function emailParaEntrega(venda:{canal:string;cliente:{email:string|null}
  return emailSchema.safeParse(email)
 }
 
-export async function enqueueNfeEmails(){
+export async function enqueueNfeEmails(notaFiscalId?:string){
  // Não descobrir notas de outro emissor, mesmo se tiverem XML autorizado.
  const notas=await db.notaFiscal.findMany({where:{
-  modelo:'55',status:'autorizada',emissor:'matilha_prado',entregaEmail:null,
+  ...(notaFiscalId?{id:notaFiscalId}:{}),modelo:'55',status:'autorizada',emissor:'matilha_prado',entregaEmail:null,
   chaveAcesso:{not:null},protocolo:{not:null},xmlAutorizado:{not:null},
  },select:{
   id:true,modelo:true,status:true,emissor:true,chaveAcesso:true,protocolo:true,xmlAutorizado:true,
@@ -132,4 +132,18 @@ export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=configurac
   }
  }
  return {enviadas,erros,indisponivel:false}
+}
+
+/** Independente do cron, mas exige produção e autorização explícita do operador. */
+export function emailFiscalManualHabilitado(env=process.env){
+ return env.VERCEL_ENV==='production'&&env.NODE_ENV!=='test'&&env.NFE_EMAIL_MANUAL_ENABLED==='true'
+}
+export async function enviarEmailFiscalSelecionado(vendaId:string,enviar:typeof fetch=fetch,cfg=configuracaoEmailFiscal()){
+ if(!cfg.configured)throw Error('Configure o envio fiscal no Resend.')
+ const nota=await db.notaFiscal.findUnique({where:{vendaId},include:{entregaEmail:true}})
+ if(!nota||!nfeRealAutorizadaParaEmail(nota))throw Error('NF-e própria autorizada indisponível.')
+ await enqueueNfeEmails(nota.id)
+ const envio=await dispatchNfeEmails(enviar,cfg,nota.id)
+ const entrega=await db.nfeEmailDelivery.findUnique({where:{notaFiscalId:nota.id},select:{status:true,sentAt:true}})
+ return {status:entrega?.status??'sem_destinatario',enviadaEm:entrega?.sentAt??null,enviadas:envio.enviadas}
 }
