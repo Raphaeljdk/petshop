@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CalendarDays, Clock, History, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { CalendarClock, CalendarDays, Clock, History, Plus, RefreshCw, Search, X, Pencil, Trash2 } from 'lucide-react'
 import { addDays, format, isSameDay, parseISO, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -44,6 +44,7 @@ export function AgendamentosView() {
   const [nomeProfissional, setNomeProfissional] = useState('')
   const [especialidadesProfissional, setEspecialidadesProfissional] = useState('')
   const [savingProfessional, setSavingProfessional] = useState(false)
+  const [editingProfessionalId, setEditingProfessionalId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [erroAgenda, setErroAgenda] = useState('')
   const [saving, setSaving] = useState(false)
@@ -181,12 +182,36 @@ export function AgendamentosView() {
     setSavingProfessional(true)
     try {
       await parseResponse(await fetch('/api/agenda/profissionais', {
-        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: nomeProfissional, especialidades: especialidadesProfissional || null }),
+        method: editingProfessionalId ? 'PATCH' : 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(editingProfessionalId ? { id: editingProfessionalId } : {}), nome: nomeProfissional, especialidades: especialidadesProfissional || null }),
       }))
-      toast.success('Profissional cadastrado.')
-      setNomeProfissional(''); setEspecialidadesProfissional(''); await carregar()
+      toast.success(editingProfessionalId ? 'Profissional atualizado.' : 'Profissional cadastrado.')
+      limparEdicaoProfissional(); setCalendarRefresh(n => n + 1); await carregar()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao cadastrar profissional.') }
+    finally { setSavingProfessional(false) }
+  }
+  function limparEdicaoProfissional() {
+    setEditingProfessionalId(null); setNomeProfissional(''); setEspecialidadesProfissional('')
+  }
+  function editarProfissional(profissional: AgendaProfessional) {
+    setEditingProfessionalId(profissional.id)
+    setNomeProfissional(profissional.nome)
+    setEspecialidadesProfissional(profissional.especialidades ?? '')
+    document.getElementById('profissional-nome')?.focus()
+  }
+  async function excluirProfissional(profissional: AgendaProfessional) {
+    if (!window.confirm('Excluir ' + profissional.nome + '? Só é permitido excluir profissionais sem vínculos e sem histórico.')) return
+    setSavingProfessional(true)
+    try {
+      await parseResponse(await fetch('/api/agenda/profissionais', {
+        method: 'DELETE', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: profissional.id }),
+      }))
+      if (editingProfessionalId === profissional.id) limparEdicaoProfissional()
+      toast.success('Profissional excluído.')
+      setCalendarRefresh(n => n + 1)
+      await carregar()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível excluir profissional.') }
     finally { setSavingProfessional(false) }
   }
   async function alternarProfissional(profissional: AgendaProfessional) {
@@ -197,7 +222,7 @@ export function AgendamentosView() {
         body: JSON.stringify({ id: profissional.id, ativo: !profissional.ativo }),
       }))
       toast.success(profissional.ativo ? 'Profissional desativado.' : 'Profissional reativado.')
-      await carregar()
+      setCalendarRefresh(n => n + 1); await carregar()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar profissional.') }
     finally { setSavingProfessional(false) }
   }
@@ -226,22 +251,30 @@ export function AgendamentosView() {
     <div className="grid grid-cols-3 gap-3">
       {[{name:'Hoje',value:todayCount},{name:'Ativos',value:openCount},{name:'Registros',value:total}].map(c=><Card key={c.name}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{c.name}</p><p className="mt-1 text-2xl font-bold">{c.value}</p></CardContent></Card>)}
     </div>
-    <details className="rounded-xl border bg-card p-3 sm:p-4">
-      <summary className="cursor-pointer text-sm font-semibold">Profissionais e agendas individuais ({profissionais.filter(x=>x.ativo).length} ativos)</summary>
+    <section className="rounded-xl border bg-card p-3 sm:p-4" aria-labelledby="agenda-equipe">
+      <h2 id="agenda-equipe" className="text-sm font-semibold">Profissionais e agendas individuais ({profissionais.filter(x=>x.ativo).length} ativos)</h2>
       <p className="mt-2 text-xs text-muted-foreground">Cadastre quem atende banho, tosa e os demais serviços. Agendamentos antigos sem profissional permanecem intactos.</p>
       <form onSubmit={adicionarProfissional} className="mt-3 flex flex-wrap items-end gap-2">
         <div className="min-w-44 flex-1 space-y-1"><Label htmlFor="profissional-nome">Nome *</Label><Input id="profissional-nome" required minLength={2} maxLength={80} value={nomeProfissional} onChange={e=>setNomeProfissional(e.target.value)} placeholder="Nome do profissional"/></div>
         <div className="min-w-44 flex-1 space-y-1"><Label htmlFor="profissional-servicos">Especialidades</Label><Input id="profissional-servicos" maxLength={200} value={especialidadesProfissional} onChange={e=>setEspecialidadesProfissional(e.target.value)} placeholder="Ex.: Banho e tosa"/></div>
-        <Button type="submit" disabled={savingProfessional}>{savingProfessional?'Salvando...':'Adicionar profissional'}</Button>
+        <Button type="submit" disabled={savingProfessional}>{savingProfessional?'Salvando...':editingProfessionalId?'Salvar alterações':'Adicionar profissional'}</Button>
+        {editingProfessionalId && <Button type="button" variant="outline" disabled={savingProfessional} onClick={limparEdicaoProfissional}>Cancelar edição</Button>}
       </form>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {profissionais.map(p=><div key={p.id} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-xs">
-          <span><strong>{p.nome}</strong>{p.especialidades?' · '+p.especialidades:''}{!p.ativo?' (inativo)':''}</span>
-          <Button type="button" size="sm" variant="outline" disabled={savingProfessional} onClick={()=>void alternarProfissional(p)}>{p.ativo?'Desativar':'Reativar'}</Button>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {profissionais.map(p=><div key={p.id} className="flex flex-col gap-3 rounded-lg border bg-background p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0"><p className="break-words text-sm font-semibold">{p.nome}</p><p className="break-words text-xs text-muted-foreground">{p.especialidades || 'Especialidades não informadas'}</p></div>
+            <Badge variant={p.ativo?'default':'secondary'}>{p.ativo?'Ativo':'Inativo'}</Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={savingProfessional} onClick={()=>editarProfissional(p)}><Pencil className="mr-1 size-3.5"/>Editar</Button>
+            <Button type="button" size="sm" variant="outline" disabled={savingProfessional} onClick={()=>void alternarProfissional(p)}>{p.ativo?'Desativar':'Reativar'}</Button>
+            <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={savingProfessional} onClick={()=>void excluirProfissional(p)} aria-label={'Excluir ' + p.nome}><Trash2 className="mr-1 size-3.5"/>Excluir</Button>
+          </div>
         </div>)}
         {!profissionais.length&&<p className="text-xs text-muted-foreground">Nenhum profissional cadastrado ainda.</p>}
       </div>
-    </details>
+    </section>
     <details className="rounded-xl border bg-card p-3 sm:p-4">
       <summary className="cursor-pointer text-sm font-semibold">Horários bloqueados pela equipe ({bloqueios.length})</summary>
       <p className="mt-2 text-xs text-muted-foreground">André e Aleksander gerenciam os bloqueios na agenda operacional. A administração consulta os períodos aqui.</p>
