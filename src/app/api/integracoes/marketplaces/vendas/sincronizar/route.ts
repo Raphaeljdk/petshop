@@ -20,7 +20,7 @@ export async function GET(){
       orderBy:{updatedAt:'desc'},take:12,select:{channel:true,title:true,category:true,
         error:true,retryAfter:true,updatedAt:true}}),
   ])
-  return NextResponse.json({enabled:true,stockWritesEnabled:stockWritesEnabled(),intervalMinutes:30,status,issues},
+  return NextResponse.json({enabled:true,stockWritesEnabled:stockWritesEnabled(),intervalMinutes:null,mode:'eventos',status,issues},
     {headers:{'Cache-Control':'private, no-store'}})
 }
 export async function POST(){
