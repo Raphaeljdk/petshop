@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mercadoLivreAccessToken } from '@/lib/mercado-livre'
-import { runMarketplacesSync } from '@/lib/marketplace-auto-sync'
+import { importMercadoLivreOrderById } from '@/lib/marketplace-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: true })
     }
 
-    // O webhook compartilha o mesmo lease do cron; nunca execute duas
-    // conciliações simultâneas sobre os mesmos pedidos e anúncios.
-    const result = await runMarketplacesSync()
-    return NextResponse.json({ ok: result.ok, busy:result.busy, result },{status:result.ok?200:207})
+    const id=typeof body.resource==='string'?body.resource.match(/^\/orders\/(\d{8,20})$/)?.[1]:null
+    if(!id)return NextResponse.json({ok:true,ignored:true})
+    const result=await importMercadoLivreOrderById(id)
+    return NextResponse.json({ok:true,result})
   } catch (error) {
     console.error('[mercado-livre/webhook] falha:', error)
     return NextResponse.json({ ok: false }, { status: 503 })
