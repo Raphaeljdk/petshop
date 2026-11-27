@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 type Operacao={status:string;numero:number;chave:string;codigo:number|null;motivo:string|null;podeReenviar:boolean}
-type Dados={canal:string;habilitado:boolean;transicao:boolean;inutilizacao:{status:string;motivo:string|null}|null;reserva:Operacao|null;evento:{status:string;motivo:string|null}|null;endereco:string|null;cep:string|null}
+type Dados={externa:{numero:number;status:string}|null;canal:string;habilitado:boolean;transicao:boolean;inutilizacao:{status:string;motivo:string|null}|null;reserva:Operacao|null;evento:{status:string;motivo:string|null}|null;endereco:string|null;cep:string|null}
 export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>void}){
  const [aberto,setAberto]=useState(false),[dados,setDados]=useState<Dados|null>(null),[ocupado,setOcupado]=useState(false),[erro,setErro]=useState('')
  const [pag,setPag]=useState(''),[integra,setIntegra]=useState('')
@@ -30,17 +30,29 @@ export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>voi
    await ler();onChange()
   }catch(e){setErro((e as Error).message)}finally{setOcupado(false)}
  }
+ async function importarExterna(file:File){
+  if(file.size>500000){setErro('XML muito grande.');return}
+  if(!confirm('Confirma que o XML pertence exatamente a esta venda? A SEFAZ será consultada.'))return
+  setOcupado(true);setErro('')
+  try{
+   const res=await fetch('/api/admin/fiscal/externa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vendaId,xml:await file.text(),confirmacao:'VINCULAR NOTA EXTERNA AO PEDIDO'})})
+   const json=await res.json();if(!res.ok)throw Error(json.error)
+   await ler();onChange()
+  }catch(e){setErro((e as Error).message)}finally{setOcupado(false)}
+ }
  const r=dados?.reserva
  return <div className="w-full">
   <Button type="button" variant="outline" size="sm" aria-expanded={aberto} onClick={()=>void abrir()}>NF-e própria · série 2</Button>
   {aberto&&<section className="mt-2 space-y-2 rounded border p-3 text-sm">
    {erro&&<p role="alert">{erro}</p>}
    {dados&&!dados.habilitado&&<p>Emissão real bloqueada. A liberação exige a conciliação da série e regras aprovadas para produção.</p>}
-   {dados?.canal==='amazon'&&!r&&<Button type="button" variant="outline" size="sm" disabled={ocupado} onClick={()=>void agir('conferir_amazon')}>Conferir pedido na Amazon</Button>}
+   {dados?.externa&&<div><p>NF-e externa autorizada · série 2 nº {dados.externa.numero}</p><div className="flex gap-3"><a href={'/api/admin/fiscal/externa?vendaId='+encodeURIComponent(vendaId)+'&arquivo=xml'}>Baixar XML</a><a href={'/api/admin/fiscal/externa?vendaId='+encodeURIComponent(vendaId)+'&arquivo=pdf'}>Baixar DANFE</a></div></div>}
+   {dados&&!dados.externa&&!r&&['site','amazon'].includes(dados.canal)&&<label className="block">Importar XML autorizado do Sebrae<Input type="file" accept=".xml,text/xml,application/xml" disabled={ocupado} onChange={e=>{const file=e.target.files?.[0];if(file)void importarExterna(file);e.target.value=''}}/></label>}
+   {dados?.canal==='amazon'&&!dados.externa&&!r&&<Button type="button" variant="outline" size="sm" disabled={ocupado} onClick={()=>void agir('conferir_amazon')}>Conferir pedido na Amazon</Button>}
    {pedidoConferido&&<p role="status">Pedido {pedidoConferido} conferido. A Amazon indica envio pelo vendedor, aguardando expedição e sem NF-e carregada. Os dados do comprador estão disponíveis para a nota.</p>}
    {r&&<p>Série 2 nº {r.numero} · {r.status} {r.codigo&&' · cStat '+r.codigo} {r.motivo&&' · '+r.motivo}</p>}
    {dados?.evento&&<p>Cancelamento {dados.evento.status} · {dados.evento.motivo}</p>}
-   {dados?.habilitado&&(!r||r.status==='rejeitada'||r.status==='preparada')&&<form className="space-y-2" onSubmit={e=>{
+   {dados?.habilitado&&!dados.externa&&(!r||r.status==='rejeitada'||r.status==='preparada')&&<form className="space-y-2" onSubmit={e=>{
     e.preventDefault()
     const form=new FormData(e.currentTarget),get=(k:string)=>String(form.get(k)||'').trim()
     void agir(r?'corrigir':'preparar',{dados:{endereco:{logradouro:get('logradouro'),numero:get('numero'),complemento:get('complemento'),bairro:get('bairro'),municipio:get('municipio'),codigoMunicipio:get('codigoMunicipio'),cep:get('cep'),uf:get('uf')},
