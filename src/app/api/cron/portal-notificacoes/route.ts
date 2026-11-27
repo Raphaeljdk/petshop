@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { enqueueAppointmentReminders, dispatchPortalMessages } from '@/lib/portal-notifications'
+import { dispatchGravatasPendentes } from '@/lib/gravata-whatsapp'
 export const dynamic='force-dynamic'
 export const runtime='nodejs'
 export const maxDuration=60
@@ -12,7 +13,8 @@ export async function GET(req:NextRequest) {
   try {
     const queued=await enqueueAppointmentReminders()
     const delivery=await dispatchPortalMessages()
-    return NextResponse.json({enabled:true,queued,delivery})
+    const gravatas=await dispatchGravatasPendentes()
+    return NextResponse.json({enabled:true,queued,delivery,gravatas})
   }catch(error){
     console.error('[cron/portal-notifications]',error)
     return NextResponse.json({error:'Falha ao processar notificações.'},{status:500})
