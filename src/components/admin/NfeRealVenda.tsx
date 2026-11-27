@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { PREFIXO_IBGE_UF } from '@/lib/nfe-destino'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -42,18 +43,19 @@ export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>voi
    {dados?.habilitado&&(!r||r.status==='rejeitada'||r.status==='preparada')&&<form className="space-y-2" onSubmit={e=>{
     e.preventDefault()
     const form=new FormData(e.currentTarget),get=(k:string)=>String(form.get(k)||'').trim()
-    void agir(r?'corrigir':'preparar',{dados:{endereco:{logradouro:get('logradouro'),numero:get('numero'),complemento:get('complemento'),bairro:get('bairro'),municipio:get('municipio'),codigoMunicipio:get('codigoMunicipio'),cep:get('cep'),uf:'SP'},
+    void agir(r?'corrigir':'preparar',{dados:{endereco:{logradouro:get('logradouro'),numero:get('numero'),complemento:get('complemento'),bairro:get('bairro'),municipio:get('municipio'),codigoMunicipio:get('codigoMunicipio'),cep:get('cep'),uf:get('uf')},
      pagamento:pag,modalidadeFrete:get('frete'),consumidorFinalNaoContribuinte:true,semNotaExterna:true,
      ...(pag==='17'?{dadosPagamento:{tipoIntegracao:integra,...(integra==='1'?{cnpjInstituicao:get('cnpjInstituicao'),codigoAutorizacao:get('codigoAutorizacao')}:{})}}:{})}})
    }}>
     <p>Endereço registrado no pedido · {dados.endereco||'sem endereço'}</p>
     <div className="grid gap-2 sm:grid-cols-3">
-    {Object.entries({logradouro:'Logradouro',numero:'Número',complemento:'Complemento',bairro:'Bairro',municipio:'Município (SP)',codigoMunicipio:'Código IBGE do município',cep:'CEP'}).map(([k,v])=><label key={k}>{v}<Input name={k} required={k!=='complemento'} defaultValue={k==='cep'?dados.cep?.replace(/\D/g,''):undefined}/></label>)}
+    {Object.entries({logradouro:'Logradouro',numero:'Número',complemento:'Complemento',bairro:'Bairro',municipio:'Município',codigoMunicipio:'Código IBGE do município',cep:'CEP'}).map(([k,v])=><label key={k}>{v}<Input name={k} required={k!=='complemento'} defaultValue={k==='cep'?dados.cep?.replace(/\D/g,''):undefined}/></label>)}
+    <label>UF de destino<select name="uf" defaultValue="" required><option value="">Selecione</option>{Object.keys(PREFIXO_IBGE_UF).sort().map(uf=><option key={uf} value={uf}>{uf}</option>)}</select></label>
     <label>Pagamento<select required value={pag} onChange={e=>setPag(e.target.value)}><option value="">Selecione</option><option value="01">Dinheiro</option><option value="17">Pix dinâmico</option><option value="18">Transferência bancária</option><option value="20">Pix estático</option></select></label>
     {pag==='17'&&<label>Integração Pix<select required value={integra} onChange={e=>setIntegra(e.target.value)}><option value="">Selecione</option><option value="1">Integrado</option><option value="2">Não integrado</option></select></label>}
     {pag==='17'&&integra==='1'&&<><label>CNPJ da instituição<Input name="cnpjInstituicao" required/></label><label>Autorização do pagamento<Input name="codigoAutorizacao" required/></label></>}
     <label>Frete<select name="frete" defaultValue="" required><option value="">Selecione</option><option value="0">Por conta do remetente</option><option value="1">Por conta do destinatário</option><option value="2">Por conta de terceiros</option><option value="9">Sem transporte</option></select></label></div>
-    <label className="block"><input type="checkbox" required/> Conferi a venda, o pagamento e o endereço. É uma venda interna a consumidor final não contribuinte, sem nota de outro emissor.</label>
+    <label className="block"><input type="checkbox" required/> Conferi a venda, o pagamento e o endereço. É uma venda a consumidor final não contribuinte, sem nota de outro emissor.</label>
     <Button disabled={ocupado} size="sm">{r?'Corrigir com o mesmo número':'Reservar número e assinar'}</Button>
    </form>}
    {r?.status==='preparada'&&dados?.habilitado&&<Button disabled={ocupado} size="sm" onClick={()=>{if(confirm('Transmitir a NF-e real desta venda à SEFAZ-SP?'))void agir('transmitir',{confirmacao:'EMITIR VENDA SELECIONADA'})}}>Transmitir NF-e real</Button>}
