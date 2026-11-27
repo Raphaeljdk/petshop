@@ -28,6 +28,7 @@ model User {
 
 model Cliente {
   id        String   @id @default(cuid())
+  numeroCliente Int @unique @default(autoincrement())
   nome      String
   telefone  String
   cpfCnpj   String?  @unique
