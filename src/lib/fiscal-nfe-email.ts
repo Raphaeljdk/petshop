@@ -65,10 +65,10 @@ export function configuracaoEmailFiscal(){
  const from=process.env.RESEND_FROM_EMAIL?.trim()||mail.from
  return {...mail,from,configured:Boolean(mail.key&&from)}
 }
-export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=configuracaoEmailFiscal()){
+export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=configuracaoEmailFiscal(),notaFiscalId?:string){
  if(!cfg.configured) return {enviadas:0,erros:0,indisponivel:true}
  const agora=Date.now(), janela=new Date(agora-23*3600_000), espera=new Date(agora-5*60_000)
- const entregas=await db.nfeEmailDelivery.findMany({where:{OR:[
+ const entregas=await db.nfeEmailDelivery.findMany({where:{...(notaFiscalId?{notaFiscalId}:{}),OR:[
   {status:'pendente'}, {status:{in:['enviando','tentar_novamente']},createdAt:{gt:janela},attemptedAt:{lt:espera}},
  ]},
   orderBy:{createdAt:'asc'},take:20})
