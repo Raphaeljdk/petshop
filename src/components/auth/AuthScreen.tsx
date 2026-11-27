@@ -77,7 +77,7 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="landing landing-entry min-h-screen">
+    <div className="landing landing-entry min-h-screen landing-premium">
       <div className="landing-navigation-indicator" data-active={navigatingSection}
         aria-hidden="true"><span /></div>
       <a className="skip-link" href="#conteudo">Pular para o conteúdo</a>
@@ -185,8 +185,8 @@ export function AuthScreen() {
             <h1 id="hero-title" className="hero-title">O melhor cuidado. <span>Para o seu melhor amigo.</span></h1>
             <p className="hero-description mt-6">Conheça os favoritos do seu pet, solicite atendimento e acompanhe os cuidados pela sua conta. Tudo em um só lugar, com o carinho da nossa família.</p>
             <div className="hero-actions mt-6 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3">
-              <Button size="lg" onClick={() => scrollTo('produtos')} className="col-span-2 sm:col-span-1 bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Ver produtos <ChevronRight className="size-4" /></Button>
-              <Button size="lg" variant="outline" onClick={abrirLogin} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Minha conta</Button>
+              <Button size="lg" onClick={() => scrollTo('produtos')} className="col-span-2 sm:col-span-1 bg-orange-300 text-slate-950 hover:bg-orange-200 shadow-lg shadow-black/10">Comprar produtos <ChevronRight className="size-4" /></Button>
+              <Button size="lg" variant="outline" onClick={() => scrollTo('servicos')} className="bg-white/5 text-white border-white/30 hover:bg-white/10 hover:text-white">Banho e tosa</Button>
               <Button asChild size="lg" variant="outline" className="bg-green-500/10 text-white border-green-300/40 hover:bg-green-500/20 hover:text-white">
                 <a href={matilhaWhatsAppUrl('Olá! Vim pelo site da Matilha Prado e gostaria de atendimento.')} target="_blank" rel="noreferrer">
                   <MessageCircle className="size-4" /> WhatsApp
