@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+import { cfopRevendaPorDestino } from '../src/lib/nfe-destino'
 import { PACOTE_NFE } from '../src/lib/nfe-validacao-xsd'
 
 const ref=z.string().trim().min(5).max(500)
@@ -24,8 +25,8 @@ async function configurar(){
    if(input.acao==='aprovar-sku'){
     const r=await tx.regraFiscalAprovada.findUniqueOrThrow({where:{id:input.regraId}})
     if(!r.ativo||input.referenciaContabil===r.referencia&&/homologa/i.test(r.observacoes||''))throw Error('Exige referência de aprovação da contabilidade para produção.')
-    const produtos=await tx.produto.count({where:{sku:input.sku,ncm:r.ncm,cfop:r.cfop,origem:r.origem,csosn:r.csosn,cest:r.cest,pisCst:r.pisCst,cofinsCst:r.cofinsCst}})
-    if(!produtos)throw Error('O SKU e a regra informados não correspondem.')
+    const produtos=await tx.produto.findMany({where:{sku:input.sku,ncm:r.ncm,origem:r.origem,csosn:r.csosn,cest:r.cest,pisCst:r.pisCst,cofinsCst:r.cofinsCst},select:{cfop:true}})
+    if(!produtos.some(p=>{try{return cfopRevendaPorDestino(p.cfop??'',r.ufDestino)===r.cfop}catch{return false}}))throw Error('O SKU e a regra informados não correspondem.')
     if([r.pisCst,r.cofinsCst].includes('49')&&!input.baseZeroCst49)throw Error('O tratamento implementado de CST 49 exige confirmação da base zero.')
     const aprovacao={referencia:input.referenciaContabil,revisaoRegra:r.atualizadoEm,baseZeroCst49:input.baseZeroCst49}
     await tx.nfeRealAprovacao.upsert({where:{regraId_sku:{regraId:r.id,sku:input.sku}},create:{regraId:r.id,sku:input.sku,...aprovacao},update:aprovacao})
