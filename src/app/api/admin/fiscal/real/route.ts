@@ -48,7 +48,7 @@ export async function GET(req:NextRequest){
   if(!id.safeParse(vendaId).success)return authJson({error:'Selecione a venda.'},400)
   const venda=await db.venda.findUnique({where:{id:vendaId!},select:{
    canal:true,enderecoEntrega:true,cepEntrega:true,cliente:{select:{endereco:true,cep:true}},reservaNfe:{include:{cancelamento:true,inutilizacao:true}},
-   notaFiscal:{select:{emissor:true,status:true,xmlAutorizado:true,protocolo:true}},
+   notaFiscal:{select:{emissor:true,status:true,xmlAutorizado:true,protocolo:true,numero:true}},
   }})
   if(!venda)return authJson({error:'Venda não encontrada.'},404)
   const r=venda.reservaNfe,n=venda.notaFiscal
@@ -65,7 +65,7 @@ export async function GET(req:NextRequest){
     'Content-Type':pdf?'application/pdf':'application/xml; charset=utf-8','Content-Disposition':'attachment; filename="'+(pdf?'DANFE':arquivo==='evento'?'Cancelamento':'NFe')+'-'+r.chave+'.'+(pdf?'pdf':'xml')+'"'}})
   }
   const situacao=await situacaoEmissao(await db.configuracaoFiscal.findUnique({where:{id:'matilha-prado'}}))
-  return authJson({canal:venda.canal,habilitado:situacao.habilitada,transicao:inutilizacaoDisponivel(),inutilizacao:r?.inutilizacao?{status:r.inutilizacao.status,motivo:r.inutilizacao.motivo}:null,reserva:r?resumoReal(r):null,evento:r?.cancelamento?{status:r.cancelamento.status,motivo:r.cancelamento.motivo}:null,
+  return authJson({externa:n?.emissor==='externo_sebrae'&&n.status==='autorizada'?{numero:n.numero,status:n.status}:null,canal:venda.canal,habilitado:situacao.habilitada,transicao:inutilizacaoDisponivel(),inutilizacao:r?.inutilizacao?{status:r.inutilizacao.status,motivo:r.inutilizacao.motivo}:null,reserva:r?resumoReal(r):null,evento:r?.cancelamento?{status:r.cancelamento.status,motivo:r.cancelamento.motivo}:null,
    endereco:venda.enderecoEntrega||venda.cliente?.endereco,cep:venda.cepEntrega||venda.cliente?.cep})
  }catch(e){return falha(e)}
 }
