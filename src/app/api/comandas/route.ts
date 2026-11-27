@@ -7,7 +7,10 @@ export async function GET() {
   const u = await getUsuarioLogado()
   if (u?.role !== 'CLIENTE' || !u.clienteId) return NextResponse.json({error:'Acesso negado.'},{status:403})
   const items = await db.processo.findMany({
-    where: { pet: { clienteId: u.clienteId }, status: { in: ['em_andamento','aguardando_resposta'] } },
+    where: { pet: { clienteId: u.clienteId }, OR: [
+      {status:{in:['em_andamento','aguardando_resposta']}},
+      {status:'finalizado',OR:[{comandaVendas:{some:{status:'pendente'}}},{comandaExtras:{some:{status:{in:['autorizado','realizado']},venda:null,precoCentavos:{gt:0}}}}]},
+    ] },
     select: { id:true,servico:true,status:true,valorServico:true,pet:{select:{nome:true}} },
     orderBy:{createdAt:'desc'},take:30,
   })
