@@ -9,9 +9,12 @@ import { intermediadorAmazon, carregarLiberacao, carregarOperacao, complementoPe
 import { configuracaoEmailFiscal, emailParaEntrega } from './fiscal-nfe-email'
 
 type Runtime={agora?:()=>Date;amazon:typeof intermediadorAmazon; db:PrismaClient; habilitado:()=>boolean; chaves:(cnpj:string)=>ChavesA1; enviar:(servico:ServicoReal,xml:string)=>Promise<string>}
+export function configuracaoPermiteEmissao(env:Record<string,string|undefined>,emailConfigurado:boolean){
+ return env.VERCEL_ENV==='production'&&env.NODE_ENV!=='test'&&env.NFE_REAL_HABILITADA==='true'
+  &&(env.NFE_EMAIL_AUTOMATICO_ENABLED==='true'||env.NFE_EMAIL_MANUAL_ENABLED==='true')&&emailConfigurado
+}
 export function emissaoAtivaNoServidor(){
- return process.env.VERCEL_ENV==='production'&&process.env.NODE_ENV!=='test'&&process.env.NFE_REAL_HABILITADA==='true'
-  &&process.env.NFE_EMAIL_AUTOMATICO_ENABLED==='true'&&configuracaoEmailFiscal().configured
+ return configuracaoPermiteEmissao(process.env,configuracaoEmailFiscal().configured)
 }
 function credenciais(){
  return lerA1DeVariaveis({SEFAZ_NFE_A1_PFX_BASE64:process.env.SEFAZ_NFE_A1_PFX_BASE64,SEFAZ_NFE_A1_SENHA:process.env.SEFAZ_NFE_A1_SENHA})
