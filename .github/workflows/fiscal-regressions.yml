@@ -38,4 +38,4 @@ jobs:
           git diff --name-only --diff-filter=A "$BASE_SHA"...HEAD -- 'prisma/migrations/*/migration.sql' | sort | while read -r file; do
             bunx prisma db execute --file "$file" --schema prisma/schema.prisma
           done
-      - run: bun test tests/netlify-cron.test.mjs tests/nfe-destino.test.ts tests/fiscal-periodo.test.ts tests/nfe-real-liberacao.test.ts tests/nfe-real.integration.test.ts
+      - run: bun test tests/nfe-externa-conciliacao.test.ts tests/netlify-cron.test.mjs tests/nfe-destino.test.ts tests/fiscal-periodo.test.ts tests/nfe-real-liberacao.test.ts tests/nfe-real.integration.test.ts
