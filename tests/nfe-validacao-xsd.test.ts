@@ -13,13 +13,13 @@ test('XSD real valida XML em teste mínimo',()=>{
  assert.equal(testarSchemaAutoContido('<nota><numero>55</numero></nota>',xsd),true)
  assert.throws(()=>testarSchemaAutoContido('<nota><numero>abc</numero></nota>',xsd))
 })
-test('pacote 010g rejeita NF-e sem campos obrigatórios',()=>{
+test('pacote 010h rejeita NF-e sem campos obrigatórios',()=>{
  assert.throws(()=>validarXmlNfeXsdHomologacao(
   '<NFe xmlns="http://www.portalfiscal.inf.br/nfe"/>'
  ),/XSD|pacote/)
 })
 
-test('assinatura A1 sintética e XML 55 passam pelo XSD do pacote 010g',()=>{
+test('assinatura A1 sintética e XML 55 passam pelo XSD do pacote 010h',()=>{
  const chaves=forge.pki.rsa.generateKeyPair(1024)
  const certificado=forge.pki.createCertificate()
  certificado.publicKey=chaves.publicKey
@@ -58,5 +58,5 @@ test('assinatura A1 sintética e XML 55 passam pelo XSD do pacote 010g',()=>{
  })
  const result=validarXmlNfeXsdHomologacao(assinado.xmlAssinado)
  assert.equal(result.valido,true)
- assert.equal(result.esquema,'010g v1.03')
+ assert.equal(result.esquema,'010h v1.03')
 })

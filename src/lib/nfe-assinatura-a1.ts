@@ -65,22 +65,25 @@ export function validarCnpjA1(pfx:Buffer,senha:string,cnpj:string){
  * Assina SOMENTE infNFe e verifica a assinatura novamente (XMLDSig enveloped).
  * Não interpreta uma assinatura qualquer como autorização da SEFAZ.
  */
-export function assinarXmlNfeHomologacao(xmlRascunho:string,chaves:ChavesA1){
+export function assinarDocumentoFiscal(xmlRascunho:string,chaves:ChavesA1,tpAmb:1|2,alvo:'infNFe'|'infEvento'|'infInut'='infNFe'){
+ const raiz={infNFe:'NFe',infEvento:'evento',infInut:'inutNFe'}[alvo]
  if(xmlRascunho.length>450_000||/<\!DOCTYPE|<\!ENTITY/i.test(xmlRascunho))
   throw new AssinaturaNfeError('XML inválido para assinatura.')
  const documento=new DOMParser({onError:()=>{throw new AssinaturaNfeError('XML malformado.')}})
   .parseFromString(xmlRascunho,'text/xml')
- const raizes=documento.getElementsByTagNameNS(NFE_NS,'NFe')
- const itens=documento.getElementsByTagNameNS(NFE_NS,'infNFe')
+ const raizes=documento.getElementsByTagNameNS(NFE_NS,raiz)
+ const itens=documento.getElementsByTagNameNS(NFE_NS,alvo)
  if(raizes.length!==1||itens.length!==1||raizes[0]!==documento.documentElement||
     itens[0].parentNode!==raizes[0])
   throw new AssinaturaNfeError('Documento não é NF-e 55 com infNFe única.')
  const inf=itens[0], id=inf.getAttribute('Id')||''
- if(!CHAVE.test(id)||inf.getAttribute('versao')!=='4.00')
+ const identidade={infNFe:CHAVE,infEvento:/^ID110111[0-9]{44}01$/,infInut:/^ID[0-9]{41}$/}[alvo]
+ const versao=(alvo==='infNFe'?inf:raizes[0]).getAttribute('versao')
+ if(!identidade.test(id)||versao!==(alvo==='infEvento'?'1.00':'4.00'))
   throw new AssinaturaNfeError('Id da NF-e ou versão inválidos.')
  const ambiente=inf.getElementsByTagNameNS(NFE_NS,'tpAmb')
- if(ambiente.length!==1||ambiente[0].textContent!=='2')
-  throw new AssinaturaNfeError('Somente XML de homologação pode ser assinado.')
+ if(ambiente.length!==1||ambiente[0].textContent!==String(tpAmb))
+  throw new AssinaturaNfeError(tpAmb===2?'Somente XML de homologação pode ser assinado.':'XML de produção exigido para esta assinatura.')
  if(documento.getElementsByTagNameNS(DS_NS,'Signature').length)
   throw new AssinaturaNfeError('XML já contém assinatura.')
  const sign=new SignedXml({
@@ -88,12 +91,12 @@ export function assinarXmlNfeHomologacao(xmlRascunho:string,chaves:ChavesA1){
   signatureAlgorithm:SIG_RSA,canonicalizationAlgorithm:C14N,
  })
  sign.addReference({
-  xpath:"//*[local-name(.)='infNFe' and namespace-uri(.)='"+NFE_NS+"']",
+  xpath:"//*[local-name(.)='"+alvo+"' and namespace-uri(.)='"+NFE_NS+"']",
   transforms:[ENVELOPED,C14N],
   digestAlgorithm:DIGEST_SHA1,
  })
  sign.computeSignature(xmlRascunho,{
-  location:{reference:"//*[local-name(.)='infNFe' and namespace-uri(.)='"+NFE_NS+"']",action:'after'},
+  location:{reference:"//*[local-name(.)='"+alvo+"' and namespace-uri(.)='"+NFE_NS+"']",action:'after'},
  })
  const assinado=sign.getSignedXml()
  const verDoc=new DOMParser().parseFromString(assinado,'text/xml')
@@ -109,12 +112,12 @@ export function assinarXmlNfeHomologacao(xmlRascunho:string,chaves:ChavesA1){
  const conteudo=verificar.getSignedReferences()[0].toString()
  if(!conteudo.includes('Id="'+id+'"'))
   throw new AssinaturaNfeError('Conteúdo assinado não corresponde à chave da NF-e.')
- return {xmlAssinado:assinado,chave:id.slice(3),assinaturaVerificada:true as const}
+ return {xmlAssinado:assinado,chave:alvo==='infNFe'?id.slice(3):id,assinaturaVerificada:true as const}
 }
 
 /** Verifica novamente o XML persistido ANTES de transmiti-lo. Protege contra
  * alterações na base entre preparo e autorização, mantendo XMLDSig e chave intactos. */
-export function validarAssinaturaNfeHomologacao(xml:string,certificadoPem:string,chave:string){
+export function verificarNfeAssinada(xml:string,certificadoPem:string,chave:string,tpAmb:1|2){
  if(!/^\d{44}$/.test(chave)||xml.length>500_000||/<!DOCTYPE|<!ENTITY/i.test(xml))
   throw new AssinaturaNfeError('XML ou chave inválidos para conferência.')
  const doc=new DOMParser({onError:()=>{throw new AssinaturaNfeError('XML malformado.')}})
@@ -127,8 +130,8 @@ export function validarAssinaturaNfeHomologacao(xml:string,certificadoPem:string
   assinaturas.length!==1||assinaturas[0].parentNode!==raiz[0])
   throw new AssinaturaNfeError('Estrutura XML ou chave de acesso divergente.')
  const ambientes=infos[0].getElementsByTagNameNS(NFE_NS,'tpAmb')
- if(ambientes.length!==1||ambientes[0].textContent!=='2')
-  throw new AssinaturaNfeError('Só é permitida NF-e de homologação.')
+ if(ambientes.length!==1||ambientes[0].textContent!==String(tpAmb))
+  throw new AssinaturaNfeError('Ambiente da NF-e divergente.')
  const refs=assinaturas[0].getElementsByTagNameNS(DS_NS,'Reference')
  if(refs.length!==1||refs[0].getAttribute('URI')!=='#NFe'+chave)
   throw new AssinaturaNfeError('Referência da assinatura difere da NF-e.')
@@ -137,4 +140,11 @@ export function validarAssinaturaNfeHomologacao(xml:string,certificadoPem:string
  if(!assinatura.checkSignature(xml)||assinatura.getSignedReferences().length!==1)
   throw new AssinaturaNfeError('Verificação criptográfica de XMLDSig inválida.')
  return {assinaturaValida:true as const,chave}
+}
+
+export function assinarXmlNfeHomologacao(xml:string, chaves:ChavesA1) {
+ return assinarDocumentoFiscal(xml,chaves,2)
+}
+export function validarAssinaturaNfeHomologacao(xml:string, certificado:string, chave:string) {
+ return verificarNfeAssinada(xml,certificado,chave,2)
 }

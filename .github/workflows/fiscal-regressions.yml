@@ -1,0 +1,41 @@
+name: Fiscal regressions
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/nfe-interestadual-serie2-20261127]
+permissions:
+  contents: read
+jobs:
+  fiscal:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: matilha_auth_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/matilha_auth_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.4
+      - run: bun install --frozen-lockfile
+      - name: Validate fiscal migration SQL on isolated PostgreSQL
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then BASE_SHA=$(git merge-base origin/main HEAD); fi
+          git show "$BASE_SHA:prisma/schema.prisma" > "$RUNNER_TEMP/base.prisma"
+          bunx prisma db push --schema "$RUNNER_TEMP/base.prisma" --skip-generate
+          git diff --name-only --diff-filter=A "$BASE_SHA"...HEAD -- 'prisma/migrations/*/migration.sql' | sort | while read -r file; do
+            bunx prisma db execute --file "$file" --schema prisma/schema.prisma
+          done
+      - run: bun test tests/nfe-externa-conciliacao.test.ts tests/netlify-cron.test.mjs tests/nfe-destino.test.ts tests/fiscal-periodo.test.ts tests/nfe-real-liberacao.test.ts tests/nfe-real.integration.test.ts

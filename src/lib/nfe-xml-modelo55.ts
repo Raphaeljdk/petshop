@@ -1,3 +1,4 @@
+import { municipioCoerenteComUf } from './nfe-destino'
 import { calcularDVChaveNfe } from './fiscal-chave'
 import { xmlText } from './fiscal-preview'
 
@@ -11,7 +12,7 @@ import { xmlText } from './fiscal-preview'
 export class NfeRascunhoError extends Error {}
 
 export type EnderecoNfe = {
-  logradouro: string; numero: string; bairro: string; municipio: string
+  logradouro: string; numero: string; complemento?:string; bairro: string; municipio: string
   codigoMunicipio: string; uf: string; cep: string
 }
 export type TributoOutrasOperacoes = { base: number; aliquota: number; valor: number }
@@ -20,11 +21,12 @@ export type NfeEntrada = {
   destinatario: { nome: string; documento: string; endereco: EnderecoNfe
     indicadorIE: '1' | '2' | '9'; inscricaoEstadual?: string }
   consumidorFinal: '0' | '1'
-  pagamento: '01' | '17' | '18'
+  pagamento: '01' | '17' | '18' | '20'
+  intermediador?: {cnpj:string; idCadastro:string}
   /** Obrigatório para Pix dinâmico. Nunca presumir dados de integração em produção. */
   dadosPagamento?: { tipoIntegracao:'1'|'2'; cnpjInstituicao?:string; codigoAutorizacao?:string }
   modalidadeFrete: '0' | '1' | '2' | '9'
-  itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string
+  itens: Array<{ produtoId: string; cfop?: string; gtin: string; pisCst: string; cofinsCst: string
     pis?: TributoOutrasOperacoes; cofins?: TributoOutrasOperacoes }>
 }
 export type NfeEmpresa = {
@@ -79,11 +81,12 @@ function xmlTributo(campoTributo:'PIS'|'COFINS',cst:string,informado?:TributoOut
 }
 const enderecoXml = (e: EnderecoNfe) =>
   campo('xLgr', e.logradouro.trim()) + campo('nro', e.numero.trim()) +
-  campo('xBairro', e.bairro.trim()) + campo('cMun', e.codigoMunicipio) +
+  (e.complemento?.trim() ? campo('xCpl', e.complemento.trim()) : '') + campo('xBairro', e.bairro.trim()) + campo('cMun', e.codigoMunicipio) +
   campo('xMun', e.municipio.trim()) + campo('UF', e.uf.toUpperCase()) +
   campo('CEP', numerico(e.cep)) + campo('cPais', '1058') + campo('xPais', 'BRASIL')
 
-export function gerarRascunhoNfe55(
+function montarNfe55(
+  tpAmb: 1 | 2,
   venda: NfeVenda, empresa: NfeEmpresa, entrada: NfeEntrada,
   dataEmissao = new Date(),
 ) {
@@ -91,7 +94,7 @@ export function gerarRascunhoNfe55(
   necessario(['site','amazon'].includes(venda.canal), 'Somente vendas do site ou Amazon. Mercado Livre utiliza seu Faturador e não pode duplicar a nota.')
   // A operação deste fluxo é exclusivamente no site próprio. Para marketplace,
   // é obrigatório cadastrar corretamente o intermediador antes de gerar XML.
-  necessario(venda.canal==='site', 'Amazon exige grupo infIntermed e identificação fiscal da plataforma, ainda não homologados. Não informar ausência de intermediador para pedido marketplace.')
+  necessario(venda.canal==='site' ? !entrada.intermediador : tpAmb===1 && /^\d{14}$/.test(entrada.intermediador?.cnpj||'') && (entrada.intermediador?.idCadastro.length||0)>=2, 'Amazon exige grupo infIntermed e identificação fiscal da plataforma, ainda não homologados. Não informar ausência de intermediador para pedido marketplace.')
   necessario(empresa.regimeTributario === '1', 'Este gerador inicial cobre apenas CRT 1 (Simples Nacional). Outros regimes ainda precisam de implementação.')
   necessario(numerico(empresa.cnpj).length === 14 && numerico(empresa.inscricaoEstadual).length >= 2, 'CNPJ e IE do emitente são obrigatórios.')
   necessario(empresa.razaoSocial?.trim() && empresa.logradouro?.trim() && empresa.numeroEndereco?.trim()
@@ -110,14 +113,19 @@ export function gerarRascunhoNfe55(
     && end.municipio.trim() && /^\d{7}$/.test(numerico(end.codigoMunicipio))
     && /^[A-Z]{2}$/.test(end.uf.toUpperCase()) && numerico(end.cep).length === 8,
     'Endereço estruturado do destinatário está incompleto.')
-  necessario(end.uf.toUpperCase() === 'SP', 'Este primeiro rascunho suporta apenas vendas internas em SP. Fora do estado exige parametrização específica do contador.')
+  if(tpAmb===1){
+    necessario(municipioCoerenteComUf(end.uf,end.codigoMunicipio), 'UF ou município incompatível com o cenário fiscal.')
+  }else{
+    necessario(end.uf.toUpperCase()==='SP', 'Este primeiro rascunho suporta apenas vendas internas em SP. Fora do estado exige parametrização específica do contador.')
+  }
+  necessario(end.uf==='SP'||(entrada.consumidorFinal==='1'&&entrada.destinatario.indicadorIE==='9'), 'Venda interestadual exige consumidor final não contribuinte no cenário implementado.')
   necessario(Number.isSafeInteger(entrada.numero) && entrada.numero >= 1 && entrada.numero <= 999999999
     && Number.isSafeInteger(empresa.serieNfe) && empresa.serieNfe >= 1 && empresa.serieNfe <= 999
     && /^\d{8}$/.test(entrada.codigoNumerico),
     'Número, série ou código numérico de oito dígitos inválido. Consulte a numeração com o contador.')
   necessario(entrada.naturezaOperacao.trim().length >= 3 && entrada.naturezaOperacao.length <= 60,
     'Informe a natureza da operação validada pelo contador.')
-  necessario(['01','17','18'].includes(entrada.pagamento)
+  necessario(['01','17','18','20'].includes(entrada.pagamento)
     && ['0','1','2','9'].includes(entrada.modalidadeFrete),
     'Forma de pagamento ou modalidade de frete não suportada neste primeiro gerador.')
   // NT 2023.004 / 2025.001: Pix dinâmico (tPag=17) requer grupo card
@@ -149,6 +157,7 @@ export function gerarRascunhoNfe55(
       && Number.isFinite(item.precoUnit) && item.precoUnit >= 0, 'Quantidade ou valor unitário inválido.')
     return total + cents(item.precoUnit * item.quantidade)
   }, 0)
+  necessario(subtotal > 0, 'A operação exige mercadorias com valor positivo.')
   const frete = cents(venda.valorFrete ?? 0)
   const desconto = cents(venda.descontoCupom)
   necessario(desconto <= subtotal && (frete === 0 || entrada.modalidadeFrete !== '9'),
@@ -172,9 +181,9 @@ export function gerarRascunhoNfe55(
     campo('serie',empresa.serieNfe) + campo('nNF',entrada.numero) +
     campo('dhEmi',emissao as string) + campo('tpNF','1') + campo('idDest',idDest) +
     campo('cMunFG',numerico(empresa.codigoMunicipio)) + campo('tpImp','1') +
-    campo('tpEmis','1') + campo('cDV',dv) + campo('tpAmb','2') +
+    campo('tpEmis','1') + campo('cDV',dv) + campo('tpAmb',tpAmb) +
     campo('finNFe','1') + campo('indFinal',entrada.consumidorFinal) + campo('indPres','2') +
-    campo('indIntermed','0') +
+    campo('indIntermed',entrada.intermediador?'1':'0') +
     campo('procEmi','0') + campo('verProc','MatilhaPradoERP1.0')
   const emitEndereco: EnderecoNfe = {
     logradouro: empresa.logradouro as string, numero: empresa.numeroEndereco as string,
@@ -188,10 +197,11 @@ export function gerarRascunhoNfe55(
     campo('IE',numerico(empresa.inscricaoEstadual)) + campo('CRT','1')
   // Em homologação, a SEFAZ exige o texto padronizado no xNome do destinatário.
   const dest = campo(doc.length === 11 ? 'CPF' : 'CNPJ', doc) +
-    campo('xNome','NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL') +
+    campo('xNome',tpAmb === 1 ? entrada.destinatario.nome : 'NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL') +
     '<enderDest>' + enderecoXml(end) + '</enderDest>' +
     campo('indIEDest',entrada.destinatario.indicadorIE) +
     (entrada.destinatario.indicadorIE==='1' ? campo('IE',numerico(entrada.destinatario.inscricaoEstadual)) : '')
+  let produtosAcumulados = 0
   let freteDistribuido = 0
   let descontoDistribuido = 0
   let pisTotalCentavos = 0
@@ -204,7 +214,8 @@ export function gerarRascunhoNfe55(
     necessario(/^\d{8}$/.test(numerico(p.ncm)) && /^\d{4}$/.test(numerico(p.cfop))
       && /^[0-8]$/.test(p.origem || '') && p.csosn === '102'
       && !!p.unidadeFiscal?.trim(), 'Item ' + (index + 1) + ': classificação NCM, CFOP, origem, unidade e CSOSN inválida ou incompleta.')
-    necessario(numerico(p.cfop).startsWith('5'), 'Item ' + (index+1) + ': CFOP para operação interna em SP precisa começar com 5; confira com o contador.')
+    const cfop=tpAmb===1?(fiscal.cfop??numerico(p.cfop)):numerico(p.cfop)
+    necessario(idDest==='1'?/^5\d{3}$/.test(cfop):(!!fiscal.cfop&&cfop==='6102'&&['5102','6102'].includes(numerico(p.cfop))), 'CFOP incompatível com a operação ou sem regra interestadual específica.')
     necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(fiscal.gtin),
       'Item ' + (index+1) + ': confirme o GTIN/EAN ou informe SEM GTIN quando aplicável.')
     const pis=xmlTributo('PIS',fiscal.pisCst,fiscal.pis)
@@ -214,14 +225,15 @@ export function gerarRascunhoNfe55(
     // Não presume alíquotas, IBS/CBS ou ICMS: cenários tributados exigem módulos específicos.
     const unit = p.unidadeFiscal as string
     const vProd = cents(item.precoUnit * item.quantidade)
-    const freteItem = index === venda.itens.length-1 ? frete-freteDistribuido : Math.floor(frete*vProd/subtotal)
-    const descontoItem = index === venda.itens.length-1 ? desconto-descontoDistribuido : Math.floor(desconto*vProd/subtotal)
+    produtosAcumulados += vProd
+    const freteItem = Math.round(frete * produtosAcumulados / subtotal) - freteDistribuido
+    const descontoItem = Math.round(desconto * produtosAcumulados / subtotal) - descontoDistribuido
     freteDistribuido += freteItem
     descontoDistribuido += descontoItem
     const prod = campo('cProd',(p.sku || item.produtoId).slice(0,60)) +
       campo('cEAN',fiscal.gtin) + campo('xProd',p.nome) + campo('NCM',numerico(p.ncm)) +
       (p.cest ? campo('CEST',numerico(p.cest)) : '') +
-      campo('CFOP',numerico(p.cfop)) + campo('uCom',unit) +
+      campo('CFOP',cfop) + campo('uCom',unit) +
       campo('qCom',item.quantidade.toFixed(4)) + campo('vUnCom',item.precoUnit.toFixed(10)) +
       campo('vProd',moeda(vProd)) +
       campo('cEANTrib',fiscal.gtin) +
@@ -250,15 +262,24 @@ export function gerarRascunhoNfe55(
       ?campo('CNPJ',entrada.dadosPagamento!.cnpjInstituicao!)+
        campo('cAut',entrada.dadosPagamento!.codigoAutorizacao!)
       :'')+'</card>':''
-  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<!-- RASCUNHO EM HOMOLOGACAO: NAO ASSINADO, NAO VALIDADO EM XSD, NAO TRANSMITIDO; CHAVE E NUMERO NAO RESERVADOS -->\n' +
+  const xml = (tpAmb === 2 ? '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<!-- RASCUNHO EM HOMOLOGACAO: NAO ASSINADO, NAO VALIDADO EM XSD, NAO TRANSMITIDO; CHAVE E NUMERO NAO RESERVADOS -->\n' : '') +
     '<NFe xmlns="' + NS + '"><infNFe versao="4.00" Id="NFe' + chave + '">' +
     '<ide>' + ide + '</ide><emit>' + emit + '</emit><dest>' + dest + '</dest>' +
     detalhes + '<total>' + totais + '</total>' +
     '<transp>' + campo('modFrete',entrada.modalidadeFrete) + '</transp>' +
     '<pag><detPag>' + campo('indPag','0') + campo('tPag',entrada.pagamento) +
     campo('vPag',moeda(cents(venda.total))) + grupoPix + '</detPag></pag>' +
+    (entrada.intermediador?'<infIntermed>'+campo('CNPJ',entrada.intermediador.cnpj)+campo('idCadIntTran',entrada.intermediador.idCadastro)+'</infIntermed>':'') +
     '</infNFe></NFe>'
+  return {xml, chave}
+}
+export function gerarNfe55Producao(venda: NfeVenda, empresa: NfeEmpresa, entrada: NfeEntrada, emissao: Date) {
+  necessario(empresa.serieNfe === 2, 'A venda exige série 2.')
+  return montarNfe55(1, venda, empresa, entrada, emissao)
+}
+export function gerarRascunhoNfe55(venda: NfeVenda, empresa: NfeEmpresa, entrada: NfeEntrada, emissao = new Date()) {
+  const {xml, chave} = montarNfe55(2, venda, empresa, entrada, emissao)
   return { xml, chaveApenasEstrutural: chave, ambiente: 'homologacao' as const,
     aviso: 'Rascunho NF-e 55 (tpAmb=2). Numeração NÃO reservada. Assinatura, XSD oficial vigente, IBS/CBS quando aplicável e autorização SEFAZ pendentes. NÃO transmitir.' }
 }

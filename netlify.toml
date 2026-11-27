@@ -1,0 +1,24 @@
+# Preview first. Use a separate database and leave production flags disabled.
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+[build.environment]
+  BUN_VERSION = "1.3.4"
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[functions."matilha-marketplaces"]
+  schedule = "*/30 * * * *"
+
+[functions."matilha-nfe-email"]
+  schedule = "*/5 * * * *"
+
+[functions."matilha-cancelar-pendentes"]
+  schedule = "15 6 * * *"
+
+[functions."matilha-portal-notificacoes"]
+  schedule = "0 11 * * *"

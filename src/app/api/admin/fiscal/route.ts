@@ -1,3 +1,4 @@
+import { situacaoEmissao } from '@/lib/nfe-real-prontidao'
 import { NextRequest, NextResponse } from 'next/server'
 import { configSchema, erroConfigEmitente } from '@/lib/fiscal-emitente'
 import {apuracaoParaRegime} from '@/lib/fiscal-apuracao-simples'
@@ -5,6 +6,8 @@ import { avaliarProntidaoNfeProducao } from '@/lib/fiscal-prontidao-producao'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
+
+import { intervaloFiscal, periodoFiscal } from '@/lib/fiscal-periodo'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +19,12 @@ async function authorize() {
 }
 
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const denied = await authorize()
   if (denied) return denied
   try {
+    const periodo = periodoFiscal(req.nextUrl.searchParams.get('periodo'))
+    const intervalo = intervaloFiscal(periodo)
     const [config, notas, vendas, produtosAtivos, produtosSemClassificacao] = await Promise.all([
       db.configuracaoFiscal.findUnique({ where: { id: 'matilha-prado' } }),
       db.notaFiscal.findMany({
@@ -33,7 +38,8 @@ export async function GET() {
         },
       }),
       db.venda.findMany({
-        orderBy: { createdAt: 'desc' }, take: 150,
+        where: intervalo ? { createdAt: intervalo } : undefined,
+        orderBy: { createdAt: 'desc' }, ...(intervalo ? {} : {take:150}),
         select: {
           id: true, total: true, canal: true, status: true,
           marketplaceOrderId: true, marketplaceBuyerName: true, mercadoPagoStatus: true,
@@ -50,15 +56,15 @@ export async function GET() {
       ]}}),
     ])
     const prontidaoNfeProducao = avaliarProntidaoNfeProducao({
-      empresa:config,
+      empresa:config,operacional:await situacaoEmissao(config),
       certificadoRegistrado:!!(process.env.SEFAZ_NFE_A1_PFX_BASE64?.trim() && process.env.SEFAZ_NFE_A1_SENHA),
       produtosAtivos,produtosSemClassificacao,
     })
     return NextResponse.json({
       config, notas, vendas, prontidaoNfeProducao,
-      emissaoConfigurada: false,
+      emissaoConfigurada: prontidaoNfeProducao.emissaoRealHabilitada,
       emissaoMercadoLivreHabilitada: process.env.MERCADO_LIVRE_NFE_EMISSAO_HABILITADA === 'true',
-      emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Site e Amazon seguem aguardando provedor de emissão.',
+      emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Confira a liberação da série 2 no painel do emitente.',
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('fiscal GET', error)
