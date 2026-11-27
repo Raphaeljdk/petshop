@@ -1005,3 +1005,11 @@ model ProdutoImagem {
   tipo      String
   createdAt DateTime @default(now())
 }
+
+// Escala diária dos serviços públicos. Ausência de escala significa não ofertar online.
+model AgendaServicoDia {
+  dia String @id @db.VarChar(10)
+  servicos Json @default("[]")
+  atualizadoPorId String
+  updatedAt DateTime @updatedAt
+}
