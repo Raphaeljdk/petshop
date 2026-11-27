@@ -2,6 +2,8 @@ name: Fiscal regressions
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [feat/nfe-interestadual-serie2-20261127]
 permissions:
   contents: read
 jobs:
@@ -28,11 +30,12 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Validate fiscal migration SQL on isolated PostgreSQL
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then BASE_SHA=$(git merge-base origin/main HEAD); fi
           git show "$BASE_SHA:prisma/schema.prisma" > "$RUNNER_TEMP/base.prisma"
           bunx prisma db push --schema "$RUNNER_TEMP/base.prisma" --skip-generate
           git diff --name-only --diff-filter=A "$BASE_SHA"...HEAD -- 'prisma/migrations/*/migration.sql' | sort | while read -r file; do
             bunx prisma db execute --file "$file" --schema prisma/schema.prisma
           done
-      - run: bun test tests/fiscal-periodo.test.ts tests/nfe-real-liberacao.test.ts tests/nfe-real.integration.test.ts
+      - run: bun test tests/nfe-destino.test.ts tests/fiscal-periodo.test.ts tests/nfe-real-liberacao.test.ts tests/nfe-real.integration.test.ts
