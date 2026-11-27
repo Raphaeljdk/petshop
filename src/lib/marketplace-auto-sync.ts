@@ -31,8 +31,8 @@ export async function runMarketplacesSync(options: { force?: boolean } = {}) {
     // Segurança: após divergências no estoque, NÃO escrever quantidades nos canais
     // nem reativar anúncios com base no ERP até haver conferência e opt-in explícito.
     // A importação de pedidos permanece ativa para não perder baixas legítimas.
-    const stock=stockWritesEnabled()
-      ?await syncLocalStockToMarketplaces({force:options.force})
+    const stock=stockWritesEnabled() && options.force
+      ?await syncLocalStockToMarketplaces({force:true})
       :{
         products:0,mercadoLivreUpdated:0,mercadoLivreActivated:0,amazonUpdated:0,
         localPublished:0,localHidden:0,skippedUnlinked:0,blockedListings:0,
