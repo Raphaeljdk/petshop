@@ -7,7 +7,7 @@ const db=new PrismaClient()
 async function verificar(){
  const empresa=await db.configuracaoFiscal.findUniqueOrThrow({where:{id:'matilha-prado'},select:{cnpj:true,uf:true}})
  if(empresa.uf!=='SP'||!empresa.cnpj)throw Error('Emitente indisponível.')
- const cred=lerA1DeVariaveis(process.env)
+ const cred=lerA1DeVariaveis({SEFAZ_NFE_A1_PFX_BASE64:process.env.SEFAZ_NFE_A1_PFX_BASE64,SEFAZ_NFE_A1_SENHA:process.env.SEFAZ_NFE_A1_SENHA})
  const chaves=extrairCertificadoA1(cred.pfx,cred.passphrase,empresa.cnpj)
  const cert=new X509Certificate(chaves.certificadoPem)
  console.log(JSON.stringify({a1:{cnpjConfere:true,chavePrivadaConfere:true,venceEm:chaves.venceEm,fingerprintSha256:cert.fingerprint256}},null,2))
