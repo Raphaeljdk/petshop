@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, test, expect } from 'bun:test'
 import { PrismaClient } from '@prisma/client'
 import forge from 'node-forge'
-import { emissorReal, emissaoAtivaNoServidor } from '../src/lib/nfe-real-servico'
+import { emissorReal, emissaoAtivaNoServidor, configuracaoPermiteEmissao } from '../src/lib/nfe-real-servico'
 import { conferirAmazon, numeroPedidoAmazon, type ComplementoFiscal } from '../src/lib/nfe-real-venda'
 import { gerarDanfeAutorizado } from '../src/lib/nfe-danfe'
 import { interpretarRetornoReal, inutilizacaoDisponivel, retornoInutilizacao, NFE_NS } from '../src/lib/nfe-real-protocolo'
@@ -268,3 +268,15 @@ test('interestadual: UF/IBGE e aprovação por destino antes da reserva',async()
  await expect(servico.preparar(pe.id,'admin',{...pr,endereco:{...pr.endereco,uf:'PE',municipio:'Recife',codigoMunicipio:'2611606',cep:'50010000'}})).rejects.toThrow('produção no SKU')
  expect((await db.nfeRealSequencia.findFirstOrThrow()).proximoNumero).toBe(antes+1)
 },20000)
+
+
+test('envio manual substitui cron apenas em produção e com configuração completa',()=>{
+ const base={VERCEL_ENV:'production',NODE_ENV:'production',NFE_REAL_HABILITADA:'true',NFE_EMAIL_MANUAL_ENABLED:'true'}
+ expect(configuracaoPermiteEmissao(base,true)).toBe(true)
+ expect(configuracaoPermiteEmissao({...base,NFE_EMAIL_MANUAL_ENABLED:'false'},true)).toBe(false)
+ expect(configuracaoPermiteEmissao({...base,NFE_EMAIL_MANUAL_ENABLED:'false',NFE_EMAIL_AUTOMATICO_ENABLED:'true'},true)).toBe(true)
+ expect(configuracaoPermiteEmissao({...base,VERCEL_ENV:'preview'},true)).toBe(false)
+ expect(configuracaoPermiteEmissao({...base,NODE_ENV:'test'},true)).toBe(false)
+ expect(configuracaoPermiteEmissao({...base,NFE_REAL_HABILITADA:'false'},true)).toBe(false)
+ expect(configuracaoPermiteEmissao(base,false)).toBe(false)
+})
