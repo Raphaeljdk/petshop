@@ -92,6 +92,8 @@ model Processo {
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
   notificacoes Notificacao[]
   ficha AtendimentoFicha?
+  comandaExtras ComandaServicoExtra[]
+  comandaVendas Venda[] @relation("ComandaVenda")
 }
 
 model Agendamento {
@@ -182,6 +184,10 @@ model Produto {
 
 model Venda {
   id         String   @id @default(cuid())
+  comandaProcessoId String?
+  comandaCompraKey String? @unique
+  comandaProcesso Processo? @relation("ComandaVenda", fields: [comandaProcessoId], references: [id], onDelete: Restrict)
+  comandaExtra ComandaServicoExtra? @relation("ComandaExtraVenda")
   clienteId String?
   total      Float
   creditoPresenteCentavos Int @default(0)
@@ -223,6 +229,7 @@ model Venda {
   presenteUsado PortalGiftRedemption?
 
   @@index([cupomId])
+  @@index([comandaProcessoId])
 }
 
 model ItemVenda {
@@ -1014,4 +1021,29 @@ model AgendaServicoDia {
   servicos Json @default("[]")
   atualizadoPorId String
   updatedAt DateTime @updatedAt
+}
+
+// Comanda identificada pelo atendimento existente; extras conservam preço e aceite.
+model ComandaServicoExtra {
+  id String @id @default(cuid())
+  processoId String
+  chaveServico String
+  nome String
+  precoCentavos Int
+  duracaoMinutos Int
+  motivo String?
+  origem String
+  status String @default("aguardando_tutor")
+  solicitadoPorId String
+  aceitoPorId String?
+  respondidoEm DateTime?
+  equipePorId String?
+  equipeEm DateTime?
+  realizadoEm DateTime?
+  vendaId String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  processo Processo @relation(fields: [processoId], references: [id], onDelete: Restrict)
+  venda Venda? @relation("ComandaExtraVenda", fields: [vendaId], references: [id], onDelete: Restrict)
+  @@index([processoId, status])
 }
