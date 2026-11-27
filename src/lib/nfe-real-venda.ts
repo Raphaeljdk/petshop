@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { municipioCoerenteComUf, cfopRevendaPorDestino } from './nfe-destino'
 import type { PedidoAmazonFiscal, pedidoAmazonFiscal } from './amazon-sp-api'
 import type { Prisma } from '@prisma/client'
 import { validCpfCnpj } from './siggma/customer'
@@ -13,9 +14,9 @@ export const complementoFiscal=z.object({
  endereco:z.object({
   logradouro:z.string().trim().min(2).max(60),numero:z.string().trim().min(1).max(60),
   bairro:z.string().trim().min(2).max(60),municipio:z.string().trim().min(2).max(60),
-  codigoMunicipio:z.string().regex(/^35\d{5}$/),uf:z.literal('SP'),cep:z.string().regex(/^\d{8}$/),
+  codigoMunicipio:z.string().regex(/^\d{7}$/),uf:z.string().regex(/^[A-Z]{2}$/),cep:z.string().regex(/^\d{8}$/),
   complemento:z.string().trim().max(60).optional(),
- }).strict(),
+ }).strict().refine(e=>municipioCoerenteComUf(e.uf,e.codigoMunicipio),'Código IBGE incompatível com UF de destino.'),
  pagamento:z.enum(['01','17','18','20']),modalidadeFrete:z.enum(['0','1','2','9']),
  dadosPagamento:z.object({tipoIntegracao:z.enum(['1','2']),cnpjInstituicao:z.string().regex(/^\d{14}$/).optional(),codigoAutorizacao:z.string().trim().min(1).max(128).optional()}).strict().optional(),
  consumidorFinalNaoContribuinte:z.literal(true),semNotaExterna:z.literal(true),
@@ -117,8 +118,9 @@ export async function gerarParaVenda(tx:TransacaoFiscal,venda:Awaited<ReturnType
  const hoje=new Date()
  for(const {produto:p} of venda.itens){
   exigir(p.sku&&p.ncm&&p.cfop&&p.origem&&p.gtinFiscal,'Item sem SKU, NCM, CFOP, origem ou GTIN confirmado.')
+  const cfop=cfopRevendaPorDestino(p.cfop,dados.endereco.uf)
   const regra=await tx.regraFiscalAprovada.findUnique({where:{ncm_cfop_ufDestino_origem_indicadorIE:{
-   ncm:p.ncm,cfop:p.cfop,origem:p.origem,ufDestino:dados.endereco.uf,indicadorIE:'9',
+   ncm:p.ncm,cfop,origem:p.origem,ufDestino:dados.endereco.uf,indicadorIE:'9',
   }},include:{aprovacoesProducao:{where:{sku:p.sku}}}})
   const aprovacao=regra?.aprovacoesProducao[0]
   exigir(regra?.ativo&&aprovacao&&aprovacao.revisaoRegra.getTime()===regra.atualizadoEm.getTime()
@@ -137,11 +139,11 @@ export async function gerarParaVenda(tx:TransacaoFiscal,venda:Awaited<ReturnType
    exigir(['04','05','06','07','08','09'].includes(cst)&&!aliquota,'CST exige outro tratamento.')
    return undefined
   }
-  itens.push({produtoId:p.id,gtin:p.gtinFiscal,pisCst:regra.pisCst,cofinsCst:regra.cofinsCst,
+  itens.push({produtoId:p.id,cfop,gtin:p.gtinFiscal,pisCst:regra.pisCst,cofinsCst:regra.cofinsCst,
    pis:outras(regra.pisCst,regra.aliquotaPis),cofins:outras(regra.cofinsCst,regra.aliquotaCofins)})
  }
  const {xml,chave}=gerarNfe55Producao(venda,empresa,{
-  numero,codigoNumerico:cNF,intermediador:inter&&{cnpj:inter.cnpj,idCadastro:inter.idCadastro},naturezaOperacao:'Venda de mercadoria',consumidorFinal:'1',
+  numero,codigoNumerico:cNF,intermediador:inter&&{cnpj:inter.cnpj,idCadastro:inter.idCadastro},naturezaOperacao:dados.endereco.uf==='SP'?'Venda de mercadoria':'Venda Fora do Estado',consumidorFinal:'1',
   destinatario:{nome:cliente.nome,documento:cliente.cpfCnpj!,indicadorIE:'9',endereco:dados.endereco},
   modalidadeFrete:dados.modalidadeFrete,pagamento:dados.pagamento,dadosPagamento:dados.dadosPagamento,itens,
  },data)
