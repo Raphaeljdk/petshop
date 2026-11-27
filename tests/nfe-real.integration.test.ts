@@ -105,7 +105,7 @@ test('concorrência entre vendas e cliques, falha antes do commit e XML/PDF apó
   emails++;return Response.json({id:'id-local'})
  },{preconnect:fetch.preconnect})
  const cfg={key:'teste-local',from:'teste@example.test',origin:'https://example.test',replyTo:undefined,configured:true}
- expect(emailFiscalManualHabilitado({VERCEL_ENV:'preview',NFE_EMAIL_MANUAL_ENABLED:'true'} as NodeJS.ProcessEnv)).toBe(false)
+ expect(emailFiscalManualHabilitado({...process.env,VERCEL_ENV:'preview',NFE_EMAIL_MANUAL_ENABLED:'true'})).toBe(false)
  expect((await dispatchNfeEmails(envia,cfg,'documento-inexistente')).enviadas).toBe(0)
  await Promise.all([enviarEmailFiscalSelecionado(v.id,envia,cfg),enviarEmailFiscalSelecionado(v.id,envia,cfg)])
  expect(emails).toBe(1)
