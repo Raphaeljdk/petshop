@@ -1,3 +1,4 @@
+import { municipioCoerenteComUf } from './nfe-destino'
 import { calcularDVChaveNfe } from './fiscal-chave'
 import { xmlText } from './fiscal-preview'
 
@@ -25,7 +26,7 @@ export type NfeEntrada = {
   /** Obrigatório para Pix dinâmico. Nunca presumir dados de integração em produção. */
   dadosPagamento?: { tipoIntegracao:'1'|'2'; cnpjInstituicao?:string; codigoAutorizacao?:string }
   modalidadeFrete: '0' | '1' | '2' | '9'
-  itens: Array<{ produtoId: string; gtin: string; pisCst: string; cofinsCst: string
+  itens: Array<{ produtoId: string; cfop?: string; gtin: string; pisCst: string; cofinsCst: string
     pis?: TributoOutrasOperacoes; cofins?: TributoOutrasOperacoes }>
 }
 export type NfeEmpresa = {
@@ -112,7 +113,8 @@ function montarNfe55(
     && end.municipio.trim() && /^\d{7}$/.test(numerico(end.codigoMunicipio))
     && /^[A-Z]{2}$/.test(end.uf.toUpperCase()) && numerico(end.cep).length === 8,
     'Endereço estruturado do destinatário está incompleto.')
-  necessario(end.uf.toUpperCase() === 'SP', 'Este primeiro rascunho suporta apenas vendas internas em SP. Fora do estado exige parametrização específica do contador.')
+  necessario(tpAmb===1 ? municipioCoerenteComUf(end.uf,end.codigoMunicipio) : end.uf.toUpperCase()==='SP', 'UF ou município incompatível com o cenário fiscal.')
+  necessario(end.uf==='SP'||(entrada.consumidorFinal==='1'&&entrada.destinatario.indicadorIE==='9'), 'Venda interestadual exige consumidor final não contribuinte no cenário implementado.')
   necessario(Number.isSafeInteger(entrada.numero) && entrada.numero >= 1 && entrada.numero <= 999999999
     && Number.isSafeInteger(empresa.serieNfe) && empresa.serieNfe >= 1 && empresa.serieNfe <= 999
     && /^\d{8}$/.test(entrada.codigoNumerico),
@@ -208,7 +210,8 @@ function montarNfe55(
     necessario(/^\d{8}$/.test(numerico(p.ncm)) && /^\d{4}$/.test(numerico(p.cfop))
       && /^[0-8]$/.test(p.origem || '') && p.csosn === '102'
       && !!p.unidadeFiscal?.trim(), 'Item ' + (index + 1) + ': classificação NCM, CFOP, origem, unidade e CSOSN inválida ou incompleta.')
-    necessario(numerico(p.cfop).startsWith('5'), 'Item ' + (index+1) + ': CFOP para operação interna em SP precisa começar com 5; confira com o contador.')
+    const cfop=tpAmb===1?(fiscal.cfop??numerico(p.cfop)):numerico(p.cfop)
+    necessario(idDest==='1'?/^5\d{3}$/.test(cfop):(!!fiscal.cfop&&cfop==='6102'&&['5102','6102'].includes(numerico(p.cfop))), 'CFOP incompatível com a operação ou sem regra interestadual específica.')
     necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(fiscal.gtin),
       'Item ' + (index+1) + ': confirme o GTIN/EAN ou informe SEM GTIN quando aplicável.')
     const pis=xmlTributo('PIS',fiscal.pisCst,fiscal.pis)
@@ -226,7 +229,7 @@ function montarNfe55(
     const prod = campo('cProd',(p.sku || item.produtoId).slice(0,60)) +
       campo('cEAN',fiscal.gtin) + campo('xProd',p.nome) + campo('NCM',numerico(p.ncm)) +
       (p.cest ? campo('CEST',numerico(p.cest)) : '') +
-      campo('CFOP',numerico(p.cfop)) + campo('uCom',unit) +
+      campo('CFOP',cfop) + campo('uCom',unit) +
       campo('qCom',item.quantidade.toFixed(4)) + campo('vUnCom',item.precoUnit.toFixed(10)) +
       campo('vProd',moeda(vProd)) +
       campo('cEANTrib',fiscal.gtin) +
