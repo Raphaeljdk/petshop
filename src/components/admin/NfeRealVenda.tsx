@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 type Operacao={status:string;numero:number;chave:string;codigo:number|null;motivo:string|null;podeReenviar:boolean}
-type Dados={externa:{numero:number;status:string}|null;canal:string;habilitado:boolean;transicao:boolean;inutilizacao:{status:string;motivo:string|null}|null;reserva:Operacao|null;evento:{status:string;motivo:string|null}|null;endereco:string|null;cep:string|null}
+type Dados={emailManual:boolean;email:{status:string;sentAt:string|null}|null;externa:{numero:number;status:string}|null;canal:string;habilitado:boolean;transicao:boolean;inutilizacao:{status:string;motivo:string|null}|null;reserva:Operacao|null;evento:{status:string;motivo:string|null}|null;endereco:string|null;cep:string|null}
 export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>void}){
  const [aberto,setAberto]=useState(false),[dados,setDados]=useState<Dados|null>(null),[ocupado,setOcupado]=useState(false),[erro,setErro]=useState('')
  const [pag,setPag]=useState(''),[integra,setIntegra]=useState('')
@@ -82,6 +82,11 @@ export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>voi
      <label>Justificativa operacional<Input name="motivo" minLength={15} maxLength={255} required/></label>
      <Button size="sm" disabled={ocupado}>Solicitar protocolo de inutilização</Button>
     </form></details>}
+   {r?.status==='autorizada'&&<div className="space-y-1">
+    <p>E-mail fiscal: {dados?.email?.status||'não enfileirado'}</p>
+    {dados?.emailManual&&(!dados.email||['pendente','tentar_novamente','enviando'].includes(dados.email.status))&&<Button type="button" size="sm" disabled={ocupado} onClick={()=>{if(confirm('Enviar somente o XML e DANFE desta venda para o e-mail confirmado do comprador?'))void agir('enviar_email',{confirmacao:'ENVIAR NF-E AO COMPRADOR'})}}>Enviar NF-e por e-mail</Button>}
+    {!dados?.emailManual&&<p>Envio manual ainda desativado neste ambiente.</p>}
+   </div>}
    {r&&['autorizada','cancelada'].includes(r.status)&&<div className="flex gap-3"><a href={url+'&arquivo=xml'}>Baixar XML</a><a href={url+'&arquivo=pdf'}>Baixar DANFE</a>{r.status==='cancelada'&&<a href={url+'&arquivo=evento'}>XML do cancelamento</a>}</div>}
    {r&&(r.status==='autorizada'&&(!dados?.evento||dados.evento.status==='rejeitada')||['rejeitada','preparada'].includes(r.status))&&<details><summary>{r.status==='autorizada'?'Cancelar NF-e':'Registrar quebra de sequência'}</summary>
     <form className="mt-2 space-y-2" onSubmit={e=>{e.preventDefault();const justificativa=String(new FormData(e.currentTarget).get('motivo')||'')
