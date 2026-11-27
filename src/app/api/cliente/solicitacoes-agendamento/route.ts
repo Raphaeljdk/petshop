@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { assertSameOrigin } from '@/lib/auth-http'
+import { consultarCatalogoPublico } from '@/lib/catalogo-agenda-publica'
 
 export async function GET() {
   try {
@@ -46,10 +47,13 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     const pet = await db.pet.findFirst({
-      where: { id: input.petKey, clienteId: user.cliente.id },
+      where: { id: input.petKey, clienteId: user.cliente.id, ativo: true },
     })
     if (!pet)
       return NextResponse.json({ error: 'Pet não encontrado' }, { status: 404 })
+    const catalogo = await consultarCatalogoPublico(pet.raca, desired)
+    if (!catalogo.servicos.some(s => s.nome === input.service))
+      return NextResponse.json({ error: 'Serviço indisponível para esta raça, data ou horário. Consulte a equipe pelo WhatsApp.' }, { status: 409 })
     const booking = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.cliente!.id}))`
       if (
