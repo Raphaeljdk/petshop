@@ -1,7 +1,7 @@
 // Never run jobs on branch previews; production must be explicitly enabled.
 // URL is fixed to the site provisioned by Netlify, not supplied by a request.
 export async function executarCron(path, env=process.env, request=fetch) {
- if(env.CONTEXT!=='production'||env.MATILHA_NETLIFY_CRONS_ENABLED!=='true')return {statusCode:200,body:'disabled'}
+ if(env.MATILHA_DEPLOY_STAGE!=='production'||env.MATILHA_NETLIFY_CRONS_ENABLED!=='true')return {statusCode:200,body:'disabled'}
  const secret=env.CRON_SECRET?.trim()
  if(!secret||!env.URL)return {statusCode:503,body:'configuration required'}
  const base=new URL(env.URL)
