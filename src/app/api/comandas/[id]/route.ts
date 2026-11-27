@@ -34,9 +34,9 @@ export async function GET(_req:NextRequest,{params}:Route) {
   if(!ctx)return json({error:'Comanda não encontrada.'},404)
   const [extras,vendas,catalogo,solicitacoes]=await Promise.all([
    db.comandaServicoExtra.findMany({where:{processoId:id},include:{venda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}}},orderBy:{createdAt:'asc'}}),
-   db.venda.findMany({where:{comandaProcessoId:id,comandaExtra:null},select:{id:true,total:true,status:true,mercadoPagoStatus:true,statusEntrega:true,itens:{select:{quantidade:true,precoUnit:true,produto:{select:{nome:true}}}}},orderBy:{createdAt:'asc'}}),
+   db.venda.findMany({where:{comandaProcessoId:id,comandaExtra:null,bookingPagamento:null},select:{id:true,total:true,status:true,mercadoPagoStatus:true,statusEntrega:true,itens:{select:{quantidade:true,precoUnit:true,produto:{select:{nome:true}}}}},orderBy:{createdAt:'asc'}}),
    aberto(ctx.processo)?consultarCatalogoPublico(ctx.processo.pet.raca,new Date()):Promise.resolve({servicos:[]}),
-   ctx.staff&&!ctx.processo.bookingRequestId&&aberto(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
+   ctx.staff&&!ctx.processo.bookingRequestId&&aberto(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true,gravataIdeia:true,pagamentoVenda:{select:{status:true,mercadoPagoStatus:true}}},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
   ])
   return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},aberto:aberto(ctx.processo),extras,vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
  }catch(e){return experienceError(e)}
@@ -57,8 +57,15 @@ export async function POST(req:NextRequest,{params}:Route) {
    if(input.action!=='cobrar'&&!aberto(p))return {error:'Atendimento encerrado.',status:409}
    if(input.action==='vincular-agendamento'){
     if(!ctx.staff||p.bookingRequestId)return {error:'Apenas a equipe pode vincular um agendamento ainda não utilizado.',status:409}
-    const booking=await tx.bookingRequest.findFirst({where:{id:input.bookingId,clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null},include:{cliente:{select:{user:{select:{id:true}}}}}})
+    const booking=await tx.bookingRequest.findFirst({where:{id:input.bookingId,clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null},include:{cliente:{select:{user:{select:{id:true}}}},pagamentoVenda:true}})
     if(!booking)return {error:'Agendamento confirmado não encontrado ou já vinculado.',status:409}
+    if(booking.gravataFoto&&booking.gravataPrecoCentavos===500&&booking.servicoPrecoCentavos!=null){
+     const v=booking.pagamentoVenda
+     if(!v||v.status!=='concluida'||v.mercadoPagoStatus!=='approved'||!v.mercadoPagoId||/^SIM[-_]/.test(v.mercadoPagoId)||Math.round(v.total*100)!==booking.servicoPrecoCentavos+500)return {error:'Aguarde o pagamento integral do agendamento personalizado antes de vincular.',status:409}
+     await tx.processo.update({where:{id},data:{bookingRequestId:booking.id,valorServico:booking.servicoPrecoCentavos/100}})
+     await tx.venda.update({where:{id:v.id},data:{comandaProcessoId:id}})
+     return {ok:true}
+    }
     await tx.processo.update({where:{id},data:{bookingRequestId:booking.id}})
     if(booking.gravataFoto&&booking.gravataPrecoCentavos===500){
      const tutor=booking.cliente.user
