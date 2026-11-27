@@ -647,6 +647,7 @@ model ServicoEsteticoConfig {
   nome String? @db.VarChar(80) // serviços personalizados; itens padrão usam o catálogo estático
   precoCentavos Int?
   precosPorRaca Json @default("[]")
+  gruposPorte Json @default("[]")
   duracaoMinutos Int?
   regrasPreco String? @db.Text
   observacoes String? @db.Text
