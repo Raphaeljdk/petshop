@@ -27,11 +27,12 @@ export function cnpjDigitosValidos(value: string | null | undefined) {
 }
 
 export function avaliarProntidaoNfeProducao({
-  empresa, certificadoRegistrado, produtosAtivos, produtosSemClassificacao,
+  empresa, certificadoRegistrado, produtosAtivos, produtosSemClassificacao, operacional,
 }:{
   empresa: ConfigFiscalReadiness
   certificadoRegistrado: boolean
   produtosAtivos: number
+  operacional?: {estrutura:boolean;serie:boolean;regras:boolean;homologacao:boolean;habilitada:boolean}
   produtosSemClassificacao: number
 }) {
   const itens: RequisitoNfe[] = []
@@ -60,24 +61,22 @@ export function avaliarProntidaoNfeProducao({
     'Cadastro tributário dos produtos',
     produtosAtivos + ' produtos ativos; ' + produtosSemClassificacao +
     ' sem classificação mínima completa. Esta contagem é do catálogo para EMISSÃO EM MASSA; não impede sozinha o teste individual de um produto com regra aprovada.')
-  add('tributos-2026',false,'Tributação vigente (IBS/CBS e demais impostos)',
-    'Completar e revisar cálculo e grupos tributários conforme notas técnicas de 2026 e particularidades de cada venda.')
-  add('dados-venda',false,'Dados fiscais e pagamentos da venda',
-    'Persistir endereço estruturado, GTIN, indicador ICMS, operação, pagamento e rateios; conferir com pedido e transporte.')
-  add('xml-xsd',false,'Validação XSD de NF-e em produção',
-    'O fluxo da NF-e de TESTE já valida o XML com XSD; isso não comprova que o XML de cada venda real atende aos leiautes e regras vigentes de produção.')
-  add('assinatura',false,'Assinatura XMLDSig do fluxo de produção',
-    'O fluxo de TESTE já assina e verifica XMLDSig com A1. A assinatura por venda real ainda não foi implementada nem validada ponta a ponta.')
-  add('numeracao',false,'Numeração e prevenção de duplicidade em produção',
-    'A série 2 de HOMOLOGAÇÃO utiliza numeração isolada no banco. A reserva numérica de uma NF-e REAL e a reconciliação entre emissores ainda não existem no fluxo de produção.')
-  add('homologacao',false,'Primeira NF-e própria autorizada em homologação',
-    'O fluxo de teste permite preparar, assinar, transmitir e consultar NF-e em tpAmb=2. Ainda não há evidência de cStat 100, protocolo e XML autorizado no próprio ERP.')
-  add('documentos',false,'Protocolo, DANFE e eventos do emissor de produção',
-    'A homologação já prevê persistência do XML autorizado e protocolo. DANFE, eventos fiscais e integração com notas reais seguem pendentes.')
+  add('tributos-2026',!!operacional?.regras,'Regras de produção por SKU',
+    'Cada item precisa de regra contábil vigente e aprovação para o SKU, a operação e o ambiente.')
+  add('assinatura',!!operacional?.homologacao,'Assinatura A1',
+    'A assinatura do A1 é verificada no preparo e novamente antes de cada transmissão.')
+  add('numeracao',!!operacional?.serie,'Conciliação da série 2',
+    'O próximo número depende do histórico de todos os emissores e da exclusividade da série.')
+  add('homologacao',!!operacional?.homologacao,'Autorização em homologação',
+    'O ERP confere a chave, o protocolo e o XML autorizado do emitente na série 2 de homologação.')
+  add('documentos',!!operacional?.estrutura,'Estrutura de emissão no banco',
+    'O ERP persiste a reserva, o histórico das tentativas e os documentos de autorização e cancelamento.')
+  add('liberacao',!!operacional?.habilitada,'Liberação do emissor',
+    'Cada venda selecionada passa por conferência dos dados, assinatura A1 e validação XSD antes da transmissão.')
   return {
     ambienteSelecionado:empresa?.ambiente || 'homologacao',
     modelo:'55',
-    emissaoRealHabilitada:false,
+    emissaoRealHabilitada:!!operacional?.habilitada,
     aviso:'Este quadro mede requisitos de NF-e REAL em produção, não a disponibilidade do teste em homologação. Configurar produção no cadastro não habilita emissão.',
     requisitos:itens,
     concluido:itens.filter(i=>i.ok).length,

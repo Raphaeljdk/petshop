@@ -39,6 +39,7 @@
         "@radix-ui/react-toggle-group": "^1.1.10",
         "@radix-ui/react-tooltip": "^1.2.7",
         "@reactuses/core": "^6.0.5",
+        "@sinete/da": "0.4.0",
         "@tanstack/react-query": "^5.82.0",
         "@tanstack/react-table": "^8.21.3",
         "@types/bcryptjs": "^3.0.0",
@@ -612,6 +613,12 @@
     "@rtsao/scc": ["@rtsao/scc@1.1.0", "https://registry.npmjs.com/@rtsao/scc/-/scc-1.1.0.tgz", {}, "sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g=="],
 
     "@schummar/icu-type-parser": ["@schummar/icu-type-parser@1.21.5", "https://registry.npmjs.com/@schummar/icu-type-parser/-/icu-type-parser-1.21.5.tgz", {}, "sha512-bXHSaW5jRTmke9Vd0h5P7BtWZG9Znqb8gSDxZnxaGSJnGwPLDPfS+3g0BKzeWqzgZPsIVZkM7m2tbo18cm5HBw=="],
+
+    "@sinete/core": ["@sinete/core@0.3.0", "", {}, "sha512-GjaI8YXFP7NbBs4w9Xp+rJcQjy7pROrsiKLrs2GCYrWzHirO1ylqlvTkTS+q2lxBfsgl440m4ZbxasRyKBVuZA=="],
+
+    "@sinete/da": ["@sinete/da@0.4.0", "", { "dependencies": { "@sinete/core": "^0.3.0", "@sinete/schemas": "^0.3.0", "fflate": "^0.8.3" } }, "sha512-v6UsW27qVLGVnkObyrEr7XpfA2rKTLbdpJC6dszNSn7ZhvwzyydqnHctsmufoEm3yWC8Vrd4kqXEeguEWpBCVg=="],
+
+    "@sinete/schemas": ["@sinete/schemas@0.3.0", "", { "dependencies": { "@sinete/core": "^0.3.0" } }, "sha512-BFzS+vdouy3agmXePVObQ2I901ou/xKGXmumjnytruUcgHI/5uHfzixgm5B5RZKgVZo7WXeOilVTmUsWwLESeQ=="],
 
     "@socket.io/component-emitter": ["@socket.io/component-emitter@3.1.2", "", {}, "sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA=="],
 
