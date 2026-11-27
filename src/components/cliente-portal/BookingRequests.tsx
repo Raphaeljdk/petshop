@@ -37,6 +37,7 @@ const dateLabel = (value: string) =>
 
 export function BookingRequests() {
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [historicoServicos, setHistoricoServicos] = useState<Array<{ petId: string; servico: string; status: string; dataHora: string }>>([])
   const [pets, setPets] = useState<{ id: string; nome: string }[]>([])
   const [direct, setDirect] = useState<DirectBookingConfig>({
     configured: false,
@@ -58,8 +59,10 @@ export function BookingRequests() {
         portalRequest<Booking[]>('/api/cliente/solicitacoes-agendamento'),
         portalRequest<{ id: string; nome: string }[]>('/api/cliente/pets'),
         portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos'),
+        portalRequest<Array<{ petId: string; servico: string; status: string; dataHora: string }>>('/api/cliente/agendamentos').catch(() => []),
       ])
-        .then(([rows, animals, bookingConfig]) => {
+        .then(([rows, animals, bookingConfig, historico]) => {
+          setHistoricoServicos(Array.isArray(historico) ? historico : [])
           setBookings(rows)
           setPets(animals)
           setDirect(bookingConfig)
@@ -87,6 +90,11 @@ export function BookingRequests() {
 
   const directMode =
     direct.configured && pets.some((pet) => pet.id.startsWith('zetta:'))
+
+  const sugestoesRecentes = Array.from(new Set(historicoServicos
+    .filter(item => item.petId === petKey && item.status === 'concluido' && item.servico.trim())
+    .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
+    .map(item => item.servico.trim()))).slice(0, 4)
 
   return (
     <Card>
@@ -199,6 +207,13 @@ export function BookingRequests() {
                 <datalist id="matilha-servicos-esteticos">
                   {SERVICOS_ESTETICOS_MATILHA.map((servico) => <option key={servico} value={servico} />)}
                 </datalist>
+                {sugestoesRecentes.length > 0 && <div className="mt-2 space-y-1">
+                  <p className="text-xs font-medium">Últimos serviços concluídos deste pet</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sugestoesRecentes.map(nome => <Button key={nome} type="button" size="sm" variant="outline" disabled={busy} onClick={() => setService(nome)}>{nome}</Button>)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Selecione para solicitar novamente; a equipe confirma a disponibilidade.</p>
+                </div>}
                 <p className="mt-1 text-xs text-muted-foreground">Sugestões: banho, tosa, hidratação, unhas, subpelos, desembolo e ouvidos. Pode descrever outro cuidado estético.</p>
               </>
             )}
