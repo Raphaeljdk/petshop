@@ -11,6 +11,7 @@ import { NfeRascunhoError } from '@/lib/nfe-xml-modelo55'
 import { NfeXsdError } from '@/lib/nfe-validacao-xsd'
 import { AssinaturaNfeError } from '@/lib/nfe-assinatura-a1'
 import { gerarDanfeAutorizado } from '@/lib/nfe-danfe'
+import { emailFiscalManualHabilitado, enviarEmailFiscalSelecionado } from '@/lib/fiscal-nfe-email'
 
 export const runtime='nodejs'
 export const dynamic='force-dynamic'
@@ -25,6 +26,7 @@ const requisicao=z.discriminatedUnion('acao',[
  base.extend({acao:z.literal('transmitir'),confirmacao:z.literal('EMITIR VENDA SELECIONADA')}).strict(),
  base.extend({acao:z.literal('retransmitir'),confirmacao:z.literal('REENVIAR MESMO XML')}).strict(),
  base.extend({acao:z.literal('consultar')}).strict(),
+ base.extend({acao:z.literal('enviar_email'),confirmacao:z.literal('ENVIAR NF-E AO COMPRADOR')}).strict(),
  base.extend({acao:z.literal('cancelar'),semCirculacao:z.literal(true),justificativa:motivo}).strict(),
  base.extend({acao:z.literal('reenviar_cancelamento'),semCirculacao:z.literal(true)}).strict(),
  base.extend({acao:z.literal('inutilizar'),confirmacao:z.literal('INUTILIZAR NUMERO DESTA VENDA'),justificativa:motivo}).strict(),
@@ -48,7 +50,7 @@ export async function GET(req:NextRequest){
   if(!id.safeParse(vendaId).success)return authJson({error:'Selecione a venda.'},400)
   const venda=await db.venda.findUnique({where:{id:vendaId!},select:{
    canal:true,enderecoEntrega:true,cepEntrega:true,cliente:{select:{endereco:true,cep:true}},reservaNfe:{include:{cancelamento:true,inutilizacao:true}},
-   notaFiscal:{select:{emissor:true,status:true,xmlAutorizado:true,protocolo:true,numero:true}},
+   notaFiscal:{select:{emissor:true,status:true,xmlAutorizado:true,protocolo:true,numero:true,entregaEmail:{select:{status:true,sentAt:true}}}},
   }})
   if(!venda)return authJson({error:'Venda não encontrada.'},404)
   const r=venda.reservaNfe,n=venda.notaFiscal
@@ -65,7 +67,7 @@ export async function GET(req:NextRequest){
     'Content-Type':pdf?'application/pdf':'application/xml; charset=utf-8','Content-Disposition':'attachment; filename="'+(pdf?'DANFE':arquivo==='evento'?'Cancelamento':'NFe')+'-'+r.chave+'.'+(pdf?'pdf':'xml')+'"'}})
   }
   const situacao=await situacaoEmissao(await db.configuracaoFiscal.findUnique({where:{id:'matilha-prado'}}))
-  return authJson({externa:n?.emissor==='externo_sebrae'&&n.status==='autorizada'?{numero:n.numero,status:n.status}:null,canal:venda.canal,habilitado:situacao.habilitada,transicao:inutilizacaoDisponivel(),inutilizacao:r?.inutilizacao?{status:r.inutilizacao.status,motivo:r.inutilizacao.motivo}:null,reserva:r?resumoReal(r):null,evento:r?.cancelamento?{status:r.cancelamento.status,motivo:r.cancelamento.motivo}:null,
+  return authJson({emailManual:emailFiscalManualHabilitado(),email:n?.emissor==='matilha_prado'?n.entregaEmail:null,externa:n?.emissor==='externo_sebrae'&&n.status==='autorizada'?{numero:n.numero,status:n.status}:null,canal:venda.canal,habilitado:situacao.habilitada,transicao:inutilizacaoDisponivel(),inutilizacao:r?.inutilizacao?{status:r.inutilizacao.status,motivo:r.inutilizacao.motivo}:null,reserva:r?resumoReal(r):null,evento:r?.cancelamento?{status:r.cancelamento.status,motivo:r.cancelamento.motivo}:null,
    endereco:venda.enderecoEntrega||venda.cliente?.endereco,cep:venda.cepEntrega||venda.cliente?.cep})
  }catch(e){return falha(e)}
 }
@@ -79,6 +81,9 @@ export async function POST(req:NextRequest){
    case 'corrigir': case 'preparar': return authJson(await s.preparar(d.vendaId,user.id,d.dados,d.acao==='corrigir'))
    case 'retransmitir': case 'transmitir': return authJson(await s.enviar(d.vendaId,user.id,d.acao==='retransmitir'))
    case 'consultar': return authJson(await s.consultar(d.vendaId,user.id))
+   case 'enviar_email':
+    if(!emailFiscalManualHabilitado())return authJson({error:'Envio manual ainda não habilitado neste ambiente.'},409)
+    return authJson(await enviarEmailFiscalSelecionado(d.vendaId))
    case 'cancelar': return authJson(await s.cancelar(d.vendaId,user.id,d.justificativa))
    case 'reenviar_cancelamento': return authJson(await s.reenviarCancelamento(d.vendaId,user.id))
    case 'inutilizar': return authJson(await s.inutilizar(d.vendaId,user.id,d.justificativa))
