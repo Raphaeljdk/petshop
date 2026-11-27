@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { updateGiftRedemption } from '@/lib/portal-gift-credit'
 import { awardReferralForPaidSale } from '@/lib/portal-referral-awards'
 import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
+import { dispatchGravataPaga } from '@/lib/gravata-whatsapp'
 import { creditReleasedReservation } from '@/lib/sale-stock-policy'
 
 export type PaymentSalePatch = {
@@ -84,5 +85,8 @@ export async function applyPaymentSaleState(
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   )
   if(update?.productIds.length)await syncStockAfterHubWrite(update.productIds)
+  if(update?.result.status==='concluida'&&update.result.mercadoPagoStatus==='approved'){
+    try { await dispatchGravataPaga(vendaId) } catch { console.error('[gravata-whatsapp] envio pendente para conciliação') }
+  }
   return update?.result??null
 }
