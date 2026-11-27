@@ -2,6 +2,7 @@ import {db} from '@/lib/db'
 import {invitationMailConfig} from '@/lib/client-invitations'
 import {gerarDanfeAutorizado} from './nfe-danfe'
 import {emailSchema} from '@/lib/auth-validation'
+import {numeroPedidoAmazon} from './nfe-real-venda'
 
 /**
  * Envia somente NF-e REAL modelo 55 de emissão própria da Matilha Prado,
@@ -32,6 +33,12 @@ export function nfeRealAutorizadaParaEmail(n:NfeParaEmail):boolean{
   tag(prot,'chNFe')===n.chaveAcesso&&tag(prot,'nProt')===n.protocolo
 }
 
+export function emailParaEntrega(venda:{canal:string;cliente:{email:string|null}|null},dadosOperacao:unknown){
+ const email=venda.canal==='amazon'&&dadosOperacao&&typeof dadosOperacao==='object'&&'emailPedidoAmazon' in dadosOperacao
+  ?dadosOperacao.emailPedidoAmazon:venda.cliente?.email
+ return emailSchema.safeParse(email)
+}
+
 export async function enqueueNfeEmails(){
  // Não descobrir notas de outro emissor, mesmo se tiverem XML autorizado.
  const notas=await db.notaFiscal.findMany({where:{
@@ -39,11 +46,11 @@ export async function enqueueNfeEmails(){
   chaveAcesso:{not:null},protocolo:{not:null},xmlAutorizado:{not:null},
  },select:{
   id:true,modelo:true,status:true,emissor:true,chaveAcesso:true,protocolo:true,xmlAutorizado:true,
-  venda:{select:{cliente:{select:{email:true}}}},
+  venda:{select:{canal:true,cliente:{select:{email:true}},reservaNfe:{select:{dadosOperacao:true}}}},
  },take:60,orderBy:{autorizadaEm:'desc'}})
  let enfileiradas=0
  for(const nota of notas){
-  const endereco=emailSchema.safeParse(nota.venda.cliente?.email)
+  const endereco=emailParaEntrega(nota.venda,nota.venda.reservaNfe?.dadosOperacao)
   if(!endereco.success||!nfeRealAutorizadaParaEmail(nota))continue
   const created=await db.nfeEmailDelivery.createMany({data:[{
    notaFiscalId:nota.id,destinatarioEmail:endereco.data,
@@ -77,16 +84,18 @@ export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=configurac
    const nota=await db.notaFiscal.findUnique({where:{id:entrega.notaFiscalId},select:{
     modelo:true,status:true,emissor:true,chaveAcesso:true,protocolo:true,xmlAutorizado:true,
     numero:true,serie:true,
-    venda:{select:{cliente:{select:{nome:true,email:true}}}},
+    venda:{select:{canal:true,marketplaceOrderId:true,cliente:{select:{nome:true,email:true}},reservaNfe:{select:{dadosOperacao:true}}}},
    }})
-   const email=emailSchema.safeParse(nota?.venda.cliente?.email)
-   if(!nota||!nfeRealAutorizadaParaEmail(nota)||!email.success||
-     email.data.toLowerCase()!==entrega.destinatarioEmail.toLowerCase())
+   if(!nota||!nfeRealAutorizadaParaEmail(nota))throw Error('NF-e autorizada indisponível.')
+   const email=emailParaEntrega(nota.venda,nota.venda.reservaNfe?.dadosOperacao)
+   if(!email.success||email.data.toLowerCase()!==entrega.destinatarioEmail.toLowerCase())
     throw Error('Nota ou e-mail não corresponde a documento real autorizado.')
    const nome=nota.venda.cliente?.nome?.trim()||'cliente'
    const chave=nota.chaveAcesso as string
    const xml=nota.xmlAutorizado as string
+   const pedido=nota.venda.canal==='amazon'?numeroPedidoAmazon(nota.venda.marketplaceOrderId):null
    const emailBody='Olá, '+nome+'!\n\nSua NF-e da Matilha Prado foi autorizada pela SEFAZ.'+
+    (pedido?'\nPedido Amazon: '+pedido:'')+
     '\nNúmero: '+(nota.numero??'')+' | Série: '+(nota.serie??'')+
     '\nChave de acesso: '+chave+
     '\n\nO XML autorizado e o DANFE em PDF estão anexados a este e-mail. Guarde o documento para seus registros.'+
@@ -98,7 +107,7 @@ export async function dispatchNfeEmails(enviar:typeof fetch=fetch,cfg=configurac
     headers:{Authorization:'Bearer '+cfg.key,'Content-Type':'application/json',
      'Idempotency-Key':'nfe-autorizada-'+entrega.notaFiscalId},
     body:JSON.stringify({
-     from:cfg.from,to:[email.data],subject:'Sua NF-e autorizada | Matilha Prado',
+     from:cfg.from,to:[email.data],subject:pedido?'NF-e do pedido Amazon '+pedido:'Sua NF-e autorizada | Matilha Prado',
      text:emailBody,...(cfg.replyTo?{reply_to:cfg.replyTo}:{}),
      attachments:[{filename:'DANFE-'+chave+'.pdf',content:pdf},{
       filename:'NFe-'+chave+'.xml',content:Buffer.from(xml,'utf8').toString('base64'),

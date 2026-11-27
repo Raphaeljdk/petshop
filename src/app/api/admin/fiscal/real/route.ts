@@ -19,6 +19,7 @@ const id=z.string().trim().min(1).max(80)
 const motivo=z.string().trim().min(15).max(255)
 const base=z.object({vendaId:id})
 const requisicao=z.discriminatedUnion('acao',[
+ base.extend({acao:z.literal('conferir_amazon')}).strict(),
  base.extend({acao:z.literal('preparar'),dados:complementoFiscal}).strict(),
  base.extend({acao:z.literal('corrigir'),dados:complementoFiscal}).strict(),
  base.extend({acao:z.literal('transmitir'),confirmacao:z.literal('EMITIR VENDA SELECIONADA')}).strict(),
@@ -46,7 +47,7 @@ export async function GET(req:NextRequest){
   const vendaId=req.nextUrl.searchParams.get('vendaId'),arquivo=req.nextUrl.searchParams.get('arquivo')
   if(!id.safeParse(vendaId).success)return authJson({error:'Selecione a venda.'},400)
   const venda=await db.venda.findUnique({where:{id:vendaId!},select:{
-   enderecoEntrega:true,cepEntrega:true,cliente:{select:{endereco:true,cep:true}},reservaNfe:{include:{cancelamento:true,inutilizacao:true}},
+   canal:true,enderecoEntrega:true,cepEntrega:true,cliente:{select:{endereco:true,cep:true}},reservaNfe:{include:{cancelamento:true,inutilizacao:true}},
    notaFiscal:{select:{emissor:true,status:true,xmlAutorizado:true,protocolo:true}},
   }})
   if(!venda)return authJson({error:'Venda não encontrada.'},404)
@@ -64,7 +65,7 @@ export async function GET(req:NextRequest){
     'Content-Type':pdf?'application/pdf':'application/xml; charset=utf-8','Content-Disposition':'attachment; filename="'+(pdf?'DANFE':arquivo==='evento'?'Cancelamento':'NFe')+'-'+r.chave+'.'+(pdf?'pdf':'xml')+'"'}})
   }
   const situacao=await situacaoEmissao(await db.configuracaoFiscal.findUnique({where:{id:'matilha-prado'}}))
-  return authJson({habilitado:situacao.habilitada,transicao:inutilizacaoDisponivel(),inutilizacao:r?.inutilizacao?{status:r.inutilizacao.status,motivo:r.inutilizacao.motivo}:null,reserva:r?resumoReal(r):null,evento:r?.cancelamento?{status:r.cancelamento.status,motivo:r.cancelamento.motivo}:null,
+  return authJson({canal:venda.canal,habilitado:situacao.habilitada,transicao:inutilizacaoDisponivel(),inutilizacao:r?.inutilizacao?{status:r.inutilizacao.status,motivo:r.inutilizacao.motivo}:null,reserva:r?resumoReal(r):null,evento:r?.cancelamento?{status:r.cancelamento.status,motivo:r.cancelamento.motivo}:null,
    endereco:venda.enderecoEntrega||venda.cliente?.endereco,cep:venda.cepEntrega||venda.cliente?.cep})
  }catch(e){return falha(e)}
 }
@@ -74,6 +75,7 @@ export async function POST(req:NextRequest){
   if(!input.success)return authJson({error:'Confira os dados e a confirmação da venda selecionada.'},400)
   const d=input.data,s=emissorReal()
   switch(d.acao){
+   case 'conferir_amazon': return authJson(await s.conferirPedidoAmazon(d.vendaId))
    case 'corrigir': case 'preparar': return authJson(await s.preparar(d.vendaId,user.id,d.dados,d.acao==='corrigir'))
    case 'retransmitir': case 'transmitir': return authJson(await s.enviar(d.vendaId,user.id,d.acao==='retransmitir'))
    case 'consultar': return authJson(await s.consultar(d.vendaId,user.id))

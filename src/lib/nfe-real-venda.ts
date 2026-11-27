@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { pedidoAmazonFiscal } from './amazon-sp-api'
+import type { PedidoAmazonFiscal, pedidoAmazonFiscal } from './amazon-sp-api'
 import type { Prisma } from '@prisma/client'
 import { validCpfCnpj } from './siggma/customer'
 import { PACOTE_NFE } from './nfe-validacao-xsd'
@@ -21,9 +21,28 @@ export const complementoFiscal=z.object({
  consumidorFinalNaoContribuinte:z.literal(true),semNotaExterna:z.literal(true),
 }).strict()
 export type ComplementoFiscal=z.infer<typeof complementoFiscal>
+export const complementoPersistido=complementoFiscal.extend({emailPedidoAmazon:emailSchema.optional()})
 export type TransacaoFiscal=Prisma.TransactionClient
 
-export type Intermediacao={pedidoId:string;total:number;cnpj:string;idCadastro:string}
+export function numeroPedidoAmazon(id:string|null){
+ const numero = /^(?:amazon:)?(\d{3}-\d{7}-\d{7})$/.exec(id ?? '')?.[1]
+ exigir(numero, 'Identificador de pedido Amazon inválido.')
+ return numero
+}
+function dadosDoComprador(order:PedidoAmazonFiscal){
+ const registros=(order.tax?.taxRegistrations??[]).filter(r=>r.entityType==='BUYER'&&['CPF','CNPJ'].includes(r.taxRegistrationType??''))
+ const documentos=new Set(registros.map(r=>{
+  const doc=(r.taxRegistrationNumber??'').replace(/[.\/\s-]/g,'')
+  exigir(/^\d+$/.test(doc)&&doc.length===(r.taxRegistrationType==='CPF'?11:14)&&validCpfCnpj(doc),'Documento fiscal do comprador inválido na Amazon.')
+  return doc
+ }))
+ exigir(documentos.size<=1,'A Amazon informou documentos diferentes para o comprador deste pedido.')
+ const documento=documentos.values().next().value
+ const nome=registros.find(r=>r.legalName?.trim())?.legalName?.trim()||order.buyer?.buyerName?.trim()
+ const email=emailSchema.safeParse(order.buyer?.buyerEmail)
+ const comprador=documento&&nome&&email.success?{nome,cpfCnpj:documento,email:email.data}:null
+ return {documento,comprador}
+}
 export function conferirAmazon(id:string,total:number,dados:Awaited<ReturnType<typeof pedidoAmazonFiscal>>,cnpj:string){
  const {order,sellerId,marketplaceId}=dados
  exigir(order?.orderId===id&&marketplaceId==='A2Q3Y263D00KWC'&&order.salesChannel?.marketplaceId===marketplaceId,'Pedido ou marketplace Amazon divergente.')
@@ -33,11 +52,15 @@ export function conferirAmazon(id:string,total:number,dados:Awaited<ReturnType<t
  const money=order.proceeds?.grandTotal
  exigir(money?.currencyCode==='BRL'&&Math.round(Number(money.amount)*100)===Math.round(total*100),'Total da Amazon diverge da venda.')
  exigir(/^\d{14}$/.test(cnpj)&&validCpfCnpj(cnpj)&&sellerId.length>=2&&sellerId.length<=60,'Configure o CNPJ fiscal do intermediador Amazon e a identificação do vendedor.')
- return {pedidoId:id,total,cnpj,idCadastro:sellerId}
+ return {pedidoId:id,total,cnpj,idCadastro:sellerId,...dadosDoComprador(order)}
 }
-export async function intermediadorAmazon(id:string,total:number){
- const {pedidoAmazonFiscal}=await import('./amazon-sp-api')
- const dados=await pedidoAmazonFiscal(id)
+export type Intermediacao=ReturnType<typeof conferirAmazon>
+export async function intermediadorAmazon(id:string,total:number,incluirComprador=false){
+ const {pedidoAmazonFiscal,AmazonSpApiError}=await import('./amazon-sp-api')
+ const dados=await pedidoAmazonFiscal(id,incluirComprador).catch(e=>{
+  exigir(!(e instanceof AmazonSpApiError&&e.status===403),'A Amazon recusou a consulta fiscal. Confira as permissões do vendedor para este pedido.')
+  throw e
+ })
  return conferirAmazon(id,total,dados,process.env.NFE_AMAZON_CNPJ_INTERMEDIADOR?.trim()||'')
 }
 
@@ -50,9 +73,27 @@ export async function carregarOperacao(tx:TransacaoFiscal,vendaId:string){
  exigir(venda.status==='concluida'&&venda.total>0&&venda.itens.length,'A venda deve estar concluída e conter mercadorias.')
  exigir(!venda.creditoPresenteCentavos,'Pagamento com vale exige detalhamento próprio.')
  exigir(!venda.mercadoPagoStatus||venda.mercadoPagoStatus==='approved','Pagamento pendente ou estornado no Mercado Pago.')
- exigir(venda.cliente&&validCpfCnpj(venda.cliente.cpfCnpj)&&emailSchema.safeParse(venda.cliente.email).success,'Revise CPF/CNPJ e e-mail do cliente da venda.')
- if(venda.marketplaceBuyerDocument)exigir(venda.marketplaceBuyerDocument.replace(/\D/g,'')===venda.cliente.cpfCnpj?.replace(/\D/g,''),'CPF/CNPJ do pedido Amazon diverge do cliente vinculado.')
+ if(venda.canal==='site')exigir(contatoCompleto(venda.cliente),'Revise CPF/CNPJ e e-mail do cliente da venda.')
+ if(venda.canal==='amazon'){
+  exigir(venda.statusEntrega!=='entregue','A mercadoria deste pedido já foi entregue.')
+  const numero=numeroPedidoAmazon(venda.marketplaceOrderId)
+  const duplicada=await tx.venda.findFirst({where:{id:{not:venda.id},canal:'amazon',marketplaceOrderId:{in:[numero,'amazon:'+numero]}},select:{id:true}})
+  exigir(!duplicada,'O mesmo pedido Amazon consta em duas vendas. Concilie os registros antes de emitir.')
+ }
  return venda
+}
+export function contatoCompleto(cliente:{cpfCnpj:string|null;email:string|null}|null){
+ return !!cliente&&validCpfCnpj(cliente.cpfCnpj)&&emailSchema.safeParse(cliente.email).success
+}
+export function compradorFiscal(venda:Awaited<ReturnType<typeof carregarOperacao>>, inter?:Intermediacao){
+ if(venda.canal==='amazon'){
+  exigir(inter?.pedidoId===numeroPedidoAmazon(venda.marketplaceOrderId)&&inter.total===venda.total,'Vínculo ou total do pedido divergente.')
+  const documentos=[inter.documento,venda.marketplaceBuyerDocument,venda.cliente?.cpfCnpj].filter(Boolean).map(d=>d!.replace(/\D/g,''))
+  exigir(new Set(documentos).size<=1,'CPF/CNPJ do pedido Amazon diverge do cadastro da venda.')
+  if(inter.comprador)return {...inter.comprador,emailPedidoAmazon:inter.comprador.email}
+ }else exigir(!inter,'Venda do site com intermediador inesperado.')
+ exigir(venda.cliente&&contatoCompleto(venda.cliente),'Faltam nome, CPF/CNPJ e e-mail do comprador no pedido ou no cadastro da venda.')
+ return {nome:venda.cliente.nome,cpfCnpj:venda.cliente.cpfCnpj!,emailPedidoAmazon:undefined}
 }
 export async function carregarLiberacao(tx:TransacaoFiscal,habilitada:boolean){
  const empresa=await tx.configuracaoFiscal.findUnique({where:{id:'matilha-prado'}})
@@ -69,8 +110,7 @@ export async function carregarLiberacao(tx:TransacaoFiscal,habilitada:boolean){
 }
 
 export async function gerarParaVenda(tx:TransacaoFiscal,venda:Awaited<ReturnType<typeof carregarOperacao>>,empresa:NonNullable<Awaited<ReturnType<typeof carregarLiberacao>>['empresa']>,dados:ComplementoFiscal,numero:number,cNF:string,data:Date,chaves:ChavesA1,inter?:Intermediacao){
- exigir(venda.canal==='amazon'?inter?.pedidoId===venda.marketplaceOrderId&&inter?.total===venda.total:!inter,'Vínculo ou total do pedido divergente.')
- const cliente=venda.cliente!
+ const cliente=compradorFiscal(venda,inter)
  const cep=venda.cepEntrega?.replace(/\D/g,'')
  exigir(!cep||cep===dados.endereco.cep,'CEP fiscal diverge do endereço de entrega. Confira o pedido.')
  const itens:NfeEntrada['itens']=[]
@@ -107,5 +147,5 @@ export async function gerarParaVenda(tx:TransacaoFiscal,venda:Awaited<ReturnType
  },data)
  const {xmlAssinado}=assinarDocumentoFiscal(xml,chaves,1)
  montarLoteReal(xmlAssinado,numero)
- return {xmlAssinado,chave,xml}
+ return {xmlAssinado,chave,xml,emailPedidoAmazon:cliente.emailPedidoAmazon}
 }

@@ -5,9 +5,8 @@ import { extrairCertificadoA1, verificarNfeAssinada, type ChavesA1 } from './nfe
 import { lerA1DeVariaveis } from './sefaz-sp-nfe'
 import { enviarSoapProducao, type ServicoReal } from './sefaz-sp-nfe-homologacao'
 import { consultaReal, exigir, interpretarRetornoReal, inutilizacaoDisponivel, pedidoInutilizacao, retornoInutilizacao, loteCancelamento, montarLoteReal, pedidoCancelamento, retornoCancelamento } from './nfe-real-protocolo'
-import { intermediadorAmazon, carregarLiberacao, carregarOperacao, complementoFiscal, gerarParaVenda, type ComplementoFiscal, type TransacaoFiscal } from './nfe-real-venda'
-import { configuracaoEmailFiscal } from './fiscal-nfe-email'
-import { emailSchema } from './auth-validation'
+import { intermediadorAmazon, carregarLiberacao, carregarOperacao, complementoPersistido, compradorFiscal, contatoCompleto, numeroPedidoAmazon, gerarParaVenda, type ComplementoFiscal, type TransacaoFiscal } from './nfe-real-venda'
+import { configuracaoEmailFiscal, emailParaEntrega } from './fiscal-nfe-email'
 
 type Runtime={agora?:()=>Date;amazon:typeof intermediadorAmazon; db:PrismaClient; habilitado:()=>boolean; chaves:(cnpj:string)=>ChavesA1; enviar:(servico:ServicoReal,xml:string)=>Promise<string>}
 export function emissaoAtivaNoServidor(){
@@ -28,6 +27,10 @@ function registro(tx:TransacaoFiscal,r:NfeRealReserva,acao:string,usuarioId:stri
 function notaPropria(tx:TransacaoFiscal,vendaId:string){
  return tx.notaFiscal.findFirstOrThrow({where:{vendaId,emissor:'matilha_prado',modelo:'55'}})
 }
+function rascunhoLivre(nota:Awaited<ReturnType<typeof carregarOperacao>>['notaFiscal']){
+ return !nota||nota.modelo==='55'&&nota.status==='rascunho'&&!nota.emissor&&!nota.numero&&!nota.chaveAcesso
+  &&!nota.protocolo&&!nota.xmlAutorizado&&!nota.emissorDocumentoId&&!nota.emissaoSolicitadaEm
+}
 async function travarVenda(tx:TransacaoFiscal,id:string){
  const linhas=await tx.$queryRaw<{id:string}[]>`SELECT id FROM "Venda" WHERE id=${id} FOR UPDATE`
  exigir(linhas.length===1,'Venda não encontrada.')
@@ -44,10 +47,17 @@ export function resumoReal(r:NfeRealReserva){
 export function emissorReal(rt:Runtime=padrao){
  const transacao=<T,>(fn:(tx:TransacaoFiscal)=>Promise<T>)=>rt.db.$transaction(fn,{isolationLevel:'ReadCommitted',maxWait:12000,timeout:25000})
  async function intermediacao(vendaId:string){
-  const venda=await rt.db.venda.findUnique({where:{id:vendaId},select:{canal:true,marketplaceOrderId:true,total:true}})
+  const venda=await rt.db.venda.findUnique({where:{id:vendaId},select:{canal:true,marketplaceOrderId:true,total:true,cliente:{select:{cpfCnpj:true,email:true}}}})
   if(venda?.canal!=='amazon')return undefined
-  exigir(venda.marketplaceOrderId,'Pedido Amazon sem identificador.')
-  return rt.amazon(venda.marketplaceOrderId,venda.total)
+  return rt.amazon(numeroPedidoAmazon(venda.marketplaceOrderId),venda.total,!contatoCompleto(venda.cliente))
+ }
+ async function conferirPedidoAmazon(vendaId:string){
+  const venda=await carregarOperacao(rt.db,vendaId)
+  exigir(venda.canal==='amazon','Selecione uma venda da Amazon.')
+  exigir(rascunhoLivre(venda.notaFiscal),'Já existe um documento ou uma emissão em andamento para esta venda.')
+  const inter=await intermediacao(vendaId)
+  compradorFiscal(venda,inter)
+  return {pedido:numeroPedidoAmazon(venda.marketplaceOrderId)}
  }
  async function preparar(vendaId:string,autor:string,dados:ComplementoFiscal,corrigir=false){
   const existente=await rt.db.nfeRealReserva.findUnique({where:{vendaId}})
@@ -61,8 +71,7 @@ export function emissorReal(rt:Runtime=padrao){
    if(corrigir)exigir(anterior&&(anterior.status==='rejeitada'||anterior.status==='preparada'&&!anterior.enviadaEm),'Correção exige NF-e ainda não transmitida ou rejeição confirmada.')
    const venda=await carregarOperacao(tx,vendaId)
    const nota=venda.notaFiscal
-   exigir(anterior?nota?.emissor==='matilha_prado'&&nota.status===anterior.status:
-    !nota||(nota.modelo==='55'&&nota.status==='rascunho'&&!nota.emissor&&!nota.numero&&!nota.chaveAcesso&&!nota.emissorDocumentoId&&!nota.emissaoSolicitadaEm),
+   exigir(anterior?nota?.emissor==='matilha_prado'&&nota.status===anterior.status:rascunhoLivre(nota),
     'Já existe um documento ou uma emissão em andamento para esta venda.')
    // O bloqueio da sequência vem depois do bloqueio da venda em todos os caminhos de reserva.
    // A leitura seguinte vê a versão confirmada pelo emissor concorrente.
@@ -80,9 +89,10 @@ export function emissorReal(rt:Runtime=padrao){
    }
    const data=anterior?.emitidaEm??new Date()
    const cNF=anterior?.chave?.slice(35,43)??String(randomInt(100000000)).padStart(8,'0')
-   const {chave,xmlAssinado}=await gerarParaVenda(tx,venda,empresa,dados,numero,cNF,data,rt.chaves(cnpj),inter)
+   const {chave,xmlAssinado,emailPedidoAmazon}=await gerarParaVenda(tx,venda,empresa,dados,numero,cNF,data,rt.chaves(cnpj),inter)
    exigir(!anterior||chave===anterior.chave,'Correção alteraria a chave reservada.')
-   const valores={status:'preparada',chave,xmlAssinado,dadosOperacao:dados,emitidaEm:data,codigo:null,motivo:null,recibo:null,consultaAusenteEm:null}
+   const dadosOperacao=emailPedidoAmazon?{...dados,emailPedidoAmazon}:dados
+   const valores={status:'preparada',chave,xmlAssinado,dadosOperacao,emitidaEm:data,codigo:null,motivo:null,recibo:null,consultaAusenteEm:null}
    const r=anterior?await tx.nfeRealReserva.update({where:{vendaId},data:{...valores,revisao:{increment:1}}}):
     await tx.nfeRealReserva.create({data:{...valores,cnpj,serie:2,numero,vendaId}})
    if(!anterior)await tx.nfeRealSequencia.update({where:{cnpj_modelo_serie_ambiente:{cnpj,modelo:'55',serie:2,ambiente:1}},data:{proximoNumero:{increment:1},updatedAt:new Date()}})
@@ -109,8 +119,8 @@ export function emissorReal(rt:Runtime=padrao){
    await tx.notaFiscal.update({where:{id:nf.id},data:{status,consultadaEm:new Date(),erro:status==='autorizada'?null:motivo,
     ...(xmlAutorizado?{xmlAutorizado,protocolo,autorizadaEm,danfeUrl:'/api/admin/fiscal/real?vendaId='+encodeURIComponent(r.vendaId)+'&arquivo=pdf'}:{})}})
    if(xmlAutorizado){
-    const venda=await tx.venda.findUniqueOrThrow({where:{id:r.vendaId},select:{cliente:{select:{email:true}}}})
-    const email=emailSchema.safeParse(venda.cliente?.email)
+    const venda=await tx.venda.findUniqueOrThrow({where:{id:r.vendaId},select:{canal:true,cliente:{select:{email:true}}}})
+    const email=emailParaEntrega(venda,atual.dadosOperacao)
     if(email.success)await tx.nfeEmailDelivery.createMany({data:[{notaFiscalId:nf.id,destinatarioEmail:email.data}],skipDuplicates:true})
    }
    await registro(tx,r,op,autor,resposta)
@@ -134,7 +144,9 @@ export function emissorReal(rt:Runtime=padrao){
    const chaves=rt.chaves(r.cnpj)
    verificarNfeAssinada(r.xmlAssinado,chaves.certificadoPem,r.chave,1)
    if(!retransmitir){
-    const atual=await gerarParaVenda(tx,venda,empresa,complementoFiscal.parse(r.dadosOperacao),r.numero,r.chave.slice(35,43),r.emitidaEm,chaves,inter)
+    const dados=complementoPersistido.parse(r.dadosOperacao)
+    const atual=await gerarParaVenda(tx,venda,empresa,dados,r.numero,r.chave.slice(35,43),r.emitidaEm,chaves,inter)
+    exigir(atual.emailPedidoAmazon===dados.emailPedidoAmazon,'O contato fiscal da Amazon mudou. Confira o pedido antes de transmitir.')
     exigir(atual.xmlAssinado===r.xmlAssinado,'Venda ou regra alterada depois do preparo. Confira os dados antes do envio.')
    }
    const xml=montarLoteReal(r.xmlAssinado,r.numero)
@@ -278,5 +290,5 @@ export function emissorReal(rt:Runtime=padrao){
    return resumoReal(await tx.nfeRealReserva.update({where:{vendaId},data:{status:'quebra',motivo,revisao:{increment:1}}}))
   })
  }
- return {preparar,enviar,consultar,cancelar,reenviarCancelamento,registrarQuebra,inutilizar}
+ return {conferirPedidoAmazon,preparar,enviar,consultar,cancelar,reenviarCancelamento,registrarQuebra,inutilizar}
 }

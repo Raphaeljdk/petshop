@@ -828,14 +828,18 @@ export async function amazonUpdateListingQuantity(
 
 export type PedidoAmazonFiscal={
  orderId?:string; salesChannel?:{marketplaceId?:string};programs?:string[]
+ buyer?: { buyerName?: string; buyerEmail?: string }
  proceeds?:{grandTotal?:{amount?:string|number;currencyCode?:string}}
  fulfillment?:{fulfilledBy?:string;fulfillmentStatus?:string}
- tax?:{taxInvoicing?:{invoiceStatus?:string}}
+ tax?:{
+   taxInvoicing?:{invoiceStatus?:string}
+   taxRegistrations?:Array<{entityType?:string;legalName?:string;taxRegistrationType?:string;taxRegistrationNumber?:string}>
+ }
 }
-export async function pedidoAmazonFiscal(id:string){
+export async function pedidoAmazonFiscal(id:string, incluirComprador=false){
  const config=amazonSpApiConfig()
  const result=await amazonGet<{order?:PedidoAmazonFiscal}>('/orders/2026-01-01/orders/'+encodeURIComponent(id),{
-  includedData:'FULFILLMENT,TAX,PROCEEDS',
+  includedData:incluirComprador?'FULFILLMENT,TAX,PROCEEDS,BUYER':'FULFILLMENT,TAX,PROCEEDS',
  },AbortSignal.timeout(12000))
  return {order:result.order,sellerId:config.sellerId,marketplaceId:config.marketplaceId}
 }

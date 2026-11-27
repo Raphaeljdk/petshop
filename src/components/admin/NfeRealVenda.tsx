@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 type Operacao={status:string;numero:number;chave:string;codigo:number|null;motivo:string|null;podeReenviar:boolean}
-type Dados={habilitado:boolean;transicao:boolean;inutilizacao:{status:string;motivo:string|null}|null;reserva:Operacao|null;evento:{status:string;motivo:string|null}|null;endereco:string|null;cep:string|null}
+type Dados={canal:string;habilitado:boolean;transicao:boolean;inutilizacao:{status:string;motivo:string|null}|null;reserva:Operacao|null;evento:{status:string;motivo:string|null}|null;endereco:string|null;cep:string|null}
 export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>void}){
  const [aberto,setAberto]=useState(false),[dados,setDados]=useState<Dados|null>(null),[ocupado,setOcupado]=useState(false),[erro,setErro]=useState('')
  const [pag,setPag]=useState(''),[integra,setIntegra]=useState('')
+ const [pedidoConferido,setPedidoConferido]=useState('')
  const url='/api/admin/fiscal/real?vendaId='+encodeURIComponent(vendaId)
  async function ler(){
   const res=await fetch(url,{cache:'no-store'}),json=await res.json()
@@ -19,11 +20,12 @@ export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>voi
   if(!aberto){setErro('');try{await ler()}catch(e){setErro((e as Error).message)}}
  }
  async function agir(acao:string,extra:Record<string,unknown>={}){
-  setOcupado(true);setErro('')
+  setOcupado(true);setErro('');setPedidoConferido('')
   try{
    const res=await fetch('/api/admin/fiscal/real',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vendaId,acao,...extra})})
    const json=await res.json()
    if(!res.ok)throw Error(json.error)
+   if(acao==='conferir_amazon'){setPedidoConferido(json.pedido);return}
    await ler();onChange()
   }catch(e){setErro((e as Error).message)}finally{setOcupado(false)}
  }
@@ -33,6 +35,8 @@ export function NfeRealVenda({vendaId,onChange}:{vendaId:string;onChange:()=>voi
   {aberto&&<section className="mt-2 space-y-2 rounded border p-3 text-sm">
    {erro&&<p role="alert">{erro}</p>}
    {dados&&!dados.habilitado&&<p>Emissão real bloqueada. A liberação exige a conciliação da série e regras aprovadas para produção.</p>}
+   {dados?.canal==='amazon'&&!r&&<Button type="button" variant="outline" size="sm" disabled={ocupado} onClick={()=>void agir('conferir_amazon')}>Conferir pedido na Amazon</Button>}
+   {pedidoConferido&&<p role="status">Pedido {pedidoConferido} conferido. A Amazon indica envio pelo vendedor, aguardando expedição e sem NF-e carregada. Os dados do comprador estão disponíveis para a nota.</p>}
    {r&&<p>Série 2 nº {r.numero} · {r.status} {r.codigo&&' · cStat '+r.codigo} {r.motivo&&' · '+r.motivo}</p>}
    {dados?.evento&&<p>Cancelamento {dados.evento.status} · {dados.evento.motivo}</p>}
    {dados?.habilitado&&(!r||r.status==='rejeitada'||r.status==='preparada')&&<form className="space-y-2" onSubmit={e=>{

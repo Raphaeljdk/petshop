@@ -2,7 +2,7 @@ import { beforeAll, afterAll, test, expect } from 'bun:test'
 import { PrismaClient } from '@prisma/client'
 import forge from 'node-forge'
 import { emissorReal, emissaoAtivaNoServidor } from '../src/lib/nfe-real-servico'
-import { conferirAmazon, type ComplementoFiscal } from '../src/lib/nfe-real-venda'
+import { conferirAmazon, numeroPedidoAmazon, type ComplementoFiscal } from '../src/lib/nfe-real-venda'
 import { gerarDanfeAutorizado } from '../src/lib/nfe-danfe'
 import { interpretarRetornoReal, inutilizacaoDisponivel, retornoInutilizacao, NFE_NS } from '../src/lib/nfe-real-protocolo'
 import { dispatchNfeEmails } from '../src/lib/fiscal-nfe-email'
@@ -142,6 +142,67 @@ test('Amazon valida pedido e emissor e escreve o intermediador no XML assinado',
  const reserva=await db.nfeRealReserva.findUniqueOrThrow({where:{vendaId:v.id}})
  expect(reserva.xmlAssinado).toContain('<indIntermed>1</indIntermed>')
  expect(reserva.xmlAssinado).toContain('<idCadIntTran>'+sellerId+'</idCadIntTran>')
+})
+
+test('pedido importado usa o comprador confirmado na Amazon sem criar cliente e entrega os anexos ao endereço do pedido',async()=>{
+ const v=await venda('amazon'),pedido='701-3456789-1234567',marketplaceId='A2Q3Y263D00KWC'
+ await db.venda.update({where:{id:v.id},data:{clienteId:null,marketplaceOrderId:'amazon:'+pedido}})
+ const clientes=await db.cliente.count(),seq=await db.nfeRealSequencia.findFirstOrThrow()
+ let email:string|undefined,liberado=false,envios=0
+ const order={orderId:pedido,salesChannel:{marketplaceId},fulfillment:{fulfilledBy:'MERCHANT',fulfillmentStatus:'UNSHIPPED'},
+  proceeds:{grandTotal:{amount:10,currencyCode:'BRL'}},tax:{taxInvoicing:{invoiceStatus:'NOT_FOUND'},taxRegistrations:[
+   {entityType:'BUYER',taxRegistrationType:'CPF',taxRegistrationNumber:'123.456.789-09',legalName:'Comprador do pedido'},
+  ]}}
+ const s=emissorReal({db,chaves:()=>chaves,habilitado:()=>liberado,amazon:async(id,total,incluirComprador)=>{
+  expect(id).toBe(pedido);expect(incluirComprador).toBe(true)
+  return conferirAmazon(id,total,{order:{...order,buyer:{buyerEmail:email}},marketplaceId,sellerId:'LOJA_DE_TESTE'},cnpj)
+ },enviar:async()=>{
+  envios++
+  const nota=await db.nfeRealReserva.findUniqueOrThrow({where:{vendaId:v.id}})
+  return resposta(nota.chave!,nota.xmlAssinado!)
+ }})
+ await expect(s.conferirPedidoAmazon(v.id)).rejects.toThrow('comprador')
+ email='comprador-amazon@example.test'
+ expect(await s.conferirPedidoAmazon(v.id)).toEqual({pedido})
+ await expect(s.preparar(v.id,'admin',dados)).rejects.toThrow('bloqueada')
+ expect((await db.nfeRealSequencia.findFirstOrThrow()).proximoNumero).toBe(seq.proximoNumero)
+ liberado=true
+ await s.preparar(v.id,'admin',dados)
+ const r=await db.nfeRealReserva.findUniqueOrThrow({where:{vendaId:v.id}})
+ expect(r.xmlAssinado).toContain('<CPF>12345678909</CPF><xNome>Comprador do pedido</xNome>')
+ email='outro-contato@example.test'
+ await expect(s.enviar(v.id,'admin')).rejects.toThrow('contato fiscal')
+ expect(envios).toBe(0)
+ email='comprador-amazon@example.test'
+ expect((await s.enviar(v.id,'admin')).status).toBe('autorizada')
+ expect(envios).toBe(1)
+ const fetchSimulado:typeof fetch=Object.assign(async(_url:unknown,init?:RequestInit)=>{
+  const body=JSON.parse(String(init?.body))
+  expect(body.to).toEqual([email]);expect(body.subject).toContain(pedido)
+  expect(body.attachments.map((x:{filename:string})=>x.filename)).toEqual(['DANFE-'+r.chave+'.pdf','NFe-'+r.chave+'.xml'])
+  return Response.json({id:'envio-simulado-amazon'})
+ },{preconnect:fetch.preconnect})
+ expect((await dispatchNfeEmails(fetchSimulado,{key:'teste-local',from:'teste@example.test',replyTo:undefined,origin:'https://example.test',configured:true})).enviadas).toBe(1)
+ expect((await db.venda.findUniqueOrThrow({where:{id:v.id}})).clienteId).toBeNull()
+ expect(await db.cliente.count()).toBe(clientes)
+},20000)
+
+test('bloqueia prefixo de outro canal, duas vendas do mesmo pedido e documento fiscal Amazon divergente',async()=>{
+ const pedido='701-1111000-2222222',marketplaceId='A2Q3Y263D00KWC'
+ for(const id of ['mercadolivre:'+pedido,'amazon:amazon:'+pedido,pedido+'/itens',null])expect(()=>numeroPedidoAmazon(id)).toThrow()
+ expect(numeroPedidoAmazon(pedido)).toBe(pedido)
+ const a=await venda('amazon'),b=await venda('amazon')
+ await db.venda.update({where:{id:a.id},data:{marketplaceOrderId:'amazon:'+pedido}})
+ await db.venda.update({where:{id:b.id},data:{marketplaceOrderId:pedido}})
+ const order={orderId:pedido,salesChannel:{marketplaceId},fulfillment:{fulfilledBy:'MERCHANT',fulfillmentStatus:'UNSHIPPED'},
+  proceeds:{grandTotal:{amount:10,currencyCode:'BRL'}},tax:{taxInvoicing:{invoiceStatus:'NOT_FOUND'},taxRegistrations:[
+   {entityType:'BUYER',taxRegistrationType:'CNPJ',taxRegistrationNumber:cnpj},
+  ]}}
+ const s=emissorReal({db,chaves:()=>chaves,habilitado:()=>true,amazon:async(id,total)=>conferirAmazon(id,total,{order,marketplaceId,sellerId:'LOJA_DE_TESTE'},cnpj),enviar:async()=>{throw Error('sem rede')}})
+ for(const venda of [a,b])await expect(s.conferirPedidoAmazon(venda.id)).rejects.toThrow('duas vendas')
+ await db.venda.update({where:{id:b.id},data:{marketplaceOrderId:null}})
+ await expect(s.preparar(a.id,'admin',dados)).rejects.toThrow('diverge')
+ expect(await db.nfeRealReserva.count({where:{vendaId:{in:[a.id,b.id]}}})).toBe(0)
 })
 
 test('inutilização de transição somente na quebra, com faixa e protocolo conferidos',async()=>{
