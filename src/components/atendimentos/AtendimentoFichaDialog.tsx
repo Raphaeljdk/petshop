@@ -8,6 +8,7 @@ import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from '@
 import {CHECKIN_SECTIONS,CHECKOUT_SECTIONS,ACEITE_TEXTO,ACEITE_VERSAO,type FormAnswers} from '@/lib/atendimento-ficha'
 import {FichaSections,asAnswers,dateTime} from './FichaSections'
 import type {Processo} from '@/lib/types'
+import {ComandaAtendimento} from './ComandaAtendimento'
 
 type Ficha={id:string;checkin:unknown;checkinStatus:string;checkinSubmittedAt:string|null;
  tutorAceiteAt:string|null;tutorAceiteNome:string|null;tutorAceiteVersao:string|null;tutorAceiteHash:string|null;
@@ -21,7 +22,7 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
  const [data,setData]=useState<Entry|null>(null)
  const [checkin,setCheckin]=useState<FormAnswers>({})
  const [checkout,setCheckout]=useState<FormAnswers>({})
- const [view,setView]=useState<'checkin'|'checkout'>('checkin')
+ const [view,setView]=useState<'checkin'|'checkout'|'comanda'>('checkin')
  const [busy,setBusy]=useState(false)
  const [edited,setEdited]=useState(false)
  const id=processo?.id
@@ -76,11 +77,12 @@ export function AtendimentoFichaDialog({processo,onClose}:{processo:Processo|nul
     <div className="flex flex-wrap gap-2">
      <Button size="sm" variant={view==='checkin'?'default':'outline'} onClick={()=>setView('checkin')}>Check-in / anamnese</Button>
      <Button size="sm" variant={view==='checkout'?'default':'outline'} onClick={()=>setView('checkout')}>Check-out</Button>
+     <Button size="sm" variant={view==='comanda'?'default':'outline'} onClick={()=>setView('comanda')}>Comanda</Button>
      <Button size="sm" variant="outline" onClick={()=>{if(edited&&!window.confirm('A impressão não salva as alterações atuais. Continuar?'))return;window.print()}}>
       <Printer className="mr-1 size-4"/> Imprimir fichas completas
      </Button>
     </div>
-    {view==='checkin'?<>
+    {view==='comanda'&&id?<ComandaAtendimento processoId={id} equipe/>:view==='checkin'?<>
      <p className="text-xs">1. Identificação · Pet: {data.processo.pet.nome} · {data.processo.pet.raca||data.processo.pet.especie} · Tutor: {data.processo.pet.cliente.nome} · {data.processo.pet.cliente.telefone}</p>
      <FichaSections sections={CHECKIN_SECTIONS} answers={checkin} onChange={canCheckin?v=>{setCheckin(v);setEdited(true)}:undefined} initialOpen/>
      <div className="rounded-lg border p-3 text-xs">
