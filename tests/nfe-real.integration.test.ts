@@ -5,7 +5,8 @@ import { emissorReal, emissaoAtivaNoServidor } from '../src/lib/nfe-real-servico
 import { conferirAmazon, numeroPedidoAmazon, type ComplementoFiscal } from '../src/lib/nfe-real-venda'
 import { gerarDanfeAutorizado } from '../src/lib/nfe-danfe'
 import { interpretarRetornoReal, inutilizacaoDisponivel, retornoInutilizacao, NFE_NS } from '../src/lib/nfe-real-protocolo'
-import { dispatchNfeEmails } from '../src/lib/fiscal-nfe-email'
+import { dispatchNfeEmails, enviarEmailFiscalSelecionado, emailFiscalManualHabilitado } from '../src/lib/fiscal-nfe-email'
+import { lerNfeExterna, conferirConsultaExterna, conferirVinculoExterno } from '../src/lib/nfe-externa-conciliacao'
 import { PACOTE_NFE } from '../src/lib/nfe-validacao-xsd'
 import { enviarSoapProducao, type ServicoReal } from '../src/lib/sefaz-sp-nfe-homologacao'
 
@@ -20,7 +21,7 @@ const dados:ComplementoFiscal={pagamento:'01',modalidadeFrete:'9',consumidorFina
  endereco:{uf:'SP',municipio:'São Paulo',codigoMunicipio:'3550308',logradouro:'Rua de Teste',numero:'50',bairro:'Centro',cep:'01001000'}}
 const par=forge.pki.rsa.generateKeyPair(1024),cert=forge.pki.createCertificate()
 cert.publicKey=par.publicKey;cert.serialNumber='01'
-cert.setSubject([{name:'commonName',value:'Teste'}]);cert.setIssuer(cert.subject.attributes);cert.sign(par.privateKey)
+cert.setSubject([{name:'commonName',value:'Teste:'+cnpj}]);cert.setIssuer(cert.subject.attributes);cert.sign(par.privateKey)
 const chaves={privateKeyPem:forge.pki.privateKeyToPem(par.privateKey),certificadoPem:forge.pki.certificateToPem(cert),cnpj,venceEm:'2035-01-01'}
 let clienteId:string,produtoId:string,regraId:string,habilitado=true
 type Enviar=(op:ServicoReal,xml:string)=>Promise<string>
@@ -86,6 +87,15 @@ test('concorrência entre vendas e cliques, falha antes do commit e XML/PDF apó
  expect(nota.status).toBe('autorizada');expect(nota.protocolo).toBe(protocolo);expect(nota.entregaEmail?.status).toBe('pendente')
  const pdf=gerarDanfeAutorizado(nota.xmlAutorizado!)
  expect(pdf.subarray(0,5).toString()).toBe('%PDF-')
+ // Exercita o parser de importação com XML assinado e XSD reais, protocolo sintético.
+ const externa=lerNfeExterna(nota.xmlAutorizado!,cnpj)
+ expect(externa.chave).toBe(chave);expect(externa.protocolo).toBe(protocolo)
+ conferirVinculoExterno(externa,{total:10,documentos:['12345678909'],itens:[{sku,quantidade:1}]})
+ const consultaOk='<retConsSitNFe xmlns="'+NFE_NS+'" versao="4.00"><tpAmb>1</tpAmb><cUF>35</cUF><cStat>100</cStat><chNFe>'+chave+'</chNFe>'+ok.match(/<protNFe[\\s\\S]*?<\\/protNFe>/)![0]+'</retConsSitNFe>'
+ expect(conferirConsultaExterna(externa,consultaOk).status).toBe('autorizada')
+ expect(()=>conferirConsultaExterna(externa,consulta(chave,101))).toThrow()
+ expect(()=>lerNfeExterna(nota.xmlAutorizado!.replace('<vNF>10.00','<vNF>20.00'),cnpj)).toThrow()
+
  let emails=0
  const envia:typeof fetch=Object.assign(async(_url:unknown,init?:RequestInit)=>{
   const payload=JSON.parse(String(init?.body))
@@ -95,7 +105,11 @@ test('concorrência entre vendas e cliques, falha antes do commit e XML/PDF apó
   emails++;return Response.json({id:'id-local'})
  },{preconnect:fetch.preconnect})
  const cfg={key:'teste-local',from:'teste@example.test',origin:'https://example.test',replyTo:undefined,configured:true}
- await Promise.all([dispatchNfeEmails(envia,cfg),dispatchNfeEmails(envia,cfg)])
+ expect(emailFiscalManualHabilitado({VERCEL_ENV:'preview',NFE_EMAIL_MANUAL_ENABLED:'true'} as NodeJS.ProcessEnv)).toBe(false)
+ expect((await dispatchNfeEmails(envia,cfg,'documento-inexistente')).enviadas).toBe(0)
+ await Promise.all([enviarEmailFiscalSelecionado(v.id,envia,cfg),enviarEmailFiscalSelecionado(v.id,envia,cfg)])
+ expect(emails).toBe(1)
+ expect((await enviarEmailFiscalSelecionado(v.id,envia,cfg)).status).toBe('enviado')
  expect(emails).toBe(1)
  transporte=async(op,doc)=>{
   expect(op).toBe('cancelamento');expect(doc).toContain('ID110111'+chave+'01')
