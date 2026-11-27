@@ -91,6 +91,7 @@ function BookingDecision({
           timeZone: 'America/Sao_Paulo',
         })}
       </p>
+      {!!booking.gravataPrecoCentavos && <div className="my-2 rounded-lg border p-3 text-sm space-y-2"><strong>Gravata personalizada · R$ 5,00</strong><p className="text-xs text-muted-foreground">Foto enviada pelo tutor. Adicional solicitado, não pago.</p>{booking.gravataFoto && <img src={booking.gravataFoto} alt="Foto enviada para personalização da gravata" className="size-32 rounded-md border object-contain"/>}</div>}
       {booking.status === 'confirmado' ? (
         <p className="text-sm text-green-700">
           Confirmado ·{' '}
