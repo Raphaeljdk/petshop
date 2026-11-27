@@ -32,14 +32,15 @@ export async function GET(req: NextRequest) {
       { notaFiscal: { is: { status: 'rascunho', chaveAcesso: null, emissorDocumentoId: null, emissaoSolicitadaEm: null, numero: null, protocolo: null } } },
     ] }
     const marketplaces = ['amazon', 'mercadolivre', 'mercado_livre']
+    const vendasPagas: Prisma.VendaWhereInput = { OR: [paidSaleWhere, { status:'concluida', mercadoPagoStatus:'paid_gift' }] }
     const where: Prisma.VendaWhereInput = { AND: [
       filtro === 'emitidas' ? { notaFiscal: { is: { status: 'autorizada' } } } :
       filtro === 'conciliacao' ? { OR: [
-        { AND: [paidSaleWhere, semEmissao, { canal: { in: marketplaces } }] },
+        { AND: [vendasPagas, semEmissao, { canal: { in: marketplaces } }] },
         { notaFiscal: { isNot: null }, NOT: [{ notaFiscal: { is: { status: 'autorizada' } } }, semEmissao] },
       ] } :
       filtro === 'pagamento' ? { status: 'pendente' } :
-      { AND: [paidSaleWhere, semEmissao, { canal: { notIn: marketplaces }, total: { gt: 0 }, itens: { some: {} } }] },
+      { AND: [vendasPagas, semEmissao, { canal: { notIn: marketplaces }, total: { gt: 0 }, itens: { some: {} } }] },
       ...(canal && canal !== 'todos' ? [{ canal: canal === 'mercadolivre' ? { in: ['mercadolivre','mercado_livre'] } : canal }] : []),
       ...(busca ? [{ OR: [
         { id: { contains: busca, mode: 'insensitive' as const } },
