@@ -17,7 +17,7 @@ type PetDraft = {
 }
 type PetRecord = PetDraft & { id: string; nascimento: string | null }
 type ClienteLocal = {
-  id: string; nome: string; telefone: string; email: string | null
+  id: string; numeroCliente?: number; nome: string; telefone: string; email: string | null
   cpfCnpj: string | null; endereco: string | null; cep: string | null
   pets: PetRecord[]; _count?: { vendas: number; pets: number }
 }
@@ -124,7 +124,7 @@ export function ClientesView({ onCountsChange }: { onCountsChange?: (total: numb
 
   const filtrados = useMemo(() => {
     const term = busca.trim().toLocaleLowerCase('pt-BR')
-    return clientes.filter((c) => !term || [c.nome, c.telefone, c.email, c.cpfCnpj, ...c.pets.map(p => p.nome)]
+    return clientes.filter((c) => !term || [c.nome, c.telefone, c.email, c.cpfCnpj, c.numeroCliente, c.numeroCliente ? 'MP-' + String(c.numeroCliente).padStart(6, '0') : '', ...c.pets.map(p => p.nome)]
       .some(v => String(v || '').toLocaleLowerCase('pt-BR').includes(term)))
   }, [clientes, busca])
 
@@ -242,10 +242,10 @@ export function ClientesView({ onCountsChange }: { onCountsChange?: (total: numb
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setPetClienteId(null)}>Cancelar</Button><Button disabled={salvando} type="submit">Salvar pet</Button></div>
       </form></CardContent></Card>}
       <ClientInvitationHistory />
-      <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"/><Input className="pl-10" placeholder="Buscar tutor, WhatsApp, documento ou pet..." value={busca} onChange={e=>setBusca(e.target.value)}/></div>
+      <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"/><Input className="pl-10" placeholder="Buscar número, tutor, WhatsApp, documento ou pet..." value={busca} onChange={e=>setBusca(e.target.value)}/></div>
       {loading?<SkeletonLoader type="cards" count={4}/>:filtrados.length===0?<Card><CardContent className="py-12 text-center"><UserRound className="mx-auto size-8 text-muted-foreground"/><p className="mt-3 text-sm">Nenhum cliente encontrado.</p><Button className="mt-3" onClick={abrirNovo}>Cadastrar cliente</Button></CardContent></Card>:
         <div className="grid gap-3 xl:grid-cols-2">{filtrados.map(c=><Card key={c.id} className="overflow-hidden"><CardContent className="p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold break-words">{c.nome}</p><Badge variant="secondary" className="mt-1">{c._count?.vendas||0} venda(s)</Badge></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold break-words">{c.nome}</p>{c.numeroCliente != null && <p className="text-xs text-muted-foreground">Cliente MP-{String(c.numeroCliente).padStart(6, '0')}</p>}<Badge variant="secondary" className="mt-1">{c._count?.vendas||0} venda(s)</Badge></div>
             <div className="flex gap-1.5"><Button variant="outline" size="sm" onClick={()=>abrirEdicao(c)}><Edit3 className="mr-1 size-3.5"/>Editar</Button><Button variant="outline" size="sm" className="text-destructive" disabled={salvando} onClick={()=>void excluirCliente(c)}><Trash2 className="mr-1 size-3.5"/>Excluir</Button></div>
           </div>
           <div className="mt-3 grid gap-1.5 text-sm text-muted-foreground">
