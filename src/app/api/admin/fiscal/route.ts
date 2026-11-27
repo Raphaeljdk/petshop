@@ -3,6 +3,8 @@ import { configSchema, erroConfigEmitente } from '@/lib/fiscal-emitente'
 import {apuracaoParaRegime} from '@/lib/fiscal-apuracao-simples'
 import { avaliarProntidaoNfeProducao } from '@/lib/fiscal-prontidao-producao'
 import { db } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
+import { paidSaleWhere } from '@/lib/sales-policy'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 
@@ -16,11 +18,38 @@ async function authorize() {
 }
 
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const denied = await authorize()
   if (denied) return denied
   try {
-    const [config, notas, vendas, produtosAtivos, produtosSemClassificacao] = await Promise.all([
+    const filtro = req.nextUrl.searchParams.get('filtro') || 'pendentes'
+    const canal = req.nextUrl.searchParams.get('canal')
+    const busca = (req.nextUrl.searchParams.get('busca') || '').trim().slice(0, 120)
+    const pagina = Math.max(1, Math.min(10000, Number.parseInt(req.nextUrl.searchParams.get('pagina') || '1', 10) || 1))
+    const porPagina = 50
+    const semEmissao: Prisma.VendaWhereInput = { OR: [
+      { notaFiscal: null },
+      { notaFiscal: { is: { status: 'rascunho', chaveAcesso: null, emissorDocumentoId: null, emissaoSolicitadaEm: null, numero: null, protocolo: null } } },
+    ] }
+    const marketplaces = ['amazon', 'mercadolivre', 'mercado_livre']
+    const where: Prisma.VendaWhereInput = { AND: [
+      filtro === 'emitidas' ? { notaFiscal: { is: { status: 'autorizada' } } } :
+      filtro === 'conciliacao' ? { OR: [
+        { AND: [paidSaleWhere, semEmissao, { canal: { in: marketplaces } }] },
+        { notaFiscal: { isNot: null }, NOT: [{ notaFiscal: { is: { status: 'autorizada' } } }, semEmissao] },
+      ] } :
+      filtro === 'pagamento' ? { status: 'pendente' } :
+      { AND: [paidSaleWhere, semEmissao, { canal: { notIn: marketplaces }, total: { gt: 0 }, itens: { some: {} } }] },
+      ...(canal && canal !== 'todos' ? [{ canal: canal === 'mercadolivre' ? { in: ['mercadolivre','mercado_livre'] } : canal }] : []),
+      ...(busca ? [{ OR: [
+        { id: { contains: busca, mode: 'insensitive' as const } },
+        { marketplaceOrderId: { contains: busca, mode: 'insensitive' as const } },
+        { marketplaceBuyerName: { contains: busca, mode: 'insensitive' as const } },
+        { cliente: { is: { nome: { contains: busca, mode: 'insensitive' as const } } } },
+        { notaFiscal: { is: { chaveAcesso: { contains: busca } } } },
+      ] }] : []),
+    ] }
+    const [config, notas, vendas, produtosAtivos, produtosSemClassificacao, totalVendas] = await Promise.all([
       db.configuracaoFiscal.findUnique({ where: { id: 'matilha-prado' } }),
       db.notaFiscal.findMany({
         orderBy: { createdAt: 'desc' },
@@ -33,7 +62,7 @@ export async function GET() {
         },
       }),
       db.venda.findMany({
-        orderBy: { createdAt: 'desc' }, take: 150,
+        where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (pagina - 1) * porPagina, take: porPagina,
         select: {
           id: true, total: true, canal: true, status: true,
           marketplaceOrderId: true, marketplaceBuyerName: true, mercadoPagoStatus: true,
@@ -48,6 +77,7 @@ export async function GET() {
         {unidadeFiscal:null},{unidadeFiscal:''},
         {csosn:null},{csosn:''},{pisCst:null},{pisCst:''},{cofinsCst:null},{cofinsCst:''},{gtinFiscal:null},{gtinFiscal:''},
       ]}}),
+      db.venda.count({ where }),
     ])
     const prontidaoNfeProducao = avaliarProntidaoNfeProducao({
       empresa:config,
@@ -55,7 +85,7 @@ export async function GET() {
       produtosAtivos,produtosSemClassificacao,
     })
     return NextResponse.json({
-      config, notas, vendas, prontidaoNfeProducao,
+      config, notas, vendas, prontidaoNfeProducao, totalVendas, pagina, porPagina,
       emissaoConfigurada: false,
       emissaoMercadoLivreHabilitada: process.env.MERCADO_LIVRE_NFE_EMISSAO_HABILITADA === 'true',
       emissaoAviso: 'Consulta de notas pelo Faturador Mercado Livre disponível. Solicitações reais exigem liberação operacional específica. Site e Amazon seguem aguardando provedor de emissão.',
