@@ -823,3 +823,12 @@ export async function amazonUpdateListingQuantity(
     }
   )
 }
+
+/** Consulta individual autenticada, para eventos ORDER_CHANGE da conta conectada. */
+export async function amazonConfirmedOrderById(orderId:string) {
+  const config=amazonSpApiConfig()
+  const response=await amazonGet<{payload?:NonNullable<NonNullable<AmazonOrdersApiResponse['payload']>['Orders']>[number]}>('/orders/v0/orders/'+encodeURIComponent(orderId))
+  const order=response.payload
+  if(!order||order.AmazonOrderId!==orderId||!amazonConfirmedOrderStatus(order.OrderStatus))return null
+  return {orderId,sellerId:config.sellerId,purchaseDate:order.PurchaseDate||order.LastUpdateDate||new Date().toISOString(),total:Math.max(0,Number(order.OrderTotal?.Amount||0)),buyerName:order.BuyerInfo?.BuyerName?.trim()||null}
+}
