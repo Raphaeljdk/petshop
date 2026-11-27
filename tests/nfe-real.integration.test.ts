@@ -91,7 +91,7 @@ test('concorrência entre vendas e cliques, falha antes do commit e XML/PDF apó
  const externa=lerNfeExterna(nota.xmlAutorizado!,cnpj)
  expect(externa.chave).toBe(chave);expect(externa.protocolo).toBe(protocolo)
  conferirVinculoExterno(externa,{total:10,documentos:['12345678909'],itens:[{sku,quantidade:1}]})
- const consultaOk='<retConsSitNFe xmlns="'+NFE_NS+'" versao="4.00"><tpAmb>1</tpAmb><cUF>35</cUF><cStat>100</cStat><chNFe>'+chave+'</chNFe>'+ok.match(/<protNFe[\\s\\S]*?<\\/protNFe>/)![0]+'</retConsSitNFe>'
+ const consultaOk='<retConsSitNFe xmlns="'+NFE_NS+'" versao="4.00"><tpAmb>1</tpAmb><cUF>35</cUF><cStat>100</cStat><chNFe>'+chave+'</chNFe>'+ok.slice(ok.indexOf('<protNFe'),ok.indexOf('</protNFe>')+'</protNFe>'.length)+'</retConsSitNFe>'
  expect(conferirConsultaExterna(externa,consultaOk).status).toBe('autorizada')
  expect(()=>conferirConsultaExterna(externa,consulta(chave,101))).toThrow()
  expect(()=>lerNfeExterna(nota.xmlAutorizado!.replace('<vNF>10.00','<vNF>20.00'),cnpj)).toThrow()
