@@ -113,7 +113,11 @@ function montarNfe55(
     && end.municipio.trim() && /^\d{7}$/.test(numerico(end.codigoMunicipio))
     && /^[A-Z]{2}$/.test(end.uf.toUpperCase()) && numerico(end.cep).length === 8,
     'Endereço estruturado do destinatário está incompleto.')
-  necessario(tpAmb===1 ? municipioCoerenteComUf(end.uf,end.codigoMunicipio) : end.uf.toUpperCase()==='SP', 'UF ou município incompatível com o cenário fiscal.')
+  if(tpAmb===1){
+    necessario(municipioCoerenteComUf(end.uf,end.codigoMunicipio), 'UF ou município incompatível com o cenário fiscal.')
+  }else{
+    necessario(end.uf.toUpperCase()==='SP', 'Este primeiro rascunho suporta apenas vendas internas em SP. Fora do estado exige parametrização específica do contador.')
+  }
   necessario(end.uf==='SP'||(entrada.consumidorFinal==='1'&&entrada.destinatario.indicadorIE==='9'), 'Venda interestadual exige consumidor final não contribuinte no cenário implementado.')
   necessario(Number.isSafeInteger(entrada.numero) && entrada.numero >= 1 && entrada.numero <= 999999999
     && Number.isSafeInteger(empresa.serieNfe) && empresa.serieNfe >= 1 && empresa.serieNfe <= 999
