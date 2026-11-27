@@ -34,9 +34,10 @@ export async function POST(req: NextRequest) {
         service: z.string().trim().min(3).max(120),
         desiredAt: z.string().datetime(),
         notes: z.string().trim().max(1000).optional(),
+        gravataFoto: z.string().max(400000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/).optional(),
       })
       .strict()
-      .parse(await experienceBody(req))
+      .parse(await experienceBody(req, 420000))
     const desired = new Date(input.desiredAt)
     if (
       desired.getTime() <= Date.now() ||
@@ -54,6 +55,8 @@ export async function POST(req: NextRequest) {
     const catalogo = await consultarCatalogoPublico(pet.raca, desired)
     if (!catalogo.servicos.some(s => s.nome === input.service))
       return NextResponse.json({ error: 'Serviço indisponível para esta raça, data ou horário. Consulte a equipe pelo WhatsApp.' }, { status: 409 })
+    if (input.gravataFoto && !input.service.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('banho'))
+      return NextResponse.json({ error: 'A gravata personalizada está disponível nos serviços de banho.' }, { status: 400 })
     const booking = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.cliente!.id}))`
       if (
@@ -65,6 +68,7 @@ export async function POST(req: NextRequest) {
       return tx.bookingRequest.create({
         data: {
           ...input,
+          gravataPrecoCentavos: input.gravataFoto ? 500 : 0,
           desiredAt: desired,
           clienteId: user.cliente!.id,
           petName: pet.nome,
