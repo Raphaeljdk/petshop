@@ -190,6 +190,7 @@ model Venda {
   comandaCompraKey String? @unique
   comandaProcesso Processo? @relation("ComandaVenda", fields: [comandaProcessoId], references: [id], onDelete: Restrict)
   comandaExtra ComandaServicoExtra? @relation("ComandaExtraVenda")
+  bookingPagamento BookingRequest? @relation("BookingPagamento")
   clienteId String?
   total      Float
   creditoPresenteCentavos Int @default(0)
@@ -438,7 +439,14 @@ model ProductReview {
 model BookingRequest {
   id String @id @default(cuid())
   gravataFoto String? @db.Text
+  gravataIdeia String? @db.VarChar(400)
   gravataPrecoCentavos Int @default(0)
+  servicoPrecoCentavos Int?
+  pagamentoVendaId String? @unique
+  pagamentoVenda Venda? @relation("BookingPagamento", fields: [pagamentoVendaId], references: [id], onDelete: Restrict)
+  gravataWhatsStatus String @default("aguardando_pagamento")
+  gravataWhatsId String?
+  gravataWhatsEnviadoEm DateTime?
   clienteId String
   petKey String
   petName String
