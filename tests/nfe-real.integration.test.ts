@@ -234,3 +234,23 @@ test('recibo assíncrono e duplicidade sem protocolo não autorizam',()=>{
  expect(interpretarRetornoReal(xml,'autorizacao',chave,'',null)).toMatchObject({status:'recebida',recibo,xmlAutorizado:null})
  expect(interpretarRetornoReal(xml.replace('103','204'),'autorizacao',chave,'',null).status).toBe('incerta')
 })
+
+test('interestadual: UF/IBGE e aprovação por destino antes da reserva',async()=>{
+ const antes=(await db.nfeRealSequencia.findFirstOrThrow()).proximoNumero
+ const pr={...dados,endereco:{...dados.endereco,uf:'PR',municipio:'Curitiba',codigoMunicipio:'4106902',cep:'80010000'}}
+ const v=await venda()
+ await expect(servico.preparar(v.id,'admin',pr)).rejects.toThrow('produção no SKU')
+ await expect(servico.preparar(v.id,'admin',{...pr,endereco:{...pr.endereco,codigoMunicipio:'3550308'}})).rejects.toThrow()
+ expect((await db.nfeRealSequencia.findFirstOrThrow()).proximoNumero).toBe(antes)
+ const regra=await db.regraFiscalAprovada.create({data:{ncm:'39269090',origem:'0',ufDestino:'PR',cfop:'6102',csosn:'102',pisCst:'49',cofinsCst:'49',aliquotaPis:0,aliquotaCofins:0,contadorResponsavel:'Teste local',referencia:'Apenas teste local interestadual'}})
+ await db.nfeRealAprovacao.create({data:{sku,regraId:regra.id,baseZeroCst49:true,revisaoRegra:regra.atualizadoEm,referencia:'Aprovação sintética específica PR'}})
+ await servico.preparar(v.id,'admin',pr)
+ const reserva=await db.nfeRealReserva.findUniqueOrThrow({where:{vendaId:v.id}})
+ expect(reserva.numero).toBe(antes)
+ expect(reserva.xmlAssinado).toContain('<idDest>2</idDest>')
+ expect(reserva.xmlAssinado).toContain('<CFOP>6102</CFOP>')
+ expect(reserva.xmlAssinado).toContain('<UF>PR</UF>')
+ const pe=await venda()
+ await expect(servico.preparar(pe.id,'admin',{...pr,endereco:{...pr.endereco,uf:'PE',municipio:'Recife',codigoMunicipio:'2611606',cep:'50010000'}})).rejects.toThrow('produção no SKU')
+ expect((await db.nfeRealSequencia.findFirstOrThrow()).proximoNumero).toBe(antes+1)
+},20000)
