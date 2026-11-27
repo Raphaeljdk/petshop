@@ -15,6 +15,7 @@ import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import type { Agendamento } from '@/lib/types'
 import { BookingRequests } from './BookingRequests'
+import { MinhasComandas } from '@/components/atendimentos/ComandaAtendimento'
 
 const statusVariant = (status: string) => {
   if (status === 'concluido') return 'bg-green-100 text-green-700'
@@ -138,8 +139,10 @@ export function ClientAgendamentos() {
         </Button>
       </div>
 
+      <MinhasComandas />
       <BookingRequests />
-      <Card>
+      <details className="rounded-xl border bg-card p-3"><summary className="cursor-pointer text-sm font-semibold">Precisa de ajuda? Consultar pelo WhatsApp</summary>
+      <Card className="mt-3">
         <CardContent className="grid gap-6 p-4 sm:p-6 md:grid-cols-2">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold">Quando você prefere vir?</h2>
@@ -156,6 +159,7 @@ export function ClientAgendamentos() {
           </div>
         </CardContent>
       </Card>
+      </details>
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Próximos</h2>
