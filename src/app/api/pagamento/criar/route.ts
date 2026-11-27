@@ -156,6 +156,7 @@ export async function POST(req: NextRequest) {
         card,
         boleto,
         attemptKey: venda.mercadoPagoId || 'initial',
+        singleInvoice: Boolean(venda.bookingPagamento),
       },
       config
     )
