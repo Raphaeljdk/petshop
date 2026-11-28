@@ -1,0 +1,34 @@
+'use client'
+import {useEffect,useState} from 'react'
+import {Button} from '@/components/ui/button'
+import {Input} from '@/components/ui/input'
+import {toast} from 'sonner'
+import type {EscalaSemanalDia} from '@/lib/agenda-escala-semanal'
+type Dados={dias:EscalaSemanalDia[];equipe:Array<{id:string;nome:string;especialidades:string|null}>;servicos:Array<{chave:string;nome:string}>}
+const dias=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado']
+const ordem=[1,2,3,4,5,6,0]
+export function EscalaSemanalServicos({refreshKey=0,onSaved}:{refreshKey?:number;onSaved?:()=>void}){
+ const [dados,setDados]=useState<Dados|null>(null)
+ const [config,setConfig]=useState<EscalaSemanalDia[]>([])
+ const [aberto,setAberto]=useState<number|null>(null)
+ const [busy,setBusy]=useState(false)
+ const [erro,setErro]=useState('')
+ useEffect(()=>{let ativo=true;fetch('/api/admin/agenda/escala-semanal',{cache:'no-store'}).then(async r=>{const b=await r.json();if(!r.ok)throw Error(b.error);return b as Dados}).then(b=>{if(ativo){setDados(b);setConfig(b.dias);setErro('')}}).catch(e=>{if(ativo)setErro(e.message)});return()=>{ativo=false}},[refreshKey])
+ function editar(i:number,fn:(d:EscalaSemanalDia)=>EscalaSemanalDia){setConfig(old=>old.map(d=>d.diaSemana===i?fn(d):d))}
+ function abrirDia(i:number,checked:boolean){setConfig(old=>checked?[...old,{diaSemana:i,inicio:'',fim:'',turnos:[],servicos:[]}]:old.filter(d=>d.diaSemana!==i));setAberto(checked?i:null)}
+ function profissional(i:number,id:string,ativo:boolean){editar(i,d=>({...d,turnos:ativo?[...d.turnos,{profissionalId:id,inicio:d.inicio,fim:d.fim}]:d.turnos.filter(t=>t.profissionalId!==id),servicos:ativo?d.servicos:d.servicos.map(s=>({...s,profissionais:s.profissionais.filter(p=>p!==id)})).filter(s=>s.profissionais.length)}))}
+ function servico(i:number,id:string,chave:string,checked:boolean){editar(i,d=>{const atual=d.servicos.find(s=>s.chave===chave)?.profissionais??[];const profissionais=checked?[...new Set([...atual,id])]:atual.filter(p=>p!==id);return {...d,servicos:[...d.servicos.filter(s=>s.chave!==chave),...(profissionais.length?[{chave,profissionais}]:[])]}})}
+ async function salvar(){setBusy(true);try{const r=await fetch('/api/admin/agenda/escala-semanal',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});const b=await r.json();if(!r.ok)throw Error(b.error);toast.success('Funcionamento semanal salvo.');onSaved?.()}catch(e){toast.error(e instanceof Error?e.message:'Falha ao salvar.')}finally{setBusy(false)}}
+ return <details className="rounded-xl border bg-card p-3 sm:p-4" open={undefined}><summary className="cursor-pointer text-sm font-semibold">Funcionamento semanal e escala dos funcionários</summary>
+ <p className="mt-2 text-xs text-muted-foreground">Configure uma vez. A agenda repete os dias de funcionamento todas as semanas. Use a escala diária para exceções e os bloqueios para almoço, folgas ou TaxDog.</p>
+ {erro&&<p role="alert" className="text-sm text-destructive">{erro}</p>}
+ {!dados&&!erro&&<p className="text-sm">Carregando escala...</p>}
+ {dados&&<div className="mt-3 space-y-2">{ordem.map(i=>{const d=config.find(x=>x.diaSemana===i);return <div key={i} className="rounded-lg border p-3 space-y-2">
+ <div className="flex items-center justify-between gap-2"><label className="flex gap-2 items-center text-sm font-medium"><input type="checkbox" checked={!!d} disabled={busy} onChange={e=>abrirDia(i,e.target.checked)}/>{dias[i]}</label><span className="text-xs text-muted-foreground">{d?(d.inicio&&d.fim?d.inicio+' – '+d.fim:'Configurar'):'Fechado'}</span>{d&&<Button type="button" size="sm" variant="ghost" aria-expanded={aberto===i} onClick={()=>setAberto(aberto===i?null:i)}>{aberto===i?'Recolher':'Configurar'}</Button>}</div>
+ {d&&aberto===i&&<div className="space-y-3 border-t pt-3"><div className="grid grid-cols-2 gap-2"><label className="text-xs">Abertura<Input type="time" value={d.inicio} onChange={e=>editar(i,x=>({...x,inicio:e.target.value}))}/></label><label className="text-xs">Fechamento<Input type="time" value={d.fim} onChange={e=>editar(i,x=>({...x,fim:e.target.value}))}/></label></div>
+ <p className="text-xs font-semibold">Funcionários que trabalham neste dia</p>{dados.equipe.map(p=>{const ts=d.turnos.filter(t=>t.profissionalId===p.id);return <div key={p.id} className="rounded-lg bg-muted/30 border p-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ts.length>0} onChange={e=>profissional(i,p.id,e.target.checked)}/>{p.nome}</label>{ts.length>0&&<div className="mt-2 space-y-2">{ts.map((t,j)=><div key={j} className="grid grid-cols-2 gap-2"><label className="text-xs">Entrada<Input type="time" value={t.inicio} onChange={e=>editar(i,x=>({...x,turnos:x.turnos.map(v=>v===t?{...v,inicio:e.target.value}:v)}))}/></label><label className="text-xs">Saída<Input type="time" value={t.fim} onChange={e=>editar(i,x=>({...x,turnos:x.turnos.map(v=>v===t?{...v,fim:e.target.value}:v)}))}/></label></div>)}
+ <details><summary className="cursor-pointer text-xs font-medium">Serviços autorizados ({d.servicos.filter(s=>s.profissionais.includes(p.id)).length})</summary><div className="mt-2 grid sm:grid-cols-2 gap-1">{dados.servicos.map(s=><label key={s.chave} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={d.servicos.some(x=>x.chave===s.chave&&x.profissionais.includes(p.id))} onChange={e=>servico(i,p.id,s.chave,e.target.checked)}/>{s.nome}</label>)}</div></details></div>}</div>})}
+ </div>}</div>})}
+ <Button type="button" disabled={busy} onClick={()=>void salvar()}>{busy?'Salvando...':'Salvar funcionamento semanal'}</Button></div>}
+ </details>
+}
