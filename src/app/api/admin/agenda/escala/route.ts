@@ -4,7 +4,9 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { listarServicosParaConfiguracao } from '@/lib/catalogo-servicos-matilha'
-import { diaAgendaSchema, servicosDiaSchema, lerServicosDia } from '@/lib/agenda-servicos-dia'
+import { diaAgendaSchema, servicosDiaSchema } from '@/lib/agenda-servicos-dia'
+
+import {diaDaSemana,resolverEscala} from '@/lib/agenda-escala-semanal'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,13 +27,14 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
   try {
     const dia = diaAgendaSchema.parse(req.nextUrl.searchParams.get('dia'))
-    const [registro, configuracoes, equipe] = await Promise.all([
+    const [registro, configuracoes, equipe,semanal] = await Promise.all([
       db.agendaServicoDia.findUnique({ where: { dia } }),
       db.servicoEsteticoConfig.findMany(),
       db.profissionalAgenda.findMany({ orderBy: { nome: 'asc' }, select: { id: true, nome: true, ativo: true, especialidades: true } }),
+      db.agendaEscalaSemanal.findUnique({where:{diaSemana:diaDaSemana(dia)},select:{diaSemana:true,inicio:true,fim:true,servicos:true,turnos:true}}),
     ])
     return NextResponse.json({
-      dia, configurado: !!registro, escala: lerServicosDia(registro?.servicos),
+      dia, configurado: !!registro||!!semanal, excecao:!!registro, recorrente:!!semanal, escala: resolverEscala(dia,registro,semanal)?.servicos??[],
       servicos: listarServicosParaConfiguracao(configuracoes).map(s => ({ chave: s.chave, nome: s.nome, confirmado: s.gruposConfirmados })),
       equipe,
     }, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -57,4 +60,10 @@ export async function PUT(req: NextRequest) {
     })
     return NextResponse.json({ ok: true, dia })
   } catch (e) { return erro(e) }
+}
+
+export async function DELETE(req:NextRequest){
+ const {denied}=await autorizar()
+ if(denied)return denied
+ try{assertSameOrigin(req);const dia=diaAgendaSchema.parse(req.nextUrl.searchParams.get('dia'));await db.agendaServicoDia.deleteMany({where:{dia}});return NextResponse.json({ok:true})}catch(e){return erro(e)}
 }
