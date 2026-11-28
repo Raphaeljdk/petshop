@@ -445,6 +445,7 @@ model BookingRequest {
   gravataIdeia String? @db.VarChar(400)
   gravataPrecoCentavos Int @default(0)
   servicoPrecoCentavos Int?
+  pagamentoOnlineObrigatorio Boolean @default(false)
   pagamentoVendaId String? @unique
   pagamentoVenda Venda? @relation("BookingPagamento", fields: [pagamentoVendaId], references: [id], onDelete: Restrict)
   gravataWhatsStatus String @default("aguardando_pagamento")
