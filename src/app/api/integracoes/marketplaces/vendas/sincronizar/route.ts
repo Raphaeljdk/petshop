@@ -20,13 +20,13 @@ export async function GET(){
       orderBy:{updatedAt:'desc'},take:12,select:{channel:true,title:true,category:true,
         error:true,retryAfter:true,updatedAt:true}}),
   ])
-  return NextResponse.json({enabled:true,stockWritesEnabled:stockWritesEnabled(),intervalMinutes:null,mode:'eventos',status,issues},
+  return NextResponse.json({enabled:true,stockWritesEnabled:stockWritesEnabled(),intervalMinutes:1440,mode:'eventos_e_consulta_diaria',status,issues},
     {headers:{'Cache-Control':'private, no-store'}})
 }
 export async function POST(){
   if(!await admin())return NextResponse.json({error:'Acesso negado'},{status:403})
   try{
-    const result=await runMarketplacesSync({force:true})
+    const result=await runMarketplacesSync()
     return NextResponse.json(result,{status:result.ok?200:207,
       headers:{'Cache-Control':'private, no-store'}})
   }catch(error){
