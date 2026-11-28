@@ -17,7 +17,7 @@ const statusLabel:Record<string,string>={aguardando_tutor:'Aguardando tutor',agu
 const label=(s:string)=>statusLabel[s]||s
 export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;equipe?:boolean}){
  const [pos,setPos]=useState(false)
- const [posForm,setPosForm]=useState({adquirente:'',terminal:'',referencia:'',metodo:'credito',valor:''})
+ const [posForm,setPosForm]=useState({referencia:'',metodo:'credito',valor:''})
  const [pix,setPix]=useState<{vendaId:string;link?:string;codigo?:string}|null>(null)
  const [grupo,setGrupo]=useState<string[]>([])
  const [data,setData]=useState<Data|null>(null)
@@ -39,7 +39,7 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
  async function agir(body:Record<string,unknown>,abrirCheckout=false){
   if(busy)return
   setBusy(true)
-  try{const r=await portalRequest<{venda?:Sale;encerrada?:boolean;pendencias?:string[]}>(url,{method:'POST',body:JSON.stringify(body)});if((!equipe||abrirCheckout)&&r.venda&&r.venda.status==='pendente')setPagamento(r.venda);setGrupo([]);setServico('');setMotivo('');await load();if(body.action==='registrar-pos'){setPos(false);setPosForm({adquirente:'',terminal:'',referencia:'',metodo:'credito',valor:''});toast.success(r.encerrada?'Pagamento POS registrado e comanda encerrada.':'Pagamento POS registrado. Confira as pendências restantes.')}else toast.success('Comanda atualizada.')}
+  try{const r=await portalRequest<{venda?:Sale;encerrada?:boolean;pendencias?:string[]}>(url,{method:'POST',body:JSON.stringify(body)});if((!equipe||abrirCheckout)&&r.venda&&r.venda.status==='pendente')setPagamento(r.venda);setGrupo([]);setServico('');setMotivo('');await load();if(body.action==='registrar-pos'){setPos(false);setPosForm({referencia:'',metodo:'credito',valor:''});toast.success(r.encerrada?'Pagamento POS registrado e comanda encerrada.':'Pagamento POS registrado. Confira as pendências restantes.')}else toast.success('Comanda atualizada.')}
   catch(e){toast.error(e instanceof Error?e.message:'Operação não concluída.')}
   finally{setBusy(false)}
  }
@@ -93,16 +93,16 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
    {equipe&&!data.principalPago&&data.principalVenda?.status==='pendente'&&<Button size="sm" disabled={busy} onClick={()=>void agir({action:'cobrar-principal',confirmarSemPagamentoAnterior:true},true)}>Pagar serviço principal — PIX ou cartão</Button>}
    {equipe&&!data.principalPago&&!data.principalVenda&&data.processo.status!=='cancelado'&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{if(window.confirm('Confirma que não houve pagamento anterior? Preparar cobrança presencial sem iniciar pagamento online?'))void agir({action:'cobrar-principal',confirmarSemPagamentoAnterior:true})}}>Preparar cobrança POS</Button>}
    {equipe&&posVendas.length>0&&<div className="rounded-lg border p-3 space-y-2">
-    <p className="font-medium">Pagamento presencial (maquininha POS)</p>
+    <p className="font-medium">Pagamento presencial (Mercado Pago Point)</p>
     <p className="text-xs text-muted-foreground">Saldo disponível para conciliação presencial: {brl(posTotal/100)}. Não inclui cobranças online já iniciadas.</p>
     <Button type="button" size="sm" variant="outline" onClick={()=>{setPos(!pos);setPosForm(x=>({...x,valor:(posTotal/100).toFixed(2)}))}}>{pos?'Recolher':'Pagar via POS'}</Button>
     {pos&&<div className="space-y-2"><p className="text-xs">Passe o valor na maquininha. Registre somente uma transação efetivamente aprovada.</p>
      <select aria-label="Método POS" className="h-10 w-full rounded-md border bg-background px-2" value={posForm.metodo} onChange={e=>setPosForm(x=>({...x,metodo:e.target.value}))}><option value="credito">Cartão de crédito</option><option value="debito">Cartão de débito</option><option value="pix_pos">PIX na maquininha</option></select>
-     <Input aria-label="Operadora da maquininha" placeholder="Operadora / adquirente" maxLength={80} value={posForm.adquirente} onChange={e=>setPosForm(x=>({...x,adquirente:e.target.value}))}/>
-     <Input aria-label="Identificação do terminal" placeholder="Terminal da maquininha" maxLength={80} value={posForm.terminal} onChange={e=>setPosForm(x=>({...x,terminal:e.target.value}))}/>
-     <Input aria-label="Identificador da transação POS" placeholder="Identificador único do comprovante" maxLength={100} value={posForm.referencia} onChange={e=>setPosForm(x=>({...x,referencia:e.target.value}))}/>
+     <p className="text-sm">Operadora: <strong>Mercado Pago</strong></p>
+     <Input aria-label="Número da transação Mercado Pago" placeholder="Número da transação (ID do pagamento)" maxLength={100} value={posForm.referencia} onChange={e=>setPosForm(x=>({...x,referencia:e.target.value}))}/>
+     <p className="text-xs text-muted-foreground">Informe o ID completo do pagamento aprovado em Atividades do Mercado Pago. Não use o número de série da maquininha ou o código de autorização do cartão.</p>
      <Input aria-label="Valor aprovado na maquininha" inputMode="decimal" placeholder="Valor aprovado" value={posForm.valor} onChange={e=>setPosForm(x=>({...x,valor:e.target.value}))}/>
-     <Button type="button" size="sm" disabled={busy||posValor!==posTotal||posForm.adquirente.trim().length<2||!posForm.terminal.trim()||posForm.referencia.trim().length<3} onClick={()=>{if(window.confirm('Confirma o recebimento efetivo de '+brl(posTotal/100)+' na maquininha? A comanda será encerrada se não houver outras pendências.'))void agir({action:'registrar-pos',vendaIds:posVendas.map(v=>v.id),adquirente:posForm.adquirente,terminal:posForm.terminal,referencia:posForm.referencia,metodo:posForm.metodo,totalCentavos:posValor,confirmado:true})}}>Confirmar POS e fechar comanda</Button>
+     <Button type="button" size="sm" disabled={busy||posValor!==posTotal||posForm.referencia.trim().length<3} onClick={()=>{if(window.confirm('Confirma o recebimento efetivo de '+brl(posTotal/100)+' na maquininha? A comanda será encerrada se não houver outras pendências.'))void agir({action:'registrar-pos',vendaIds:posVendas.map(v=>v.id),referencia:posForm.referencia,metodo:posForm.metodo,totalCentavos:posValor,confirmado:true})}}>Confirmar POS e fechar comanda</Button>
     </div>}
    </div>}
    {equipe&&<Button size="sm" disabled={busy||!data.pendencias||data.pendencias.length>0} onClick={()=>{if(window.confirm('Encerrar financeiramente a comanda?'))void agir({action:'fechar-financeiro'})}}>Encerrar comanda financeira</Button>}
