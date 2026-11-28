@@ -92,6 +92,8 @@ model Processo {
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
   notificacoes Notificacao[]
   ficha AtendimentoFicha?
+  agendamentoId String? @unique
+  agendamento Agendamento? @relation(fields: [agendamentoId], references: [id], onDelete: Restrict)
   bookingRequestId String? @unique
   bookingRequest BookingRequest? @relation(fields: [bookingRequestId], references: [id], onDelete: Restrict)
   comandaExtras ComandaServicoExtra[]
@@ -113,6 +115,7 @@ model Agendamento {
   profissional ProfissionalAgenda? @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
   pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  processo Processo?
   @@index([dataHora, status])
   @@index([profissionalId, dataHora])
 }
