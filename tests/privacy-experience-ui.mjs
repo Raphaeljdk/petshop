@@ -87,6 +87,7 @@ try {
   }
   await page.getByRole('button', { name: 'Ver meu agendamento' }).click()
   await page.waitForURL('**/#agendamentos')
+  await page.getByRole('button', { name: 'Solicitar agendamento', exact: true }).click()
   await page.getByRole('heading', { name: 'Solicitar pelo portal', exact: true }).waitFor()
   currentDashboard = { ...dashboard, stats: { ...dashboard.stats, processosAtivos: 1 } }
   await page.goto(base)
