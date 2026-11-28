@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { getOperationalProfessional } from '@/lib/agenda-bloqueios'
+import { conflitoAgenda } from '@/lib/catalogo-agenda-publica'
 import { isOperationalOperator } from '@/lib/operational-access'
 
 export const dynamic = 'force-dynamic'
@@ -69,15 +70,13 @@ export async function POST(req: NextRequest) {
     const profissional = await getOperationalProfessional(user)
     if (!profissional?.ativo) return NextResponse.json({ error: 'Seu cadastro de profissional está indisponível.' }, { status: 409 })
     const item = await db.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('matilha-agenda-reservas'))`
       const block = await tx.agendaBloqueio.findFirst({
         where: { profissionalId: profissional.id, inicio: { lt: fim }, fim: { gt: inicio } }, select: { id: true },
       })
       if (block) throw new Error('BLOQUEIO_EM_CONFLITO')
-      const appointment = await tx.agendamento.findFirst({
-        where: { profissionalId: profissional.id, dataHora: { gte: inicio, lt: fim }, status: { in: ['agendado', 'confirmado'] } },
-        select: { id: true },
-      })
-      if (appointment) throw new Error('AGENDAMENTO_EM_CONFLITO')
+      const appointment=await conflitoAgenda(tx,{inicio,fim,profissionalId:profissional.id})
+      if (appointment.conflito) throw new Error('AGENDAMENTO_EM_CONFLITO')
       return tx.agendaBloqueio.create({ data: { profissionalId: profissional.id, inicio, fim, motivo: data.motivo, criadoPorId: user.id } })
     }, { isolationLevel: 'Serializable' })
     return NextResponse.json({ id: item.id }, { status: 201 })
