@@ -223,6 +223,10 @@ model Venda {
   prazoEntrega    String?
   codigoRastreio  String?
   statusEntrega   String?  @default("pendente")
+  posPagamentoId String?
+  posPagoCentavos Int?
+  pagamentoOnlineIniciadoEm DateTime?
+  posPagamento ComandaPagamentoPOS? @relation(fields:[posPagamentoId],references:[id],onDelete:Restrict)
   mercadoPagoId String?
   mercadoPagoStatus String?
   mercadoPagoPaymentUrl String?
@@ -1085,4 +1089,19 @@ model AgendaEscalaSemanal {
   turnos Json @default("[]")
   atualizadoPorId String
   updatedAt DateTime @updatedAt
+}
+
+model ComandaPagamentoPOS {
+ id String @id @default(cuid())
+ processoId String
+ registradoPorId String
+ adquirente String @db.VarChar(80)
+ terminal String @db.VarChar(80)
+ referencia String @db.VarChar(100)
+ metodo String @db.VarChar(20)
+ totalCentavos Int
+ registradoEm DateTime @default(now())
+ vendas Venda[]
+ @@unique([adquirente,terminal,referencia])
+ @@index([processoId])
 }

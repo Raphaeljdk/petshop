@@ -1,5 +1,6 @@
-export type VendaComandaPagamento={total:number;status:string;mercadoPagoStatus?:string|null;mercadoPagoId?:string|null}
+export type VendaComandaPagamento={total:number;status:string;mercadoPagoStatus?:string|null;mercadoPagoId?:string|null;posPagamentoId?:string|null;posPagoCentavos?:number|null;pagamentoOnlineIniciadoEm?:Date|null;creditoPresenteCentavos?:number}
 export function pagamentoRealAprovado(venda:VendaComandaPagamento|null|undefined,centavos:number):boolean {
+ if(venda?.posPagamentoId)return venda.status==='concluida'&&!venda.mercadoPagoId&&venda.posPagoCentavos===centavos&&Math.round(venda.total*100)===centavos
  return !!venda&&venda.status==='concluida'&&venda.mercadoPagoStatus==='approved'&&!!venda.mercadoPagoId&&!/^SIM[-_]/i.test(venda.mercadoPagoId)&&Math.round(venda.total*100)===centavos
 }
 type ExtraPagamento={status:string;precoCentavos:number;aceitoPorId?:string|null;equipePorId?:string|null;venda?:VendaComandaPagamento|null;grupoVenda?: (VendaComandaPagamento & {comandaExtrasGrupo:{precoCentavos:number}[]})|null}
@@ -33,4 +34,9 @@ export function orderConfereComanda(raw:unknown,venda:{id:string;total:number;cr
  const valor=typeof order.total_amount==='string'||typeof order.total_amount==='number'?Number(order.total_amount):NaN
  const pagamentos=order.transactions?.payments
  return order.external_reference===venda.id&&centavos>0&&Number.isFinite(valor)&&Math.round(valor*100)===centavos&&Array.isArray(pagamentos)&&pagamentos.length===1&&Math.round(Number(pagamentos[0].amount)*100)===centavos
+}
+
+/** POS é conciliação presencial, nunca uma aprovação fictícia do gateway online. */
+export function podeRegistrarPOS(v:VendaComandaPagamento):boolean{
+ return v.status==='pendente'&&!v.posPagamentoId&&!v.mercadoPagoId&&!v.mercadoPagoStatus&&!v.pagamentoOnlineIniciadoEm&&!v.creditoPresenteCentavos&&Number.isSafeInteger(Math.round(v.total*100))&&v.total>0
 }
