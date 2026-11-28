@@ -9,7 +9,6 @@ import {
 } from '@/lib/mercado-pago-orders'
 import { emitWebSocket } from '@/lib/realtime'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
-import { syncLocalStockToMarketplaces } from '@/lib/inventory-sync'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 
 export const dynamic = 'force-dynamic'
@@ -111,11 +110,6 @@ export async function POST(req: NextRequest) {
       // Repetições do webhook não duplicam o registro; não emite nota sem SEFAZ.
       try { await ensureFiscalDraftForSale(venda.id) }
       catch (error) { console.error('[pagamento/webhook] rascunho fiscal pendente:', error) }
-      try {
-        await syncLocalStockToMarketplaces()
-      } catch (inventoryError) {
-        console.error('[pagamento/webhook] estoque dos marketplaces pendente:', inventoryError)
-      }
       await emitWebSocket('pagamento:aprovado', {
         vendaId: venda.id,
         mercadoPagoId: order.orderId,

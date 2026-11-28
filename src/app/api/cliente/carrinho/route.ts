@@ -13,7 +13,8 @@ import {
   CupomValidationError,
   validarCupom,
 } from '@/lib/cupons'
-import { officialStockFromSources } from '@/lib/product-stock'
+import { assertSameOrigin, AuthError } from '@/lib/auth-http'
+import { isServiceProduct, officialStockFromSources } from '@/lib/product-stock'
 import { reserveGiftCredit,GiftCreditError,moneyCents } from '@/lib/portal-gift-credit'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 import { awardReferralBySale } from '@/lib/portal-referral-awards'
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    assertSameOrigin(req)
     const body = await req.json()
     const {
       itens,
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
       enderecoEntrega,
       melhorEnvioServiceId,
       cupomCodigo,
-      valePresenteCodigo,
+      valePresenteCodigo, comandaProcessoId, comandaCompraKey,
     } = body as {
       itens: Array<{ produtoId: string; quantidade: number }>
       observacoes?: string
@@ -58,6 +60,8 @@ export async function POST(req: NextRequest) {
       melhorEnvioServiceId?: string | null
       cupomCodigo?: string | null
       valePresenteCodigo?: string | null
+      comandaProcessoId?: string
+      comandaCompraKey?: string
     }
 
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
@@ -85,6 +89,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (comandaProcessoId || comandaCompraKey) {
+      if (typeof comandaProcessoId !== 'string' || comandaProcessoId.length>100 || typeof comandaCompraKey !== 'string' || !/^[a-f0-9-]{36}$/i.test(comandaCompraKey) || tipoEntrega!=='retirada' || cupomCodigo || valePresenteCodigo)
+        throw new CheckoutError('Dados inválidos da compra em atendimento.')
+      const existing=await db.venda.findFirst({where:{comandaCompraKey,comandaProcessoId,clienteId:cliente.id},select:{id:true,total:true,status:true}})
+      if(existing)return NextResponse.json(existing)
+      const processo=await db.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
+      if(!processo)throw new CheckoutError('Atendimento não está aberto para compras.',409)
+    }
     const ids = [...new Set(itens.map((item) => item.produtoId))]
     const produtosLocais = await db.produto.findMany({
       where: { id: { in: ids } },
@@ -173,7 +185,7 @@ export async function POST(req: NextRequest) {
     const itensValidados = await Promise.all(
       itens.map(async (item) => {
         const produto = byId.get(item.produtoId)
-        if (!produto || !produto.ativo) {
+        if (!produto || !produto.ativo || (comandaProcessoId && isServiceProduct(produto))) {
           throw new CheckoutError('Produto não encontrado ou indisponível.', 404)
         }
 
@@ -197,6 +209,13 @@ export async function POST(req: NextRequest) {
 
     // ---------- Venda ----------
     const venda = await db.$transaction(async (tx) => {
+      if(comandaProcessoId){
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'comanda:'+comandaProcessoId}))`
+        const existente=await tx.venda.findUnique({where:{comandaCompraKey},select:{id:true}})
+        if(existente)throw new CheckoutError('Esta compra já foi registrada. Abra a comanda para continuar o pagamento.',409)
+        const ativo=await tx.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
+        if(!ativo)throw new CheckoutError('Atendimento encerrado.',409)
+      }
       // A personal loyalty benefit can be reserved by only one checkout at a time.
       if (cupomCodigo?.trim().toUpperCase().startsWith('CLUBE-') ||
           cupomCodigo?.trim().toUpperCase().startsWith('INDIQUE-')) {
@@ -260,6 +279,7 @@ export async function POST(req: NextRequest) {
       const novaVenda = await tx.venda.create({
         data: {
           clienteId: cliente.id,
+          ...(comandaProcessoId ? {comandaProcessoId,comandaCompraKey} : {}),
           total,
           subtotalProdutos: subtotal,
           cupomId: cupomAplicado?.cupom.id ?? null,
@@ -267,7 +287,7 @@ export async function POST(req: NextRequest) {
           descontoCupom,
           canal: 'site',
           status: 'pendente',
-          observacoes: observacoes || null,
+          observacoes: comandaProcessoId ? 'Separar produtos para entrega junto ao pet no atendimento '+comandaProcessoId : observacoes || null,
           tipoEntrega: tipo,
           valorFrete,
           cepEntrega: cepFinal,
@@ -360,6 +380,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     )
   } catch (e) {
+    if(e instanceof AuthError) return NextResponse.json({error:e.message},{status:e.status})
     if(e instanceof GiftCreditError) return NextResponse.json({error:e.message},{status:e.status})
     if (e instanceof CupomValidationError) {
       return NextResponse.json({ error: e.message }, { status: e.status })

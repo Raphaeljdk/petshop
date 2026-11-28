@@ -76,7 +76,7 @@ interface MeuPlanoInfo {
 
 interface DashboardData {
   zettaLinked?: boolean
-  cliente: { nome: string; telefone: string; email: string | null; cep?: string | null }
+  cliente: { numeroCliente?: number | null; nome: string; telefone: string; email: string | null; cep?: string | null }
   stats: {
     totalPets: number
     totalAgendamentos: number
@@ -222,6 +222,7 @@ export function ClientHome({
             <span className="text-sm text-white/80">Seu cantinho na Matilha Prado</span>
           </div>
           <h1 className="break-words text-3xl sm:text-4xl font-bold tracking-tight mb-3">Que bom ter você aqui, {nome}!</h1>
+          {data.cliente.numeroCliente != null && <p className="mb-3 text-sm font-medium text-white/90">Seu número de cliente: MP-{String(data.cliente.numeroCliente).padStart(6, '0')}</p>}
           <p className="text-white/80 text-sm sm:text-base max-w-lg">
             {primeiroPet ? `${nomesPets}${data.pets.length > 2 ? ' e toda a sua matilha' : ''}: cada cuidado faz parte de uma história. Acompanhe a de vocês por aqui.` : 'Um espaço para os pequenos cuidados e os grandes momentos com seu melhor amigo.'}
           </p>

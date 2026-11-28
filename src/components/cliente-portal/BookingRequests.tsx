@@ -1,13 +1,14 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarCheck2, CalendarClock } from 'lucide-react'
+import { CalendarCheck2, CalendarClock, Camera, Gift } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { portalRequest } from './ExperienceProvider'
-import { SERVICOS_ESTETICOS_MATILHA } from '@/lib/agenda-servicos'
+import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { toast } from 'sonner'
+import { PagamentoCheckout } from './PagamentoCheckout'
 
 export type Booking = {
   id: string
@@ -18,14 +19,23 @@ export type Booking = {
   confirmedAt: string | null
   confirmationRef: string | null
   reply: string | null
+  gravataFoto?: string | null
+  gravataIdeia?: string | null
+  servicoPrecoCentavos?: number | null
+  gravataWhatsStatus?: string
+  pagamentoVenda?: {id:string;total:number;status:string;mercadoPagoStatus:string|null}|null
+  gravataPrecoCentavos?: number
   cliente?: { nome: string }
 }
+
+type CatalogoDisponivel = { motivo: string | null; servicos: Array<{ chave: string; nome: string; precoCentavos: number; duracaoMinutos: number }> }
 
 type DirectBookingConfig = {
   configured: boolean
   writeConfigured: boolean
   services: Array<{ id: number; nome: string }>
   fallback: string | null
+  catalogo?: CatalogoDisponivel
 }
 
 const dateLabel = (value: string) =>
@@ -37,6 +47,7 @@ const dateLabel = (value: string) =>
 
 export function BookingRequests() {
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [historicoServicos, setHistoricoServicos] = useState<Array<{ petId: string; servico: string; status: string; dataHora: string }>>([])
   const [pets, setPets] = useState<{ id: string; nome: string }[]>([])
   const [direct, setDirect] = useState<DirectBookingConfig>({
     configured: false,
@@ -47,10 +58,18 @@ export function BookingRequests() {
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [petKey, setPetKey] = useState('')
-  const [service, setService] = useState('Banho')
+  const [service, setService] = useState('')
+  const [catalogo, setCatalogo] = useState<CatalogoDisponivel | null>(null)
+  const [consultando, setConsultando] = useState(false)
+  const [erroCatalogo, setErroCatalogo] = useState('')
   const [serviceId, setServiceId] = useState('')
   const [desired, setDesired] = useState('')
   const [notes, setNotes] = useState('')
+  const [personalizar, setPersonalizar] = useState(false)
+  const [gravataFoto, setGravataFoto] = useState<string | null>(null)
+  const [fotoBusy, setFotoBusy] = useState(false)
+  const [gravataIdeia,setGravataIdeia]=useState('')
+  const [pagamento,setPagamento]=useState<{id:string;total:number}|null>(null)
 
   const load = useCallback(
     () =>
@@ -58,8 +77,10 @@ export function BookingRequests() {
         portalRequest<Booking[]>('/api/cliente/solicitacoes-agendamento'),
         portalRequest<{ id: string; nome: string }[]>('/api/cliente/pets'),
         portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos'),
+        portalRequest<Array<{ petId: string; servico: string; status: string; dataHora: string }>>('/api/cliente/agendamentos').catch(() => []),
       ])
-        .then(([rows, animals, bookingConfig]) => {
+        .then(([rows, animals, bookingConfig, historico]) => {
+          setHistoricoServicos(Array.isArray(historico) ? historico : [])
           setBookings(rows)
           setPets(animals)
           setDirect(bookingConfig)
@@ -83,10 +104,38 @@ export function BookingRequests() {
     return () => clearInterval(timer)
   }, [load])
 
+  useEffect(() => {
+    let cancelado = false
+    setCatalogo(null); setErroCatalogo(''); setService('')
+    if (!petKey || !desired) { setConsultando(false); return }
+    const quando = new Date(desired + ':00-03:00')
+    if (!Number.isFinite(quando.getTime()) || quando.getTime() <= Date.now()) {
+      setConsultando(false); setErroCatalogo('Escolha uma data futura.'); return
+    }
+    setConsultando(true)
+    portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos?petKey=' + encodeURIComponent(petKey) + '&quando=' + encodeURIComponent(quando.toISOString()))
+      .then(data => { if (!cancelado) setCatalogo(data.catalogo ?? null) })
+      .catch(e => { if (!cancelado) setErroCatalogo(e instanceof Error ? e.message : 'Erro na consulta.') })
+      .finally(() => { if (!cancelado) setConsultando(false) })
+    return () => { cancelado = true }
+  }, [petKey, desired])
+
   if (!ready) return null
 
   const directMode =
     direct.configured && pets.some((pet) => pet.id.startsWith('zetta:'))
+
+  const sugestoesRecentes = Array.from(new Set(historicoServicos
+    .filter(item => item.petId === petKey && item.status === 'concluido' && item.servico.trim())
+    .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
+    .map(item => item.servico.trim()))).slice(0, 4)
+
+  const disponiveis = catalogo?.servicos ?? []
+  const selecionado = disponiveis.find(s => s.nome === service)
+  const banho = Boolean(selecionado?.nome.toLowerCase().includes('banho'))
+  const adicional = banho && personalizar ? 500 : 0
+  const whatsapp = matilhaWhatsAppUrl('Olá! Gostaria de consultar serviços e horários para ' + (pets.find(p => p.id === petKey)?.nome || 'meu pet') + (desired ? ' em ' + desired.replace('T', ' às ') : '') + '.')
+  const preco = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   return (
     <Card>
@@ -135,13 +184,14 @@ export function BookingRequests() {
                     service,
                     desiredAt: new Date(desired + ':00-03:00').toISOString(),
                     notes,
+                    ...(banho && personalizar && gravataFoto ? { gravataFoto, gravataIdeia } : {}),
                   }),
                 })
                 toast.success(
                   'Solicitação enviada. Aguarde a confirmação da equipe no portal.',
                 )
                 setDesired('')
-                setNotes('')
+                setNotes(''); setPersonalizar(false); setGravataFoto(null); setGravataIdeia('')
                 await load()
               }
             } catch (error) {
@@ -158,7 +208,7 @@ export function BookingRequests() {
               required
               className="mt-1 h-11 w-full rounded-md border bg-background px-3"
               value={petKey}
-              onChange={(e) => setPetKey(e.target.value)}
+              onChange={(e) => { setPetKey(e.target.value); setCatalogo(null); setService('') }}
             >
               <option value="">Selecione seu pet</option>
               {pets.map((p) => (
@@ -183,23 +233,24 @@ export function BookingRequests() {
                 ))}
               </select>
             ) : (
-              <Input
-                id="request-service"
-                required
-                minLength={3}
-                maxLength={120}
-                value={service}
-                list="matilha-servicos-esteticos"
-                placeholder="Selecione uma sugestão ou descreva o cuidado"
-                onChange={(e) => setService(e.target.value)}
-              />
+              <select id="request-service" required disabled={consultando || !disponiveis.length} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
+                <option value="">{consultando ? 'Consultando...' : 'Selecione o serviço'}</option>
+                {disponiveis.map(s => <option value={s.nome} key={s.chave}>{s.nome} · {preco(s.precoCentavos)} · {s.duracaoMinutos} min</option>)}
+              </select>
             )}
             {!directMode && (
               <>
-                <datalist id="matilha-servicos-esteticos">
-                  {SERVICOS_ESTETICOS_MATILHA.map((servico) => <option key={servico} value={servico} />)}
-                </datalist>
-                <p className="mt-1 text-xs text-muted-foreground">Sugestões: banho, tosa, hidratação, unhas, subpelos, desembolo e ouvidos. Pode descrever outro cuidado estético.</p>
+                {selecionado && <p className="mt-1 text-xs text-muted-foreground">Valor: {preco(selecionado.precoCentavos)} · Duração prevista: {selecionado.duracaoMinutos} min.</p>}
+                {(!petKey || !desired) && <p className="mt-1 text-xs text-muted-foreground">Escolha o pet e a data para consultar os serviços.</p>}
+                {erroCatalogo && <p className="mt-1 text-xs text-destructive">{erroCatalogo}</p>}
+                {catalogo && !disponiveis.length && <p className="mt-1 text-xs text-muted-foreground">{catalogo.motivo === 'raca-nao-cadastrada' ? 'A raça não consta na tabela de serviços confirmados.' : 'Não encontramos serviços disponíveis neste horário.'}</p>}
+                {petKey && desired && !consultando && !disponiveis.length && <Button asChild variant="outline" size="sm" className="mt-2"><a href={whatsapp} target="_blank" rel="noopener noreferrer">Consultar pelo WhatsApp</a></Button>}
+                {sugestoesRecentes.length > 0 && <div className="mt-2 space-y-1">
+                  <p className="text-xs font-medium">Últimos serviços concluídos deste pet</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sugestoesRecentes.map(nome => <Button key={nome} type="button" size="sm" variant="outline" disabled={busy || !disponiveis.some(s => s.nome === nome)} onClick={() => setService(nome)}>{nome}</Button>)}
+                  </div>
+                </div>}
               </>
             )}
           </div>
@@ -213,7 +264,7 @@ export function BookingRequests() {
               type="datetime-local"
               required
               value={desired}
-              onChange={(e) => setDesired(e.target.value)}
+              onChange={(e) => { setDesired(e.target.value); setCatalogo(null); setService('') }}
             />
           </div>
 
@@ -227,12 +278,20 @@ export function BookingRequests() {
             />
           </div>
 
+          {!directMode && banho && <section className="sm:col-span-2 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2"><Gift className="size-5 text-primary"/><h3 className="font-semibold">Personalize sua gravata</h3><span className="ml-auto font-semibold text-primary">+ R$ 5,00</span></div>
+            <p className="text-sm text-muted-foreground">Uma gravata normal já está inclusa no banho, sem custo adicional. A personalização com sua foto é opcional.</p>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="size-4 accent-primary" checked={personalizar} onChange={e=>{setPersonalizar(e.target.checked);if(!e.target.checked){setGravataFoto(null);setGravataIdeia('')}}}/>Quero personalizar minha gravata com foto</label>
+            {personalizar && <div className="space-y-2"><label htmlFor="gravata-foto" className="flex items-center gap-2 text-sm font-medium"><Camera className="size-4"/>Envie a foto</label><Input id="gravata-foto" type="file" accept="image/jpeg,image/png,image/webp" disabled={fotoBusy||busy} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setFotoBusy(true);setGravataFoto(null);let url='';try{if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10*1024*1024)throw Error('Envie JPG, PNG ou WebP de até 10 MB.');url=URL.createObjectURL(file);const img=new Image();img.src=url;await img.decode();const canvas=document.createElement('canvas');const scale=Math.min(1,640/Math.max(img.width,img.height));canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');if(!ctx)throw Error('Não foi possível abrir a foto.');ctx.drawImage(img,0,0,canvas.width,canvas.height);const foto=canvas.toDataURL('image/jpeg',0.8);if(foto.length>400000)throw Error('Escolha uma foto menor.');setGravataFoto(foto)}catch(e){toast.error(e instanceof Error?e.message:'Foto inválida.')}finally{if(url)URL.revokeObjectURL(url);setFotoBusy(false)}}}/>{gravataFoto&&<img src={gravataFoto} alt="Prévia da foto para a gravata" className="size-24 rounded-lg object-contain border"/>}</div>}
+            {personalizar&&<div className="space-y-2"><label htmlFor="gravata-ideia" className="text-sm font-medium">Nos informe sua ideia</label><Textarea id="gravata-ideia" rows={3} maxLength={400} placeholder="Ex.: tema de aniversário, nome do pet, cores favoritas ou uma frase especial..." value={gravataIdeia} onChange={e=>setGravataIdeia(e.target.value)}/><p className="text-xs text-muted-foreground">A foto e a ideia serão encaminhadas ao WhatsApp da Matilha Prado somente depois da confirmação do pagamento integral do banho e da personalização. Até lá ficam salvas no agendamento.</p></div>}
+          </section>}
+          {selecionado && <div className="sm:col-span-2 flex items-center justify-between rounded-lg bg-muted/50 p-3"><span className="text-sm">Total estimado</span><strong>{preco(selecionado.precoCentavos+adicional)}</strong></div>}
           <Button
             type="submit"
             disabled={
-              busy ||
+              busy || fotoBusy || (banho && personalizar && !gravataFoto) ||
               !pets.length ||
-              (directMode && (!serviceId || !petKey.startsWith('zetta:')))
+              (directMode ? (!serviceId || !petKey.startsWith('zetta:')) : (consultando || !selecionado))
             }
           >
             {busy
@@ -259,11 +318,18 @@ export function BookingRequests() {
                 </span>
               </div>
               <p className="mt-2 text-sm">Preferência: {dateLabel(b.desiredAt)}</p>
+              {!!b.gravataPrecoCentavos && <p className="mt-2 text-sm">Gravata personalizada com foto · {preco(b.gravataPrecoCentavos)}</p>}
               {b.confirmedAt && (
                 <p className="text-sm font-semibold text-green-700">
                   Confirmado para {dateLabel(b.confirmedAt)}
                 </p>
               )}
+              {!!b.gravataPrecoCentavos&&<div className="my-3 rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+                {b.gravataIdeia&&<p className="break-words">Sua ideia: {b.gravataIdeia}</p>}
+                {b.servicoPrecoCentavos!=null&&<p className="font-semibold">Total do agendamento: {preco(b.servicoPrecoCentavos+b.gravataPrecoCentavos)}</p>}
+                <p className="text-xs text-muted-foreground">{['entregue','lido'].includes(b.gravataWhatsStatus||'')?'Foto e ideia entregues à equipe.':b.gravataWhatsStatus==='enviado'?'Envio aceito pelo WhatsApp; aguardando entrega.':b.gravataWhatsStatus==='falha_entrega'?'Pagamento confirmado; a equipe precisa conferir a entrega da foto.':b.pagamentoVenda?.status==='concluida'&&b.pagamentoVenda.mercadoPagoStatus==='approved'?'Pagamento confirmado; encaminhamento aguardando confirmação do WhatsApp.':'Foto e ideia aguardando pagamento integral.'}</p>
+                {b.status==='confirmado'&&b.servicoPrecoCentavos!=null&&b.servicoPrecoCentavos>0&&(!b.pagamentoVenda||b.pagamentoVenda.status==='pendente')&&<Button size="sm" disabled={busy} onClick={async()=>{setBusy(true);try{const v=await portalRequest<{id:string;total:number;status:string}>('/api/cliente/solicitacoes-agendamento/pagamento',{method:'POST',body:JSON.stringify({id:b.id})});if(v.status==='pendente')setPagamento(v);await load()}catch(e){toast.error(e instanceof Error?e.message:'Não foi possível abrir pagamento.')}finally{setBusy(false)}}}>Pagar banho e gravata</Button>}
+              </div>}
               {b.reply && (
                 <p className="mt-2 break-words text-sm">Resposta da loja: {b.reply}</p>
               )}
@@ -294,6 +360,7 @@ export function BookingRequests() {
             </div>
           ))}
         </div>
+        {pagamento&&<PagamentoCheckout key={pagamento.id} vendaId={pagamento.id} total={pagamento.total} onAprovado={()=>{setPagamento(null);void load()}} onCancelar={()=>{setPagamento(null);void load()}}/>}
       </CardContent>
     </Card>
   )

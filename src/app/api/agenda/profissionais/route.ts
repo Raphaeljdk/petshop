@@ -89,3 +89,22 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json(item)
   } catch (error) { return errorResponse(error) }
 }
+
+export async function DELETE(req: NextRequest) {
+  const denied = await authorize()
+  if (denied) return denied
+  try {
+    assertSameOrigin(req)
+    const { id } = z.object({ id: z.string().min(1) }).strict().parse(await req.json())
+    const existing = await db.profissionalAgenda.findUnique({ where: { id }, select: { id: true } })
+    if (!existing) return NextResponse.json({ error: 'Profissional não encontrado.' }, { status: 404 })
+    // Não apagar vínculos de login, bloqueios nem o histórico dos atendimentos.
+    const removed = await db.profissionalAgenda.deleteMany({
+      where: { id, userId: null, agendamentos: { none: {} }, bloqueios: { none: {} } },
+    })
+    if (removed.count !== 1) return NextResponse.json({
+      error: 'Este profissional possui vínculos ou histórico. Desative-o para preservar os registros.',
+    }, { status: 409 })
+    return NextResponse.json({ id, excluido: true })
+  } catch (error) { return errorResponse(error) }
+}

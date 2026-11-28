@@ -11,12 +11,12 @@
       "schedule": "0 11 * * *"
     },
     {
-      "path": "/api/cron/marketplaces",
-      "schedule": "*/30 * * * *"
+      "path": "/api/cron/nfe-email",
+      "schedule": "30 11 * * *"
     },
     {
-      "path": "/api/cron/nfe-email",
-      "schedule": "*/5 * * * *"
+      "path": "/api/cron/marketplaces",
+      "schedule": "0 9 * * *"
     }
   ]
 }

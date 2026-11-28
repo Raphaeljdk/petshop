@@ -20,6 +20,7 @@ type MlOrderItem = {
 }
 
 type MlOrder = {
+  seller?: {id?: number|string}
   id?: number | string
   status?: string
   date_created?: string
@@ -294,4 +295,15 @@ export async function syncMarketplaceSalesToLocal() {
   }
 
   return result
+}
+
+export async function importMercadoLivreOrderById(orderId:string) {
+ const {token,sellerId}=await mercadoLivreAccessToken()
+ const order=await mlJson<MlOrder>('https://api.mercadolibre.com/orders/'+encodeURIComponent(orderId),token)
+ if(String(order.seller?.id)!==String(sellerId)||String(order.id)!==orderId)throw Error('Pedido fora da conta conectada.')
+ if(order.status!=='paid')return {created:false,ignored:true}
+ const existing=await db.venda.findUnique({where:{marketplaceOrderId:'mercadolivre:'+orderId},select:{id:true}})
+ if(existing)return {created:false,ignored:false}
+ const buyer=await mercadoLivreBuyer(orderId,token)
+ return registerMarketplaceSale({channel:'mercadolivre',orderId,createdAt:order.date_created?new Date(order.date_created):new Date(),total:Math.max(0,Number(order.total_amount||0)),buyerName:buyer.name,buyerDocument:buyer.document,items:(order.order_items||[]).map(row=>({externalProductId:row.item?.id||null,sku:row.seller_sku||row.item?.seller_sku||row.item?.seller_custom_field||null,title:row.item?.title||null,quantity:Math.max(1,Math.floor(Number(row.quantity||1))),unitPrice:Math.max(0,Number(row.unit_price||0))}))})
 }

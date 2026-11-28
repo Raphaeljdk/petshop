@@ -14,7 +14,7 @@ export async function GET() {
         where: { status: { in: ['solicitado', 'confirmado'] } },
         orderBy: { desiredAt: 'asc' },
         take: 100,
-        include: { cliente: { select: { nome: true } } },
+        include: { cliente: { select: { nome: true } }, pagamentoVenda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}} },
       }),
       db.productReview.findMany({
         orderBy: { updatedAt: 'desc' },

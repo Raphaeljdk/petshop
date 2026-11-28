@@ -37,7 +37,8 @@ try {
   let currentDashboard = dashboard
   await context.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname
-    const body = path === '/api/auth/me' ? (signedIn ? { autenticado: true, user: { ...customer, role: 'CLIENTE', clienteId: customer.id }, cliente: customer } : { autenticado: false })
+    const body = path === '/api/comandas' ? { items: [] }
+      : path === '/api/auth/me' ? (signedIn ? { autenticado: true, user: { ...customer, role: 'CLIENTE', clienteId: customer.id }, cliente: customer } : { autenticado: false })
       : path === '/api/cliente/dashboard' ? currentDashboard
         : path === '/api/cliente/fidelidade' ? { config: null, earned: 0, used: 0, balance: 0, redemptions: [] }
           : path === '/api/cliente/agendamentos/servicos' ? { configured: false, writeConfigured: false, services: [], fallback: 'solicitacao-equipe' }

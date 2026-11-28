@@ -66,14 +66,14 @@ export async function POST(req: NextRequest) {
 
     const venda = await db.venda.findUnique({
       where: { id: vendaId },
-      include: { itens: { include: { produto: true } } },
+      include: { itens: { include: { produto: true } }, bookingPagamento:{select:{id:true,status:true}} },
     })
 
     if (!venda) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    if (venda.clienteId && venda.clienteId !== cliente.id) {
+    if (venda.clienteId !== cliente.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
 
     const config = await getOuCriarConfigPagamento()
 
+    if(venda.bookingPagamento&&(venda.bookingPagamento.status!=='confirmado'||config.mercadoPagoSandbox||!(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()||config.mercadoPagoAccessToken?.trim())||(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()||config.mercadoPagoAccessToken?.trim())?.startsWith('TEST-')))return NextResponse.json({error:'Pagamento real do agendamento indisponível.'},{status:409})
     if (metodo === 'pix' && !config.pixAtivo) {
       return NextResponse.json({ error: 'PIX desativado' }, { status: 400 })
     }
@@ -155,10 +156,12 @@ export async function POST(req: NextRequest) {
         card,
         boleto,
         attemptKey: venda.mercadoPagoId || 'initial',
+        singleInvoice: Boolean(venda.bookingPagamento),
       },
       config
     )
 
+    if(venda.bookingPagamento&&resultado.simulado)return NextResponse.json({error:'Pagamento simulado não é aceito para personalização.'},{status:409})
     const statusMap = resultado.simulado
       ? {
           mercadoPagoStatus: 'pending',

@@ -110,7 +110,7 @@ type AmazonItems = {
 type AutoSyncState={
   enabled:boolean
   stockWritesEnabled:boolean
-  intervalMinutes:number
+  intervalMinutes:number|null
   status:{
     status:string
     lastStartedAt:string|null
@@ -644,7 +644,7 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              A cada 30 minutos o Hub consulta novas vendas dos marketplaces. Atualizações de estoque e reativação automática de anúncios estão suspensas por segurança até a conferência do estoque físico e dos SKUs duplicados.
+              O Hub importa vendas confirmadas por eventos do Mercado Livre e por consulta diária ou manual de pedidos da Amazon e do Mercado Livre. A consulta não altera saldos se não houver novas vendas. A escrita nos canais depende da liberação de segurança.
             </p>
             <Button
               type="button"
@@ -664,7 +664,7 @@ export function IntegracoesView() {
                 Os pedidos continuam sendo importados para o Hub quando identificados com segurança.
               </p>}
               <p className="text-xs text-blue-800">
-                <strong>Atualização automática: a cada 30 minutos</strong>
+                <strong>Atualização de estoque: por movimentação · Consulta de segurança diária (6h, Brasília)</strong>
                 {autoSync?.status?.lastFinishedAt
                   ? ' · Última execução: '+new Date(autoSync.status.lastFinishedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})
                   : ' · Aguardando primeira execução'}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { precosPorRacaSchema } from '@/lib/precos-por-raca'
+import { gruposPorteSchema, gruposPorteConfirmaveis } from '@/lib/servicos-grupos-porte'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
@@ -20,6 +21,13 @@ const campos = z.object({
   precosPorRaca: precosPorRacaSchema,
   duracaoMinutos: z.number().int().min(5).max(720).nullable(),
   regrasPreco: z.string().trim().max(2000).nullable(),
+  observacoes: z.string().trim().max(1000).nullable(),
+  confirmado: z.boolean(),
+}).strict()
+
+const camposGrupos = z.object({
+  chave: z.string().trim().min(2).max(100),
+  gruposPorte: gruposPorteSchema,
   observacoes: z.string().trim().max(1000).nullable(),
   confirmado: z.boolean(),
 }).strict()
@@ -44,7 +52,7 @@ export async function GET() {
   try {
     const rows = await db.servicoEsteticoConfig.findMany({
       select: {
-        chave: true, nome: true, precoCentavos: true, precosPorRaca: true, duracaoMinutos: true,
+        chave: true, nome: true, precoCentavos: true, precosPorRaca: true, gruposPorte: true, duracaoMinutos: true,
         regrasPreco: true, observacoes: true, confirmado: true, updatedAt: true,
       },
     })
@@ -92,7 +100,7 @@ export async function PUT(req: NextRequest) {
   if (denied) return denied
   try {
     assertSameOrigin(req)
-    const entrada = campos.parse(await req.json())
+    const entrada = z.union([camposGrupos, campos]).parse(await req.json())
     const padrao = CATALOGO_ESTETICO_MATILHA.some(servico => servico.chave === entrada.chave)
     if (!padrao) {
       // Uma chave arbitrária enviada pelo navegador não autoriza criar registro.
@@ -101,9 +109,11 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: 'Serviço não cadastrado. Use Novo serviço antes de configurar.' }, { status: 400 })
       }
     }
-    if (entrada.confirmado && !configuracaoPodeSerConfirmada(entrada))
+    if (entrada.confirmado && ('gruposPorte' in entrada ? !gruposPorteConfirmaveis(entrada.gruposPorte) : !configuracaoPodeSerConfirmada(entrada)))
       return NextResponse.json({
-        error: 'Para confirmar o serviço, informe a duração e um preço de referência, um preço por raça ou as regras de cobrança.',
+        error: 'gruposPorte' in entrada
+          ? 'Cadastre pelo menos uma raça e informe preço e duração para todos os grupos com raças.'
+          : 'Para confirmar o serviço, informe a duração e um preço de referência, um preço por raça ou as regras de cobrança.',
       }, { status: 400 })
     const { chave, ...data } = entrada
     const registro = await db.servicoEsteticoConfig.upsert({

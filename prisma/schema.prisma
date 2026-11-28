@@ -28,6 +28,7 @@ model User {
 
 model Cliente {
   id        String   @id @default(cuid())
+  numeroCliente Int @unique @default(autoincrement())
   nome      String
   telefone  String
   cpfCnpj   String?  @unique
@@ -91,6 +92,10 @@ model Processo {
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
   notificacoes Notificacao[]
   ficha AtendimentoFicha?
+  bookingRequestId String? @unique
+  bookingRequest BookingRequest? @relation(fields: [bookingRequestId], references: [id], onDelete: Restrict)
+  comandaExtras ComandaServicoExtra[]
+  comandaVendas Venda[] @relation("ComandaVenda")
 }
 
 model Agendamento {
@@ -181,6 +186,11 @@ model Produto {
 
 model Venda {
   id         String   @id @default(cuid())
+  comandaProcessoId String?
+  comandaCompraKey String? @unique
+  comandaProcesso Processo? @relation("ComandaVenda", fields: [comandaProcessoId], references: [id], onDelete: Restrict)
+  comandaExtra ComandaServicoExtra? @relation("ComandaExtraVenda")
+  bookingPagamento BookingRequest? @relation("BookingPagamento")
   clienteId String?
   total      Float
   creditoPresenteCentavos Int @default(0)
@@ -222,6 +232,7 @@ model Venda {
   presenteUsado PortalGiftRedemption?
 
   @@index([cupomId])
+  @@index([comandaProcessoId])
 }
 
 model ItemVenda {
@@ -427,6 +438,15 @@ model ProductReview {
 
 model BookingRequest {
   id String @id @default(cuid())
+  gravataFoto String? @db.Text
+  gravataIdeia String? @db.VarChar(400)
+  gravataPrecoCentavos Int @default(0)
+  servicoPrecoCentavos Int?
+  pagamentoVendaId String? @unique
+  pagamentoVenda Venda? @relation("BookingPagamento", fields: [pagamentoVendaId], references: [id], onDelete: Restrict)
+  gravataWhatsStatus String @default("aguardando_pagamento")
+  gravataWhatsId String?
+  gravataWhatsEnviadoEm DateTime?
   clienteId String
   petKey String
   petName String
@@ -440,6 +460,7 @@ model BookingRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  processo Processo?
   @@unique([clienteId, petKey, desiredAt])
   @@index([status, desiredAt])
 }
@@ -646,6 +667,7 @@ model ServicoEsteticoConfig {
   nome String? @db.VarChar(80) // serviços personalizados; itens padrão usam o catálogo estático
   precoCentavos Int?
   precosPorRaca Json @default("[]")
+  gruposPorte Json @default("[]")
   duracaoMinutos Int?
   regrasPreco String? @db.Text
   observacoes String? @db.Text
@@ -1002,4 +1024,37 @@ model ProdutoImagem {
   conteudo  Bytes    @db.ByteA
   tipo      String
   createdAt DateTime @default(now())
+}
+
+// Escala diária dos serviços públicos. Ausência de escala significa não ofertar online.
+model AgendaServicoDia {
+  dia String @id @db.VarChar(10)
+  servicos Json @default("[]")
+  atualizadoPorId String
+  updatedAt DateTime @updatedAt
+}
+
+// Comanda identificada pelo atendimento existente; extras conservam preço e aceite.
+model ComandaServicoExtra {
+  id String @id @default(cuid())
+  processoId String
+  chaveServico String
+  nome String
+  precoCentavos Int
+  duracaoMinutos Int
+  motivo String?
+  origem String
+  status String @default("aguardando_tutor")
+  solicitadoPorId String
+  aceitoPorId String?
+  respondidoEm DateTime?
+  equipePorId String?
+  equipeEm DateTime?
+  realizadoEm DateTime?
+  vendaId String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  processo Processo @relation(fields: [processoId], references: [id], onDelete: Restrict)
+  venda Venda? @relation("ComandaExtraVenda", fields: [vendaId], references: [id], onDelete: Restrict)
+  @@index([processoId, status])
 }

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 import { pickMarketplaceProduct } from '@/lib/marketplace-product-match'
+import { syncStockAfterHubWrite } from '@/lib/stock-sync-after-write'
 import { debitForSale } from '@/lib/sale-stock-policy'
 
 export type MarketplaceChannel = 'mercadolivre' | 'amazon'
@@ -122,6 +123,8 @@ export async function registerMarketplaceSale(input: MarketplaceSaleInput) {
   // Antes de transmitir a NF-e, conciliar notas que possam ter sido emitidas no canal.
   try { await ensureFiscalDraftForSale(resultado.id) }
   catch (error) { console.error('[marketplace-sales] rascunho fiscal pendente:', error) }
+  const sync = await syncStockAfterHubWrite([...quantidades.keys()])
+  if (sync.status === 'attention') resultado.alertas.push('Venda registrada; conferir sincronização dos produtos vendidos nos canais.')
   return {
     created: true,
     vendaId: resultado.id,

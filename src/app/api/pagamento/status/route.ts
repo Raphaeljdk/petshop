@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    if (venda.clienteId && venda.clienteId !== cliente.id) {
+    if (venda.clienteId !== cliente.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
@@ -145,7 +145,6 @@ export async function GET(req: NextRequest) {
         : null,
       aprovado:
         venda.mercadoPagoStatus === 'approved' ||
-        venda.mercadoPagoStatus === 'authorized' ||
         venda.status === 'concluida',
       rejeitado:
         venda.mercadoPagoStatus === 'rejected' ||

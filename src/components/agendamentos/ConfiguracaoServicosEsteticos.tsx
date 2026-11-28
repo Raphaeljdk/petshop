@@ -1,30 +1,27 @@
 'use client'
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { CheckCircle2, CircleHelp, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { CheckCircle2, CircleHelp, Loader2, Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { LIMITE_PRECOS_POR_RACA, precosPorRacaSchema, type PrecoPorRaca } from '@/lib/precos-por-raca'
+import type { PrecoPorRaca } from '@/lib/precos-por-raca'
+import { GRUPOS_PORTE, gruposPorteSchema, lerGruposPorte, type GrupoPorte } from '@/lib/servicos-grupos-porte'
 
 type Servico = {
   chave: string
   nome: string
-  precoCentavos: number | null
   precosPorRaca: PrecoPorRaca[]
-  duracaoMinutos: number | null
-  regrasPreco: string | null
+  gruposPorte: GrupoPorte[]
+  gruposConfirmados: boolean
   observacoes: string | null
   confirmado: boolean
   updatedAt: string | null
 }
 type Rascunho = {
-  preco: string
-  precosPorRaca: Array<{ raca: string; preco: string }>
-  duracao: string
-  regrasPreco: string
+  grupos: Array<{ porte: GrupoPorte['porte']; racas: string; preco: string; duracao: string }>
   observacoes: string
   confirmado: boolean
 }
@@ -33,12 +30,9 @@ const formatarPreco = (centavos: number | null) =>
   centavos === null ? '' : (centavos / 100).toFixed(2)
 
 const editar = (s: Servico): Rascunho => ({
-  preco: formatarPreco(s.precoCentavos),
-  precosPorRaca: (s.precosPorRaca || []).map(({ raca, precoCentavos }) => ({ raca, preco: formatarPreco(precoCentavos) })),
-  duracao: s.duracaoMinutos === null ? '' : String(s.duracaoMinutos),
-  regrasPreco: s.regrasPreco ?? '',
+  grupos: lerGruposPorte(s.gruposPorte).map(g => ({ porte: g.porte, racas: g.racas.join('\n'), preco: formatarPreco(g.precoCentavos), duracao: g.duracaoMinutos === null ? '' : String(g.duracaoMinutos) })),
   observacoes: s.observacoes ?? '',
-  confirmado: s.confirmado,
+  confirmado: s.gruposConfirmados,
 })
 
 function lerCentavos(valor: string) {
@@ -106,41 +100,11 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
     setDrafts((prev) => ({ ...prev, [chave]: { ...prev[chave], [campo]: value } }))
   }
 
-  function adicionarRaca(chave: string) {
-    setDrafts((prev) => {
-      const atual = prev[chave]
-      if (!atual || atual.precosPorRaca.length >= LIMITE_PRECOS_POR_RACA) return prev
-      return {
-        ...prev,
-        [chave]: { ...atual, precosPorRaca: [...atual.precosPorRaca, { raca: '', preco: '' }] },
-      }
-    })
-  }
-
-  function alterarRaca(chave: string, indice: number, campo: 'raca' | 'preco', valor: string) {
-    setDrafts((prev) => {
+  function alterarGrupo(chave: string, porte: GrupoPorte['porte'], campo: 'racas' | 'preco' | 'duracao', valor: string) {
+    setDrafts(prev => {
       const atual = prev[chave]
       if (!atual) return prev
-      return {
-        ...prev,
-        [chave]: {
-          ...atual,
-          precosPorRaca: atual.precosPorRaca.map((linha, i) =>
-            i === indice ? { ...linha, [campo]: valor } : linha
-          ),
-        },
-      }
-    })
-  }
-
-  function removerRaca(chave: string, indice: number) {
-    setDrafts((prev) => {
-      const atual = prev[chave]
-      if (!atual) return prev
-      return {
-        ...prev,
-        [chave]: { ...atual, precosPorRaca: atual.precosPorRaca.filter((_, i) => i !== indice) },
-      }
+      return { ...prev, [chave]: { ...atual, grupos: atual.grupos.map(g => g.porte === porte ? { ...g, [campo]: valor } : g) } }
     })
   }
 
@@ -176,17 +140,13 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
     if (!rascunho) return
     setSaving(chave)
     try {
-      const precosPorRaca = precosPorRacaSchema.parse(rascunho.precosPorRaca.map((linha, indice) => {
-        const precoCentavos = lerCentavos(linha.preco)
-        if (precoCentavos === null) throw new Error(`Informe o preço da raça ${linha.raca.trim() || indice + 1}.`)
-        return { raca: linha.raca.trim(), precoCentavos }
-      }))
+      const gruposPorte = gruposPorteSchema.parse(rascunho.grupos.map(g => ({
+        porte: g.porte, racas: g.racas.split(/\n/).map(r => r.trim()).filter(Boolean),
+        precoCentavos: lerCentavos(g.preco), duracaoMinutos: lerDuracao(g.duracao),
+      })))
       const body = {
         chave,
-        precoCentavos: lerCentavos(rascunho.preco),
-        precosPorRaca,
-        duracaoMinutos: lerDuracao(rascunho.duracao),
-        regrasPreco: rascunho.regrasPreco.trim() || null,
+        gruposPorte,
         observacoes: rascunho.observacoes.trim() || null,
         confirmado: rascunho.confirmado,
       }
@@ -202,14 +162,14 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
       toast.success('Configuração interna do serviço salva.')
     } catch (reason) {
       toast.error(reason instanceof Error && 'issues' in reason && Array.isArray(reason.issues)
-        ? String(reason.issues[0]?.message || 'Revise os preços por raça.')
+        ? String(reason.issues[0]?.message || 'Revise os grupos de porte.')
         : reason instanceof Error ? reason.message : 'Erro ao salvar o serviço.')
     } finally {
       setSaving(null)
     }
   }
 
-  const confirmados = items.filter((s) => s.confirmado).length
+  const confirmados = items.filter((s) => s.gruposConfirmados).length
 
   return (
     <details ref={detailsRef} id="configurar-servicos" className="rounded-xl border bg-card p-3 sm:p-4">
@@ -217,9 +177,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
         Configurar serviços, preços e duração ({loading ? 'carregando' : `${confirmados}/${items.length} confirmados`})
       </summary>
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-        Preenchimento interno da Matilha Prado. Sem preços ou durações fictícios.
-        Os dados não são publicados no site, não ativam reservas automáticas e não configuram impostos.
-        Marque como confirmado somente após receber as informações oficiais da equipe.
+        Configure as raças, o preço e a duração de cada grupo. Os valores antigos ficam preservados para conferência. A confirmação desta tabela não ativa reservas automáticas nem configura impostos.
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
         <div>
@@ -257,72 +215,39 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
             <div key={id} className="rounded-lg border bg-background p-3">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">{item.nome}</h3>
-                <span className={`inline-flex items-center gap-1 text-xs ${item.confirmado ? 'text-green-700' : 'text-muted-foreground'}`}>
-                  {item.confirmado ? <CheckCircle2 className="size-4" /> : <CircleHelp className="size-4" />}
-                  {item.confirmado ? 'Confirmado' : 'Pendente'}
+                <span className={`inline-flex items-center gap-1 text-xs ${item.gruposConfirmados ? 'text-green-700' : 'text-muted-foreground'}`}>
+                  {item.gruposConfirmados ? <CheckCircle2 className="size-4" /> : <CircleHelp className="size-4" />}
+                  {item.gruposConfirmados ? 'Confirmado' : 'Pendente'}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor={id + '-preco'}>Preço de referência (R$)</Label>
-                  <Input id={id + '-preco'} type="text" inputMode="decimal" placeholder="A confirmar"
-                    value={r.preco} onChange={(e) => alterar(id, 'preco', e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={id + '-duracao'}>Duração (min)</Label>
-                  <Input id={id + '-duracao'} type="number" min={5} max={720} step={1} placeholder="A confirmar"
-                    value={r.duracao} onChange={(e) => alterar(id, 'duracao', e.target.value)} />
-                </div>
-                <div className="col-span-2 space-y-2 rounded-lg border bg-muted/20 p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-semibold">Preços por raça</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Um valor para cada raça; não substitui o preço de referência.
-                      </p>
-                    </div>
-                    <Button type="button" variant="outline" size="sm"
-                      disabled={saving !== null || r.precosPorRaca.length >= LIMITE_PRECOS_POR_RACA}
-                      onClick={() => adicionarRaca(id)}>
-                      <Plus className="mr-1 size-3.5" /> Adicionar raça
-                    </Button>
-                  </div>
-                  {r.precosPorRaca.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Nenhuma raça com preço específico cadastrada.</p>
-                  )}
-                  <div className="space-y-2">
-                    {r.precosPorRaca.map((linha, indice) => (
-                      <div key={indice} className="grid grid-cols-[minmax(0,1fr)_minmax(95px,0.6fr)_auto] items-end gap-2">
-                        <div className="min-w-0 space-y-1">
-                          <Label htmlFor={`${id}-raca-${indice}`}>Raça</Label>
-                          <Input id={`${id}-raca-${indice}`} type="text" maxLength={80}
-                            placeholder="Ex.: Golden Retriever"
-                            value={linha.raca}
-                            onChange={(e) => alterarRaca(id, indice, 'raca', e.target.value)} />
+                <div className="col-span-2 space-y-3">
+                  {r.grupos.map(g => {
+                    const nome = GRUPOS_PORTE.find(p => p.chave === g.porte)?.nome || g.porte
+                    const prefixo = id + '-' + g.porte
+                    return <div key={g.porte} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                      <h4 className="text-sm font-semibold">Porte {nome}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label htmlFor={prefixo + '-preco'}>Preço (R$)</Label>
+                          <Input id={prefixo + '-preco'} inputMode="decimal" value={g.preco} placeholder="A confirmar" onChange={e => alterarGrupo(id, g.porte, 'preco', e.target.value)} />
                         </div>
-                        <div className="min-w-0 space-y-1">
-                          <Label htmlFor={`${id}-raca-preco-${indice}`}>Preço (R$)</Label>
-                          <Input id={`${id}-raca-preco-${indice}`} type="text" inputMode="decimal"
-                            placeholder="A confirmar"
-                            value={linha.preco}
-                            onChange={(e) => alterarRaca(id, indice, 'preco', e.target.value)} />
+                        <div className="space-y-1">
+                          <Label htmlFor={prefixo + '-tempo'}>Tempo (min)</Label>
+                          <Input id={prefixo + '-tempo'} type="number" min={5} max={720} step={1} value={g.duracao} placeholder="A confirmar" onChange={e => alterarGrupo(id, g.porte, 'duracao', e.target.value)} />
                         </div>
-                        <Button type="button" variant="ghost" size="icon"
-                          aria-label={`Remover preço da raça ${linha.raca || indice + 1}`}
-                          disabled={saving !== null}
-                          onClick={() => removerRaca(id, indice)}
-                          className="size-9 text-destructive hover:text-destructive">
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <div className="col-span-2 space-y-1">
+                          <Label htmlFor={prefixo + '-racas'}>Raças deste grupo (uma por linha)</Label>
+                          <Textarea id={prefixo + '-racas'} rows={2} value={g.racas} placeholder="Informe as raças atendidas" onChange={e => alterarGrupo(id, g.porte, 'racas', e.target.value)} />
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <Label htmlFor={id + '-regras'}>Variação por porte, pelagem, raça ou modalidade</Label>
-                  <Textarea id={id + '-regras'} rows={2} maxLength={2000}
-                    placeholder="Aguardando tabela de preços e critérios da equipe"
-                    value={r.regrasPreco} onChange={(e) => alterar(id, 'regrasPreco', e.target.value)} />
+                    </div>
+                  })}
+                  {item.precosPorRaca.length > 0 && <details className="rounded-md border p-2 text-xs">
+                    <summary className="cursor-pointer font-medium">Consultar preços por raça anteriores (somente leitura)</summary>
+                    <p className="mt-1 text-muted-foreground">Distribua essas raças nos grupos corretos após conferir os valores e tempos.</p>
+                    <ul className="mt-2 space-y-1">{item.precosPorRaca.map(p => <li key={p.raca}>{p.raca} — R$ {formatarPreco(p.precoCentavos)}</li>)}</ul>
+                  </details>}
                 </div>
                 <div className="col-span-2 space-y-1">
                   <Label htmlFor={id + '-obs'}>Observações e procedimentos incluídos</Label>

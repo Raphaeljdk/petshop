@@ -47,14 +47,14 @@ export async function enqueueAppointmentReminders(now=new Date()){
   }
   return {queued,appointments:rows.length}
 }
-async function sendEmail(to:string,delivery:{uniqueKey:string;text:string}){
+async function sendEmail(to:string,delivery:{uniqueKey:string;text:string;kind?:string}){
   const config=invitationMailConfig()
   if(!config.configured)throw Error('Resend indisponível')
   const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{
     Authorization:'Bearer '+config.key,'Content-Type':'application/json',
     'Idempotency-Key':'portal-'+delivery.uniqueKey,
   },body:JSON.stringify({
-    from:config.from,to:[to],subject:'Lembrete de agendamento | Matilha Prado',
+    from:config.from,to:[to],subject:delivery.kind==='autorizacao_servico'?'Autorize um serviço adicional | Matilha Prado':'Lembrete de agendamento | Matilha Prado',
     text:delivery.text,...(config.replyTo?{reply_to:config.replyTo}:{}),
   }),signal:AbortSignal.timeout(10000)})
   const json=await response.json().catch(()=>null)

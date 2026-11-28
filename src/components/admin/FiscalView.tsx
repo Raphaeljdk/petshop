@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ClipboardList, FileText, Loader2, Package, ReceiptText, RefreshCw, Save, Search, Settings2, ShieldAlert, ExternalLink, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -58,7 +58,7 @@ type ProntidaoFiscal = {
   aviso:string; concluido:number; total:number;
   requisitos:Array<{id:string;ok:boolean;titulo:string;detalhe:string}>
 }
-type FiscalData = { config: Config | null; vendas: Sale[]; notas: Nota[];
+type FiscalData = { config: Config | null; vendas: Sale[]; notas: Nota[]; totalVendas: number; pagina: number; porPagina: number;
   emissaoConfigurada: boolean; emissaoMercadoLivreHabilitada: boolean;
   emissaoAviso: string; prontidaoNfeProducao: ProntidaoFiscal }
 type Product = {
@@ -151,6 +151,9 @@ export function FiscalView() {
   const [gerandoPrevia,setGerandoPrevia] = useState<string|null>(null)
   const [montandoNfe,setMontandoNfe] = useState<string|null>(null)
   const [buscaVenda, setBuscaVenda] = useState('')
+  const [filtroVenda, setFiltroVenda] = useState('pendentes')
+  const [canalVenda, setCanalVenda] = useState('todos')
+  const [paginaVenda, setPaginaVenda] = useState(1)
   const [produtos, setProdutos] = useState<ProductsData | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
   const [filtroProduto, setFiltroProduto] = useState<FiltroFiscal>('todos')
@@ -161,13 +164,14 @@ export function FiscalView() {
 
   const carregar = useCallback(async () => {
     try {
-      const result = await jsonRes(await fetch('/api/admin/fiscal', { cache: 'no-store' })) as FiscalData
+      const params = new URLSearchParams({ filtro: filtroVenda, canal: canalVenda, busca: buscaVenda, pagina: String(paginaVenda) })
+      const result = await jsonRes(await fetch('/api/admin/fiscal?' + params, { cache: 'no-store' })) as FiscalData
       setData(result)
       setConfig(camposEditaveisEmitente({ ...EMPTY, ...(result.config || {}) }) as Config)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao carregar fiscal.')
     } finally { setLoading(false) }
-  }, [])
+  }, [filtroVenda, canalVenda, buscaVenda, paginaVenda])
 
   const carregarProdutos = useCallback(async (page: number, busca: string, filtro: FiltroFiscal) => {
     try {
@@ -178,7 +182,7 @@ export function FiscalView() {
     }
   }, [])
 
-  useEffect(() => { void carregar() }, [carregar])
+  useEffect(() => { setLoading(true); const timer = setTimeout(() => void carregar(), 250); return () => clearTimeout(timer) }, [carregar])
   useEffect(()=>{
     let mounted=true
     Promise.all([
@@ -190,12 +194,8 @@ export function FiscalView() {
   },[])
   useEffect(() => { if (aba === 'produtos') void carregarProdutos(pagina, buscaProduto, filtroProduto) }, [aba, pagina, carregarProdutos, buscaProduto, filtroProduto])
 
-  const vendas = useMemo(() => {
-    const term = buscaVenda.trim().toLocaleLowerCase('pt-BR')
-    return (data?.vendas || []).filter((v) =>
-      !term || [v.id, v.canal, v.cliente?.nome, v.marketplaceBuyerName, v.marketplaceOrderId].some((s) => (s || '').toLowerCase().includes(term))
-    )
-  }, [data, buscaVenda])
+  const vendas = data?.vendas || []
+  const podePreparar = filtroVenda === 'pendentes'
 
   async function salvarEmitente() {
     setSaving(true)
@@ -381,7 +381,7 @@ export function FiscalView() {
   )
   const alterarProduto = (key: keyof Product, value: string) => setEditandoProduto((p) => p ? { ...p, [key]: value } : null)
 
-  const semNota = data?.vendas.filter((v) => !v.notaFiscal && v.status !== 'cancelada').length || 0
+  const semNota = filtroVenda === 'pendentes' ? data?.totalVendas || 0 : 0
   const rascunhos = data?.notas.filter((n) => n.status === 'rascunho').length || 0
 
   return (
@@ -458,7 +458,7 @@ export function FiscalView() {
       </CardContent></Card>
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { label: 'Vendas sem registro fiscal', value: semNota, icon: ClipboardList },
+          { label: 'Vendas na fila selecionada', value: data?.totalVendas ?? semNota, icon: ClipboardList },
           { label: 'Rascunhos de NF-e', value: rascunhos, icon: FileText },
           { label: 'NF-e autorizadas neste ERP', value: data?.notas.filter((n) => n.status === 'autorizada').length || 0, icon: CheckCircle2 },
         ].map((stat) => (
@@ -512,7 +512,14 @@ export function FiscalView() {
             <p className="mt-1">1. Salve os dados do emitente em Dados do emitente. 2. Revise NCM, origem e tributação em Tributação dos produtos. 3. Verifique CPF/CNPJ, endereço e itens do pedido com Validar para emitir. 4. Configure o certificado A1 protegido na Vercel e teste a SEFAZ-SP em homologação. 5. O ERP só poderá transmitir NF-e quando implementarmos o XML oficial completo, assinatura digital, consulta e aprovação da contabilidade.</p>
             <p className="mt-1">Gerar XML de prévia baixa um documento interno de pendências. Montar NF-e 55 abre o novo formulário para gerar um rascunho com a estrutura nacional XML 4.00 apenas em homologação, restrito a algumas operações do Simples Nacional e sem validação XSD 010f ou reforma tributária completa. Nenhum dos dois arquivos é uma NF-e assinada ou autorizada. Evite duplicidades com notas já emitidas nos marketplaces ou Mercado Pago.</p>
           </div>
-          <div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)} placeholder="Buscar cliente, venda ou pedido do marketplace..." /></div>
+          <section className="rounded-xl border bg-card p-3 space-y-3">
+            <h3 className="font-semibold text-sm">Fila de emissão fiscal</h3>
+            <div className="flex flex-wrap gap-2">{[{id:'pendentes',nome:'Vendas a emitir'},{id:'conciliacao',nome:'Conferir notas / marketplace'},{id:'emitidas',nome:'Notas autorizadas'},{id:'pagamento',nome:'Aguardando pagamento'}].map(f=><Button key={f.id} size="sm" variant={filtroVenda===f.id?'default':'outline'} onClick={()=>{setFiltroVenda(f.id);setPaginaVenda(1);setMontandoNfe(null);setConciliandoId(null)}}>{f.nome}</Button>)}</div>
+            <p className="text-xs text-muted-foreground">{filtroVenda==='pendentes'?'Vendas concluídas com itens e sem emissão registrada. A validação fiscal ainda é necessária.':filtroVenda==='conciliacao'?'Pedidos de marketplace sem confirmação fiscal e notas em conciliação. Consulte o emissor antes de qualquer nova emissão.':filtroVenda==='emitidas'?'Histórico de notas autorizadas.':'Vendas ainda pendentes de pagamento; não emitir.'}</p>
+            <div className="grid gap-2 sm:grid-cols-[1fr_180px]"><div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" value={buscaVenda} onChange={e=>{setBuscaVenda(e.target.value);setPaginaVenda(1)}} placeholder="Buscar cliente, venda, pedido ou chave..." /></div>
+            <select aria-label="Canal da venda" className="rounded-md border bg-background px-3 text-sm" value={canalVenda} onChange={e=>{setCanalVenda(e.target.value);setPaginaVenda(1)}}>{[{id:'todos',nome:'Todos os canais'},{id:'site',nome:'Site'},{id:'loja',nome:'Loja física'},{id:'amazon',nome:'Amazon'},{id:'mercadolivre',nome:'Mercado Livre'}].map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{data?.totalVendas ?? 0} venda(s)</span><div className="flex items-center gap-2"><Button variant="outline" size="sm" disabled={paginaVenda<=1||loading} onClick={()=>setPaginaVenda(p=>p-1)}>Anterior</Button><span>Página {paginaVenda}</span><Button variant="outline" size="sm" disabled={loading||paginaVenda*(data?.porPagina||50)>=(data?.totalVendas||0)} onClick={()=>setPaginaVenda(p=>p+1)}>Próxima</Button></div></div>
+          </section>
           {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : vendas.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p> : (
             <div className="divide-y rounded-xl border">
               {vendas.map((v) => (
@@ -527,12 +534,12 @@ export function FiscalView() {
                   </div>
                   <p className="font-semibold text-sm">{moeda(v.total)}</p>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Button size="sm" onClick={()=>void testarEmissao(v.id)} disabled={testando===v.id || emitindo===v.id}
+                    {podePreparar && <Button size="sm" onClick={()=>void testarEmissao(v.id)} disabled={testando===v.id || emitindo===v.id}
                       title="Primeiro valida sem transmitir à SEFAZ">
                       {testando===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<FileText className="mr-1 size-4"/>}
                       Validar para emitir
-                    </Button>
-                    {v.status==='concluida'&&['site','amazon','mercadolivre','mercado_livre'].includes(v.canal)&&(
+                    </Button>}
+                    {podePreparar&&v.status==='concluida'&&['site','amazon','mercadolivre','mercado_livre'].includes(v.canal)&&(
                       <Button size="sm" variant="outline" disabled={gerandoPrevia!==null}
                         onClick={()=>void baixarPreviaXml(v.id)}
                         title="Baixar XML de conferência interna com pendências; sem assinatura ou validade fiscal">
@@ -540,7 +547,7 @@ export function FiscalView() {
                         Gerar XML de prévia
                       </Button>
                     )}
-                    {v.status==='concluida'&&['site','amazon'].includes(v.canal)&&!v.notaFiscal?.chaveAcesso&&(
+                    {podePreparar&&v.status==='concluida'&&['site','amazon'].includes(v.canal)&&!v.notaFiscal?.chaveAcesso&&(
                       <Button size="sm" variant="outline" onClick={()=>setMontandoNfe(montandoNfe===v.id?null:v.id)}
                         aria-expanded={montandoNfe===v.id} title="Somente rascunho NF-e 55 em homologação. Não transmite à SEFAZ.">
                         <FileText className="mr-1 size-4"/>Montar NF-e 55 (homologação)
@@ -551,7 +558,7 @@ export function FiscalView() {
                       {copiandoResumo===v.id?<Loader2 className="mr-1 size-4 animate-spin"/>:<ClipboardList className="mr-1 size-4"/>}
                       Copiar dados
                     </Button>
-                    {!v.notaFiscal?.chaveAcesso&&v.status==='concluida'&&(
+                    {(podePreparar||filtroVenda==='conciliacao')&&!v.notaFiscal?.chaveAcesso&&v.status==='concluida'&&(
                       <Button size="sm" variant="outline" onClick={()=>{
                         setConciliandoId(conciliandoId===v.id?null:v.id)
                         setChaveFiscal('');setConfirmadoFiscal(false)
