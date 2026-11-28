@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { gerarRascunhoNfe55, NfeRascunhoError, type NfeEmpresa, type NfeEntrada, type NfeVenda } from '../src/lib/nfe-xml-modelo55'
+import { gerarRascunhoNfe55, gerarNfe55Producao, NfeRascunhoError, type NfeEmpresa, type NfeEntrada, type NfeVenda } from '../src/lib/nfe-xml-modelo55'
 import { calcularDVChaveNfe } from '../src/lib/fiscal-chave'
 
 function dados() {
@@ -126,7 +126,7 @@ test('Arm & Hammer 473 ml em homologação: CST 49 zerado não faz rateio do DAS
   venda.descontoCupom=0
   venda.itens=[{produtoId:'arm-hammer',quantidade:1,precoUnit:136.9,produto:{
     nome:'Aditivo Agua Cães Enxágue Dental Arm Hammer Placa Bacteriana Tártaro 473ml',
-    sku:'742797096780',ncm:'33061000',cest:null,cfop:'5102',
+    sku:'742797096780',ncm:'33069000',cest:null,cfop:'5102',
     origem:'0',csosn:'102',unidadeFiscal:'UN',
   }}]
   entrada.itens=[{produtoId:'arm-hammer',gtin:'742797096780',pisCst:'49',cofinsCst:'49',
@@ -176,4 +176,21 @@ test('dinheiro não usa o grupo card; campos do Pix não são aceitos',()=>{
   const result=gerarRascunhoNfe55(venda,empresa,entrada)
   assert.match(result.xml,/<tPag>01<\/tPag><vPag>32.00<\/vPag><\/detPag>/)
   assert.doesNotMatch(result.xml,/<card>/)
+})
+
+test('marketplace: cartão não integrado, boleto e pagamento não informado',()=>{
+ const {empresa,venda,entrada}=dados()
+ empresa.serieNfe=2;venda.canal='amazon'
+ const base={...entrada,intermediador:{cnpj:'15436940000103',idCadastro:'SELLER_TESTE'}}
+ const data=new Date('2026-11-27T18:00:00Z')
+ for(const pagamento of ['03','04'] as const){
+  const {xml}=gerarNfe55Producao(venda,empresa,{...base,pagamento,dadosPagamento:{tipoIntegracao:'2'}},data)
+  assert.ok(xml.includes('<tPag>'+pagamento+'</tPag><vPag>32.00</vPag><card><tpIntegra>2</tpIntegra></card>'))
+ }
+ const boleto=gerarNfe55Producao(venda,empresa,{...base,pagamento:'15',dadosPagamento:undefined},data).xml
+ assert.ok(boleto.includes('<tPag>15</tPag><vPag>32.00</vPag>'))
+ const outros=gerarNfe55Producao(venda,empresa,{...base,pagamento:'99',dadosPagamento:undefined},data).xml
+ assert.ok(outros.includes('<tPag>99</tPag><xPag>Pagamento via marketplace</xPag><vPag>32.00</vPag>'))
+ venda.canal='site'
+ assert.throws(()=>gerarNfe55Producao(venda,empresa,{...entrada,pagamento:'99',dadosPagamento:undefined},data),/marketplace/)
 })
