@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import type { StatusAgendamento } from '@/lib/types'
 import { AgendaCalendar, type AgendaCalendarEntry, type AgendaProfessional } from './AgendaCalendar'
+import { EscalaSemanalServicos } from './EscalaSemanalServicos'
 import { EscalaDiariaServicos } from './EscalaDiariaServicos'
 import { ConfiguracaoServicosEsteticos } from './ConfiguracaoServicosEsteticos'
 import { CATEGORIAS_AGENDA, SUGESTOES_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
@@ -286,7 +287,8 @@ export function AgendamentosView() {
         </div>)}
       </div>
     </details>
-    <EscalaDiariaServicos refreshKey={calendarRefresh}/>
+    <EscalaSemanalServicos refreshKey={calendarRefresh} onSaved={()=>setCalendarRefresh(n=>n+1)}/>
+     <EscalaDiariaServicos refreshKey={calendarRefresh}/>
     <ConfiguracaoServicosEsteticos onServicoCriado={nome => setServicosPersonalizados(prev => Array.from(new Set([...prev, nome])))} />
     {formOpen && <Card className="border-primary/30"><CardContent className="p-4 sm:p-6">
       <form onSubmit={salvar} className="space-y-4">
