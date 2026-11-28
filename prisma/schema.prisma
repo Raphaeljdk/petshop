@@ -96,6 +96,8 @@ model Processo {
   agendamento Agendamento? @relation(fields: [agendamentoId], references: [id], onDelete: Restrict)
   bookingRequestId String? @unique
   bookingRequest BookingRequest? @relation(fields: [bookingRequestId], references: [id], onDelete: Restrict)
+  comandaPrincipalVendaId String? @unique
+  comandaPrincipalVenda Venda? @relation("ComandaPrincipalVenda",fields:[comandaPrincipalVendaId],references:[id],onDelete:Restrict)
   comandaFechadaEm DateTime?
   comandaFechadaPorId String?
   comandaExtras ComandaServicoExtra[]
@@ -196,6 +198,7 @@ model Venda {
   comandaProcesso Processo? @relation("ComandaVenda", fields: [comandaProcessoId], references: [id], onDelete: Restrict)
   comandaExtra ComandaServicoExtra? @relation("ComandaExtraVenda")
   comandaExtrasGrupo ComandaServicoExtra[] @relation("ComandaExtraGrupoVenda")
+  comandaPrincipal Processo? @relation("ComandaPrincipalVenda")
   bookingPagamento BookingRequest? @relation("BookingPagamento")
   clienteId String?
   total      Float
