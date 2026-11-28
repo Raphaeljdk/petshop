@@ -31,6 +31,7 @@ jobs:
       - run: bun test tests/meta-whatsapp-webhook.test.ts
       - run: bun test tests/catalogo-servicos-matilha.test.ts
       - run: bun test tests/agenda-horarios-portal.test.ts
+      - run: bun test tests/comanda-pagamento-policy.test.ts
       - run: bun test tests/fiscal-preview.test.ts
       - run: bun test tests/nfe-xml-modelo55.test.ts
       - run: bun test tests/fiscal-nfe-email.test.ts
