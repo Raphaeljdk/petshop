@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
+import { slugServico } from '@/lib/catalogo-servicos-matilha'
 import { consultarCatalogoPublico } from '@/lib/catalogo-agenda-publica'
 
 import { adicionalLiberado, adicionalFinanceiramentePendente, pagamentoRealAprovado } from '@/lib/comanda-pagamento-policy'
@@ -38,13 +39,14 @@ export async function GET(_req:NextRequest,{params}:Route) {
  try {
   const {id}=await params;const ctx=await contexto(id)
   if(!ctx)return json({error:'Comanda não encontrada.'},404)
-  const [extras,vendas,catalogo,solicitacoes]=await Promise.all([
+  const [extras,vendas,catalogo,solicitacoes,principal]=await Promise.all([
    db.comandaServicoExtra.findMany({where:{processoId:id},include:{venda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true,mercadoPagoId:true}}},orderBy:{createdAt:'asc'}}),
    db.venda.findMany({where:{comandaProcessoId:id,comandaExtra:null,bookingPagamento:null},select:{id:true,total:true,status:true,mercadoPagoStatus:true,statusEntrega:true,itens:{select:{quantidade:true,precoUnit:true,produto:{select:{nome:true}}}}},orderBy:{createdAt:'asc'}}),
    permiteSolicitar(ctx.processo)?consultarCatalogoPublico(ctx.processo.pet.raca,new Date()):Promise.resolve({servicos:[]}),
-   ctx.staff&&!ctx.processo.bookingRequestId&&aberto(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true,gravataIdeia:true,pagamentoVenda:{select:{status:true,mercadoPagoStatus:true}}},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
+   ctx.staff&&!ctx.processo.bookingRequestId&&permiteSolicitar(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true,gravataIdeia:true,pagamentoVenda:{select:{status:true,mercadoPagoStatus:true}}},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
+   ctx.processo.bookingRequestId?db.bookingRequest.findUnique({where:{id:ctx.processo.bookingRequestId},select:{servicoPrecoCentavos:true,gravataPrecoCentavos:true,pagamentoVenda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true,mercadoPagoId:true}}}}):Promise.resolve(null),
   ])
-  return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},aberto:aberto(ctx.processo),permiteSolicitar:permiteSolicitar(ctx.processo),extras:extras.map(x=>({...x,venda:x.venda?{id:x.venda.id,total:x.venda.total,status:x.venda.status,mercadoPagoStatus:x.venda.mercadoPagoStatus}:null,liberado:adicionalLiberado(x),pago:pagamentoRealAprovado(x.venda,x.precoCentavos),pendenteFinanceiro:adicionalFinanceiramentePendente(x)})),vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
+  return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},principalPago:!!principal&&principal.servicoPrecoCentavos!==null&&pagamentoRealAprovado(principal.pagamentoVenda,principal.servicoPrecoCentavos+principal.gravataPrecoCentavos),aberto:aberto(ctx.processo),permiteSolicitar:permiteSolicitar(ctx.processo),extras:extras.map(x=>({...x,venda:x.venda?{id:x.venda.id,total:x.venda.total,status:x.venda.status,mercadoPagoStatus:x.venda.mercadoPagoStatus}:null,liberado:adicionalLiberado(x),pago:pagamentoRealAprovado(x.venda,x.precoCentavos),pendenteFinanceiro:adicionalFinanceiramentePendente(x)})),vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
  }catch(e){return experienceError(e)}
 }
 export async function POST(req:NextRequest,{params}:Route) {
@@ -54,19 +56,19 @@ export async function POST(req:NextRequest,{params}:Route) {
   assertSameOrigin(req)
   const input=actions.parse(await experienceBody(req))
   if(input.action==='cobrar'&&ctx.staff)return json({error:'O tutor deve iniciar o pagamento no portal.'},403)
-  const duranteAnamnese=['solicitar','responder','confirmar-equipe'].includes(input.action)
+  const duranteAnamnese=['solicitar','responder','confirmar-equipe','vincular-agendamento'].includes(input.action)
   if(input.action!=='cobrar'&&!(duranteAnamnese?permiteSolicitar(ctx.processo):aberto(ctx.processo)))return json({error:'Atendimento não está aberto para adicionais.'},409)
   const cotacao=input.action==='solicitar'?(await consultarCatalogoPublico(ctx.processo.pet.raca,new Date())).servicos.find(s=>s.chave===input.chave):null
   if(input.action==='solicitar'&&!cotacao)return json({error:'Serviço não disponível neste momento para a raça.'},409)
   const result=await db.$transaction(async tx=>{
    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'comanda:'+id}))`
-   const p=await tx.processo.findUnique({where:{id},select:{status:true,petId:true,bookingRequestId:true,pet:{select:{clienteId:true,nome:true}},ficha:{select:{checkinStatus:true,checkoutFinalizadoAt:true}}}})
+   const p=await tx.processo.findUnique({where:{id},select:{status:true,servico:true,petId:true,bookingRequestId:true,pet:{select:{clienteId:true,nome:true}},ficha:{select:{checkinStatus:true,checkoutFinalizadoAt:true}}}})
    if(!p||(!ctx.staff&&p.pet.clienteId!==ctx.user.clienteId))return {error:'Comanda não encontrada.',status:404}
    if(input.action!=='cobrar'&&!(duranteAnamnese?permiteSolicitar(p):aberto(p)))return {error:'Atendimento encerrado.',status:409}
    if(input.action==='vincular-agendamento'){
     if(!ctx.staff||p.bookingRequestId)return {error:'Apenas a equipe pode vincular um agendamento ainda não utilizado.',status:409}
     const booking=await tx.bookingRequest.findFirst({where:{id:input.bookingId,clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null},include:{cliente:{select:{user:{select:{id:true}}}},pagamentoVenda:true}})
-    if(!booking)return {error:'Agendamento confirmado não encontrado ou já vinculado.',status:409}
+    if(!booking||slugServico(booking.service)!==slugServico(p.servico))return {error:'Selecione um agendamento confirmado do mesmo pet e serviço.',status:409}
     if((booking.pagamentoOnlineObrigatorio||(booking.gravataFoto&&booking.gravataPrecoCentavos===500))&&booking.servicoPrecoCentavos!=null){
      const v=booking.pagamentoVenda
      if(!v||v.status!=='concluida'||v.mercadoPagoStatus!=='approved'||!v.mercadoPagoId||/^SIM[-_]/.test(v.mercadoPagoId)||Math.round(v.total*100)!==booking.servicoPrecoCentavos+booking.gravataPrecoCentavos)return {error:'Aguarde o pagamento integral do agendamento antes de vincular.',status:409}
