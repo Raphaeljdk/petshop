@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test'
-import {adicionalLiberado,adicionalFinanceiramentePendente,pagamentoRealAprovado,pendenciasFechamento,orderConfereComanda} from '../src/lib/comanda-pagamento-policy'
+import {adicionalLiberado,adicionalFinanceiramentePendente,pagamentoRealAprovado,pendenciasFechamento,orderConfereComanda,podeRegistrarPOS} from '../src/lib/comanda-pagamento-policy'
 const venda={total:30,status:'concluida',mercadoPagoStatus:'approved',mercadoPagoId:'ORD-real'}
 const extra={status:'autorizado',precoCentavos:3000,aceitoPorId:'tutor',equipePorId:'equipe',venda}
 describe('liberação de serviços adicionais',()=>{
@@ -46,5 +46,24 @@ describe('agrupamento e fechamento',()=>{
   expect(orderConfereComanda({...order,external_reference:'v2'},v)).toBe(false)
   expect(orderConfereComanda({...order,total_amount:'1.00'},v)).toBe(false)
   expect(orderConfereComanda({...order,transactions:{payments:[{amount:'1.00'}]}},v)).toBe(false)
+ })
+})
+
+describe('POS presencial',()=>{
+ const pendente={total:30,status:'pendente'}
+ const pago={...pendente,status:'concluida',posPagamentoId:'recibo-1',posPagoCentavos:3000}
+ test('registro presencial precisa corresponder ao valor integral',()=>{
+  expect(pagamentoRealAprovado(pago,3000)).toBe(true)
+  expect(pagamentoRealAprovado({...pago,posPagoCentavos:2999},3000)).toBe(false)
+  expect(pagamentoRealAprovado({...pago,mercadoPagoId:'ORD-1'},3000)).toBe(false)
+  expect(pagamentoRealAprovado({...pago,status:'pendente'},3000)).toBe(false)
+  expect(adicionalLiberado({...extra,venda:pago})).toBe(true)
+ })
+ test('não permite POS em vendas pagas ou com cobrança online já iniciada',()=>{
+  expect(podeRegistrarPOS(pendente)).toBe(true)
+  for(const v of [pago,{...pendente,mercadoPagoId:'ORD-1'},{...pendente,mercadoPagoStatus:'pending'},{...pendente,pagamentoOnlineIniciadoEm:new Date()},{...pendente,creditoPresenteCentavos:100},{...pendente,status:'cancelada'}])expect(podeRegistrarPOS(v)).toBe(false)
+ })
+ test('comanda com POS pode fechar após realização e checkout',()=>{
+  expect(pendenciasFechamento({principalPago:true,checkoutConcluido:true,extras:[{...extra,status:'realizado',venda:pago}],produtos:[pago]})).toEqual([])
  })
 })
