@@ -13,10 +13,10 @@ test('UF e prefixo IBGE para todos os estados e DF',()=>{
  expect(municipioCoerenteComUf('PR','410690')).toBe(false)
 })
 test('CFOP de revenda por destino sem conversão de operações especiais',()=>{
- for(const cfop of ['5102','6102']){
+ for(const cfop of ['5102','6102','6108']){
   expect(cfopRevendaPorDestino(cfop,'SP')).toBe('5102')
-  expect(cfopRevendaPorDestino(cfop,'PR')).toBe('6102')
-  expect(cfopRevendaPorDestino(cfop,'PE')).toBe('6102')
+  expect(cfopRevendaPorDestino(cfop,'PR')).toBe('6108')
+  expect(cfopRevendaPorDestino(cfop,'PE')).toBe('6108')
  }
  expect(()=>cfopRevendaPorDestino('5405','PE')).toThrow()
  expect(()=>cfopRevendaPorDestino('5102','XX')).toThrow()
