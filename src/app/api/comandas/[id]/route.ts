@@ -76,8 +76,8 @@ export async function POST(req:NextRequest,{params}:Route) {
    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'comanda:'+id}))`
    const p=await tx.processo.findUnique({where:{id},select:{status:true,servico:true,petId:true,valorServico:true,comandaFechadaEm:true,comandaPrincipalVendaId:true,comandaPrincipalVenda:{select:vendaSelect},bookingRequest:{include:{pagamentoVenda:true}},bookingRequestId:true,pet:{select:{clienteId:true,nome:true}},ficha:{select:{checkinStatus:true,checkoutFinalizadoAt:true}}}})
    if(!p||(!ctx.staff&&p.pet.clienteId!==ctx.user.clienteId))return {error:'Comanda não encontrada.',status:404}
-   if(input.action!=='cobrar'&&!(duranteAnamnese?permiteSolicitar(p):aberto(p)))return {error:'Atendimento encerrado.',status:409}
-   if(p.comandaFechadaEm)return {error:'Comanda financeiramente encerrada.',status:409}
+   if(!financeiro&&!(duranteAnamnese?permiteSolicitar(p):aberto(p)))return {error:'Atendimento encerrado.',status:409}
+   if(p.comandaFechadaEm||p.status==='cancelado')return {error:'Comanda financeiramente encerrada.',status:409}
    if(input.action==='fechar-financeiro'){
     if(!ctx.staff)return {error:'Acesso restrito à equipe.',status:403}
     const extras=await tx.comandaServicoExtra.findMany({where:{processoId:id},include:{venda:true,grupoVenda:{select:grupoSelect}}})
@@ -92,6 +92,8 @@ export async function POST(req:NextRequest,{params}:Route) {
    if(input.action==='cobrar-principal'){
     if(!ctx.staff||p.status==='cancelado'||p.bookingRequestId)return {error:'Use o pagamento do agendamento vinculado, quando houver.',status:409}
     if(p.comandaPrincipalVenda)return {venda:p.comandaPrincipalVenda}
+    const reservas=await tx.bookingRequest.findMany({where:{clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null,pagamentoVendaId:{not:null}},select:{service:true}})
+    if(reservas.some(b=>slugServico(b.service)===slugServico(p.servico)))return {error:'Existe agendamento com cobrança registrada. Vincule e concilie antes de gerar outra.',status:409}
     if(!Number.isSafeInteger(Math.round(p.valorServico*100))||p.valorServico<=0)return {error:'Valor principal inválido.',status:409}
     const venda=await tx.venda.create({data:{clienteId:p.pet.clienteId,comandaProcessoId:id,canal:'site',status:'pendente',total:p.valorServico,subtotalProdutos:0,observacoes:'Serviço principal da comanda (NFS-e separada)',tipoEntrega:'retirada',valorFrete:0},select:vendaSelect})
     await tx.processo.update({where:{id},data:{comandaPrincipalVendaId:venda.id}})
