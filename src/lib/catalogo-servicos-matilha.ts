@@ -21,11 +21,6 @@ export const CATALOGO_ESTETICO_MATILHA = SERVICOS_ESTETICOS_MATILHA.map((nome) =
   nome,
 }))
 
-export const REGRA_PRECO_FIXO = 'Preço único para todos os portes'
-export function servicoPrecoFixo(chave: string, nome?: string|null) {
-  const k = slugServico(nome || chave.replace(/^personalizado-/, ''))
-  return ['banho','tosa-higienica','corte-de-unha','corte-de-unhas','remocao-de-sub-pelos','remocao-de-subpelos','remocao-de-subpelos-e-pelos-mortos','desembolo','tosa','tosa-modalidade-a-definir','escovacao-de-dente','escovacao-de-dentes'].includes(k)
-}
 export type ConfiguracaoServico = {
   chave: string
   nome?: string | null
@@ -63,10 +58,7 @@ export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[])
     precoCentavos: porChave.get(servico.chave)?.precoCentavos ?? null,
     precosPorRaca: lerPrecosPorRaca(porChave.get(servico.chave)?.precosPorRaca),
     gruposPorte: lerGruposPorte(porChave.get(servico.chave)?.gruposPorte),
-    precoFixo: servicoPrecoFixo(servico.chave, servico.nome),
-    gruposConfirmados: Boolean(porChave.get(servico.chave)?.confirmado && (servicoPrecoFixo(servico.chave,servico.nome)
-      ? porChave.get(servico.chave)?.regrasPreco === REGRA_PRECO_FIXO && porChave.get(servico.chave)?.precoCentavos != null && porChave.get(servico.chave)?.duracaoMinutos != null
-      : gruposPorteConfirmaveis(porChave.get(servico.chave)?.gruposPorte))),
+    gruposConfirmados: Boolean(porChave.get(servico.chave)?.confirmado && gruposPorteConfirmaveis(porChave.get(servico.chave)?.gruposPorte)),
     duracaoMinutos: porChave.get(servico.chave)?.duracaoMinutos ?? null,
     regrasPreco: porChave.get(servico.chave)?.regrasPreco ?? null,
     observacoes: porChave.get(servico.chave)?.observacoes ?? null,
@@ -75,6 +67,7 @@ export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[])
   }))
 }
 
+/** Catálogo e escala são independentes. Valores históricos não confirmados nunca viram uma cobrança. */
 export function catalogoPorRaca(registros: ConfiguracaoServico[], raca: string | null) {
   const todos = listarServicosParaConfiguracao(registros)
   const opcoes:Array<{chave:string;nome:string;precoCentavos:number;duracaoMinutos:number}>=[]
@@ -83,14 +76,8 @@ export function catalogoPorRaca(registros: ConfiguracaoServico[], raca: string |
   for (const s of todos) {
     const grupo=grupoParaRaca(s.gruposPorte,raca)
     const anterior=s.precosPorRaca.find(p=>chaveRaca(p.raca)===chaveRaca(raca))
-    if(s.precoFixo) {
-      // O preço único vale para todo porte; durações específicas anteriores continuam válidas.
-      if(s.gruposConfirmados && s.precoCentavos!==null && s.duracaoMinutos!==null) opcoes.push({chave:s.chave,nome:s.nome,precoCentavos:s.precoCentavos,duracaoMinutos:grupo?.duracaoMinutos??s.duracaoMinutos})
-      else pendentes.push({chave:s.chave,nome:s.nome})
-    } else if(s.confirmado && grupo && grupo.precoCentavos!==null && grupo.duracaoMinutos!==null) {
+    if(s.confirmado && grupo && grupo.precoCentavos!==null && grupo.duracaoMinutos!==null) {
       opcoes.push({chave:s.chave,nome:s.nome,precoCentavos:grupo.precoCentavos,duracaoMinutos:grupo.duracaoMinutos})
-    } else if(s.confirmado && anterior && s.duracaoMinutos!==null && !s.gruposPorte.some(g=>g.racas.length)) {
-      opcoes.push({chave:s.chave,nome:s.nome,precoCentavos:anterior.precoCentavos,duracaoMinutos:s.duracaoMinutos})
     } else if(grupo || anterior || s.gruposPorte.some(g=>g.racas.some(r=>chaveRaca(r)===chaveRaca(raca)))) {
       pendentes.push({chave:s.chave,nome:s.nome})
     }
