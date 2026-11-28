@@ -31,7 +31,7 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
  const url='/api/comandas/'+encodeURIComponent(processoId)
  const load=useCallback(async()=>{try{setData(await portalRequest<Data>(url));setError('')}catch(e){setError(e instanceof Error?e.message:'Não foi possível carregar a comanda.')}},[url])
  useEffect(()=>{setData(null);setPagamento(null);setServico('');setProduto('');compraKey.current=null;void load();const timer=setInterval(()=>{if(document.visibilityState==='visible')void load()},15000);return()=>clearInterval(timer)},[load])
- useEffect(()=>{if(equipe||!data?.aberto)return;let live=true;portalRequest<Product[]>('/api/cliente/produtos').then(p=>{if(live)setProdutos(p.filter(x=>x.estoque>0))}).catch(()=>{});return()=>{live=false}},[equipe,data?.aberto])
+ useEffect(()=>{if(!data?.aberto)return;let live=true;portalRequest<Product[]>('/api/cliente/produtos').then(p=>{if(live)setProdutos(p.filter(x=>x.estoque>0))}).catch(()=>{});return()=>{live=false}},[equipe,data?.aberto])
  async function agir(body:Record<string,unknown>){
   if(busy)return
   setBusy(true)
@@ -45,8 +45,8 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
   try{
    const key=compraKey.current??crypto.randomUUID();compraKey.current=key
    const venda=await portalRequest<Sale>('/api/cliente/carrinho',{method:'POST',body:JSON.stringify({itens:[{produtoId:produto,quantidade}],tipoEntrega:'retirada',comandaProcessoId:processoId,comandaCompraKey:key})})
-   compraKey.current=null;setProduto('');setQuantidade(1);if(venda.status==='pendente')setPagamento(venda);await load()
-   toast.success('Compra registrada na comanda. Confirme o pagamento.')
+   compraKey.current=null;setProduto('');setQuantidade(1);if(venda.status==='pendente'&&!equipe)setPagamento(venda);await load()
+   toast.success(equipe?'Produto incluído. O tutor pode pagar no portal.':'Compra registrada na comanda. Confirme o pagamento.')
   }catch(e){toast.error(e instanceof Error?e.message:'Compra não concluída.');await load()}
   finally{setBusy(false)}
  }
@@ -79,7 +79,7 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
   <h4 className="flex items-center gap-2 font-semibold text-sm"><ShoppingBag className="size-4"/>Compras para entregar junto ao pet</h4>
   {!data.vendas.length&&<p className="text-xs text-muted-foreground">Nenhum produto comprado nesta visita.</p>}
   {data.vendas.map(v=><div key={v.id} className="rounded-lg border p-3 text-sm space-y-1"><div className="flex justify-between"><b>{brl(v.total)}</b><Badge variant="outline">{label(v.status)}</Badge></div>{v.itens?.map((i,j)=><p key={j} className="text-xs">{i.quantidade}× {i.produto.nome}</p>)}{v.status==='concluida'&&<p className="text-xs text-green-700"><CheckCircle2 className="inline size-3"/> Separar e entregar junto ao pet.</p>}{!equipe&&v.status==='pendente'&&<Button size="sm" variant="outline" onClick={()=>setPagamento(v)}>Continuar pagamento</Button>}</div>)}
-  {!equipe&&data.aberto&&<div className="rounded-lg border p-3 space-y-2"><Input placeholder="Buscar produtos disponíveis" value={busca} onChange={e=>setBusca(e.target.value)}/><select aria-label="Produto da loja" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={produto} disabled={busy} onChange={e=>{setProduto(e.target.value);compraKey.current=null}}><option value="">Selecione o produto</option>{produtos.filter(p=>!busca||p.nome.toLowerCase().includes(busca.toLowerCase())||p.id===produto).slice(0,100).map(p=><option key={p.id} value={p.id}>{p.nome} · {brl(p.precoPromo??p.preco)}</option>)}</select><Input aria-label="Quantidade" type="number" min={1} max={selecionado?.estoque||1} value={quantidade} disabled={busy} onChange={e=>{setQuantidade(Number(e.target.value));compraKey.current=null}}/>{selecionado&&<p className="text-sm font-semibold">Total estimado: {brl((selecionado.precoPromo??selecionado.preco)*quantidade)}</p>}<Button size="sm" disabled={busy||!selecionado||quantidade<1||quantidade>selecionado.estoque||!Number.isInteger(quantidade)} onClick={()=>void comprar()}>Comprar e pagar no site</Button></div>}
+  {data.aberto&&<div className="rounded-lg border p-3 space-y-2"><Input placeholder="Buscar produtos disponíveis" value={busca} onChange={e=>setBusca(e.target.value)}/><select aria-label="Produto da loja" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={produto} disabled={busy} onChange={e=>{setProduto(e.target.value);compraKey.current=null}}><option value="">Selecione o produto</option>{produtos.filter(p=>!busca||p.nome.toLowerCase().includes(busca.toLowerCase())||p.id===produto).slice(0,100).map(p=><option key={p.id} value={p.id}>{p.nome} · {brl(p.precoPromo??p.preco)}</option>)}</select><Input aria-label="Quantidade" type="number" min={1} max={selecionado?.estoque||1} value={quantidade} disabled={busy} onChange={e=>{setQuantidade(Number(e.target.value));compraKey.current=null}}/>{selecionado&&<p className="text-sm font-semibold">Total estimado: {brl((selecionado.precoPromo??selecionado.preco)*quantidade)}</p>}<Button size="sm" disabled={busy||!selecionado||quantidade<1||quantidade>selecionado.estoque||!Number.isInteger(quantidade)} onClick={()=>void comprar()}>{equipe?'Adicionar à comanda':'Comprar e pagar no site'}</Button></div>}
   {pagamento&&!equipe&&<PagamentoCheckout key={pagamento.id} vendaId={pagamento.id} total={pagamento.total} onAprovado={()=>{setPagamento(null);void load()}} onCancelar={()=>{setPagamento(null);void load()}}/>}
  </section>
 }
