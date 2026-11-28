@@ -1062,3 +1062,13 @@ model ComandaServicoExtra {
   venda Venda? @relation("ComandaExtraVenda", fields: [vendaId], references: [id], onDelete: Restrict)
   @@index([processoId, status])
 }
+
+model AgendaEscalaSemanal {
+  diaSemana Int @id
+  inicio String @db.VarChar(5)
+  fim String @db.VarChar(5)
+  servicos Json @default("[]")
+  turnos Json @default("[]")
+  atualizadoPorId String
+  updatedAt DateTime @updatedAt
+}
