@@ -35,7 +35,8 @@ export function AgendaDateTimePicker({petKey,servicoChave,value,onChange,disable
    .catch(()=>{if(ativo)setErro('Não foi possível consultar os horários. Tente novamente.')})
   return()=>{ativo=false}
  },[dia,chave,petKey,servicoChave,habilitado,direct,tentativa])
- const slots=(atual?.horarios??[]).filter(h=>horariosDoDia(dia).includes(h))
+ const horariosValidos=new Set(horariosDoDia(dia))
+ const slots=(atual?.horarios??[]).filter(h=>horariosValidos.has(h))
  const periodos=[{nome:'Manhã',de:6,ate:12},{nome:'Tarde',de:12,ate:18},{nome:'Noite',de:18,ate:24},{nome:'Madrugada',de:0,ate:6}]
  function mudarDia(d?:Date){
   setDia(d?format(d,'yyyy-MM-dd'):'');setResultado(null);setErro('');onChange('');setDataAberta(false)
