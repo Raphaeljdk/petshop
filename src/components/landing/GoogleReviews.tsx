@@ -84,15 +84,6 @@ export function GoogleReviews() {
     }
   }, [emblaApi, onSelect])
 
-  useEffect(() => {
-    if (!emblaApi) return
-    const timer = window.setInterval(() => {
-      if (!document.hidden) emblaApi.scrollNext()
-    }, 5500)
-
-    return () => window.clearInterval(timer)
-  }, [emblaApi])
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">

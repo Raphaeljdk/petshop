@@ -13,7 +13,7 @@ function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-export function AtendimentoMenu() {
+export function AtendimentoMenu({label='Atendimento',className=''}:{label?:string;className?:string}={}) {
   const days = useMemo(() => {
     const now = new Date()
 
@@ -44,13 +44,13 @@ export function AtendimentoMenu() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-primary">
+        <button className={className || "inline-flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-primary"}>
           <CalendarDays className="size-4" />
-          Atendimento
+          {label}
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="center" className="w-[340px] p-0 sm:w-[390px]">
+      <PopoverContent align="center" className="w-[min(340px,calc(100vw-2rem))] p-0 sm:w-[390px]">
         <div className="border-b bg-muted/30 p-4">
           <div className="flex items-center gap-2">
             <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">

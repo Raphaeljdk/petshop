@@ -14,7 +14,7 @@ export function ProductReviews({ productId }: { productId: string }) {
       signal: controller.signal,
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then(setData)
+      .then(payload=>{if(!controller.signal.aborted)setData(payload && Array.isArray(payload.reviews)?payload:null)})
       .catch(() => {})
     return () => controller.abort()
   }, [productId])

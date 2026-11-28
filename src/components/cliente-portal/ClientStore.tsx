@@ -18,6 +18,8 @@ import {
   Search,
   ArrowUpDown,
 } from 'lucide-react'
+import { useAuth } from '@/components/providers/AuthProvider'
+import { trackStoreEvent } from '@/lib/storefront-events'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,6 +47,8 @@ export interface ClientCartUiState {
 }
 
 interface ClientStoreProps {
+  initialCart?:boolean
+  initialProduct?:string
   onCompraFinalizada?: () => void
   repeatItems?: CarrinhoItem[] | null
   onRepeatConsumed?: () => void
@@ -83,12 +87,15 @@ interface CupomAplicado {
 const searchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
 
 export function ClientStore({
-  onCompraFinalizada,
+  onCompraFinalizada, initialCart, initialProduct,
   repeatItems,
   onRepeatConsumed,
   onCartUiChange,
 }: ClientStoreProps) {
   const { preferences, ready } = useExperience()
+  const { sessao }=useAuth()
+  const cartKey=sessao.user?.id?'matilha:carrinho:'+sessao.user.id:null
+  const [cartLoaded,setCartLoaded]=useState(false)
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const consumed = useRef(false)
   useEffect(() => {
@@ -100,7 +107,7 @@ export function ClientStore({
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>(() => repeatItems || [])
-  const [checkoutOpen, setCheckoutOpen] = useState(() => Boolean(repeatItems?.length))
+  const [checkoutOpen, setCheckoutOpen] = useState(() => Boolean(repeatItems?.length || initialCart))
   const [observacoes, setObservacoes] = useState('')
   const [finalizando, setFinalizando] = useState(false)
   const [cepCliente, setCepCliente] = useState<string | null>(null)
@@ -124,6 +131,7 @@ export function ClientStore({
   const [vendaEmPagamento, setVendaEmPagamento] = useState<Venda | null>(null)
   const [sucessoVisivel, setSucessoVisivel] = useState(false)
   const [siggmaOrderWriteConfigured, setSiggmaOrderWriteConfigured] = useState(false)
+  const openedFromShop=useRef(false)
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null)
   const [busca, setBusca] = useState('')
   const [marcaSelecionada, setMarcaSelecionada] = useState('todas')
@@ -165,6 +173,43 @@ export function ClientStore({
     void carregar()
     return () => { active = false }
   }, [refreshKey])
+
+  useEffect(()=>{
+    if(!initialProduct || openedFromShop.current || loading || loadError)return
+    const p=produtos.find(p=>p.id===initialProduct || p.variantes?.some(v=>v.id===initialProduct))
+    openedFromShop.current=true
+    if(p)setSelectedProduct(p)
+    else toast.info('Este produto não está disponível na loja.')
+  },[initialProduct,produtos,loading,loadError])
+
+  useEffect(()=>{
+    if(cartLoaded || loading || loadError || !cartKey)return
+    if(!repeatItems?.length && !consumed.current){
+      try{
+        const saved:unknown=JSON.parse(sessionStorage.getItem(cartKey)||'[]')
+        if(Array.isArray(saved)){
+          const variants=produtos.flatMap(p=>p.variantes?.length?p.variantes:[p])
+          const current=new Map(variants.map(p=>[p.id,p]))
+          const items:CarrinhoItem[]=[]
+          for(const entry of saved.slice(0,100)){
+            const p=current.get(entry?.id)
+            if(!p || !Number.isSafeInteger(entry?.quantity) || entry.quantity<1)continue
+            const quantity=Math.min(entry.quantity,p.estoqueIlimitado?99:p.estoque)
+            if(quantity>0)items.push({produto:p,quantidade:quantity})
+          }
+          if(items.length)setCarrinho(items)
+        }
+      }catch{/* A conta pode usar a loja com armazenamento bloqueado. */}
+    }
+    setCartLoaded(true)
+  },[cartLoaded,loading,loadError,cartKey,produtos,repeatItems])
+  useEffect(()=>{
+    if(!cartLoaded || !cartKey)return
+    try{
+      if(vendaEmPagamento || !carrinho.length)sessionStorage.removeItem(cartKey)
+      else sessionStorage.setItem(cartKey,JSON.stringify(carrinho.map(i=>({id:i.produto.id,quantity:i.quantidade}))))
+    }catch{}
+  },[cartLoaded,cartKey,carrinho,vendaEmPagamento])
 
   const marcas = useMemo(
     () => [...new Set([...produtos.map(getProductBrand), MARCA_PERSONALIZAVEIS])]
@@ -256,6 +301,7 @@ export function ClientStore({
       return [...prev, { produto, quantidade: quantidadeAdicionar }]
     })
 
+    trackStoreEvent('add_to_cart',{id:produto.id,quantity:quantidadeAdicionar,value:(produto.precoPromo??produto.preco)*quantidadeAdicionar})
     toast.success(
       quantidadeAdicionar > 1
         ? `${quantidadeAdicionar}x ${produto.nome} adicionados`
@@ -384,7 +430,7 @@ export function ClientStore({
       }
       const created=await res.json()
       if(created.status==='concluida'&&created.mercadoPagoStatus==='paid_gift') {
-        onPagamentoAprovado()
+        onPagamentoAprovado(created)
         return
       }
       setVendaEmPagamento(created)
@@ -396,7 +442,8 @@ export function ClientStore({
     }
   }
 
-  const onPagamentoAprovado = () => {
+  const onPagamentoAprovado = (paid:Pick<Venda,'id'|'total'>|null=vendaEmPagamento) => {
+    if(paid)trackStoreEvent('purchase',{id:paid.id,value:paid.total})
     toast.success('Pagamento aprovado! Compra realizada com sucesso.')
     setSucessoVisivel(true)
     setCarrinho([])
@@ -667,7 +714,7 @@ export function ClientStore({
         ))}
       </div>
 
-      <ProductDetailsDialog
+      <ProductDetailsDialog initialVariant={initialProduct}
         product={selectedProduct}
         open={Boolean(selectedProduct)}
         onOpenChange={(open) => {

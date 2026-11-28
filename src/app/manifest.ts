@@ -9,6 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'pt-BR',
     start_url: '/',
     scope: '/',
+    shortcuts: [{name:'Vitrine Matilha Prado',url:'/loja'}, {name:'Ofertas',url:'/loja?campanha=ofertas'}],
     display: 'standalone',
     background_color: '#f5f7fb',
     theme_color: '#102e48',

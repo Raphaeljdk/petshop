@@ -21,7 +21,7 @@ const statusVariant = (status: string) => {
   return 'bg-blue-100 text-blue-700'
 }
 
-export function ClientAgendamentos() {
+export function ClientAgendamentos({ openBooking = false }: { openBooking?: boolean } = {}) {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState(false)
@@ -123,7 +123,7 @@ export function ClientAgendamentos() {
       </div>
 
       <MinhasComandas />
-      <details ref={formularioRef} className="rounded-xl border bg-card p-3">
+      <details ref={formularioRef} open={openBooking || undefined} className="rounded-xl border bg-card p-3">
         <summary className="cursor-pointer text-sm font-semibold">Novo agendamento</summary>
         <div className="mt-3"><BookingRequests onBooked={()=>setRefresh(v=>v+1)}/></div>
       </details>

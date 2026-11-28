@@ -1131,3 +1131,14 @@ img, video { max-width: 100%; }
   .landing-navigation-indicator span, .landing-boot-progress span { animation: none !important; }
   .landing-service-card:hover { transform: none; }
 }
+
+/* Premium public landing only */
+.landing-premium .landing-hero{position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 76% 48%,#713512 0%,#172030 36%,#080e19 76%);color:white}
+.landing-premium .hero-brand{position:relative;isolation:isolate}
+.landing-premium .hero-brand::before{content:"";position:absolute;inset:8% 10%;border:2px solid #ff9c43;border-radius:50%;box-shadow:0 0 32px #f9731680,inset 0 0 28px #f9731640;z-index:-1;animation:matilha-glow 5s ease-in-out infinite}
+.landing-premium .hero-brand-card{animation:matilha-float 6s ease-in-out infinite}
+.landing-premium .hero-title span{color:#ffb16b}
+.landing-premium .hero-actions button{border-radius:14px}
+@keyframes matilha-glow{50%{opacity:.65;transform:scale(1.04)}}
+@keyframes matilha-float{50%{transform:translateY(-8px)}}
+@media(prefers-reduced-motion:reduce){.landing-premium .hero-brand::before,.landing-premium .hero-brand-card{animation:none}}

@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { trackStoreEvent } from '@/lib/storefront-events'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { clothingSizeOptions, isClothingProduct } from '@/lib/product-variants'
 import { ProductReviews } from './ProductReviews'
@@ -54,7 +55,11 @@ type ProductDetailsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onAddToCart?: (product: ProductPreview, quantity: number) => void
-  onLoginToBuy?: () => void
+  onLoginToBuy?: (id?:string) => void
+  buyLabel?:string
+  related?:ProductPreview[]
+  onRelated?:(p:ProductPreview)=>void
+  initialVariant?:string
 }
 
 const money = (value: number) =>
@@ -65,7 +70,7 @@ export function ProductDetailsDialog({
   open,
   onOpenChange,
   onAddToCart,
-  onLoginToBuy,
+  onLoginToBuy, buyLabel, related, onRelated, initialVariant,
 }: ProductDetailsDialogProps) {
   const [details, setDetails] = useState<ProductDetails | null>(null)
   const [loading, setLoading] = useState(false)
@@ -74,15 +79,20 @@ export function ProductDetailsDialog({
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
+  const viewed=useRef<string|null>(null)
   useEffect(() => {
-    if (!open || !product) return
-    setSelectedVariantId(product.id)
+    if(!open || !product){viewed.current=null;return}
+    if(viewed.current!==product.id) {
+      viewed.current=product.id
+      trackStoreEvent('view_item',{id:product.id,value:product.precoPromo??product.preco})
+    }
+    setSelectedVariantId(product.variantes?.find(v=>v.id===initialVariant)?.id || product.id)
     setSelectedImage(0)
     setQuantity(1)
-  }, [open, product])
+  }, [open, product, initialVariant])
 
   useEffect(() => {
-    if (!open || !product) return
+    if (!open || !product || !selectedVariantId || !(product.id===selectedVariantId || product.variantes?.some(v=>v.id===selectedVariantId))) return
 
     let active = true
     const controller = new AbortController()
@@ -516,6 +526,7 @@ export function ProductDetailsDialog({
               </div>
             )}
 
+            {related && related.length>0 && <div className="my-4 grid gap-1"><h3 className="text-sm font-bold">Produtos relacionados</h3>{related.map(p=><button className="min-h-11 text-left text-sm underline" key={p.id} onClick={()=>onRelated?.(p)}>{p.nome}</button>)}</div>}
             {product && <ProductReviews key={product.id} productId={product.id} />}
 
             <div className="mt-6 rounded-2xl border border-border/70 bg-card p-3 shadow-sm sm:p-5 lg:sticky lg:bottom-0 lg:z-10 lg:mt-auto lg:bg-background/95 lg:backdrop-blur">
@@ -579,13 +590,15 @@ export function ProductDetailsDialog({
                   onClick={() => {
                     if (!sizeCanBePurchased) return
                     onOpenChange(false)
-                    onLoginToBuy?.()
+                    onLoginToBuy?.(current?.id)
                   }}
                 >
                   <ShoppingCart className="size-4" />
-                  Entrar para comprar
+                  {buyLabel || 'Entrar para comprar'}
                 </Button>
               )}
+
+              <Button asChild variant="outline" className="mt-3 min-h-11 w-full"><a rel="noreferrer" href={'https://wa.me/?text='+encodeURIComponent((current?.nome || product.nome)+' '+(typeof window==='undefined'?'':window.location.origin)+'/loja?produto='+encodeURIComponent(current?.id||product.id))}><MessageCircle/>Compartilhar no WhatsApp</a></Button>
 
               {current?.marketplaceUrl && (
                 <Button asChild variant="outline" className="mt-3 h-11 w-full min-w-0 justify-center px-3 font-medium">

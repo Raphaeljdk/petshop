@@ -1,414 +1,319 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, Loader2, Package, ShoppingBag, Sparkles } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
-import { isClothingProduct } from '@/lib/product-variants'
-import { findKongClassicImage, getProductBrand, MARCA_PERSONALIZAVEIS, SEM_MARCA } from '@/lib/product-brands'
+import { useMemo, useRef, useState } from 'react'
+import { ChevronRight, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Tag } from 'lucide-react'
+import { SEM_MARCA } from '@/lib/product-brands'
 import {
-  ProductDetailsDialog,
-  type ProductPreview,
-} from '@/components/products/ProductDetailsDialog'
+  hasOffer,
+  makeSearchIndex,
+  money,
+  onShelf,
+  price,
+  searchCatalog,
+  type Shelf,
+  type ShopGroup,
+  type ShopProduct,
+  type ShopSort,
+} from '@/lib/storefront-catalog'
 
-type PublicProduct = ProductPreview
-
-export function PublicProducts({ onBuy }: { onBuy: () => void }) {
-  const [products, setProducts] = useState<PublicProduct[]>([])
-  const [loading, setLoading] = useState(true)
-  const [brand, setBrand] = useState('todas')
-  const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null)
-  const sectionRef = useRef<HTMLElement>(null)
-  const resultsRef = useRef<HTMLHeadingElement>(null)
-  const brandsScrollerRef = useRef<HTMLDivElement>(null)
-  const [canScrollBack, setCanScrollBack] = useState(false)
-  const [canScrollForward, setCanScrollForward] = useState(false)
-
-  function selectBrand(nextBrand: string) {
-    setBrand(nextBrand)
-    window.requestAnimationFrame(() => {
-      const heading = resultsRef.current
-      if (!heading) return
-      heading.focus({ preventScroll: true })
-      heading.scrollIntoView({
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-        block: 'start',
-      })
-    })
+export type ShopFilter = { shelf: Shelf; brand?: string; category?: string }
+export const shelfLabels: Record<Shelf, string> = {
+  catalogo: 'Todos os produtos',
+  'mais-vendidos': 'Mais vendidos',
+  novidades: 'Novidades',
+  ofertas: 'Ofertas da semana',
+}
+type Props = {
+  products: ShopProduct[]
+  groups: ShopGroup[]
+  filter: ShopFilter
+  onFilter: (f: ShopFilter) => void
+  status: string
+  retry: () => void
+  onOpen: (p: ShopProduct) => void
+  favorites: Set<string> | null
+  onFavorite: (p: ShopProduct) => void
+  favoriteBusy: boolean
+}
+const recentKey = 'matilha:buscas:v1'
+function readRecent(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(recentKey) || '[]')
+    return Array.isArray(value) ? value.filter((x) => typeof x === 'string').slice(0, 5) : []
+  } catch {
+    return []
   }
-
-  useEffect(() => {
-    const section = sectionRef.current
-    if (!section) return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        section.dataset.inView = 'true'
-        observer.disconnect()
-      }
-    }, { threshold: 0.08 })
-    observer.observe(section)
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    let active = true
-
-    void fetch('/api/public/produtos', { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Falha ao carregar a vitrine.')
-        return response.json()
-      })
-      .then((payload) => {
-        if (active) setProducts(Array.isArray(payload) ? payload : [])
-      })
-      .catch((error) => console.error('public products:', error))
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const brandOptions = useMemo(() => {
-    const grouped = new Map<string, { label: string; count: number; imageUrl: string | null }>()
-    const kongClassicImage = findKongClassicImage(products)
-    for (const product of products) {
-      const label = getProductBrand(product)
-      if (label === SEM_MARCA) continue
-      const current = grouped.get(label) || { label, count: 0, imageUrl: null }
-      current.count += 1
-      // O cartão Kong sempre representa o Kong Classic vermelho, não a bola de tênis.
-      if (label === 'Kong' && kongClassicImage) current.imageUrl = kongClassicImage
-      else if (!current.imageUrl && product.imageUrl) current.imageUrl = product.imageUrl
-      grouped.set(label, current)
-    }
-    // Aparece em destaque mesmo sem nenhum produto cadastrado.
-    if (!grouped.has(MARCA_PERSONALIZAVEIS)) {
-      grouped.set(MARCA_PERSONALIZAVEIS, { label: MARCA_PERSONALIZAVEIS, count: 0, imageUrl: null })
-    }
-    return [...grouped.values()].sort((a, b) =>
-      a.label === MARCA_PERSONALIZAVEIS ? -1 :
-      b.label === MARCA_PERSONALIZAVEIS ? 1 :
-      a.label.localeCompare(b.label, 'pt-BR')
-    )
-  }, [products])
-
-  useEffect(() => {
-    const el = brandsScrollerRef.current
-    if (!el) return
-    const update = () => {
-      setCanScrollBack(el.scrollLeft > 2)
-      setCanScrollForward(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
-    }
-    update()
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
-    observer?.observe(el)
-    window.addEventListener('resize', update)
-    el.addEventListener('scroll', update, { passive: true })
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', update)
-      el.removeEventListener('scroll', update)
-    }
-  }, [brandOptions.length])
-
-  function scrollBrands(direction: -1 | 1) {
-    const el = brandsScrollerRef.current
-    if (!el) return
-    const amount = Math.max(290, Math.min(el.clientWidth * 0.8, 720))
-    el.scrollBy({
-      left: amount * direction,
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-    })
-  }
-
-  const visible = useMemo(() => {
-    const filtered = brand === 'todas'
-      ? products
-      : products.filter((product) => getProductBrand(product) === brand)
-
-    return [...filtered]
-      .sort((a, b) => {
-        const aSemEstoque = !a.estoqueIlimitado && a.estoque <= 0
-        const bSemEstoque = !b.estoqueIlimitado && b.estoque <= 0
-        return aSemEstoque === bSemEstoque ? 0 : aSemEstoque ? 1 : -1
-      })
-      .slice(0, 12)
-  }, [products, brand])
-
-  const money = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-  const whatsapp = matilhaWhatsAppUrl(
-    'Olá! Vi os produtos no site da Matilha Prado e gostaria de ajuda para escolher um produto para o meu pet.'
+}
+export function PublicProducts({
+  products,
+  groups,
+  filter,
+  onFilter,
+  status,
+  retry,
+  onOpen,
+  favorites,
+  onFavorite,
+  favoriteBusy,
+}: Props) {
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<ShopSort>('relevancia')
+  const [limit, setLimit] = useState(8)
+  const [suggesting, setSuggesting] = useState(false)
+  const [recent, setRecent] = useState<string[]>([])
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
+  const input = useRef<HTMLInputElement>(null)
+  const group = groups.find((g) => g.id === filter.category)
+  const base = useMemo(
+    () =>
+      products.filter(
+        (p) =>
+          (!filter.brand || p.marca === filter.brand) &&
+          (!group || group.match(p)) &&
+          onShelf(p, filter.shelf),
+      ),
+    [products, group, filter],
   )
-
+  const index = useMemo(() => makeSearchIndex(base), [base])
+  const matches = useMemo(() => {
+    const rows = searchCatalog(
+      index,
+      query,
+      sort === 'relevancia' && filter.shelf === 'novidades' ? 'novidades' : sort,
+    )
+    if (!query && sort === 'relevancia' && filter.shelf === 'mais-vendidos')
+      rows.sort((a, b) => a.bestSellerRank! - b.bestSellerRank!)
+    return rows
+  }, [index, query, sort, filter.shelf])
+  const allIndex = useMemo(() => makeSearchIndex(products), [products])
+  const suggestions = useMemo(
+    () =>
+      query.trim()
+        ? searchCatalog(allIndex, query, 'relevancia')
+            .slice(0, 5)
+            .map((p) => p.nome)
+        : recent,
+    [query, allIndex, recent],
+  )
+  function save(q: string) {
+    const term = q.trim().slice(0, 80)
+    if (!term) return
+    const items = [term, ...readRecent().filter((x) => x !== term)].slice(0, 5)
+    try {
+      localStorage.setItem(recentKey, JSON.stringify(items))
+    } catch {}
+    setRecent(items)
+  }
+  function choose(s: string) {
+    setQuery(s)
+    setLimit(8)
+    save(s)
+    setSuggesting(false)
+    input.current?.focus()
+  }
+  function clear() {
+    setQuery('')
+    setLimit(8)
+    onFilter({ shelf: 'catalogo' })
+  }
   return (
-    <section ref={sectionRef} id="produtos" className="boutique-section pt-8 pb-14 sm:pt-10 sm:pb-18 lg:pt-12 lg:pb-24" aria-labelledby="boutique-title">
-      <div className="container relative mx-auto px-4">
-        <div className="boutique-heading mx-auto mb-8 max-w-3xl text-center sm:mb-10">
-          <Badge variant="secondary" className="boutique-eyebrow mb-5">
-            <ShoppingBag className="size-3.5" />
+    <section className="mp-section mp-shop" id="produtos" aria-labelledby="shop-title">
+      <div className="mp-heading">
+        <ShoppingBag className="mp-heading-icon" />
+        <div>
+          <h2 id="shop-title" tabIndex={-1}>
             Boutique Matilha Prado
-          </Badge>
-          <h2 id="boutique-title" className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-            Pequenos mimos.<br /><span className="boutique-title-accent">Muito amor pelo seu pet.</span>
           </h2>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Do cuidado à diversão, encontre o próximo favorito da sua matilha.
-            Escolha uma marca e explore a vitrine.
-          </p>
+          <p>Produtos disponíveis para o seu pet.</p>
         </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            Carregando produtos...
-          </div>
-        ) : products.length === 0 ? (
-          <Card className="mx-auto max-w-xl border-dashed">
-            <CardContent className="p-8 text-center">
-              <Package className="mx-auto mb-3 size-10 text-muted-foreground/40" />
-              <p className="font-medium">A vitrine está sendo atualizada</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Fale com a Matilha Prado para consultar os produtos disponíveis agora.
-              </p>
-              <Button asChild variant="outline" className="mt-4">
-                <a href={whatsapp} target="_blank" rel="noreferrer">
-                  Consultar pelo WhatsApp
-                </a>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="mb-7">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-bold tracking-tight text-[#18354b] sm:text-lg">Explore por marca</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Encontre seus favoritos com mais facilidade.</p>
-                </div>
-                <div className="hidden shrink-0 items-center gap-2 sm:flex" aria-label="Navegação das marcas">
-                  <button type="button" className="boutique-brand-nav" disabled={!canScrollBack}
-                    onClick={() => scrollBrands(-1)} aria-label="Ver marcas anteriores">
-                    <ChevronLeft className="size-4" aria-hidden="true" />
-                  </button>
-                  <button type="button" className="boutique-brand-nav" disabled={!canScrollForward}
-                    onClick={() => scrollBrands(1)} aria-label="Ver próximas marcas">
-                    <ChevronRight className="size-4" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-              <div ref={brandsScrollerRef} className="boutique-brands-scroller"
-                role="group" aria-label="Filtrar vitrine por marca" tabIndex={0}>
-                <button type="button" className="boutique-category boutique-category-all"
-                  aria-pressed={brand === 'todas'} aria-controls="boutique-results"
-                  onClick={() => selectBrand('todas')} style={{ '--category-order': 0 } as CSSProperties}>
-                  <span className="boutique-category-art"><Grid2X2 className="size-8" aria-hidden="true" /></span>
-                  <span className="boutique-category-name">Todas as marcas</span>
-                  <span className="boutique-category-hint">{products.length} {products.length === 1 ? 'produto' : 'produtos'}</span>
-                  {brand === 'todas' && <Check className="boutique-category-check size-4" aria-hidden="true" />}
+      </div>
+      <div className="mp-shelves" aria-label="Coleções da vitrine">
+        {(Object.keys(shelfLabels) as Shelf[]).map((s) => (
+          <button
+            key={s}
+            aria-pressed={filter.shelf === s}
+            onClick={() => {
+              setQuery('')
+              setLimit(8)
+              onFilter({ shelf: s })
+            }}
+          >
+            {shelfLabels[s]}
+          </button>
+        ))}
+      </div>
+      <div className="mp-shop-tools">
+        <form
+          role="search"
+          className="mp-search"
+          onSubmit={(e) => {
+            e.preventDefault()
+            save(query)
+            setSuggesting(false)
+          }}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setSuggesting(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setSuggesting(false)
+          }}
+        >
+          <Search />
+          <input
+            ref={input}
+            id="mp-search"
+            type="search"
+            autoComplete="off"
+            maxLength={80}
+            placeholder="Buscar por produto, marca ou categoria"
+            aria-label="Buscar por produto, marca ou categoria"
+            value={query}
+            onFocus={() => {
+              setRecent(readRecent())
+              setSuggesting(true)
+            }}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setLimit(8)
+              setSuggesting(true)
+            }}
+          />
+          {suggesting && suggestions.length > 0 && (
+            <div className="mp-suggestions">
+              <small>{query ? 'Sugestões' : 'Buscas recentes'}</small>
+              {suggestions.map((s) => (
+                <button key={s} type="button" onClick={() => choose(s)}>
+                  {s}
+                  <ChevronRight />
                 </button>
-                {brandOptions.map((option, index) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    aria-pressed={brand === option.label}
-                    aria-controls="boutique-results"
-                    onClick={() => selectBrand(option.label)}
-                    className={`boutique-category group ${option.label === MARCA_PERSONALIZAVEIS ? 'border-orange-300 bg-orange-50/80 shadow-sm' : ''}`}
-                    style={{ '--category-order': index + 1 } as CSSProperties}
-                  >
-                    <span className="boutique-category-art">
-                      {option.label === MARCA_PERSONALIZAVEIS && option.count === 0 ? (
-                        <Sparkles className="size-8 text-orange-600" strokeWidth={1.5} aria-hidden="true" />
-                      ) : option.imageUrl ? (
-                        <img src={option.imageUrl} alt="" loading="lazy"
-                          className="h-full w-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105" />
-                      ) : (
-                        <Package className="size-7 text-slate-500" strokeWidth={1.5} aria-hidden="true" />
-                      )}
-                    </span>
-                    <span className="boutique-category-name">{option.label}</span>
-                    <span className="boutique-category-hint">{option.label === MARCA_PERSONALIZAVEIS && option.count === 0 ? 'Em breve' : `${option.count} ${option.count === 1 ? 'produto' : 'produtos'}`}</span>
-                    {brand === option.label && <Check className="boutique-category-check size-4" aria-hidden="true" />}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2.5 text-center text-[11px] text-muted-foreground sm:hidden">
-                Deslize para o lado para ver mais marcas
-              </p>
+              ))}
             </div>
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-              <div role="status" aria-live="polite">
-                <h3 ref={resultsRef} id="boutique-results" tabIndex={-1} className="scroll-mt-28 rounded-sm text-sm font-semibold">
-                  {brand !== 'todas' ? brand : 'Todos os produtos'}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  {brand !== 'todas'
-                    ? 'Mostrando os produtos da marca selecionada.'
-                    : 'Selecione uma marca acima para filtrar.'}
-                </p>
-              </div>
-              {brand !== 'todas' && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => selectBrand('todas')}
-                >
-                  Ver todos
-                </Button>
+          )}
+        </form>
+        <label className="mp-sort">
+          <SlidersHorizontal />
+          <span className="sr-only">Ordenar produtos</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value as ShopSort)}>
+            <option value="relevancia">Relevância</option>
+            <option value="menor">Menor preço</option>
+            <option value="maior">Maior preço</option>
+            <option value="novidades">Mais recentes</option>
+          </select>
+        </label>
+      </div>
+      {(filter.category || filter.brand) && (
+        <button className="mp-chip" aria-label="Limpar filtro" onClick={clear}>
+          {group?.label || filter.brand} ×
+        </button>
+      )}
+      {status === 'loading' ? (
+        <p role="status" className="mp-state">
+          Carregando a vitrine…
+        </p>
+      ) : status === 'error' ? (
+        <div className="mp-state" role="status">
+          <p>O catálogo está temporariamente indisponível.</p>
+          <button className="mp-text-link" onClick={retry}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="mp-count" role="status">
+            {matches.length} {matches.length === 1 ? 'produto disponível' : 'produtos disponíveis'}
+            {filter.shelf === 'mais-vendidos'
+              ? ' · vendas concluídas nos últimos 30 dias'
+              : filter.shelf === 'novidades'
+                ? ' · adicionados nos últimos 30 dias'
+                : ''}
+          </p>
+          {!matches.length && (
+            <div className="mp-state">
+              <Package />
+              <p>
+                {query
+                  ? 'Nenhum produto encontrado. Tente uma marca ou uma palavra mais curta.'
+                  : filter.shelf === 'ofertas'
+                    ? 'Nenhuma oferta disponível agora.'
+                    : filter.shelf === 'mais-vendidos'
+                      ? 'Ainda não há vendas com estoque disponível para este ranking.'
+                      : filter.shelf === 'novidades'
+                        ? 'Nenhuma novidade com estoque nos últimos 30 dias.'
+                        : 'Nenhum produto em estoque para esta seleção.'}
+              </p>
+              {(query || filter.shelf !== 'catalogo' || group || filter.brand) && (
+                <button className="mp-text-link" onClick={clear}>
+                  Ver todos os produtos
+                </button>
               )}
             </div>
-
-            {visible.length === 0 ? (
-              <Card className="mb-6 border-dashed">
-                <CardContent className="p-7 text-center">
-                  <Package className="mx-auto mb-2 size-8 text-muted-foreground/40" />
-                  <p className="text-sm font-medium">
-                    {brand === MARCA_PERSONALIZAVEIS
-                      ? 'Matilha Prado Personalizáveis — em breve!'
-                      : 'Ainda não encontramos produtos dessa marca.'}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {brand === MARCA_PERSONALIZAVEIS
-                      ? 'Estamos preparando itens personalizados exclusivos da Matilha Prado.'
-                      : 'Você pode ver todos os produtos ou falar com a Matilha Prado pelo WhatsApp.'}
-                  </p>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => selectBrand('todas')}>
-                      Ver todos
-                    </Button>
-                    <Button asChild size="sm">
-                      <a href={whatsapp} target="_blank" rel="noreferrer">
-                        Falar no WhatsApp
-                      </a>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="stagger-grid grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
-                {visible.map((product) => {
-                  const currentPrice = product.precoPromo ?? product.preco
-                  const hasPromo = product.precoPromo != null && product.precoPromo < product.preco
-
-                  return (
-                    <Card key={product.id} className="boutique-product group overflow-hidden border-border/70 bg-card py-0 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
-                      <CardContent className="flex h-full flex-col p-4 sm:p-5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProduct(product)}
-                          className="text-left"
-                          aria-label={`Ver detalhes de ${product.nome}`}
-                        >
-                          <div className="relative mb-4 aspect-square overflow-hidden rounded-2xl border border-border/50 bg-white">
-                            {product.imageUrl ? (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.nome}
-                                loading="lazy"
-                                className="h-full w-full object-contain p-3 transition-transform duration-500 motion-safe:group-hover:scale-[1.04] sm:p-4"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center">
-                                <Package className="size-10 text-muted-foreground/35" />
-                              </div>
-                            )}
-
-                            {hasPromo && (
-                              <Badge className="absolute left-2 top-2 bg-orange-500 text-white hover:bg-orange-500">
-                                <Sparkles className="size-3" />
-                                Oferta
-                              </Badge>
-                            )}
-                          </div>
-
-                          <p className="line-clamp-2 min-h-12 text-base font-semibold leading-snug tracking-tight group-hover:text-primary">
-                            {product.nome}
-                          </p>
-                          <p className="mt-1.5 truncate text-xs text-muted-foreground">
-                            {product.categoria}
-                          </p>
-                          {(isClothingProduct(product) || (product.variantes && product.variantes.length > 1)) && (
-                            <Badge variant="outline" className="mt-2 border-primary/25 bg-primary/5 text-primary">
-                              {isClothingProduct(product)
-                                ? 'Tamanhos: P · M · G · GG'
-                                : product.variantes?.some((variant) => Boolean(variant.modeloLabel))
-                                  ? 'Escolha o modelo'
-                                  : product.variantes?.some((variant) => Boolean(variant.corLabel))
-                                    ? 'Escolha a cor'
-                                    : (product.variantes?.length || 0) + ' variações disponíveis'}
-                            </Badge>
-                          )}
-                        </button>
-
-                        <div className="mt-auto pt-4">
-                          {hasPromo && (
-                            <p className="text-[11px] text-muted-foreground line-through">
-                              {money(product.preco)}
-                            </p>
-                          )}
-                          <p className="text-xl font-extrabold tracking-tight text-primary">{money(currentPrice)}</p>
-                          <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${
-      product.estoqueIlimitado || product.estoque > 0
-        ? 'bg-emerald-50 text-emerald-700'
-        : 'bg-slate-100 text-slate-500'
-    }`}>
-                            {product.estoqueIlimitado
-                              ? 'Disponível sem limite de estoque'
-                              : product.estoque > 0
-                                ? 'Disponível'
-                                : 'Indisponível'}
-                          </p>
-                        </div>
-
-                        <Button
-                          size="sm"
-                          onClick={onBuy}
-                          className="mt-4 h-11 w-full text-sm font-semibold shadow-sm"
-                        >
-                          {!product.estoqueIlimitado && product.estoque <= 0
-                            ? 'Entrar e avisar quando chegar'
-                            : 'Comprar'}
-                          <ArrowRight className="size-3.5" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            )}
-
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" onClick={onBuy} className="btn-brand">
-                Entrar para ver a loja completa
-                <ArrowRight className="size-4" />
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <a href={whatsapp} target="_blank" rel="noreferrer">
-                  Pedir uma recomendação
-                </a>
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <ProductDetailsDialog
-        product={selectedProduct}
-        open={Boolean(selectedProduct)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedProduct(null)
-        }}
-        onLoginToBuy={onBuy}
-      />
+          )}
+          <div className="mp-product-grid">
+            {matches.slice(0, limit).map((p) => (
+              <article className="mp-product" key={p.id}>
+                <button
+                  type="button"
+                  className="mp-product-main"
+                  onClick={() => {
+                    save(query)
+                    onOpen(p)
+                  }}
+                  aria-haspopup="dialog"
+                >
+                  <span className="mp-product-photo">
+                    {p.imageUrl && !failedImages.has(p.id) ? (
+                      <img
+                        src={p.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        width="240"
+                        height="200"
+                        referrerPolicy="no-referrer"
+                        onError={() => setFailedImages((s) => new Set(s).add(p.id))}
+                      />
+                    ) : (
+                      <Package aria-hidden="true" />
+                    )}
+                    {hasOffer(p) && (
+                      <small>
+                        <Tag />
+                        Oferta
+                      </small>
+                    )}
+                  </span>
+                  <span className="mp-product-body">
+                    <small>{p.marca && p.marca !== SEM_MARCA ? p.marca : p.categoria}</small>
+                    <strong>{p.nome}</strong>
+                    <span>
+                      {hasOffer(p) && <del>{money(p.preco)}</del>} <b>{money(price(p))}</b>
+                    </span>
+                    <small>
+                      {p.variantes?.length ? p.variantes.length + ' variações' : 'Disponível'}
+                    </small>
+                  </span>
+                </button>
+                {favorites && (
+                  <button
+                    type="button"
+                    className="mp-fav"
+                    aria-pressed={favorites.has(p.id)}
+                    aria-label={'Favoritar ' + p.nome}
+                    disabled={favoriteBusy}
+                    onClick={() => onFavorite(p)}
+                  >
+                    <Heart fill={favorites.has(p.id) ? 'currentColor' : 'none'} />
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+          {matches.length > limit && (
+            <button className="mp-btn mp-light" onClick={() => setLimit(limit + 12)}>
+              Mostrar mais produtos
+            </button>
+          )}
+        </>
+      )}
     </section>
   )
 }

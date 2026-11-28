@@ -85,7 +85,7 @@ try {
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 })
     await page.goto(base + '/')
-    const productButton = page.getByRole('button', { name: `Ver detalhes de ${productName}` })
+    const productButton = page.locator('.mp-product-grid').getByRole('button', { name: productName })
     await productButton.waitFor()
     await productButton.click()
 

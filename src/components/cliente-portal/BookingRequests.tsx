@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { trackStoreEvent } from '@/lib/storefront-events'
 import { portalRequest } from './ExperienceProvider'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { toast } from 'sonner'
@@ -171,7 +172,7 @@ export function BookingRequests({onBooked}:{onBooked?:()=>void}={}) {
             setBusy(true)
             try {
               if (directMode) {
-                await portalRequest('/api/cliente/agendamentos', {
+                const booked=await portalRequest<{id?:string}>('/api/cliente/agendamentos', {
                   method: 'POST',
                   body: JSON.stringify({
                     petId: petKey,
@@ -180,6 +181,7 @@ export function BookingRequests({onBooked}:{onBooked?:()=>void}={}) {
                     observacoes: notes,
                   }),
                 })
+                if(booked.id) trackStoreEvent('schedule',{id:booked.id})
                 toast.success('Agendamento confirmado pelo Siggma.')
                 setDesired('')
                 setNotes('')
@@ -195,6 +197,7 @@ export function BookingRequests({onBooked}:{onBooked?:()=>void}={}) {
                     ...(banho && personalizar && (gravataFoto||gravataNome.trim()) ? { ...(gravataFoto?{gravataFoto}:{}), ...(gravataNome.trim()?{gravataNome:gravataNome.trim()}:{}), gravataIdeia } : {}),
                   }),
                 })
+                trackStoreEvent(reserva.status==='confirmado'?'schedule':'booking_request',{id:reserva.id})
                 toast.success('Agendamento confirmado! Realize o pagamento para concluir a parte financeira.')
                 onBooked?.()
                 setDesired('')

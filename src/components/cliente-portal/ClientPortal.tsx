@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { LogOut, ShoppingCart, CalendarClock, Dog, ShoppingBag, Home, Syringe, BookOpen } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
@@ -16,6 +16,7 @@ import { ClientCareHub } from '@/components/cliente-portal/ClientCareHub'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/components/providers/AuthProvider'
+import { consumeIntent, type ShopIntent } from '@/lib/storefront-intent'
 import { useTabHistory } from '@/hooks/use-tab-history'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -38,12 +39,25 @@ const TABS: { id: TabClient; label: string; icon: React.ComponentType<{ classNam
 ]
 
 export function ClientPortal() {
-  return <ExperienceProvider><ClientPortalContent /></ExperienceProvider>
+  const [entry,setEntry]=useState<{tab:TabClient;intent:ShopIntent|null}|null>(null)
+  const initialized=useRef(false)
+  useEffect(()=>{
+    if(initialized.current)return
+    initialized.current=true
+    const intent=consumeIntent()
+    const mapped:Record<ShopIntent['destination'],TabClient>={perfil:'inicio',loja:'loja',carrinho:'loja',agendamentos:'agendamentos',planos:'pets',blog:'blog'}
+    const tab=intent?mapped[intent.destination]:TABS.find(t=>'#'+t.id===location.hash)?.id || 'inicio'
+    if(location.hash!=='#'+tab)window.history.replaceState({tab},'',location.pathname+location.search+'#'+tab)
+    setEntry({tab,intent})
+  },[])
+  return entry ? <ExperienceProvider><ClientPortalContent initialTab={entry.tab} initialIntent={entry.intent}/></ExperienceProvider>:null
 }
 
-function ClientPortalContent() {
+function ClientPortalContent({initialTab,initialIntent}:{initialTab:TabClient;initialIntent:ShopIntent|null}) {
+  const [intent,setIntent]=useState(initialIntent)
   const { sessao, logout } = useAuth()
-  const { tab, setTab } = useTabHistory<TabClient>('inicio')
+  const { tab, setTab } = useTabHistory<TabClient>(initialTab)
+  useEffect(()=>{if(tab!==initialTab)setIntent(null)},[tab,initialTab])
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const [repeatItems, setRepeatItems] = useState<CarrinhoItem[] | null>(null)
   const [repeating, setRepeating] = useState(false)
@@ -99,6 +113,7 @@ function ClientPortalContent() {
   const handleLogout = async () => {
     try {
       await logout()
+      try{sessionStorage.removeItem('matilha:carrinho:'+user.id)}catch{}
       toast.success('Sessão encerrada')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível sair.') }
   }
@@ -116,7 +131,7 @@ function ClientPortalContent() {
       {/* Header */}
       <header className="app-header sticky top-0 z-40 border-b border-border">
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-2">
-          <Logo size="sm" />
+          <Link href="/loja" aria-label="Visitar a vitrine pública"><Logo size="sm" /></Link>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <span className="hidden sm:inline text-sm font-medium truncate">
               Olá, <strong className="text-primary">{nome.split(' ')[0]}</strong>
@@ -192,6 +207,7 @@ function ClientPortalContent() {
       {/* Conteúdo */}
       <main id="client-content" tabIndex={-1} className="flex-1 w-full min-w-0 max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8">
         <div className="tab-transition" key={tab}>
+          {tab==='inicio' && intent?.destination==='perfil' && <section aria-label="Meu perfil" className="mb-5 rounded-2xl border bg-card p-5"><h1 className="text-xl font-bold">Meu perfil</h1><p>{nome}</p><p className="text-sm text-muted-foreground">{user.email}</p>{cliente?.telefone&&<p className="text-sm">{cliente.telefone}</p>}</section>}
           {tab === 'inicio' && <InstallAppCard compact className="mb-6" />}
           {tab === 'inicio' && (
             <ClientHome
@@ -206,13 +222,14 @@ function ClientPortalContent() {
           {tab === 'loja' && (
             <ClientStore
               onCompraFinalizada={onCompraFinalizada}
+              initialCart={intent?.destination==='carrinho'} initialProduct={intent?.destination==='loja'?intent.id:undefined}
               repeatItems={repeatItems}
               onRepeatConsumed={() => setRepeatItems(null)}
               onCartUiChange={setCartUi}
             />
           )}
-          {tab === 'agendamentos' && <ClientAgendamentos />}
-          {tab === 'pets' && <><ClientMeusPets /><ClientCareHub onShop={() => setTab('loja')} /></>}
+          {tab === 'agendamentos' && <ClientAgendamentos openBooking={intent?.destination === 'agendamentos'} />}
+          {tab === 'pets' && <><ClientMeusPets /><ClientCareHub initialPlan={intent?.destination==='planos'?intent.id:undefined} onShop={() => setTab('loja')} /></>}
           {tab === 'vacinas' && <ClientVacinas />}
           {tab === 'compras' && <ClientMinhasCompras onRepeat={repeatPurchase} repeating={repeating} />}
           {tab === 'blog' && <ClientBlog onShop={() => setTab('loja')} />}

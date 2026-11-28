@@ -21,7 +21,7 @@ type Drag = {
 
 function viewportBounds() {
   // Usa a borda superior real da navegação fixa, mesmo se houver duas linhas de abas.
-  const nav = document.querySelector<HTMLElement>('.client-portal .portal-tabs')
+  const nav = document.querySelector<HTMLElement>('.mp-bottom, .client-portal .portal-tabs')
   const navTop = nav?.getBoundingClientRect().top ?? window.innerHeight - 80
   return limitesAjuda(window.innerWidth, Math.min(window.innerHeight, navTop))
 }
@@ -35,7 +35,7 @@ function save(side: HelpSavedPosition | null) {
   }
 }
 
-export function DraggableWhatsAppHelp() {
+export function DraggableWhatsAppHelp({publicStore=false}:{publicStore?:boolean}={}) {
   const [position, setPosition] = useState<HelpPosition | null>(null)
   const [side, setSide] = useState<HelpSavedPosition['side']>('right')
   const [customized, setCustomized] = useState(false)
@@ -132,9 +132,9 @@ export function DraggableWhatsAppHelp() {
   if (!position) return null
 
   return (
-    <div className="fixed z-50 md:hidden" style={{ left: position.x, top: position.y, width: HELP_SIZE, height: HELP_SIZE }}>
+    <div className="fixed z-40 md:hidden" style={{ left: position.x, top: position.y, width: HELP_SIZE, height: HELP_SIZE }}>
       <a
-        href={DEFAULT_LINK}
+        href={publicStore?matilhaWhatsAppUrl('Olá! Vim pela vitrine da Matilha Prado.'):DEFAULT_LINK}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Falar com a Matilha Prado no WhatsApp (arraste para reposicionar)"

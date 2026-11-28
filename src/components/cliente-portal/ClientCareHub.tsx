@@ -80,7 +80,7 @@ function Section({ title, hint, children, open=false }: {
   </details>
 }
 
-export function ClientCareHub({ onShop }: { onShop:()=>void }) {
+export function ClientCareHub({ onShop, initialPlan }: { onShop:()=>void; initialPlan?:string }) {
   const [data,setData] = useState<PortalData|null>(null)
   const [loading,setLoading] = useState(true)
   const [err,setErr] = useState('')
@@ -104,6 +104,12 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
   const [pdfTitle,setPdfTitle]=useState('')
   const [pdfFile,setPdfFile]=useState<File|null>(null)
 
+  useEffect(()=>{
+    if(initialPlan && data && !loading) {
+      const el=document.getElementById('plano-'+initialPlan)
+      el?.focus({preventScroll:true});el?.scrollIntoView({block:'center'})
+    }
+  },[initialPlan, Boolean(data),loading])
   useEffect(()=>{
     let alive=true
     portalRequest<PortalData>('/api/cliente/portal').then((value)=>{
@@ -330,9 +336,9 @@ export function ClientCareHub({ onShop }: { onShop:()=>void }) {
       </div>):<p className="text-xs text-muted-foreground">Nenhum aviso registrado no momento.</p>}
     </Section>
 
-    <Section title="Planos de banho e cuidados" hint="Pacotes disponíveis, mediante aprovação da loja; solicitar não efetua pagamento nem ativa sessões automaticamente.">
+    <Section open={Boolean(initialPlan)} title="Planos de banho e cuidados" hint="Pacotes disponíveis, mediante aprovação da loja; solicitar não efetua pagamento nem ativa sessões automaticamente.">
       <div className="grid gap-3 sm:grid-cols-2">
-        {data.plans.map((plan)=><div className="space-y-2 rounded-xl border p-3" key={plan.id}>
+        {data.plans.map((plan)=><div id={'plano-'+plan.id} tabIndex={-1} className="space-y-2 rounded-xl border p-3" key={plan.id}>
           <h3 className="font-semibold">{plan.title}</h3><p className="text-xs text-muted-foreground">{plan.description}</p>
           <p className="text-sm">{plan.sessions} sessões · {plan.durationDays} dias · <strong>{money(plan.priceCents)}</strong></p>
           <Button size="sm" disabled={!petKey||busy} onClick={()=>void act({action:'plan-request',planId:plan.id,petKey},'Solicitação enviada.')}>Solicitar para {petName}</Button>

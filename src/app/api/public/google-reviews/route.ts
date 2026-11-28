@@ -33,6 +33,26 @@ export async function GET() {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim()
   const placeId = process.env.GOOGLE_PLACE_ID?.trim() || DEFAULT_PLACE_ID
 
+  if (!apiKey && process.env.VERCEL_ENV === 'preview') {
+    // Use only the store's public reviews. Production credentials stay in their own environment.
+    try {
+      const upstream = await fetch('https://www.matilhaprado.com.br/api/public/google-reviews', {
+        headers: { Accept: 'application/json' },
+        credentials: 'omit',
+        redirect: 'error',
+        signal: AbortSignal.timeout(5000),
+        next: { revalidate: 3600 },
+      })
+      if (upstream.ok) {
+        const data = await upstream.json()
+        if (data?.success === true && data.source === 'Google Maps' && Array.isArray(data.reviews)) {
+          return NextResponse.json(data)
+        }
+      }
+    } catch {
+      // The page still offers the official Google Maps listing during an outage.
+    }
+  }
   if (!apiKey) {
     return NextResponse.json(
       {
