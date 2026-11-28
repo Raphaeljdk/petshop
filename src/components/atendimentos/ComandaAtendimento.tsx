@@ -85,7 +85,7 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
    {data.pendencias?.map(p=><p key={p} className="text-xs text-amber-700">{p}</p>)}
    {!data.principalPago&&data.principalVenda?.status==='pendente'&&!equipe&&<Button size="sm" onClick={()=>setPagamento(data.principalVenda!)}>Pagar serviço principal</Button>}
    {!data.principalPago&&!data.principalVenda&&equipe&&data.processo.status!=='cancelado'&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{if(window.confirm('Confirme que não houve pagamento por fora do sistema. Abrir cobrança do serviço principal?'))void agir({action:'cobrar-principal',confirmarSemPagamentoAnterior:true},true)}}>Cobrar serviço principal — PIX ou cartão</Button>}
-   {equipe&&!data.principalPago&&data.principalVenda?.status==='pendente'&&<Button size="sm" disabled={busy} onClick={()=>setPagamento(data.principalVenda!)}>Pagar serviço principal — PIX ou cartão</Button>}
+   {equipe&&!data.principalPago&&data.principalVenda?.status==='pendente'&&<Button size="sm" disabled={busy} onClick={()=>void agir({action:'cobrar-principal',confirmarSemPagamentoAnterior:true},true)}>Pagar serviço principal — PIX ou cartão</Button>}
    {equipe&&<Button size="sm" disabled={busy||!data.pendencias||data.pendencias.length>0} onClick={()=>{if(window.confirm('Encerrar financeiramente a comanda?'))void agir({action:'fechar-financeiro'})}}>Encerrar comanda financeira</Button>}
    </>}
    <p className="text-xs text-muted-foreground">O registro de saída do pet é independente da situação financeira.</p>
