@@ -67,9 +67,9 @@ export async function POST(req:NextRequest,{params}:Route) {
     if(!ctx.staff||p.bookingRequestId)return {error:'Apenas a equipe pode vincular um agendamento ainda não utilizado.',status:409}
     const booking=await tx.bookingRequest.findFirst({where:{id:input.bookingId,clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null},include:{cliente:{select:{user:{select:{id:true}}}},pagamentoVenda:true}})
     if(!booking)return {error:'Agendamento confirmado não encontrado ou já vinculado.',status:409}
-    if(booking.gravataFoto&&booking.gravataPrecoCentavos===500&&booking.servicoPrecoCentavos!=null){
+    if((booking.pagamentoOnlineObrigatorio||(booking.gravataFoto&&booking.gravataPrecoCentavos===500))&&booking.servicoPrecoCentavos!=null){
      const v=booking.pagamentoVenda
-     if(!v||v.status!=='concluida'||v.mercadoPagoStatus!=='approved'||!v.mercadoPagoId||/^SIM[-_]/.test(v.mercadoPagoId)||Math.round(v.total*100)!==booking.servicoPrecoCentavos+500)return {error:'Aguarde o pagamento integral do agendamento personalizado antes de vincular.',status:409}
+     if(!v||v.status!=='concluida'||v.mercadoPagoStatus!=='approved'||!v.mercadoPagoId||/^SIM[-_]/.test(v.mercadoPagoId)||Math.round(v.total*100)!==booking.servicoPrecoCentavos+booking.gravataPrecoCentavos)return {error:'Aguarde o pagamento integral do agendamento antes de vincular.',status:409}
      await tx.processo.update({where:{id},data:{bookingRequestId:booking.id,valorServico:booking.servicoPrecoCentavos/100}})
      await tx.venda.update({where:{id:v.id},data:{comandaProcessoId:id}})
      return {ok:true}
