@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 type Sale={id:string;total:number;status:string;mercadoPagoStatus?:string|null;mercadoPagoPaymentUrl?:string|null;statusEntrega?:string|null;itens?:Array<{quantidade:number;precoUnit:number;produto:{nome:string}}>}
 type Extra={id:string;nome:string;precoCentavos:number;duracaoMinutos:number;motivo:string|null;status:string;venda:Sale|null;liberado?:boolean;pago?:boolean;pendenteFinanceiro?:boolean}
 type Product={id:string;nome:string;preco:number;precoPromo?:number|null;estoque:number}
-type Data={fechadaEm?:string|null;pendencias?:string[];principalVenda?:Sale|null;principalPago?:boolean;bookingRequestId?:string|null;solicitacoes?:Array<{id:string;service:string;confirmedAt:string|null;gravataPrecoCentavos:number;gravataFoto:string|null}>;processo:{id:string;servico:string;status:string;valorServico:number;petNome:string};aberto:boolean;permiteSolicitar?:boolean;extras:Extra[];vendas:Sale[];servicos:Array<{chave:string;nome:string;precoCentavos:number;duracaoMinutos:number}>}
+type Data={gravata?:{nome?:string|null;foto?:string|null;ideia?:string|null;pago:boolean;precoCentavos:number}|null;fechadaEm?:string|null;pendencias?:string[];principalVenda?:Sale|null;principalPago?:boolean;bookingRequestId?:string|null;solicitacoes?:Array<{id:string;service:string;confirmedAt:string|null;gravataPrecoCentavos:number;gravataFoto:string|null}>;processo:{id:string;servico:string;status:string;valorServico:number;petNome:string};aberto:boolean;permiteSolicitar?:boolean;extras:Extra[];vendas:Sale[];servicos:Array<{chave:string;nome:string;precoCentavos:number;duracaoMinutos:number}>}
 const brl=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 const statusLabel:Record<string,string>={aguardando_tutor:'Aguardando tutor',aguardando_equipe:'Aguardando equipe',autorizado:'Autorizado',recusado:'Recusado',realizado:'Realizado',concluida:'Pagamento registrado',pendente:'Aguardando pagamento',cancelada:'Cancelada'}
 const label=(s:string)=>statusLabel[s]||s
@@ -34,10 +34,10 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
  const load=useCallback(async()=>{try{setData(await portalRequest<Data>(url));setError('')}catch(e){setError(e instanceof Error?e.message:'Não foi possível carregar a comanda.')}},[url])
  useEffect(()=>{setData(null);setPagamento(null);setServico('');setProduto('');compraKey.current=null;void load();const timer=setInterval(()=>{if(document.visibilityState==='visible')void load()},15000);return()=>clearInterval(timer)},[load])
  useEffect(()=>{if(!data?.aberto)return;let live=true;portalRequest<Product[]>('/api/cliente/produtos').then(p=>{if(live)setProdutos(p.filter(x=>x.estoque>0))}).catch(()=>{});return()=>{live=false}},[equipe,data?.aberto])
- async function agir(body:Record<string,unknown>){
+ async function agir(body:Record<string,unknown>,abrirCheckout=false){
   if(busy)return
   setBusy(true)
-  try{const r=await portalRequest<{venda?:Sale}>(url,{method:'POST',body:JSON.stringify(body)});if(!equipe&&r.venda&&r.venda.status==='pendente')setPagamento(r.venda);setGrupo([]);setServico('');setMotivo('');await load();toast.success('Comanda atualizada.')}
+  try{const r=await portalRequest<{venda?:Sale}>(url,{method:'POST',body:JSON.stringify(body)});if((!equipe||abrirCheckout)&&r.venda&&r.venda.status==='pendente')setPagamento(r.venda);setGrupo([]);setServico('');setMotivo('');await load();toast.success('Comanda atualizada.')}
   catch(e){toast.error(e instanceof Error?e.message:'Operação não concluída.')}
   finally{setBusy(false)}
  }
@@ -84,11 +84,13 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
    {data.fechadaEm?<p className="text-green-700">Comanda encerrada em {new Date(data.fechadaEm).toLocaleString('pt-BR')}.</p>:<>
    {data.pendencias?.map(p=><p key={p} className="text-xs text-amber-700">{p}</p>)}
    {!data.principalPago&&data.principalVenda?.status==='pendente'&&!equipe&&<Button size="sm" onClick={()=>setPagamento(data.principalVenda!)}>Pagar serviço principal</Button>}
-   {!data.principalPago&&!data.principalVenda&&!data.bookingRequestId&&equipe&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{if(window.confirm('Confirme que o serviço principal NÃO foi pago anteriormente e que não há agendamento pago a vincular. Criar cobrança pelo valor registrado?'))void agir({action:'cobrar-principal',confirmarSemPagamentoAnterior:true})}}>Gerar cobrança principal</Button>}
+   {!data.principalPago&&!data.principalVenda&&equipe&&data.processo.status!=='cancelado'&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{if(window.confirm('Confirme que não houve pagamento por fora do sistema. Abrir cobrança do serviço principal?'))void agir({action:'cobrar-principal',confirmarSemPagamentoAnterior:true},true)}}>Cobrar serviço principal — PIX ou cartão</Button>}
+   {equipe&&!data.principalPago&&data.principalVenda?.status==='pendente'&&<Button size="sm" disabled={busy} onClick={()=>setPagamento(data.principalVenda!)}>Pagar serviço principal — PIX ou cartão</Button>}
    {equipe&&<Button size="sm" disabled={busy||!data.pendencias||data.pendencias.length>0} onClick={()=>{if(window.confirm('Encerrar financeiramente a comanda?'))void agir({action:'fechar-financeiro'})}}>Encerrar comanda financeira</Button>}
    </>}
    <p className="text-xs text-muted-foreground">O registro de saída do pet é independente da situação financeira.</p>
   </div>
+  {data.gravata&&<div className="rounded-lg border p-3 text-sm space-y-1"><b>Gravata personalizada · {brl(data.gravata.precoCentavos/100)}</b>{data.gravata.nome&&<p>Nome: {data.gravata.nome}</p>}{data.gravata.ideia&&<p>Ideia: {data.gravata.ideia}</p>}{data.gravata.foto&&<img className="size-24 object-contain rounded border" alt="Foto para personalização" src={data.gravata.foto}/>}<p className="text-xs">{data.gravata.pago?'Preparar e colocar no pet ao finalizar o banho.':'Aguardando pagamento integral.'}</p></div>}
   <h4 className="font-semibold text-sm">Serviços adicionais</h4>
   {!equipe&&!data.fechadaEm&&grupo.length>=2&&<Button disabled={busy} onClick={()=>{if(window.confirm('Autorizar e pagar os adicionais selecionados por '+brl(data.extras.filter(x=>grupo.includes(x.id)).reduce((a,x)=>a+x.precoCentavos/100,0))+'?'))void agir({action:'pagar-grupo',extraIds:grupo})}}>Autorizar e pagar selecionados ({grupo.length})</Button>}
   {!data.extras.length&&<p className="text-xs text-muted-foreground">Nenhum adicional solicitado.</p>}
@@ -111,7 +113,7 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
   {equipe&&!data.fechadaEm&&[data.principalVenda,...data.extras.map(x=>x.venda),...data.vendas].filter((v):v is Sale=>!!v&&v.status==='pendente'&&!v.mercadoPagoPaymentUrl).filter((v,i,a)=>a.findIndex(x=>x.id===v.id)===i).map(v=><Button key={'pix-'+v.id} disabled={busy} size="sm" variant="outline" onClick={()=>void gerarPix(v)}>Gerar PIX · {brl(v.total)}</Button>)}
   {equipe&&pix&&<div className="rounded-lg border p-3 space-y-2 text-sm"><p>PIX aguardando confirmação. Compartilhe com o tutor.</p>{pix.link&&<Button size="sm" variant="outline" onClick={async()=>{try{await navigator.clipboard.writeText(pix.link!);toast.success('Link copiado.')}catch{toast.error('Não foi possível copiar.')}}}>Copiar link PIX</Button>}{pix.codigo&&<Button size="sm" variant="outline" onClick={async()=>{try{await navigator.clipboard.writeText(pix.codigo!);toast.success('Código PIX copiado.')}catch{toast.error('Não foi possível copiar.')}}}>Copiar PIX copia e cola</Button>}</div>}
   {equipe&&[data.principalVenda,...data.extras.map(x=>x.venda),...data.vendas].filter((v):v is Sale=>!!v&&v.status==='pendente'&&!!v.mercadoPagoPaymentUrl).filter((v,i,a)=>a.findIndex(x=>x.id===v.id)===i).map(v=><Button key={v.id} size="sm" variant="outline" onClick={async()=>{try{const u=new URL(v.mercadoPagoPaymentUrl!);if(u.protocol!=='https:')throw Error();await navigator.clipboard.writeText(u.href);toast.success('Link de pagamento copiado.')}catch{toast.error('Link indisponível.')}}}>Copiar link do pagamento · {brl(v.total)}</Button>)}
-  {pagamento&&!equipe&&<PagamentoCheckout key={pagamento.id} vendaId={pagamento.id} total={pagamento.total} onAprovado={()=>{setPagamento(null);void load()}} onCancelar={()=>{setPagamento(null);void load()}}/>}
+  {pagamento&&<PagamentoCheckout key={pagamento.id} vendaId={pagamento.id} total={pagamento.total} onAprovado={()=>{setPagamento(null);void load()}} onCancelar={()=>{setPagamento(null);void load()}}/>}
  </section>
 }
 export function MinhasComandas(){
