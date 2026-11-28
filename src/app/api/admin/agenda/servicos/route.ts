@@ -11,7 +11,6 @@ import {
   slugServico,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
-  servicoPrecoFixo, REGRA_PRECO_FIXO,
 } from '@/lib/catalogo-servicos-matilha'
 
 export const dynamic = 'force-dynamic'
@@ -33,14 +32,6 @@ const camposGrupos = z.object({
   confirmado: z.boolean(),
 }).strict()
 
-const camposFixos = z.object({
-  chave: z.string().trim().min(2).max(100),
-  precoFixo: z.literal(true),
-  precoCentavos: z.number().int().min(0).max(10_000_000).nullable(),
-  duracaoMinutos: z.number().int().min(5).max(720).nullable(),
-  observacoes: z.string().trim().max(1000).nullable(),
-  confirmado: z.boolean(),
-}).strict()
 async function exigirAdmin() {
   const user = await getUsuarioLogado()
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -109,7 +100,7 @@ export async function PUT(req: NextRequest) {
   if (denied) return denied
   try {
     assertSameOrigin(req)
-    const entrada = z.union([camposFixos, camposGrupos, campos]).parse(await req.json())
+    const entrada = z.union([camposGrupos, campos]).parse(await req.json())
     const padrao = CATALOGO_ESTETICO_MATILHA.some(servico => servico.chave === entrada.chave)
     if (!padrao) {
       // Uma chave arbitrária enviada pelo navegador não autoriza criar registro.
@@ -117,16 +108,6 @@ export async function PUT(req: NextRequest) {
           !(await db.servicoEsteticoConfig.findUnique({ where: { chave: entrada.chave }, select: { nome: true } }))?.nome) {
         return NextResponse.json({ error: 'Serviço não cadastrado. Use Novo serviço antes de configurar.' }, { status: 400 })
       }
-    }
-    const nomeServico = CATALOGO_ESTETICO_MATILHA.find(s=>s.chave===entrada.chave)?.nome ?? (await db.servicoEsteticoConfig.findUnique({where:{chave:entrada.chave},select:{nome:true}}))?.nome
-    const fixo = servicoPrecoFixo(entrada.chave,nomeServico)
-    if (fixo !== ('precoFixo' in entrada)) return NextResponse.json({error:'Use a configuração de preço correspondente ao serviço.'},{status:400})
-    if ('precoFixo' in entrada) {
-      if (entrada.confirmado && (entrada.precoCentavos===null || entrada.duracaoMinutos===null)) return NextResponse.json({error:'Informe preço único e duração antes de confirmar.'},{status:400})
-      const {chave,precoFixo:_,...dados}=entrada
-      const data={...dados,regrasPreco:REGRA_PRECO_FIXO}
-      const registro=await db.servicoEsteticoConfig.upsert({where:{chave},create:{chave,...data},update:data})
-      return NextResponse.json({item:listarServicosParaConfiguracao([registro]).find(s=>s.chave===chave)},{headers:{'Cache-Control':'private, no-store'}})
     }
     if (entrada.confirmado && ('gruposPorte' in entrada ? !gruposPorteConfirmaveis(entrada.gruposPorte) : !configuracaoPodeSerConfirmada(entrada)))
       return NextResponse.json({
