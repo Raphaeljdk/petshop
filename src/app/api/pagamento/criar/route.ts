@@ -143,6 +143,11 @@ export async function POST(req: NextRequest) {
 
     const valorRestante = Math.round((venda.total - venda.creditoPresenteCentavos / 100) * 100) / 100
     if (valorRestante <= 0) return NextResponse.json({ error:'Venda já coberta por vale-presente; não gere outra cobrança.' },{status:409})
+    // Reserva o canal online antes de chamar o gateway externo, impedindo conciliação POS concorrente.
+    if(venda.comandaProcessoId||venda.bookingPagamento){
+      const claim=await db.venda.updateMany({where:{id:venda.id,status:'pendente',posPagamentoId:null},data:{pagamentoOnlineIniciadoEm:new Date()}})
+      if(claim.count!==1)return NextResponse.json({error:'Venda já conciliada ou indisponível para cobrança.'},{status:409})
+    }
     const resultado = await criarOrderMercadoPago(
       {
         vendaId: venda.id,
