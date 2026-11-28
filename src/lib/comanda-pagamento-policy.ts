@@ -24,3 +24,13 @@ export function pendenciasFechamento(args:{principalPago:boolean;checkoutConclui
  if(args.produtos.some(v=>v.status!=='cancelada'&&!pagamentoRealAprovado(v,Math.round(v.total*100))))p.push('Existem compras de produtos sem pagamento confirmado.')
  return p
 }
+
+/** Confere referência e valor da order consultada diretamente no gateway. */
+export function orderConfereComanda(raw:unknown,venda:{id:string;total:number;creditoPresenteCentavos?:number}):boolean{
+ if(!raw||typeof raw!=='object')return false
+ const order=raw as {external_reference?:unknown;total_amount?:unknown;transactions?:{payments?:Array<{amount?:unknown}>}}
+ const centavos=Math.round(venda.total*100)-(venda.creditoPresenteCentavos??0)
+ const valor=typeof order.total_amount==='string'||typeof order.total_amount==='number'?Number(order.total_amount):NaN
+ const pagamentos=order.transactions?.payments
+ return order.external_reference===venda.id&&centavos>0&&Number.isFinite(valor)&&Math.round(valor*100)===centavos&&Array.isArray(pagamentos)&&pagamentos.length===1&&Math.round(Number(pagamentos[0].amount)*100)===centavos
+}
