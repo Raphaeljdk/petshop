@@ -7,11 +7,16 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { portalRequest } from './ExperienceProvider'
+import { careGuides } from '@/lib/storefront-guides'
 
 type Article = {
   id:string; title:string; category:string; summary:string; body:string
-  imageUrl:string|null; productId:string|null; createdAt:string; isPetStory?:boolean
+  imageUrl:string|null; productId:string|null; createdAt:string|null; isPetStory?:boolean
+  guideAction?:'agendamento'|'produtos'
 }
+const publicGuides: Article[] = careGuides.map((guide) => ({
+  ...guide, imageUrl: guide.imageUrl ?? null, createdAt: null, productId: null,
+}))
 type BlogData = { articles:Article[]; favorites:string[] }
 type Props = { publicView?:boolean; onProduct?:(id:string)=>void; onBook?:()=>void; compact?:boolean; onOpenBlog?:()=>void; onShop?:()=>void }
 
@@ -36,11 +41,12 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop, publicView=false
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
   },[retry,publicView])
-  const categories = useMemo(() => ['Todas', ...new Set(articles.map((x) => x.category))],[articles])
-  const filtered = useMemo(() => articles.filter((p) =>
+  const readable = useMemo(() => publicView ? [...publicGuides, ...articles] : articles, [publicView, articles])
+  const categories = useMemo(() => ['Todas', ...new Set(readable.map((x) => x.category))],[readable])
+  const filtered = useMemo(() => readable.filter((p) =>
     (category === 'Todas' || p.category === category) &&
     [p.title,p.summary,p.body].join(' ').toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR'))
-  ),[articles,query,category])
+  ),[readable,query,category])
 
   async function toggle(id:string) {
     if (busy || id.startsWith('historia-pet:')) return
@@ -78,7 +84,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop, publicView=false
       <article className="overflow-hidden rounded-2xl border bg-card">
         {selected.imageUrl && <img src={selected.imageUrl} alt="" className="h-44 w-full object-cover sm:h-64" loading="lazy"/>}
         <div className="space-y-4 p-5 sm:p-8">
-          <p className="text-xs font-semibold uppercase text-primary">{selected.category} · {new Date(selected.createdAt).toLocaleDateString('pt-BR')}</p>
+          <p className="text-xs font-semibold uppercase text-primary">{selected.category}{selected.createdAt && ' · ' + new Date(selected.createdAt).toLocaleDateString('pt-BR')}</p>
           <h2 className="text-2xl font-bold sm:text-3xl">{selected.title}</h2>
           <p className="text-sm font-medium text-muted-foreground">{selected.summary}</p>
           <div className="space-y-4 text-sm leading-7">{selected.body.split(/\n{2,}/).filter(Boolean).map((p,i) =>
@@ -88,6 +94,8 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop, publicView=false
               <Heart className={'mr-2 size-4 '+(favorites.includes(selected.id)?'fill-red-500 text-red-500':'')}/>
               {favorites.includes(selected.id)?'Salvo':'Salvar artigo'}
             </Button>}
+            {selected.guideAction === 'agendamento' && <Button size="sm" variant="outline" onClick={onBook}>Consultar o primeiro banho</Button>}
+            {selected.guideAction === 'produtos' && <Button size="sm" variant="outline" onClick={onShop}>Explorar produtos</Button>}
             {selected.productId && <Button size="sm" variant="outline" onClick={()=>onProduct && selected.productId ? onProduct(selected.productId) : onShop?.()}><ShoppingBag className="mr-2 size-4"/>Ver produtos na loja</Button>}
             <Button size="sm" variant="outline" onClick={() => {
               if (navigator.share) void navigator.share({ title:selected.title, text:selected.summary }).catch(()=>{})
@@ -107,7 +115,6 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop, publicView=false
       <div className="flex flex-wrap gap-2">
         {categories.map((c) => <Button key={c} size="sm" variant={category===c?'default':'outline'} onClick={() => setCategory(c)}>{c}</Button>)}
       </div>
-      {publicView && <details className="mp-faq"><summary>O primeiro banho do pet</summary><p>Na primeira visita, conte à equipe sobre a rotina do seu pet e como ele reage à água e ao secador. No check-in, vocês podem combinar os cuidados e registrar as preferências do atendimento.</p><button type="button" className="mp-text-link" onClick={onBook}>Consultar o primeiro banho</button></details>}
       {loading && <p role="status" className="text-sm text-muted-foreground">Carregando artigos...</p>}
       {error && <Card><CardContent className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
         <p>{error}</p><Button variant="outline" size="sm" onClick={() => {setLoading(true);setRetry(x=>x+1)}}><RefreshCw className="mr-1 size-4"/>Tentar novamente</Button>
@@ -122,7 +129,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop, publicView=false
             <h2 className="line-clamp-2 font-bold">{p.title}</h2>
             <p className="line-clamp-3 text-sm text-muted-foreground">{p.summary}</p>
             <div className="flex justify-between gap-2">
-              <Button size="sm" onClick={()=>setSelected(p)}>Ler artigo</Button>
+              <Button size="sm" onClick={()=>setSelected(p)} aria-label={(p.guideAction ? 'Ler guia' : 'Ler artigo') + ' ' + p.title}>{p.guideAction ? 'Ler guia' : 'Ler artigo'}</Button>
               {!publicView&&!p.isPetStory&&<Button size="icon" variant="outline" disabled={busy} aria-label="Salvar artigo" onClick={()=>toggle(p.id)}>
                 <Heart className={'size-4 '+(favorites.includes(p.id)?'fill-red-500 text-red-500':'')}/>
               </Button>}

@@ -273,7 +273,13 @@ try {
   await btn('Agendar banho e tosa').click()
   await page.getByRole('dialog').waitFor()
   await page.keyboard.press('Escape')
-  await page.locator('#blog').getByRole('button', { name: 'Ler artigo' }).click()
+  const blog = page.locator('#blog')
+  for (const title of ['O primeiro banho do pet', 'Como organizar os itens de higiene do pet', 'O que conferir ao repor o alimento', 'Como apresentar um brinquedo novo']) {
+    await blog.getByRole('button', { name: 'Ler guia ' + title, exact: true }).click()
+    await blog.getByRole('article').getByRole('heading', { name: title }).waitFor()
+    await blog.getByRole('button', { name: 'Voltar ao blog' }).click()
+  }
+  await blog.getByRole('button', { name: /^Ler artigo / }).click()
   await page.getByText('Artigo publicado da loja.').waitFor()
   pass('consulta de planos, entrada no agendamento e leitura do blog')
   mode = 'erro'

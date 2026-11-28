@@ -290,6 +290,7 @@ export function AuthScreen() {
           <section id="blog" className="mp-section">
             <ClientBlog
               publicView
+              onShop={() => shop()}
               onBook={book}
               onProduct={(id) => {
                 const p = products.find((p) => p.id === id || p.variantes?.some((v) => v.id === id))
