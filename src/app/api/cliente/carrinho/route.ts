@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     if(staff){
       if(!body||typeof body.comandaProcessoId!=='string'||body.comandaProcessoId.length>100||body.tipoEntrega!=='retirada'||body.cupomCodigo||body.valePresenteCodigo)
         return NextResponse.json({error:'Equipe só pode incluir produtos em uma comanda ativa para retirada.'},{status:403})
-      const processo=await db.processo.findFirst({where:{id:body.comandaProcessoId,status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{pet:{select:{cliente:true}}}})
+      const processo=await db.processo.findFirst({where:{id:body.comandaProcessoId,status:{in:['em_andamento','aguardando_resposta']},comandaFechadaEm:null,OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{pet:{select:{cliente:true}}}})
       clienteSelecionado=processo?{...processo.pet.cliente,pets:[]}:null
     }
     const cliente=clienteSelecionado
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         throw new CheckoutError('Dados inválidos da compra em atendimento.')
       const existing=await db.venda.findFirst({where:{comandaCompraKey,comandaProcessoId,clienteId:cliente.id},select:{id:true,total:true,status:true}})
       if(existing)return NextResponse.json(existing)
-      const processo=await db.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
+      const processo=await db.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},comandaFechadaEm:null,OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
       if(!processo)throw new CheckoutError('Atendimento não está aberto para compras.',409)
     }
     if(staff&&(!comandaProcessoId||!comandaCompraKey))throw new CheckoutError('Comanda obrigatória.',403)
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'comanda:'+comandaProcessoId}))`
         const existente=await tx.venda.findUnique({where:{comandaCompraKey},select:{id:true}})
         if(existente)throw new CheckoutError('Esta compra já foi registrada. Abra a comanda para continuar o pagamento.',409)
-        const ativo=await tx.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
+        const ativo=await tx.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},comandaFechadaEm:null,OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
         if(!ativo)throw new CheckoutError('Atendimento encerrado.',409)
       }
       // A personal loyalty benefit can be reserved by only one checkout at a time.
