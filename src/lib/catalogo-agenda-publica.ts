@@ -1,23 +1,20 @@
 import { db } from '@/lib/db'
-import { listarServicosParaConfiguracao, slugServico } from '@/lib/catalogo-servicos-matilha'
+import { catalogoPorRaca, slugServico } from '@/lib/catalogo-servicos-matilha'
 import { grupoParaRaca } from '@/lib/servicos-grupos-porte'
 import { diaSaoPaulo, lerServicosDia, profissionaisDisponiveis } from '@/lib/agenda-servicos-dia'
 
-export async function consultarCatalogoPublico(raca: string | null, desiredAt: Date) {
-  const dia = diaSaoPaulo(desiredAt)
-  const [configs, escala, profissionais] = await Promise.all([
-    db.servicoEsteticoConfig.findMany(),
-    db.agendaServicoDia.findUnique({ where: { dia } }),
-    db.profissionalAgenda.findMany({ where: { ativo: true }, select: { id: true } }),
+export async function consultarCatalogoPublico(raca: string | null, desiredAt?: Date) {
+  const configs=await db.servicoEsteticoConfig.findMany()
+  const {todos:todosServicos,opcoes:porRaca,pendentes}=catalogoPorRaca(configs,raca)
+  const base={opcoes:porRaca,pendentes}
+  if (!porRaca.length) return {...base,motivo:!raca?.trim()?'raca-nao-cadastrada':pendentes.length?'servicos-pendentes':'raca-nao-cadastrada',servicos:[] as typeof porRaca}
+  if (!desiredAt) return {...base,motivo:'escolher-horario',servicos:[] as typeof porRaca}
+  const dia=diaSaoPaulo(desiredAt)
+  const [escala,profissionais]=await Promise.all([
+    db.agendaServicoDia.findUnique({where:{dia}}),
+    db.profissionalAgenda.findMany({where:{ativo:true},select:{id:true}}),
   ])
-  const todosServicos = listarServicosParaConfiguracao(configs)
-  const catalogo = todosServicos.filter(s => s.gruposConfirmados)
-  const porRaca = catalogo.flatMap(s => {
-    const grupo = grupoParaRaca(s.gruposPorte, raca)
-    return grupo ? [{ chave: s.chave, nome: s.nome, precoCentavos: grupo.precoCentavos!, duracaoMinutos: grupo.duracaoMinutos! }] : []
-  })
-  if (!porRaca.length) return { motivo: 'raca-nao-cadastrada', servicos: [] as typeof porRaca }
-  if (!escala) return { motivo: 'dia-sem-escala', servicos: [] as typeof porRaca }
+  if (!escala) return {...base,motivo:'dia-sem-escala',servicos:[] as typeof porRaca}
   const escalaDia = lerServicosDia(escala.servicos)
   const ids = [...new Set(escalaDia.flatMap(s => s.profissionais))]
   const fimMaximo = new Date(desiredAt.getTime() + 720 * 60_000)
@@ -45,5 +42,5 @@ export async function consultarCatalogoPublico(raca: string | null, desiredAt: D
     return item && diaSaoPaulo(new Date(fim.getTime() - 1)) === dia && profissionaisDisponiveis(item.profissionais, ativos, [...bloqueios,...ocupados], desiredAt, fim).length > 0
   })
   // A lista não constitui uma reserva; a equipe confirma a capacidade da agenda.
-  return { motivo: servicos.length ? null : 'sem-servicos-disponiveis', servicos }
+  return { ...base, motivo: servicos.length ? null : 'sem-servicos-disponiveis', servicos }
 }
