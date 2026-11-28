@@ -15,12 +15,17 @@ type Servico = {
   nome: string
   precosPorRaca: PrecoPorRaca[]
   gruposPorte: GrupoPorte[]
+  precoFixo: boolean
+  precoCentavos: number|null
+  duracaoMinutos: number|null
   gruposConfirmados: boolean
   observacoes: string | null
   confirmado: boolean
   updatedAt: string | null
 }
 type Rascunho = {
+  precoUnico: string
+  tempoUnico: string
   grupos: Array<{ porte: GrupoPorte['porte']; racas: string; preco: string; duracao: string }>
   observacoes: string
   confirmado: boolean
@@ -30,6 +35,8 @@ const formatarPreco = (centavos: number | null) =>
   centavos === null ? '' : (centavos / 100).toFixed(2)
 
 const editar = (s: Servico): Rascunho => ({
+  precoUnico: formatarPreco(s.precoCentavos),
+  tempoUnico: s.duracaoMinutos===null?'':String(s.duracaoMinutos),
   grupos: lerGruposPorte(s.gruposPorte).map(g => ({ porte: g.porte, racas: g.racas.join('\n'), preco: formatarPreco(g.precoCentavos), duracao: g.duracaoMinutos === null ? '' : String(g.duracaoMinutos) })),
   observacoes: s.observacoes ?? '',
   confirmado: s.gruposConfirmados,
@@ -56,6 +63,7 @@ function lerDuracao(valor: string) {
 }
 
 export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCriado?: (nome: string) => void } = {}) {
+  const [aberto,setAberto]=useState<string|null>(null)
   const [items, setItems] = useState<Servico[]>([])
   const [drafts, setDrafts] = useState<Record<string, Rascunho>>({})
   const [loading, setLoading] = useState(true)
@@ -124,6 +132,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
       const item = data.item as Servico
       setItems(prev => [...prev, item])
       setDrafts(prev => ({ ...prev, [item.chave]: editar(item) }))
+      setAberto(item.chave)
       setNomeNovo('')
       setMostrarNovo(false)
       onServicoCriado?.(item.nome)
@@ -140,13 +149,14 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
     if (!rascunho) return
     setSaving(chave)
     try {
-      const gruposPorte = gruposPorteSchema.parse(rascunho.grupos.map(g => ({
+      const fixo=items.find(s=>s.chave===chave)?.precoFixo
+      const gruposPorte = fixo?undefined:gruposPorteSchema.parse(rascunho.grupos.map(g => ({
         porte: g.porte, racas: g.racas.split(/\n/).map(r => r.trim()).filter(Boolean),
         precoCentavos: lerCentavos(g.preco), duracaoMinutos: lerDuracao(g.duracao),
       })))
       const body = {
         chave,
-        gruposPorte,
+        ...(fixo?{precoFixo:true,precoCentavos:lerCentavos(rascunho.precoUnico),duracaoMinutos:lerDuracao(rascunho.tempoUnico)}:{gruposPorte}),
         observacoes: rascunho.observacoes.trim() || null,
         confirmado: rascunho.confirmado,
       }
@@ -177,7 +187,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
         Configurar serviços, preços e duração ({loading ? 'carregando' : `${confirmados}/${items.length} confirmados`})
       </summary>
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-        Configure as raças, o preço e a duração de cada grupo. Os valores antigos ficam preservados para conferência. A confirmação desta tabela não ativa reservas automáticas nem configura impostos.
+        Abra apenas o serviço que deseja editar. Serviços com preço único valem para todos os portes; os demais usam grupos de raças. Confirme os valores antes de oferecê-los ao cliente.
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
         <div>
@@ -206,28 +216,38 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
       </form>}
       {loading && <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Carregando...</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 space-y-2">
         {items.map((item) => {
           const r = drafts[item.chave]
           if (!r) return null
           const id = item.chave
           return (
             <div key={id} className="rounded-lg border bg-background p-3">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">{item.nome}</h3>
+              <button type="button" aria-expanded={aberto===id} aria-controls={"servico-"+id} className="flex w-full items-center justify-between gap-2 text-left" onClick={()=>setAberto(a=>a===id?null:id)}>
+                <span className="text-sm font-semibold">{aberto===id?"▾":"▸"} {item.nome}{item.precoFixo&&<span className="ml-2 text-xs font-normal text-muted-foreground">Preço único</span>}</span>
                 <span className={`inline-flex items-center gap-1 text-xs ${item.gruposConfirmados ? 'text-green-700' : 'text-muted-foreground'}`}>
                   {item.gruposConfirmados ? <CheckCircle2 className="size-4" /> : <CircleHelp className="size-4" />}
                   {item.gruposConfirmados ? 'Confirmado' : 'Pendente'}
                 </span>
-              </div>
+              </button>
+              <div id={"servico-"+id} hidden={aberto!==id} className="mt-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 space-y-3">
-                  {r.grupos.map(g => {
+                  {item.precoFixo?<div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                    <p className="text-sm font-semibold">Mesmo preço para Mini, Pequeno, Médio, Grande e Extra grande</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1"><Label htmlFor={id+'-unico'}>Preço único (R$)</Label><Input id={id+'-unico'} inputMode="decimal" value={r.precoUnico} onChange={e=>alterar(id,'precoUnico',e.target.value)} placeholder="A confirmar"/></div>
+                      <div className="space-y-1"><Label htmlFor={id+'-tempo-unico'}>Tempo padrão (min)</Label><Input id={id+'-tempo-unico'} type="number" min={5} max={720} value={r.tempoUnico} onChange={e=>alterar(id,'tempoUnico',e.target.value)} placeholder="A confirmar"/></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Não é necessário cadastrar as raças uma por uma. Tempos específicos por raça já cadastrados são preservados.</p>
+                    {item.gruposPorte.some(g=>g.precoCentavos!==null&&g.precoCentavos!==item.precoCentavos)&&<p className="text-xs text-amber-700">Existem preços antigos diferentes por porte. Confira o preço único antes de confirmar.</p>}
+                    <details className="text-xs"><summary className="cursor-pointer">Consultar grupos anteriores (somente leitura)</summary><ul className="mt-2 space-y-1">{item.gruposPorte.filter(g=>g.racas.length||g.precoCentavos!==null).map(g=><li key={g.porte}>{GRUPOS_PORTE.find(p=>p.chave===g.porte)?.nome}: {g.racas.join(', ')} · {g.precoCentavos===null?'sem preço':'R$ '+formatarPreco(g.precoCentavos)} · {g.duracaoMinutos??'—'} min</li>)}</ul></details>
+                  </div>:r.grupos.map(g => {
                     const nome = GRUPOS_PORTE.find(p => p.chave === g.porte)?.nome || g.porte
                     const prefixo = id + '-' + g.porte
-                    return <div key={g.porte} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                      <h4 className="text-sm font-semibold">Porte {nome}</h4>
-                      <div className="grid grid-cols-2 gap-2">
+                    return <details key={g.porte} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                      <summary className="cursor-pointer text-sm font-semibold">Porte {nome} · {g.racas.split(/\n/).filter(x=>x.trim()).length} raça(s)</summary>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label htmlFor={prefixo + '-preco'}>Preço (R$)</Label>
                           <Input id={prefixo + '-preco'} inputMode="decimal" value={g.preco} placeholder="A confirmar" onChange={e => alterarGrupo(id, g.porte, 'preco', e.target.value)} />
@@ -241,7 +261,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
                           <Textarea id={prefixo + '-racas'} rows={2} value={g.racas} placeholder="Informe as raças atendidas" onChange={e => alterarGrupo(id, g.porte, 'racas', e.target.value)} />
                         </div>
                       </div>
-                    </div>
+                    </details>
                   })}
                   {item.precosPorRaca.length > 0 && <details className="rounded-md border p-2 text-xs">
                     <summary className="cursor-pointer font-medium">Consultar preços por raça anteriores (somente leitura)</summary>
@@ -267,6 +287,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
                   {saving === id ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Save className="mr-1 size-4" />}
                   Salvar
                 </Button>
+              </div>
               </div>
             </div>
           )
