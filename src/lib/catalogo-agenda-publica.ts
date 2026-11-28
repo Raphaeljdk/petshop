@@ -1,17 +1,20 @@
 import { db } from '@/lib/db'
 import { catalogoPorRaca, slugServico, listarServicosParaConfiguracao } from '@/lib/catalogo-servicos-matilha'
 import { grupoParaRaca } from '@/lib/servicos-grupos-porte'
-import { diaSaoPaulo, lerServicosDia, profissionaisDisponiveis } from '@/lib/agenda-servicos-dia'
+import { diaSaoPaulo, profissionaisDisponiveis } from '@/lib/agenda-servicos-dia'
 
+import {diaDaSemana,resolverEscala,dentroDoExpediente} from '@/lib/agenda-escala-semanal'
 import { horariosDoDia } from '@/lib/agenda-horarios-portal'
 
 async function carregarDia(dia:string,todosServicos:ReturnType<typeof listarServicosParaConfiguracao>) {
-  const [escala,profissionais]=await Promise.all([
+  const [escala,profissionais,semanal]=await Promise.all([
     db.agendaServicoDia.findUnique({where:{dia}}),
     db.profissionalAgenda.findMany({where:{ativo:true},select:{id:true}}),
+    db.agendaEscalaSemanal.findUnique({where:{diaSemana:diaDaSemana(dia)},select:{diaSemana:true,inicio:true,fim:true,servicos:true,turnos:true}}),
   ])
-  if (!escala) return null
-  const escalaDia = lerServicosDia(escala.servicos)
+  const efetiva=resolverEscala(dia,escala,semanal)
+  if(!efetiva)return null
+  const escalaDia=efetiva.servicos
   const ids = [...new Set(escalaDia.flatMap(s => s.profissionais))]
   const inicioDia=new Date(dia+'T00:00:00-03:00')
   const fimMaximo=new Date(inicioDia.getTime()+86400000)
@@ -33,13 +36,13 @@ async function carregarDia(dia:string,todosServicos:ReturnType<typeof listarServ
     return [{profissionalId:a.profissionalId,inicio:a.dataHora,fim:new Date(a.dataHora.getTime()+minutos*60_000)}]
   })
   const ativos = new Set(profissionais.map(p => p.id))
-  return {escalaDia,ativos,intervalos:[...bloqueios,...ocupados]}
+  return {escalaDia,efetiva,ativos,intervalos:[...bloqueios,...ocupados]}
 }
 type ContextoDia=NonNullable<Awaited<ReturnType<typeof carregarDia>>>
 function servicoDisponivel(ctx:ContextoDia,dia:string,s:{chave:string;duracaoMinutos:number},inicio:Date) {
   const item=ctx.escalaDia.find(e=>e.chave===s.chave)
   const fim=new Date(inicio.getTime()+s.duracaoMinutos*60000)
-  return Boolean(item&&diaSaoPaulo(inicio)===dia&&diaSaoPaulo(new Date(fim.getTime()-1))===dia&&profissionaisDisponiveis(item.profissionais,ctx.ativos,ctx.intervalos,inicio,fim).length)
+  return Boolean(item&&diaSaoPaulo(inicio)===dia&&diaSaoPaulo(new Date(fim.getTime()-1))===dia&&profissionaisDisponiveis(item.profissionais,ctx.ativos,ctx.intervalos,inicio,fim).some(id=>dentroDoExpediente(dia,inicio,fim,id,ctx.efetiva)))
 }
 
 export async function consultarCatalogoPublico(raca: string | null, desiredAt?: Date) {
