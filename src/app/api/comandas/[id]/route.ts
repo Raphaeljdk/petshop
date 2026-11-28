@@ -49,7 +49,7 @@ export async function GET(_req:NextRequest,{params}:Route) {
    db.venda.findMany({where:{comandaProcessoId:id,comandaExtra:null,comandaExtrasGrupo:{none:{}},comandaPrincipal:null,bookingPagamento:null},select:{id:true,total:true,status:true,mercadoPagoStatus:true,mercadoPagoId:true,mercadoPagoPaymentUrl:true,statusEntrega:true,itens:{select:{quantidade:true,precoUnit:true,produto:{select:{nome:true}}}}},orderBy:{createdAt:'asc'}}),
    permiteSolicitar(ctx.processo)?consultarCatalogoPublico(ctx.processo.pet.raca,new Date()):Promise.resolve({servicos:[]}),
    ctx.staff&&!ctx.processo.bookingRequestId&&permiteSolicitar(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true,gravataIdeia:true,pagamentoVenda:{select:{status:true,mercadoPagoStatus:true}}},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
-   ctx.processo.bookingRequestId?db.bookingRequest.findUnique({where:{id:ctx.processo.bookingRequestId},select:{servicoPrecoCentavos:true,gravataPrecoCentavos:true,pagamentoVenda:{select:vendaSelect}}}):Promise.resolve(null),
+   ctx.processo.bookingRequestId?db.bookingRequest.findUnique({where:{id:ctx.processo.bookingRequestId},select:{servicoPrecoCentavos:true,gravataPrecoCentavos:true,gravataNome:true,gravataFoto:true,gravataIdeia:true,pagamentoVenda:{select:vendaSelect}}}):Promise.resolve(null),
    ctx.processo.comandaPrincipalVendaId?db.venda.findUnique({where:{id:ctx.processo.comandaPrincipalVendaId},select:vendaSelect}):Promise.resolve(null),
   ])
   const principalVenda=principal?.pagamentoVenda??avulsa
@@ -57,7 +57,7 @@ export async function GET(_req:NextRequest,{params}:Route) {
   const principalPago=principalCentavos===0||pagamentoRealAprovado(principalVenda,principalCentavos)
   const pendencias=pendenciasFechamento({principalPago,checkoutConcluido:ctx.processo.status==='finalizado'||!!ctx.processo.ficha?.checkoutFinalizadoAt,extras,produtos:vendas})
   const publicSale=(v:typeof principalVenda)=>v?{id:v.id,total:v.total,status:v.status,mercadoPagoStatus:v.mercadoPagoStatus,mercadoPagoPaymentUrl:v.mercadoPagoPaymentUrl}:null
-  return json({fechadaEm:ctx.processo.comandaFechadaEm,pendencias,principalVenda:publicSale(principalVenda),processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},principalPago,aberto:aberto(ctx.processo),permiteSolicitar:permiteSolicitar(ctx.processo),extras:extras.map(({grupoVenda,venda,...x})=>({...x,venda:publicSale(grupoVenda??venda),liberado:adicionalLiberado({...x,grupoVenda,venda}),pago:adicionalPago({...x,grupoVenda,venda}),pendenteFinanceiro:adicionalFinanceiramentePendente({...x,grupoVenda,venda})})),vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
+  return json({gravata:principal?.gravataPrecoCentavos?{nome:principal.gravataNome,foto:principal.gravataFoto,ideia:principal.gravataIdeia,pago:principalPago,precoCentavos:principal.gravataPrecoCentavos}:null,fechadaEm:ctx.processo.comandaFechadaEm,pendencias,principalVenda:publicSale(principalVenda),processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},principalPago,aberto:aberto(ctx.processo),permiteSolicitar:permiteSolicitar(ctx.processo),extras:extras.map(({grupoVenda,venda,...x})=>({...x,venda:publicSale(grupoVenda??venda),liberado:adicionalLiberado({...x,grupoVenda,venda}),pago:adicionalPago({...x,grupoVenda,venda}),pendenteFinanceiro:adicionalFinanceiramentePendente({...x,grupoVenda,venda})})),vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
  }catch(e){return experienceError(e)}
 }
 export async function POST(req:NextRequest,{params}:Route) {
@@ -90,7 +90,22 @@ export async function POST(req:NextRequest,{params}:Route) {
     return {ok:true}
    }
    if(input.action==='cobrar-principal'){
-    if(!ctx.staff||p.status==='cancelado'||p.bookingRequestId)return {error:'Use o pagamento do agendamento vinculado, quando houver.',status:409}
+    if(!ctx.staff||p.status==='cancelado')return {error:'Apenas a equipe pode cobrar uma comanda válida.',status:409}
+    if(p.bookingRequest){
+     const b=p.bookingRequest
+     if(b.status!=='confirmado')return {error:'Agendamento não confirmado.',status:409}
+     if(b.pagamentoVenda){
+      if(b.pagamentoVenda.status==='cancelada')return {error:'Cobrança cancelada. Concilie antes de emitir outra.',status:409}
+      if(b.pagamentoVenda.comandaProcessoId&&b.pagamentoVenda.comandaProcessoId!==id)return {error:'Pagamento vinculado a outro atendimento.',status:409}
+      const venda=await tx.venda.update({where:{id:b.pagamentoVenda.id},data:{comandaProcessoId:id},select:vendaSelect})
+      return {venda}
+     }
+     const centavos=b.servicoPrecoCentavos==null?Math.round(p.valorServico*100):b.servicoPrecoCentavos
+     if(!Number.isSafeInteger(centavos)||centavos<=0)return {error:'Preço principal inválido.',status:409}
+     const venda=await tx.venda.create({data:{clienteId:p.pet.clienteId,comandaProcessoId:id,canal:'site',status:'pendente',total:(centavos+b.gravataPrecoCentavos)/100,subtotalProdutos:0,observacoes:'Agendamento e personalização, quando incluída (NFS-e separada)',tipoEntrega:'retirada',valorFrete:0},select:vendaSelect})
+     await tx.bookingRequest.update({where:{id:b.id},data:{pagamentoVendaId:venda.id,servicoPrecoCentavos:centavos,pagamentoOnlineObrigatorio:true}})
+     return {venda}
+    }
     if(p.comandaPrincipalVenda)return {venda:p.comandaPrincipalVenda}
     const reservas=await tx.bookingRequest.findMany({where:{clienteId:p.pet.clienteId,petKey:p.petId,status:'confirmado',processo:null,pagamentoVendaId:{not:null}},select:{service:true}})
     if(reservas.some(b=>slugServico(b.service)===slugServico(p.servico)))return {error:'Existe agendamento com cobrança registrada. Vincule e concilie antes de gerar outra.',status:409}
