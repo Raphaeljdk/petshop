@@ -5,6 +5,12 @@ const venda={id:'v1',clienteId:'c1',status:'concluida',mercadoPagoStatus:'approv
 const order={orderId:'ORD-123',status:'processed',statusDetail:'accredited',raw:{external_reference:'v1',total_amount:'155.00'}}
 describe('personalização somente após pagamento integral',()=>{
  test('libera a foto e ideia quando a venda pertence ao tutor e está paga',()=>expect(gravataPaga(booking,venda)).toBe(true))
+ test('aceita nome sem foto ou nome junto da foto com o mesmo valor',()=>{
+  expect(gravataPaga({...booking,gravataFoto:null,gravataNome:'Gyda'},venda)).toBe(true)
+  expect(gravataPaga({...booking,gravataNome:'Gyda'},venda)).toBe(true)
+  expect(gravataPaga({...booking,gravataFoto:null,gravataNome:'   '},venda)).toBe(false)
+  expect(gravataPaga({...booking,gravataFoto:null,gravataNome:'Gyda'},{...venda,total:150})).toBe(false)
+ })
  test('bloqueia pendência, autorização sem captura, simulação e pagamento parcial',()=>{
   for(const patch of [{status:'pendente'},{mercadoPagoStatus:'authorized'},{mercadoPagoId:'SIM-123'},{total:5},{total:150},{clienteId:'c2'},{id:'v2'}])expect(gravataPaga(booking,{...venda,...patch})).toBe(false)
  })

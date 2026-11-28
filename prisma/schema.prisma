@@ -448,6 +448,7 @@ model ProductReview {
 model BookingRequest {
   id String @id @default(cuid())
   gravataFoto String? @db.Text
+  gravataNome String? @db.VarChar(80)
   gravataIdeia String? @db.VarChar(400)
   gravataPrecoCentavos Int @default(0)
   servicoPrecoCentavos Int?

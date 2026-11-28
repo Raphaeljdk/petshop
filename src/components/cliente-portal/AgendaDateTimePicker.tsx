@@ -73,7 +73,7 @@ export function AgendaDateTimePicker({petKey,servicoChave,value,onChange,disable
   {!habilitado&&<p className="text-xs text-muted-foreground">Selecione o pet e o serviço primeiro.</p>}
   {carregando&&<p role="status" className="text-xs text-muted-foreground">Consultando a agenda da equipe...</p>}
   {erro&&<div className="flex items-center gap-2 text-xs text-destructive">{erro}<Button type="button" size="sm" variant="ghost" onClick={()=>{setErro('');setResultado(null);setTentativa(t=>t+1)}}>Tentar novamente</Button></div>}
-  {dia&&atual&&!slots.length&&<p className="text-xs text-amber-700">{atual.motivo==='dia-sem-escala'?'Não há expediente ou escala disponível para esta data.':'Não há horários para solicitar neste dia.'} Escolha outra data ou consulte a equipe.</p>}
+  {dia&&atual&&!slots.length&&<p className="text-xs text-amber-700">{atual.motivo==='dia-sem-escala'?'O pet shop não tem expediente disponível nesta data.':atual.motivo==='sem-profissional-servico'?'Nenhum profissional está escalado para este serviço neste dia.':'Os horários deste dia estão ocupados ou não comportam a duração do serviço.'} Escolha outra data ou consulte a equipe.</p>}
   {dia&&slots.length>0&&<p className="text-xs text-muted-foreground">Horários de 10 em 10 minutos. A equipe confirma a reserva.</p>}
  </div>
 }

@@ -21,6 +21,7 @@ export async function PUT(req:NextRequest){
   const parsed=escalaSemanalSchema.safeParse(await req.json())
   if(!parsed.success)return json({error:parsed.error.issues[0]?.message||'Escala inválida.'},400)
   const dias=parsed.data
+  if(dias.some(d=>!d.turnos.length||!d.servicos.length))return json({error:'Cada dia aberto precisa de pelo menos um funcionário com turno e um serviço habilitado. Desmarque dias fechados.'},400)
   const [configs,equipe]=await Promise.all([db.servicoEsteticoConfig.findMany(),db.profissionalAgenda.findMany({where:{ativo:true},select:{id:true}})])
   const ids=new Set(equipe.map(p=>p.id)),chaves=new Set(listarServicosParaConfiguracao(configs).map(s=>s.chave))
   if(dias.some(d=>d.turnos.some(t=>!ids.has(t.profissionalId))||d.servicos.some(s=>!chaves.has(s.chave)||s.profissionais.some(id=>!ids.has(id)))))return json({error:'Selecione serviços cadastrados e profissionais ativos.'},409)

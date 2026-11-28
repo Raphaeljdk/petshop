@@ -19,7 +19,7 @@ export async function POST(req:NextRequest){
   const result=await db.$transaction(async tx=>{
    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'booking-payment:'+id}))`
    const b=await tx.bookingRequest.findFirst({where:{id,clienteId,status:'confirmado'},include:{pagamentoVenda:true,processo:{select:{id:true}}}})
-   if(!b||(!b.pagamentoOnlineObrigatorio&&(!b.gravataFoto||b.gravataPrecoCentavos!==500))||b.servicoPrecoCentavos==null||b.servicoPrecoCentavos<=0)return {error:'Agendamento sem preço confirmado ou sem pagamento online habilitado.',status:409}
+   if(!b||(!b.pagamentoOnlineObrigatorio&&((!b.gravataFoto&&!b.gravataNome)||b.gravataPrecoCentavos!==500))||b.servicoPrecoCentavos==null||b.servicoPrecoCentavos<=0)return {error:'Agendamento sem preço confirmado ou sem pagamento online habilitado.',status:409}
    if(b.pagamentoVenda){
     if(b.pagamentoVenda.status==='cancelada')return {error:'Pagamento cancelado. Solicite conciliação à equipe antes de tentar novamente.',status:409}
     return {id:b.pagamentoVenda.id,total:b.pagamentoVenda.total,status:b.pagamentoVenda.status}
