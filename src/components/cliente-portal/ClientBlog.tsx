@@ -13,9 +13,9 @@ type Article = {
   imageUrl:string|null; productId:string|null; createdAt:string; isPetStory?:boolean
 }
 type BlogData = { articles:Article[]; favorites:string[] }
-type Props = { compact?:boolean; onOpenBlog?:()=>void; onShop?:()=>void }
+type Props = { publicView?:boolean; onProduct?:(id:string)=>void; onBook?:()=>void; compact?:boolean; onOpenBlog?:()=>void; onShop?:()=>void }
 
-export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
+export function ClientBlog({ compact=false, onOpenBlog, onShop, publicView=false, onProduct, onBook }: Props) {
   const [articles,setArticles] = useState<Article[]>([])
   const [favorites,setFavorites] = useState<string[]>([])
   const [loading,setLoading] = useState(true)
@@ -27,7 +27,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
   const [retry,setRetry] = useState(0)
   useEffect(() => {
     let live = true
-    portalRequest<BlogData>('/api/cliente/portal').then((res) => {
+    portalRequest<BlogData>(publicView ? '/api/public/blog' : '/api/cliente/portal').then((res) => {
       if (!live) return
       setArticles(res.articles || [])
       setFavorites(res.favorites || [])
@@ -35,7 +35,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
     }).catch((e) => { if (live) setError((e as Error).message) })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  },[retry])
+  },[retry,publicView])
   const categories = useMemo(() => ['Todas', ...new Set(articles.map((x) => x.category))],[articles])
   const filtered = useMemo(() => articles.filter((p) =>
     (category === 'Todas' || p.category === category) &&
@@ -79,16 +79,16 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
         {selected.imageUrl && <img src={selected.imageUrl} alt="" className="h-44 w-full object-cover sm:h-64" loading="lazy"/>}
         <div className="space-y-4 p-5 sm:p-8">
           <p className="text-xs font-semibold uppercase text-primary">{selected.category} · {new Date(selected.createdAt).toLocaleDateString('pt-BR')}</p>
-          <h1 className="text-2xl font-bold sm:text-3xl">{selected.title}</h1>
+          <h2 className="text-2xl font-bold sm:text-3xl">{selected.title}</h2>
           <p className="text-sm font-medium text-muted-foreground">{selected.summary}</p>
           <div className="space-y-4 text-sm leading-7">{selected.body.split(/\n{2,}/).filter(Boolean).map((p,i) =>
             <p key={i} className="whitespace-pre-line">{p}</p>)}</div>
           <div className="flex flex-wrap gap-2 border-t pt-4">
-            {!selected.isPetStory&&<Button size="sm" variant="outline" disabled={busy} onClick={() => toggle(selected.id)}>
+            {!publicView&&!selected.isPetStory&&<Button size="sm" variant="outline" disabled={busy} onClick={() => toggle(selected.id)}>
               <Heart className={'mr-2 size-4 '+(favorites.includes(selected.id)?'fill-red-500 text-red-500':'')}/>
               {favorites.includes(selected.id)?'Salvo':'Salvar artigo'}
             </Button>}
-            {selected.productId && <Button size="sm" variant="outline" onClick={onShop}><ShoppingBag className="mr-2 size-4"/>Ver produtos na loja</Button>}
+            {selected.productId && <Button size="sm" variant="outline" onClick={()=>onProduct && selected.productId ? onProduct(selected.productId) : onShop?.()}><ShoppingBag className="mr-2 size-4"/>Ver produtos na loja</Button>}
             <Button size="sm" variant="outline" onClick={() => {
               if (navigator.share) void navigator.share({ title:selected.title, text:selected.summary }).catch(()=>{})
               else { void navigator.clipboard?.writeText(selected.title+' — '+selected.summary).then(()=>toast.success('Resumo copiado.')).catch(()=>toast.error('Não foi possível copiar.')) }
@@ -98,15 +98,16 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
       </article>
     </> : <>
       <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Blog para tutores</p>
-        <h1 className="text-2xl font-bold">Dicas & Conteúdos</h1>
+        <h2 className="text-2xl font-bold">Dicas da Matilha</h2>
         <p className="text-sm text-muted-foreground">Cuidados, brincadeiras e novidades selecionados pela Matilha Prado.</p></div>
       <label className="relative block">
         <Search className="absolute left-3 top-3 size-4 text-muted-foreground"/>
-        <Input className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar artigos..."/>
+        <Input className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar artigos do blog" placeholder="Buscar artigos..."/>
       </label>
       <div className="flex flex-wrap gap-2">
         {categories.map((c) => <Button key={c} size="sm" variant={category===c?'default':'outline'} onClick={() => setCategory(c)}>{c}</Button>)}
       </div>
+      {publicView && <details className="mp-faq"><summary>O primeiro banho do pet</summary><p>Na primeira visita, conte à equipe sobre a rotina do seu pet e como ele reage à água e ao secador. No check-in, vocês podem combinar os cuidados e registrar as preferências do atendimento.</p><button type="button" className="mp-text-link" onClick={onBook}>Consultar o primeiro banho</button></details>}
       {loading && <p role="status" className="text-sm text-muted-foreground">Carregando artigos...</p>}
       {error && <Card><CardContent className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
         <p>{error}</p><Button variant="outline" size="sm" onClick={() => {setLoading(true);setRetry(x=>x+1)}}><RefreshCw className="mr-1 size-4"/>Tentar novamente</Button>
@@ -122,7 +123,7 @@ export function ClientBlog({ compact=false, onOpenBlog, onShop }: Props) {
             <p className="line-clamp-3 text-sm text-muted-foreground">{p.summary}</p>
             <div className="flex justify-between gap-2">
               <Button size="sm" onClick={()=>setSelected(p)}>Ler artigo</Button>
-              {!p.isPetStory&&<Button size="icon" variant="outline" disabled={busy} aria-label="Salvar artigo" onClick={()=>toggle(p.id)}>
+              {!publicView&&!p.isPetStory&&<Button size="icon" variant="outline" disabled={busy} aria-label="Salvar artigo" onClick={()=>toggle(p.id)}>
                 <Heart className={'size-4 '+(favorites.includes(p.id)?'fill-red-500 text-red-500':'')}/>
               </Button>}
             </div>

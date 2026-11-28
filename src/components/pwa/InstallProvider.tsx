@@ -87,7 +87,7 @@ function InstallationSteps({ platform }: { platform: Platform }) {
 }
 
 export function InstallProvider({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth()
+  const { loading, sessao } = useAuth()
   const pathname = usePathname()
   const [ready, setReady] = useState(false)
   const [installed, setInstalled] = useState(false)
@@ -149,7 +149,7 @@ export function InstallProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (!ready || loading || installed || pathname !== '/' || shownThisVisit.current || wasDismissedRecently()) return
+    if (!ready || loading || !sessao.autenticado || installed || pathname !== '/' || shownThisVisit.current || wasDismissedRecently()) return
     // Never interrupt a login form, an open menu or an inactive browser tab.
     const timer = window.setTimeout(() => {
       if (shownThisVisit.current || isStandalone() || wasDismissedRecently() || document.visibilityState !== 'visible') return
@@ -158,7 +158,7 @@ export function InstallProvider({ children }: { children: React.ReactNode }) {
       openInstall()
     }, 3500)
     return () => window.clearTimeout(timer)
-  }, [ready, loading, installed, pathname, openInstall])
+  }, [ready, loading, sessao.autenticado, installed, pathname, openInstall])
 
   const dismiss = () => {
     rememberDismissal()

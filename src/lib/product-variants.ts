@@ -224,11 +224,14 @@ function priority<T extends CatalogVariantProduct>(a: T, b: T) {
   return (b.precoPromo ?? b.preco) - (a.precoPromo ?? a.preco)
 }
 
+export function catalogGroupKey(item: { nome:string; id:string }) {
+  return key(catalogVariantDetails(item.nome).title) || item.id
+}
+
 export function groupCatalogProducts<T extends CatalogVariantProduct>(products: T[]): CatalogGroup<T>[] {
   const grouped = new Map<string, T[]>()
   for (const item of products) {
-    const title = catalogVariantDetails(item.nome).title
-    const groupKey = key(title) || item.id
+    const groupKey = catalogGroupKey(item)
     const rows = grouped.get(groupKey) || []
     rows.push(item)
     grouped.set(groupKey, rows)

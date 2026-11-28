@@ -59,7 +59,7 @@ export default function PrivacyPage() {
         </section>
         <section id="cookies" aria-labelledby="cookies-titulo"><h2 id="cookies-titulo">3. Cookies e preferências do navegador</h2>
           <p>Um cookie de autenticação mantém o acesso à sua conta. Sem a opção “Manter conectado”, a autenticação tem validade de até 12 horas; ao marcar essa opção, pode chegar a 7 dias. Use-a apenas em um dispositivo de confiança. O botão “Sair” encerra a sessão neste navegador.</p>
-          <p className="mt-3">O navegador também pode guardar preferências de aparência e a decisão de dispensar o convite para instalar o site como aplicativo. Você pode apagar esses dados nas configurações do navegador; isso pode encerrar seu acesso ou redefinir preferências. Este aviso não solicita autorização para cookies de publicidade.</p>
+          <p className="mt-3">O navegador também pode guardar preferências de aparência e a decisão de dispensar o convite para instalar o site como aplicativo. Você pode apagar esses dados nas configurações do navegador; isso pode encerrar seu acesso ou redefinir preferências. A vitrine guarda as buscas recentes neste navegador. Medição de uso e de campanhas são opcionais e vêm desativadas. Você pode escolher ou revogar cada finalidade em Preferências de privacidade, no rodapé da loja.</p>
         </section>
         <section id="protecao" aria-labelledby="protecao-titulo"><h2 id="protecao-titulo">4. Proteção e conservação</h2>
           <p>As senhas são armazenadas em formato de hash, e o acesso às áreas da conta depende de autenticação. Não compartilhe sua senha: a equipe não precisa dela para atender uma solicitação sobre seus dados.</p>
