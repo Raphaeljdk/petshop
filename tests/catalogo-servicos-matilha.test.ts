@@ -6,6 +6,7 @@ import {
   slugServico,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
+  catalogoPorRaca, REGRA_PRECO_FIXO,
 } from '../src/lib/catalogo-servicos-matilha'
 
 describe('Catálogo estético sem valores fictícios', () => {
@@ -131,5 +132,25 @@ describe('Catálogo estético sem valores fictícios', () => {
     expect(precosPorRacaSchema.safeParse([{ raca: '', precoCentavos: 10000 }]).success).toBe(false)
     expect(precosPorRacaSchema.safeParse([{ raca: 'Poodle', precoCentavos: 100.5 }]).success).toBe(false)
     expect(lerPrecosPorRaca(null)).toEqual([])
+  })
+})
+
+describe('Catálogo público por raça e preço único',()=>{
+  const banho={chave:'banho',precoCentavos:15000,duracaoMinutos:120,regrasPreco:REGRA_PRECO_FIXO,observacoes:null,confirmado:true,updatedAt:null}
+  test('preço igual em diferentes raças e sem necessidade de grupo',()=>{
+    for(const raca of ['Husky Siberiano','Pit Bull Terrier','Chihuahua']){
+      expect(catalogoPorRaca([banho],raca).opcoes.find(s=>s.chave==='banho')).toMatchObject({precoCentavos:15000,duracaoMinutos:120})
+    }
+  })
+  test('não oferece preço não confirmado nem pet sem raça',()=>{
+    expect(catalogoPorRaca([{...banho,confirmado:false}],'Husky Siberiano').opcoes).toHaveLength(0)
+    expect(catalogoPorRaca([{...banho,regrasPreco:null}],'Husky Siberiano').opcoes).toHaveLength(0)
+    expect(catalogoPorRaca([banho],null).opcoes).toHaveLength(0)
+    expect(catalogoPorRaca([{...banho,confirmado:false}],'Husky Siberiano').pendentes.some(s=>s.chave==='banho')).toBe(true)
+  })
+  test('serviço por porte continua restrito à raça e preserva o preço por raça anterior confirmado',()=>{
+    const item={...banho,chave:'banho-e-tosa',regrasPreco:null,precosPorRaca:[{raca:'Husky Siberiano',precoCentavos:45000}]}
+    expect(catalogoPorRaca([item],' HUSKY siberiano ').opcoes.find(s=>s.chave===item.chave)?.precoCentavos).toBe(45000)
+    expect(catalogoPorRaca([item],'Poodle').opcoes).toHaveLength(0)
   })
 })
