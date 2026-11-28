@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { portalRequest } from './ExperienceProvider'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import { toast } from 'sonner'
+import { AgendaDateTimePicker } from './AgendaDateTimePicker'
+import { horarioSolicitavel } from '@/lib/agenda-horarios-portal'
 import { PagamentoCheckout } from './PagamentoCheckout'
 
 export type Booking = {
@@ -111,7 +113,7 @@ export function BookingRequests() {
     setErroCatalogo(''); setHorarioConsultado('')
     if (!petKey) { setCatalogo(null);setConsultando(false); return }
     const quando=desired?new Date(desired+':00-03:00'):null
-    const valido=Boolean(quando&&Number.isFinite(quando.getTime())&&quando.getTime()>Date.now()&&quando.getTime()<=Date.now()+180*86400000)
+    const valido=Boolean(quando&&horarioSolicitavel(quando))
     if(desired&&!valido)setErroCatalogo('Escolha uma data futura nos próximos seis meses.')
     setConsultando(true)
     portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos?petKey='+encodeURIComponent(petKey)+(valido&&quando?'&quando='+encodeURIComponent(quando.toISOString()):''))
@@ -211,7 +213,7 @@ export function BookingRequests() {
               required
               className="mt-1 h-11 w-full rounded-md border bg-background px-3"
               value={petKey}
-              onChange={(e) => { setPetKey(e.target.value); setCatalogo(null); setService('');setHorarioConsultado('');setPersonalizar(false);setGravataFoto(null);setGravataIdeia('') }}
+              onChange={(e) => { setDesired('');setPetKey(e.target.value); setCatalogo(null); setService('');setHorarioConsultado('');setPersonalizar(false);setGravataFoto(null);setGravataIdeia('') }}
             >
               <option value="">Selecione seu pet</option>
               {pets.map((p) => (
@@ -229,7 +231,7 @@ export function BookingRequests() {
                 required
                 className="mt-1 h-11 w-full rounded-md border bg-background px-3"
                 value={serviceId}
-                onChange={(e) => setServiceId(e.target.value)}
+                onChange={(e) => {setDesired('');setServiceId(e.target.value)}}
               >
                 <option value="">Selecione o serviço</option>
                 {direct.services.map((item) => (
@@ -237,7 +239,7 @@ export function BookingRequests() {
                 ))}
               </select>
             ) : (
-              <select id="request-service" required disabled={!petKey || (!disponiveis.length && !catalogo?.pendentes?.length)} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
+              <select id="request-service" required disabled={!petKey || (!disponiveis.length && !catalogo?.pendentes?.length)} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => {setDesired('');setHorarioConsultado('');setService(e.target.value)}}>
                 <option value="">{consultando ? 'Consultando...' : 'Selecione o serviço'}</option>
                 {disponiveis.map(s => <option value={s.nome} key={s.chave}>{s.nome} · {preco(s.precoCentavos)} · {s.duracaoMinutos} min</option>)}
                 {catalogo?.pendentes?.map(s=><option key={'pendente-'+s.chave} value={'pendente-'+s.chave} disabled>{s.nome} · Sob consulta</option>)}
@@ -257,7 +259,7 @@ export function BookingRequests() {
                 {sugestoesRecentes.length > 0 && <div className="mt-2 space-y-1">
                   <p className="text-xs font-medium">Últimos serviços concluídos deste pet</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {sugestoesRecentes.map(nome => <Button key={nome} type="button" size="sm" variant="outline" disabled={busy || !disponiveis.some(s => s.nome === nome)} onClick={() => setService(nome)}>{nome}</Button>)}
+                    {sugestoesRecentes.map(nome => <Button key={nome} type="button" size="sm" variant="outline" disabled={busy || !disponiveis.some(s => s.nome === nome)} onClick={() => {setDesired('');setHorarioConsultado('');setService(nome)}}>{nome}</Button>)}
                   </div>
                 </div>}
               </>
@@ -265,16 +267,7 @@ export function BookingRequests() {
           </div>
 
           <div>
-            <label htmlFor="request-date" className="text-sm font-medium">
-              Data e horário desejados (Brasília)
-            </label>
-            <Input
-              id="request-date"
-              type="datetime-local"
-              required
-              value={desired}
-              onChange={(e) => { setDesired(e.target.value); setHorarioConsultado('') }}
-            />
+            <AgendaDateTimePicker key={petKey+'|'+(directMode?serviceId:service)} petKey={petKey} servicoChave={directMode?serviceId:selecionado?.chave||''} direct={directMode} value={desired} disabled={busy} onChange={v=>{setDesired(v);setHorarioConsultado('')}}/>
           </div>
 
           <div>
@@ -300,7 +293,7 @@ export function BookingRequests() {
             disabled={
               busy || fotoBusy || (banho && personalizar && !gravataFoto) ||
               !pets.length ||
-              (directMode ? (!serviceId || !petKey.startsWith('zetta:')) : (consultando || !selecionado || !horarioDisponivel))
+              (directMode ? (!desired || !serviceId || !petKey.startsWith('zetta:')) : (consultando || !selecionado || !horarioDisponivel))
             }
           >
             {busy
