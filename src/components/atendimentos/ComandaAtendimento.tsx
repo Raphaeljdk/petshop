@@ -16,6 +16,7 @@ const brl=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}
 const statusLabel:Record<string,string>={aguardando_tutor:'Aguardando tutor',aguardando_equipe:'Aguardando equipe',autorizado:'Autorizado',recusado:'Recusado',realizado:'Realizado',concluida:'Pagamento registrado',pendente:'Aguardando pagamento',cancelada:'Cancelada'}
 const label=(s:string)=>statusLabel[s]||s
 export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;equipe?:boolean}){
+ const [pix,setPix]=useState<{vendaId:string;link?:string;codigo?:string}|null>(null)
  const [grupo,setGrupo]=useState<string[]>([])
  const [data,setData]=useState<Data|null>(null)
  const [error,setError]=useState('')
@@ -49,6 +50,19 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
    compraKey.current=null;setProduto('');setQuantidade(1);if(venda.status==='pendente'&&!equipe)setPagamento(venda);await load()
    toast.success(equipe?'Produto incluído. O tutor pode pagar no portal.':'Compra registrada na comanda. Confirme o pagamento.')
   }catch(e){toast.error(e instanceof Error?e.message:'Compra não concluída.');await load()}
+  finally{setBusy(false)}
+ }
+ async function gerarPix(v:Sale){
+  if(busy||!window.confirm('Gerar uma cobrança PIX de '+brl(v.total)+' para este tutor?'))return
+  setBusy(true)
+  try{
+   const r=await portalRequest<{initPoint?:string;pixCopiaECola?:string;simulado?:boolean}>('/api/pagamento/criar',{method:'POST',body:JSON.stringify({vendaId:v.id,metodo:'pix'})})
+   if(r.simulado)throw Error('PIX simulado não é aceito.')
+   const link=r.initPoint&&new URL(r.initPoint).protocol==='https:'?r.initPoint:undefined
+   setPix({vendaId:v.id,link,codigo:r.pixCopiaECola})
+   await load()
+   toast.success('PIX gerado. Aguarde a aprovação do Mercado Pago.')
+  }catch(e){toast.error(e instanceof Error?e.message:'Não foi possível gerar o PIX.');await load()}
   finally{setBusy(false)}
  }
  const selecionado=produtos.find(p=>p.id===produto)
@@ -94,6 +108,8 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
   {!data.vendas.length&&<p className="text-xs text-muted-foreground">Nenhum produto comprado nesta visita.</p>}
   {data.vendas.map(v=><div key={v.id} className="rounded-lg border p-3 text-sm space-y-1"><div className="flex justify-between"><b>{brl(v.total)}</b><Badge variant="outline">{label(v.status)}</Badge></div>{v.itens?.map((i,j)=><p key={j} className="text-xs">{i.quantidade}× {i.produto.nome}</p>)}{v.status==='concluida'&&<p className="text-xs text-green-700"><CheckCircle2 className="inline size-3"/> Separar e entregar junto ao pet.</p>}{!equipe&&v.status==='pendente'&&<Button size="sm" variant="outline" onClick={()=>setPagamento(v)}>Continuar pagamento</Button>}</div>)}
   {data.aberto&&<div className="rounded-lg border p-3 space-y-2"><Input placeholder="Buscar produtos disponíveis" value={busca} onChange={e=>setBusca(e.target.value)}/><select aria-label="Produto da loja" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={produto} disabled={busy} onChange={e=>{setProduto(e.target.value);compraKey.current=null}}><option value="">Selecione o produto</option>{produtos.filter(p=>!busca||p.nome.toLowerCase().includes(busca.toLowerCase())||p.id===produto).slice(0,100).map(p=><option key={p.id} value={p.id}>{p.nome} · {brl(p.precoPromo??p.preco)}</option>)}</select><Input aria-label="Quantidade" type="number" min={1} max={selecionado?.estoque||1} value={quantidade} disabled={busy} onChange={e=>{setQuantidade(Number(e.target.value));compraKey.current=null}}/>{selecionado&&<p className="text-sm font-semibold">Total estimado: {brl((selecionado.precoPromo??selecionado.preco)*quantidade)}</p>}<Button size="sm" disabled={busy||!selecionado||quantidade<1||quantidade>selecionado.estoque||!Number.isInteger(quantidade)} onClick={()=>void comprar()}>{equipe?'Adicionar à comanda':'Comprar e pagar no site'}</Button></div>}
+  {equipe&&!data.fechadaEm&&[data.principalVenda,...data.extras.map(x=>x.venda),...data.vendas].filter((v):v is Sale=>!!v&&v.status==='pendente'&&!v.mercadoPagoPaymentUrl).filter((v,i,a)=>a.findIndex(x=>x.id===v.id)===i).map(v=><Button key={'pix-'+v.id} disabled={busy} size="sm" variant="outline" onClick={()=>void gerarPix(v)}>Gerar PIX · {brl(v.total)}</Button>)}
+  {equipe&&pix&&<div className="rounded-lg border p-3 space-y-2 text-sm"><p>PIX aguardando confirmação. Compartilhe com o tutor.</p>{pix.link&&<Button size="sm" variant="outline" onClick={async()=>{try{await navigator.clipboard.writeText(pix.link!);toast.success('Link copiado.')}catch{toast.error('Não foi possível copiar.')}}}>Copiar link PIX</Button>}{pix.codigo&&<Button size="sm" variant="outline" onClick={async()=>{try{await navigator.clipboard.writeText(pix.codigo!);toast.success('Código PIX copiado.')}catch{toast.error('Não foi possível copiar.')}}}>Copiar PIX copia e cola</Button>}</div>}
   {equipe&&[data.principalVenda,...data.extras.map(x=>x.venda),...data.vendas].filter((v):v is Sale=>!!v&&v.status==='pendente'&&!!v.mercadoPagoPaymentUrl).filter((v,i,a)=>a.findIndex(x=>x.id===v.id)===i).map(v=><Button key={v.id} size="sm" variant="outline" onClick={async()=>{try{const u=new URL(v.mercadoPagoPaymentUrl!);if(u.protocol!=='https:')throw Error();await navigator.clipboard.writeText(u.href);toast.success('Link de pagamento copiado.')}catch{toast.error('Link indisponível.')}}}>Copiar link do pagamento · {brl(v.total)}</Button>)}
   {pagamento&&!equipe&&<PagamentoCheckout key={pagamento.id} vendaId={pagamento.id} total={pagamento.total} onAprovado={()=>{setPagamento(null);void load()}} onCancelar={()=>{setPagamento(null);void load()}}/>}
  </section>
