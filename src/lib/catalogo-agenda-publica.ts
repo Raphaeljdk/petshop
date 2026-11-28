@@ -69,6 +69,8 @@ export async function consultarHorariosPublicos(raca:string|null,dia:string,chav
   if(!horarios.length)return {horarios:[],motivo:'dia-fora-do-limite'}
   const ctx=await carregarDia(dia,todos)
   if(!ctx)return {horarios:[],motivo:'dia-sem-escala'}
+  const equipe=ctx.escalaDia.find(s=>s.chave===chave)?.profissionais.filter(id=>ctx.ativos.has(id))??[]
+  if(!equipe.length)return {horarios:[],motivo:'sem-profissional-servico'}
   const disponiveis=horarios.filter(h=>servicoDisponivel(ctx,dia,servico,new Date(dia+'T'+h+':00-03:00')))
   return {horarios:disponiveis,motivo:disponiveis.length?null:'sem-horarios'}
 }
