@@ -42,6 +42,7 @@ try {
       : path === '/api/auth/me' ? (signedIn ? { autenticado: true, user: { ...customer, role: 'CLIENTE', clienteId: customer.id }, cliente: customer } : { autenticado: false })
       : path === '/api/cliente/dashboard' ? currentDashboard
         : path === '/api/cliente/fidelidade' ? { config: null, earned: 0, used: 0, balance: 0, redemptions: [] }
+          : path === '/api/cliente/agendamentos/horarios' ? {horarios:['10:00','10:10','10:13','10:20'],motivo:null}
           : path === '/api/cliente/agendamentos/servicos' ? { configured: false, writeConfigured: false, services: [], fallback: 'solicitacao-equipe', ...(url.searchParams.has('petKey')?{catalogo:{motivo:'escolher-horario',servicos:[],opcoes:[{chave:'banho',nome:'Banho',precoCentavos:15000,duracaoMinutos:120}],pendentes:[{chave:'tosa-higienica',nome:'Tosa higiênica'}]}}:{}) }
             : path === '/api/cliente/pets' ? currentDashboard.pets : []
     return route.fulfill({ json: body })
@@ -98,6 +99,25 @@ try {
   assert.equal(await page.getByRole('button',{name:'Enviar solicitação',exact:true}).isDisabled(),true)
   assert.equal(await page.locator('#request-service option[value="pendente-tosa-higienica"]').isDisabled(),true)
   console.log('PASS: serviços por raça antes da escolha da data; pendentes não reserváveis')
+  await page.locator('#request-day').click()
+  await page.getByText('Escolha o dia',{exact:true}).waitFor()
+  const diaTeste=await page.evaluate(()=>{
+    const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date())
+    const v=t=>Number(p.find(x=>x.type===t).value)
+    return new Date(v('year'),v('month')-1,v('day')+1).toLocaleDateString()
+  })
+  const diaBotao=page.locator('[data-slot="calendar"] button[data-day="'+diaTeste+'"]')
+  if(!await diaBotao.count()){
+    await page.locator('[data-slot="calendar"] button.rdp-button_next').click()
+  }
+  await diaBotao.first().click()
+  await page.locator('#request-time').click()
+  await page.getByRole('button',{name:'10:10',exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'10:13',exact:true}).count(),0)
+  await page.getByRole('button',{name:'10:20',exact:true}).click()
+  assert.match(await page.locator('#request-date').inputValue(),/T10:20$/)
+  console.log('PASS: calendário e grade de dez minutos, sem minutos inválidos')
+
   currentDashboard = { ...dashboard, stats: { ...dashboard.stats, processosAtivos: 1 } }
   await page.goto(base)
   await page.getByRole('heading', { name: 'Tem cuidado acontecendo por aqui.' }).waitFor()
