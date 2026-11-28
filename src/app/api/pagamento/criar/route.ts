@@ -14,6 +14,8 @@ import type { MetodoPagamento, PagamentoCriarResposta } from '@/lib/types'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 import { cancelExpiredPendingSale } from '@/lib/pending-sales'
 
+import {orderConfereComanda} from '@/lib/comanda-pagamento-policy'
+
 export const dynamic = 'force-dynamic'
 
 /**
@@ -159,6 +161,7 @@ export async function POST(req: NextRequest) {
     )
 
     if((venda.comandaProcessoId||venda.bookingPagamento)&&resultado.simulado)return NextResponse.json({error:'Pagamento simulado não é aceito para comandas ou agendamentos.'},{status:409})
+    if((venda.comandaProcessoId||venda.bookingPagamento)&&!orderConfereComanda(resultado.raw,venda))return NextResponse.json({error:'Order não conciliada com o valor da comanda. Não tente nova cobrança; consulte a equipe.'},{status:409})
     const statusMap = resultado.simulado
       ? {
           mercadoPagoStatus: 'pending',
