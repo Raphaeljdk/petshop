@@ -92,6 +92,8 @@ model Processo {
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
   notificacoes Notificacao[]
   ficha AtendimentoFicha?
+  agendamentoId String? @unique
+  agendamento Agendamento? @relation(fields: [agendamentoId], references: [id], onDelete: Restrict)
   bookingRequestId String? @unique
   bookingRequest BookingRequest? @relation(fields: [bookingRequestId], references: [id], onDelete: Restrict)
   comandaExtras ComandaServicoExtra[]
@@ -113,6 +115,7 @@ model Agendamento {
   profissional ProfissionalAgenda? @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
   pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  processo Processo?
   @@index([dataHora, status])
   @@index([profissionalId, dataHora])
 }
@@ -442,6 +445,7 @@ model BookingRequest {
   gravataIdeia String? @db.VarChar(400)
   gravataPrecoCentavos Int @default(0)
   servicoPrecoCentavos Int?
+  pagamentoOnlineObrigatorio Boolean @default(false)
   pagamentoVendaId String? @unique
   pagamentoVenda Venda? @relation("BookingPagamento", fields: [pagamentoVendaId], references: [id], onDelete: Restrict)
   gravataWhatsStatus String @default("aguardando_pagamento")

@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
       return tx.bookingRequest.create({
         data: {
           ...input,
+          pagamentoOnlineObrigatorio: true,
           gravataPrecoCentavos: input.gravataFoto ? 500 : 0,
           servicoPrecoCentavos: servico.precoCentavos,
           desiredAt: desired,

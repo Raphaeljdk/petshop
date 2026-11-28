@@ -8,6 +8,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AgendaComandaDialog } from './AgendaComandaDialog'
 import type { StatusAgendamento } from '@/lib/types'
 import { CATEGORIAS_AGENDA, inferirCategoriaAgenda, type CategoriaAgenda } from '@/lib/agenda-servicos'
 
@@ -49,6 +50,7 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
   profissionais:AgendaProfessional[]
   refreshKey:number
 }) {
+  const [comanda,setComanda]=useState<AgendaCalendarEntry|null>(null)
   const [referencia,setReferencia]=useState(()=>new Date())
   const [vista,setVista]=useState<Vista>('mes')
   const [items,setItems]=useState<AgendaCalendarEntry[]>([])
@@ -282,6 +284,7 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
                         disabled={alterandoStatus===a.id} onChange={e=>void atualizarStatus(a,e.target.value as StatusAgendamento)}>
                         {Object.entries(statusLabel).map(([id,label])=><option key={id} value={id}>{label}</option>)}
                       </select>
+                      {a.status!=='cancelado'&&<Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>setComanda(a)}>Abrir comanda</Button>}
                     </article>)}
                   </div>
                 </section>
@@ -294,5 +297,6 @@ export function AgendaCalendar({onEdit,onCreateAt,onStatusChange,profissionais,r
         </p>
       </div>
     </div>
+    {comanda&&<AgendaComandaDialog key={comanda.id} item={comanda} onClose={()=>setComanda(null)}/>}
   </section>
 }

@@ -27,6 +27,7 @@ export type Booking = {
   gravataWhatsStatus?: string
   pagamentoVenda?: {id:string;total:number;status:string;mercadoPagoStatus:string|null}|null
   gravataPrecoCentavos?: number
+  pagamentoOnlineObrigatorio?: boolean
   cliente?: { nome: string }
 }
 
@@ -326,11 +327,11 @@ export function BookingRequests() {
                   Confirmado para {dateLabel(b.confirmedAt)}
                 </p>
               )}
-              {!!b.gravataPrecoCentavos&&<div className="my-3 rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+              {(b.pagamentoOnlineObrigatorio||!!b.gravataPrecoCentavos)&&<div className="my-3 rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
                 {b.gravataIdeia&&<p className="break-words">Sua ideia: {b.gravataIdeia}</p>}
-                {b.servicoPrecoCentavos!=null&&<p className="font-semibold">Total do agendamento: {preco(b.servicoPrecoCentavos+b.gravataPrecoCentavos)}</p>}
-                <p className="text-xs text-muted-foreground">{['entregue','lido'].includes(b.gravataWhatsStatus||'')?'Foto e ideia entregues à equipe.':b.gravataWhatsStatus==='enviado'?'Envio aceito pelo WhatsApp; aguardando entrega.':b.gravataWhatsStatus==='falha_entrega'?'Pagamento confirmado; a equipe precisa conferir a entrega da foto.':b.pagamentoVenda?.status==='concluida'&&b.pagamentoVenda.mercadoPagoStatus==='approved'?'Pagamento confirmado; encaminhamento aguardando confirmação do WhatsApp.':'Foto e ideia aguardando pagamento integral.'}</p>
-                {b.status==='confirmado'&&b.servicoPrecoCentavos!=null&&b.servicoPrecoCentavos>0&&(!b.pagamentoVenda||b.pagamentoVenda.status==='pendente')&&<Button size="sm" disabled={busy} onClick={async()=>{setBusy(true);try{const v=await portalRequest<{id:string;total:number;status:string}>('/api/cliente/solicitacoes-agendamento/pagamento',{method:'POST',body:JSON.stringify({id:b.id})});if(v.status==='pendente')setPagamento(v);await load()}catch(e){toast.error(e instanceof Error?e.message:'Não foi possível abrir pagamento.')}finally{setBusy(false)}}}>Pagar banho e gravata</Button>}
+                {b.servicoPrecoCentavos!=null&&<p className="font-semibold">Total do agendamento: {preco(b.servicoPrecoCentavos+(b.gravataPrecoCentavos||0))}</p>}
+                {!!b.gravataPrecoCentavos&&<p className="text-xs text-muted-foreground">{['entregue','lido'].includes(b.gravataWhatsStatus||'')?'Foto e ideia entregues à equipe.':b.gravataWhatsStatus==='enviado'?'Envio aceito pelo WhatsApp; aguardando entrega.':b.gravataWhatsStatus==='falha_entrega'?'Pagamento confirmado; a equipe precisa conferir a entrega da foto.':b.pagamentoVenda?.status==='concluida'&&b.pagamentoVenda.mercadoPagoStatus==='approved'?'Pagamento confirmado; encaminhamento aguardando confirmação do WhatsApp.':'Foto e ideia aguardando pagamento integral.'}</p>}
+                {b.status==='confirmado'&&b.servicoPrecoCentavos!=null&&b.servicoPrecoCentavos>0&&(!b.pagamentoVenda||b.pagamentoVenda.status==='pendente')&&<Button size="sm" disabled={busy} onClick={async()=>{setBusy(true);try{const v=await portalRequest<{id:string;total:number;status:string}>('/api/cliente/solicitacoes-agendamento/pagamento',{method:'POST',body:JSON.stringify({id:b.id})});if(v.status==='pendente')setPagamento(v);await load()}catch(e){toast.error(e instanceof Error?e.message:'Não foi possível abrir pagamento.')}finally{setBusy(false)}}}>{b.gravataPrecoCentavos?'Pagar serviço e gravata':'Pagar agendamento'}</Button>}
               </div>}
               {b.reply && (
                 <p className="mt-2 break-words text-sm">Resposta da loja: {b.reply}</p>

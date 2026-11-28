@@ -28,6 +28,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const petId = changes.petId || existing.petId
     const clienteId = changes.clienteId || existing.clienteId
+    const vinculado=await db.processo.findUnique({where:{agendamentoId:id},select:{id:true}})
+    if(vinculado&&(petId!==existing.petId||clienteId!==existing.clienteId||(changes.servico&&changes.servico!==existing.servico)))return NextResponse.json({error:'Este agendamento já tem atendimento vinculado. Preserve o pet, o tutor e o serviço original.'},{status:409})
     const pet = await db.pet.findFirst({ where: { id: petId, clienteId, ativo: true, cliente: { ativo: true } }, select: { id: true } })
     if (!pet) return NextResponse.json({ error: 'Pet não corresponde ao tutor selecionado.' }, { status: 409 })
     if (changes.profissionalId && changes.profissionalId !== existing.profissionalId) {

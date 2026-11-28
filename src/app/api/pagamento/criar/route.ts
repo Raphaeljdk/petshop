@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
 
     const config = await getOuCriarConfigPagamento()
 
-    if(venda.bookingPagamento&&(venda.bookingPagamento.status!=='confirmado'||config.mercadoPagoSandbox||!(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()||config.mercadoPagoAccessToken?.trim())||(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()||config.mercadoPagoAccessToken?.trim())?.startsWith('TEST-')))return NextResponse.json({error:'Pagamento real do agendamento indisponível.'},{status:409})
+    if((venda.comandaProcessoId||venda.bookingPagamento)&&((venda.bookingPagamento&&venda.bookingPagamento.status!=='confirmado')||config.mercadoPagoSandbox||!(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()||config.mercadoPagoAccessToken?.trim())||(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()||config.mercadoPagoAccessToken?.trim())?.startsWith('TEST-')))return NextResponse.json({error:'Pagamento real da comanda ou agendamento indisponível.'},{status:409})
     if (metodo === 'pix' && !config.pixAtivo) {
       return NextResponse.json({ error: 'PIX desativado' }, { status: 400 })
     }
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
       config
     )
 
-    if(venda.bookingPagamento&&resultado.simulado)return NextResponse.json({error:'Pagamento simulado não é aceito para personalização.'},{status:409})
+    if((venda.comandaProcessoId||venda.bookingPagamento)&&resultado.simulado)return NextResponse.json({error:'Pagamento simulado não é aceito para comandas ou agendamentos.'},{status:409})
     const statusMap = resultado.simulado
       ? {
           mercadoPagoStatus: 'pending',

@@ -32,16 +32,19 @@ class CheckoutError extends Error {
 
 export async function POST(req: NextRequest) {
   try {
-    const cliente = await getClienteLogado()
-    if (!cliente) {
-      return NextResponse.json(
-        { error: 'Cliente não autenticado' },
-        { status: 401 }
-      )
-    }
-
     assertSameOrigin(req)
     const body = await req.json()
+    const usuario = await getUsuarioLogado()
+    const staff = usuario?.role==='ADMIN'||usuario?.role==='KANBAN'
+    let clienteSelecionado = staff?null:await getClienteLogado()
+    if(staff){
+      if(!body||typeof body.comandaProcessoId!=='string'||body.comandaProcessoId.length>100||body.tipoEntrega!=='retirada'||body.cupomCodigo||body.valePresenteCodigo)
+        return NextResponse.json({error:'Equipe só pode incluir produtos em uma comanda ativa para retirada.'},{status:403})
+      const processo=await db.processo.findFirst({where:{id:body.comandaProcessoId,status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{pet:{select:{cliente:true}}}})
+      clienteSelecionado=processo?{...processo.pet.cliente,pets:[]}:null
+    }
+    const cliente=clienteSelecionado
+    if(!cliente)return NextResponse.json({error:'Cliente ou atendimento ativo não encontrado.'},{status:401})
     const {
       itens,
       observacoes,
@@ -97,6 +100,7 @@ export async function POST(req: NextRequest) {
       const processo=await db.processo.findFirst({where:{id:comandaProcessoId,pet:{clienteId:cliente.id},status:{in:['em_andamento','aguardando_resposta']},OR:[{ficha:null},{ficha:{is:{checkinStatus:'aceito',checkoutFinalizadoAt:null}}}]},select:{id:true}})
       if(!processo)throw new CheckoutError('Atendimento não está aberto para compras.',409)
     }
+    if(staff&&(!comandaProcessoId||!comandaCompraKey))throw new CheckoutError('Comanda obrigatória.',403)
     const ids = [...new Set(itens.map((item) => item.produtoId))]
     const produtosLocais = await db.produto.findMany({
       where: { id: { in: ids } },
