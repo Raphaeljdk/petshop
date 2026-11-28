@@ -1069,6 +1069,7 @@ model ComandaServicoExtra {
   processo Processo @relation(fields: [processoId], references: [id], onDelete: Restrict)
   venda Venda? @relation("ComandaExtraVenda", fields: [vendaId], references: [id], onDelete: Restrict)
   @@index([processoId, status])
+  @@index([grupoVendaId])
 }
 
 model AgendaEscalaSemanal {
