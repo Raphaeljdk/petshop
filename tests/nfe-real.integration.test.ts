@@ -152,8 +152,9 @@ test('Amazon valida pedido e emissor e escreve o intermediador no XML assinado',
   expect(()=>conferirAmazon(pedidoId,10,{...resp,order:{...order,...alteracao}},cnpj)).toThrow()
  }
  const s=emissorReal({db,amazon:async(id,total)=>conferirAmazon(id,total,resp,cnpj),habilitado:()=>true,chaves:()=>chaves,enviar:async()=>{throw Error('sem rede')}})
- await s.preparar(v.id,'admin',dados)
+ await s.preparar(v.id,'admin',{...dados,pagamento:'99',dadosPagamento:undefined})
  const reserva=await db.nfeRealReserva.findUniqueOrThrow({where:{vendaId:v.id}})
+ expect(reserva.xmlAssinado).toContain('<tPag>99</tPag><xPag>Pagamento via marketplace</xPag>')
  expect(reserva.xmlAssinado).toContain('<indIntermed>1</indIntermed>')
  expect(reserva.xmlAssinado).toContain('<idCadIntTran>'+sellerId+'</idCadIntTran>')
 })
