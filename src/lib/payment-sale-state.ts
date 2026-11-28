@@ -41,6 +41,7 @@ export async function applyPaymentSaleState(
       })
 
       if (!current) return null
+      if(current.posPagamentoId)return {result:current,productIds:[] as string[]}
 
       const firstPendingCancellation =
         patch.status === 'cancelada' && current.status === 'pendente'
