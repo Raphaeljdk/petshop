@@ -37,10 +37,11 @@ export async function POST(req: NextRequest) {
         service: z.string().trim().min(3).max(120),
         desiredAt: z.string().datetime(),
         notes: z.string().trim().max(1000).optional(),
+        gravataNome: z.string().trim().min(1).max(80).optional(),
         gravataIdeia: z.string().trim().max(400).optional(),
         gravataFoto: z.string().max(400000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/).optional(),
       })
-      .strict().refine(v=>!v.gravataIdeia||!!v.gravataFoto,'Envie a foto junto da ideia.')
+      .strict().refine(v=>!v.gravataIdeia||!!(v.gravataFoto||v.gravataNome),'Informe o nome ou a foto da personalização.')
       .parse(await experienceBody(req, 420000))
     const desired = new Date(input.desiredAt)
     if (
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     const servico = catalogo.servicos.find(s => s.nome === input.service)
     if (!servico)
       return NextResponse.json({ error: 'Serviço indisponível para esta raça, data ou horário. Consulte a equipe pelo WhatsApp.' }, { status: 409 })
-    if (input.gravataFoto && !input.service.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('banho'))
+    if ((input.gravataFoto||input.gravataNome) && !input.service.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('banho'))
       return NextResponse.json({ error: 'A gravata personalizada está disponível nos serviços de banho.' }, { status: 400 })
     const booking = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.cliente!.id}))`
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
         data: {
           ...input,
           pagamentoOnlineObrigatorio: true,
-          gravataPrecoCentavos: input.gravataFoto ? 500 : 0,
+          gravataPrecoCentavos: input.gravataFoto||input.gravataNome ? 500 : 0,
           servicoPrecoCentavos: servico.precoCentavos,
           desiredAt: desired,
           clienteId: user.cliente!.id,
