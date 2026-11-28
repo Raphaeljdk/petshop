@@ -21,7 +21,7 @@ export type NfeEntrada = {
   destinatario: { nome: string; documento: string; endereco: EnderecoNfe
     indicadorIE: '1' | '2' | '9'; inscricaoEstadual?: string }
   consumidorFinal: '0' | '1'
-  pagamento: '01' | '17' | '18' | '20'
+  pagamento: '01' | '03' | '04' | '15' | '17' | '18' | '20' | '99'
   intermediador?: {cnpj:string; idCadastro:string}
   /** Obrigatório para Pix dinâmico. Nunca presumir dados de integração em produção. */
   dadosPagamento?: { tipoIntegracao:'1'|'2'; cnpjInstituicao?:string; codigoAutorizacao?:string }
@@ -125,12 +125,15 @@ function montarNfe55(
     'Número, série ou código numérico de oito dígitos inválido. Consulte a numeração com o contador.')
   necessario(entrada.naturezaOperacao.trim().length >= 3 && entrada.naturezaOperacao.length <= 60,
     'Informe a natureza da operação validada pelo contador.')
-  necessario(['01','17','18','20'].includes(entrada.pagamento)
+  necessario(['01','03','04','15','17','18','20','99'].includes(entrada.pagamento)
     && ['0','1','2','9'].includes(entrada.modalidadeFrete),
     'Forma de pagamento ou modalidade de frete não suportada neste primeiro gerador.')
   // NT 2023.004 / 2025.001: Pix dinâmico (tPag=17) requer grupo card
   // e tipo de integração; o XSD sozinho não testa essa rejeição (cStat 391).
-  if(entrada.pagamento==='17'){
+  necessario(entrada.pagamento!=='99'||!!entrada.intermediador,'Pagamento não identificado só é permitido para marketplace confirmado.')
+  if(['03','04'].includes(entrada.pagamento)){
+    necessario(!!entrada.intermediador&&entrada.dadosPagamento?.tipoIntegracao==='2'&&!entrada.dadosPagamento.cnpjInstituicao&&!entrada.dadosPagamento.codigoAutorizacao,'Cartão neste fluxo exige marketplace e pagamento não integrado confirmado.')
+  }else if(entrada.pagamento==='17'){
     const dados=entrada.dadosPagamento
     necessario(dados?.tipoIntegracao==='1'||dados?.tipoIntegracao==='2',
       'Pix dinâmico exige informação explícita do tipo de integração do pagamento.')
@@ -256,7 +259,7 @@ function montarNfe55(
     campo('vPIS',moeda(pisTotalCentavos)) + campo('vCOFINS',moeda(cofinsTotalCentavos)) +
     campo('vOutro','0.00') +
     campo('vNF',moeda(cents(venda.total))) + '</ICMSTot>'
-  const grupoPix=entrada.pagamento==='17' ? '<card>'+
+  const grupoPix=['03','04','17'].includes(entrada.pagamento) ? '<card>'+
     campo('tpIntegra',entrada.dadosPagamento!.tipoIntegracao)+
     (entrada.dadosPagamento!.tipoIntegracao==='1'
       ?campo('CNPJ',entrada.dadosPagamento!.cnpjInstituicao!)+
@@ -269,7 +272,7 @@ function montarNfe55(
     detalhes + '<total>' + totais + '</total>' +
     '<transp>' + campo('modFrete',entrada.modalidadeFrete) + '</transp>' +
     '<pag><detPag>' + campo('indPag','0') + campo('tPag',entrada.pagamento) +
-    campo('vPag',moeda(cents(venda.total))) + grupoPix + '</detPag></pag>' +
+    (entrada.pagamento==='99'?campo('xPag','Pagamento via marketplace'):'') + campo('vPag',moeda(cents(venda.total))) + grupoPix + '</detPag></pag>' +
     (entrada.intermediador?'<infIntermed>'+campo('CNPJ',entrada.intermediador.cnpj)+campo('idCadIntTran',entrada.intermediador.idCadastro)+'</infIntermed>':'') +
     '</infNFe></NFe>'
   return {xml, chave}
