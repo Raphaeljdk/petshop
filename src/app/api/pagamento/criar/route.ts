@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado } from '@/lib/auth-helpers'
+import { getClienteLogado,getUsuarioLogado } from '@/lib/auth-helpers'
 import { AuthError, readAuthBody } from '@/lib/auth-http'
 import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
 import {
@@ -28,14 +28,10 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
-    const cliente = await getClienteLogado()
-    if (!cliente) {
-      return NextResponse.json(
-        { error: 'Cliente não autenticado' },
-        { status: 401 }
-      )
-    }
-
+    const usuario=await getUsuarioLogado()
+    const equipe=usuario?.role==='ADMIN'||usuario?.role==='KANBAN'
+    const cliente=equipe?null:await getClienteLogado()
+    if(!equipe&&!cliente)return NextResponse.json({error:'Cliente não autenticado'},{status:401})
     const body = await readAuthBody(req)
     const {
       vendaId,
@@ -66,14 +62,15 @@ export async function POST(req: NextRequest) {
 
     const venda = await db.venda.findUnique({
       where: { id: vendaId },
-      include: { itens: { include: { produto: true } }, bookingPagamento:{select:{id:true,status:true}} },
+      include: { itens: { include: { produto: true } }, bookingPagamento:{select:{id:true,status:true}},cliente:{select:{email:true}},comandaProcesso:{select:{comandaFechadaEm:true,status:true}} },
     })
 
     if (!venda) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    if (venda.clienteId !== cliente.id) {
+    if(equipe&&(!venda.comandaProcessoId||!venda.comandaProcesso||venda.comandaProcesso.comandaFechadaEm||venda.comandaProcesso.status==='cancelado'||metodo!=='pix'||card||boleto||!venda.clienteId))return NextResponse.json({error:'A equipe só pode gerar PIX de uma comanda válida.'},{status:403})
+    if (!equipe && venda.clienteId !== cliente?.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
@@ -152,7 +149,7 @@ export async function POST(req: NextRequest) {
         payerEmail:
           card?.payer?.email ||
           boleto?.email ||
-          cliente.email,
+          (equipe?venda.cliente?.email:cliente?.email),
         card,
         boleto,
         attemptKey: venda.mercadoPagoId || 'initial',
