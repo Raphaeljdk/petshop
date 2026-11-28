@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado } from '@/lib/auth-helpers'
+import { getClienteLogado,getUsuarioLogado } from '@/lib/auth-helpers'
 import { AuthError, readAuthBody } from '@/lib/auth-http'
 import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
 import {
@@ -13,6 +13,8 @@ import {
 import type { MetodoPagamento, PagamentoCriarResposta } from '@/lib/types'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 import { cancelExpiredPendingSale } from '@/lib/pending-sales'
+
+import {orderConfereComanda} from '@/lib/comanda-pagamento-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,14 +30,10 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
-    const cliente = await getClienteLogado()
-    if (!cliente) {
-      return NextResponse.json(
-        { error: 'Cliente não autenticado' },
-        { status: 401 }
-      )
-    }
-
+    const usuario=await getUsuarioLogado()
+    const equipe=usuario?.role==='ADMIN'||usuario?.role==='KANBAN'
+    const cliente=equipe?null:await getClienteLogado()
+    if(!equipe&&!cliente)return NextResponse.json({error:'Cliente não autenticado'},{status:401})
     const body = await readAuthBody(req)
     const {
       vendaId,
@@ -66,14 +64,15 @@ export async function POST(req: NextRequest) {
 
     const venda = await db.venda.findUnique({
       where: { id: vendaId },
-      include: { itens: { include: { produto: true } }, bookingPagamento:{select:{id:true,status:true}} },
+      include: { itens: { include: { produto: true } }, bookingPagamento:{select:{id:true,status:true}},cliente:{select:{email:true}},comandaProcesso:{select:{comandaFechadaEm:true,status:true}} },
     })
 
     if (!venda) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    if (venda.clienteId !== cliente.id) {
+    if(equipe&&(!venda.comandaProcessoId||!venda.comandaProcesso||venda.comandaProcesso.comandaFechadaEm||venda.comandaProcesso.status==='cancelado'||metodo!=='pix'||card||boleto||!venda.clienteId))return NextResponse.json({error:'A equipe só pode gerar PIX de uma comanda válida.'},{status:403})
+    if (!equipe && venda.clienteId !== cliente?.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
@@ -152,16 +151,17 @@ export async function POST(req: NextRequest) {
         payerEmail:
           card?.payer?.email ||
           boleto?.email ||
-          cliente.email,
+          (equipe?venda.cliente?.email:cliente?.email),
         card,
         boleto,
         attemptKey: venda.mercadoPagoId || 'initial',
-        singleInvoice: Boolean(venda.bookingPagamento),
+        singleInvoice: Boolean(venda.bookingPagamento||venda.comandaProcessoId),
       },
       config
     )
 
     if((venda.comandaProcessoId||venda.bookingPagamento)&&resultado.simulado)return NextResponse.json({error:'Pagamento simulado não é aceito para comandas ou agendamentos.'},{status:409})
+    if((venda.comandaProcessoId||venda.bookingPagamento)&&!orderConfereComanda(resultado.raw,venda))return NextResponse.json({error:'Order não conciliada com o valor da comanda. Não tente nova cobrança; consulte a equipe.'},{status:409})
     const statusMap = resultado.simulado
       ? {
           mercadoPagoStatus: 'pending',

@@ -11,6 +11,8 @@ import { emitWebSocket } from '@/lib/realtime'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 import { ensureFiscalDraftForSale } from '@/lib/fiscal-drafts'
 
+import {orderConfereComanda} from '@/lib/comanda-pagamento-policy'
+
 export const dynamic = 'force-dynamic'
 
 /**
@@ -82,6 +84,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const agendamento=await db.bookingRequest.findUnique({where:{pagamentoVendaId:venda.id},select:{id:true}})
+    if((venda.comandaProcessoId||agendamento)&&!orderConfereComanda(raw,venda))return NextResponse.json({ok:false,error:'Order divergente; conciliação necessária.'},{status:409})
     const statusMap = mapearOrderParaVenda(order.status, order.statusDetail)
 
     const atualizado = await applyPaymentSaleState(venda.id, {

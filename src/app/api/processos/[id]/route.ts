@@ -59,6 +59,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Processo não encontrado' }, { status: 404 })
     }
 
+    if(valorServico!==undefined&&valorServico!==processoExistente.valorServico&&(processoExistente.comandaPrincipalVendaId||processoExistente.bookingRequestId||processoExistente.comandaFechadaEm))return NextResponse.json({error:'Valor vinculado a uma cobrança ou comanda fechada; não pode ser alterado.'},{status:409})
     if (status !== undefined && !['novo','em_andamento','aguardando_resposta','finalizado','cancelado'].includes(status)) {
       return NextResponse.json({ error: 'Status de atendimento inválido.' }, { status: 400 })
     }

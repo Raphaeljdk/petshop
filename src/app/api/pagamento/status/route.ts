@@ -10,6 +10,8 @@ import { importarVendaNoSiggma } from '@/lib/siggma/orders'
 import { applyPaymentSaleState } from '@/lib/payment-sale-state'
 import { cancelExpiredPendingSale, pendingSaleExpiresAt } from '@/lib/pending-sales'
 
+import {orderConfereComanda} from '@/lib/comanda-pagamento-policy'
+
 export const dynamic = 'force-dynamic'
 
 /**
@@ -45,6 +47,8 @@ export async function GET(req: NextRequest) {
         clienteId: true,
         status: true,
         total: true,
+        comandaProcessoId:true,
+        creditoPresenteCentavos:true,
         mercadoPagoId: true,
         mercadoPagoStatus: true,
         mercadoPagoPaymentUrl: true,
@@ -71,6 +75,8 @@ export async function GET(req: NextRequest) {
           clienteId: true,
           status: true,
           total: true,
+        comandaProcessoId:true,
+        creditoPresenteCentavos:true,
           mercadoPagoId: true,
           mercadoPagoStatus: true,
           mercadoPagoPaymentUrl: true,
@@ -97,6 +103,8 @@ export async function GET(req: NextRequest) {
       try {
         const config = await getOuCriarConfigPagamento()
         const order = await consultarOrderMercadoPago(orderId, config)
+        const agendamento=await db.bookingRequest.findUnique({where:{pagamentoVendaId:venda.id},select:{id:true}})
+        if((venda.comandaProcessoId||agendamento)&&!orderConfereComanda(order.raw,venda))throw Error('Order divergente; conciliação necessária.')
         const statusMap = mapearOrderParaVenda(order.status, order.statusDetail)
 
         const atualizado = await applyPaymentSaleState(venda.id, {

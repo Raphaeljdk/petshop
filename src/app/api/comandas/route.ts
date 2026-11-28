@@ -9,8 +9,9 @@ export async function GET() {
   const items = await db.processo.findMany({
     where: { pet: { clienteId: u.clienteId }, OR: [
       {status:{in:['em_andamento','aguardando_resposta']}},
+      {status:'novo',comandaPrincipalVenda:{is:{status:'pendente'}}},
       {status:'novo',comandaExtras:{some:{status:{in:['aguardando_tutor','aguardando_equipe','autorizado']}}}},
-      {status:'finalizado',OR:[{comandaVendas:{some:{status:'pendente'}}},{comandaExtras:{some:{status:{in:['autorizado','realizado']},venda:null,precoCentavos:{gt:0}}}}]},
+      {status:'finalizado',OR:[{comandaVendas:{some:{status:'pendente'}}},{comandaExtras:{some:{status:{in:['autorizado','realizado']},venda:null,grupoVenda:null,precoCentavos:{gt:0}}}}]},
     ] },
     select: { id:true,servico:true,status:true,valorServico:true,pet:{select:{nome:true}} },
     orderBy:{createdAt:'desc'},take:30,
