@@ -237,9 +237,10 @@ export function BookingRequests() {
                 ))}
               </select>
             ) : (
-              <select id="request-service" required disabled={!petKey || !disponiveis.length} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
+              <select id="request-service" required disabled={!petKey || (!disponiveis.length && !catalogo?.pendentes?.length)} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
                 <option value="">{consultando ? 'Consultando...' : 'Selecione o serviço'}</option>
                 {disponiveis.map(s => <option value={s.nome} key={s.chave}>{s.nome} · {preco(s.precoCentavos)} · {s.duracaoMinutos} min</option>)}
+                {catalogo?.pendentes?.map(s=><option key={'pendente-'+s.chave} value={'pendente-'+s.chave} disabled>{s.nome} · Sob consulta</option>)}
               </select>
             )}
             {!directMode && (
@@ -251,7 +252,7 @@ export function BookingRequests() {
                 {selecionado&&desired&&!consultando&&horarioConsultado===desired&&<p className={'mt-1 text-xs '+(horarioDisponivel?'text-green-700':'text-amber-700')}>{horarioDisponivel?'Horário disponível para solicitação.':'Serviço cadastrado, mas sem profissional disponível neste horário. Escolha outro horário ou fale com a equipe.'}</p>}
                 {erroCatalogo && <p className="mt-1 text-xs text-destructive">{erroCatalogo}</p>}
                 {catalogo&&!disponiveis.length&&<p className="mt-1 text-xs text-muted-foreground">{catalogo.motivo==='servicos-pendentes'?'A equipe ainda precisa confirmar os preços e tempos dos serviços.':'Não encontramos serviços cadastrados para esta raça.'}</p>}
-                {!!catalogo?.pendentes?.length&&<details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer">Serviços sob consulta ({catalogo.pendentes.length})</summary><ul className="mt-1 space-y-1">{catalogo.pendentes.map(s=><li key={s.chave}>{s.nome}</li>)}</ul></details>}
+                {!!catalogo?.pendentes?.length&&<div className="mt-2 rounded-md border p-2 text-xs text-muted-foreground"><p className="font-medium">Serviços cadastrados para esta raça, sob consulta:</p><p className="mt-1">{catalogo.pendentes.map(s=>s.nome).join(" · ")}</p></div>}
                 {petKey && !consultando && (!disponiveis.length||(!!selecionado&&!!desired&&!horarioDisponivel)) && <Button asChild variant="outline" size="sm" className="mt-2"><a href={whatsapp} target="_blank" rel="noopener noreferrer">Consultar pelo WhatsApp</a></Button>}
                 {sugestoesRecentes.length > 0 && <div className="mt-2 space-y-1">
                   <p className="text-xs font-medium">Últimos serviços concluídos deste pet</p>
