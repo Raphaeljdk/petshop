@@ -14,7 +14,7 @@ const json = (data:unknown,status=200) => NextResponse.json(data,{status,headers
 const vendaSelect={id:true,total:true,status:true,posPagamentoId:true,posPagoCentavos:true,pagamentoOnlineIniciadoEm:true,creditoPresenteCentavos:true,mercadoPagoStatus:true,mercadoPagoId:true,mercadoPagoPaymentUrl:true} as const
 const grupoSelect={...vendaSelect,comandaExtrasGrupo:{select:{precoCentavos:true}}} as const
 const actions = z.discriminatedUnion('action',[
- z.object({action:z.literal('registrar-pos'),vendaIds:z.array(z.string().min(1).max(100)).min(1).max(100).refine(a=>new Set(a).size===a.length),adquirente:z.string().trim().min(2).max(80),terminal:z.string().trim().min(1).max(80),referencia:z.string().trim().min(3).max(100),metodo:z.enum(['credito','debito','pix_pos']),totalCentavos:z.number().int().positive().max(100000000),confirmado:z.literal(true)}).strict(),
+ z.object({action:z.literal('registrar-pos'),vendaIds:z.array(z.string().min(1).max(100)).min(1).max(100).refine(a=>new Set(a).size===a.length),adquirente:z.string().optional(),terminal:z.string().optional(),referencia:z.string().trim().min(3).max(100),metodo:z.enum(['credito','debito','pix_pos']),totalCentavos:z.number().int().positive().max(100000000),confirmado:z.literal(true)}).strict(),
  z.object({action:z.literal('pagar-grupo'),extraIds:z.array(z.string().min(1).max(100)).min(2).max(30).refine(a=>new Set(a).size===a.length)}).strict(),
  z.object({action:z.literal('fechar-financeiro')}).strict(),
  z.object({action:z.literal('cobrar-principal'),confirmarSemPagamentoAnterior:z.literal(true)}).strict(),
@@ -86,8 +86,9 @@ export async function POST(req:NextRequest,{params}:Route) {
     if(vendas.length!==ids.length||vendas.some(v=>!podeRegistrarPOS(v)))return {error:'Há uma cobrança já paga, cancelada ou iniciada online. Concilie antes de receber na maquininha.',status:409}
     const total=vendas.reduce((n,v)=>n+Math.round(v.total*100),0)
     if(total!==input.totalCentavos)return {error:'O valor do comprovante precisa corresponder ao saldo selecionado.',status:409}
-    const adquirente=input.adquirente.toUpperCase(),terminal=input.terminal.toUpperCase(),referencia=input.referencia.toUpperCase()
-    if(await tx.comandaPagamentoPOS.findUnique({where:{adquirente_terminal_referencia:{adquirente,terminal,referencia}}}))return {error:'Este comprovante POS já foi registrado.',status:409}
+    const adquirente='MERCADO PAGO',terminal='POINT',referencia=input.referencia.toUpperCase()
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'pos:mercado-pago:'+referencia}))`
+    if(await tx.comandaPagamentoPOS.findFirst({where:{referencia:{equals:referencia,mode:'insensitive'},OR:[{adquirente:{equals:'MERCADO PAGO',mode:'insensitive'}},{adquirente:{equals:'MERCADOPAGO',mode:'insensitive'}},{adquirente:{equals:'MP',mode:'insensitive'}}]}}))return {error:'Este comprovante POS já foi registrado.',status:409}
     const recibo=await tx.comandaPagamentoPOS.create({data:{processoId:id,registradoPorId:ctx.user.id,adquirente,terminal,referencia,metodo:input.metodo,totalCentavos:total}})
     for(const v of vendas){
      const alterada=await tx.venda.updateMany({where:{id:v.id,status:'pendente',posPagamentoId:null,mercadoPagoId:null,mercadoPagoStatus:null,pagamentoOnlineIniciadoEm:null},data:{status:'concluida',posPagamentoId:recibo.id,posPagoCentavos:Math.round(v.total*100),comandaProcessoId:id}})
