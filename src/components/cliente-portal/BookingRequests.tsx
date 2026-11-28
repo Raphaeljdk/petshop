@@ -28,7 +28,8 @@ export type Booking = {
   cliente?: { nome: string }
 }
 
-type CatalogoDisponivel = { motivo: string | null; servicos: Array<{ chave: string; nome: string; precoCentavos: number; duracaoMinutos: number }> }
+type OpcaoServico = { chave: string; nome: string; precoCentavos: number; duracaoMinutos: number }
+type CatalogoDisponivel = { motivo: string | null; servicos: OpcaoServico[]; opcoes?: OpcaoServico[]; pendentes?: Array<{chave:string;nome:string}> }
 
 type DirectBookingConfig = {
   configured: boolean
@@ -48,7 +49,7 @@ const dateLabel = (value: string) =>
 export function BookingRequests() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [historicoServicos, setHistoricoServicos] = useState<Array<{ petId: string; servico: string; status: string; dataHora: string }>>([])
-  const [pets, setPets] = useState<{ id: string; nome: string }[]>([])
+  const [pets, setPets] = useState<{ id: string; nome: string; raca?:string|null; ativo?:boolean }[]>([])
   const [direct, setDirect] = useState<DirectBookingConfig>({
     configured: false,
     writeConfigured: false,
@@ -62,6 +63,7 @@ export function BookingRequests() {
   const [catalogo, setCatalogo] = useState<CatalogoDisponivel | null>(null)
   const [consultando, setConsultando] = useState(false)
   const [erroCatalogo, setErroCatalogo] = useState('')
+  const [horarioConsultado,setHorarioConsultado]=useState('')
   const [serviceId, setServiceId] = useState('')
   const [desired, setDesired] = useState('')
   const [notes, setNotes] = useState('')
@@ -75,14 +77,14 @@ export function BookingRequests() {
     () =>
       Promise.all([
         portalRequest<Booking[]>('/api/cliente/solicitacoes-agendamento'),
-        portalRequest<{ id: string; nome: string }[]>('/api/cliente/pets'),
+        portalRequest<{ id: string; nome: string; raca?:string|null; ativo?:boolean }[]>('/api/cliente/pets'),
         portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos'),
         portalRequest<Array<{ petId: string; servico: string; status: string; dataHora: string }>>('/api/cliente/agendamentos').catch(() => []),
       ])
         .then(([rows, animals, bookingConfig, historico]) => {
           setHistoricoServicos(Array.isArray(historico) ? historico : [])
           setBookings(rows)
-          setPets(animals)
+          setPets(animals.filter(p=>p.ativo!==false))
           setDirect(bookingConfig)
           setServiceId((current) =>
             current ||
@@ -106,18 +108,17 @@ export function BookingRequests() {
 
   useEffect(() => {
     let cancelado = false
-    setCatalogo(null); setErroCatalogo(''); setService('')
-    if (!petKey || !desired) { setConsultando(false); return }
-    const quando = new Date(desired + ':00-03:00')
-    if (!Number.isFinite(quando.getTime()) || quando.getTime() <= Date.now()) {
-      setConsultando(false); setErroCatalogo('Escolha uma data futura.'); return
-    }
+    setErroCatalogo(''); setHorarioConsultado('')
+    if (!petKey) { setCatalogo(null);setConsultando(false); return }
+    const quando=desired?new Date(desired+':00-03:00'):null
+    const valido=Boolean(quando&&Number.isFinite(quando.getTime())&&quando.getTime()>Date.now()&&quando.getTime()<=Date.now()+180*86400000)
+    if(desired&&!valido)setErroCatalogo('Escolha uma data futura nos próximos seis meses.')
     setConsultando(true)
-    portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos?petKey=' + encodeURIComponent(petKey) + '&quando=' + encodeURIComponent(quando.toISOString()))
-      .then(data => { if (!cancelado) setCatalogo(data.catalogo ?? null) })
-      .catch(e => { if (!cancelado) setErroCatalogo(e instanceof Error ? e.message : 'Erro na consulta.') })
-      .finally(() => { if (!cancelado) setConsultando(false) })
-    return () => { cancelado = true }
+    portalRequest<DirectBookingConfig>('/api/cliente/agendamentos/servicos?petKey='+encodeURIComponent(petKey)+(valido&&quando?'&quando='+encodeURIComponent(quando.toISOString()):''))
+      .then(data=>{if(!cancelado){setCatalogo(data.catalogo??null);if(valido)setHorarioConsultado(desired)}})
+      .catch(e=>{if(!cancelado)setErroCatalogo(e instanceof Error?e.message:'Erro na consulta.')})
+      .finally(()=>{if(!cancelado)setConsultando(false)})
+    return ()=>{cancelado=true}
   }, [petKey, desired])
 
   if (!ready) return null
@@ -130,8 +131,10 @@ export function BookingRequests() {
     .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
     .map(item => item.servico.trim()))).slice(0, 4)
 
-  const disponiveis = catalogo?.servicos ?? []
+  const disponiveis = catalogo?.opcoes ?? catalogo?.servicos ?? []
   const selecionado = disponiveis.find(s => s.nome === service)
+  const horarioDisponivel=Boolean(desired&&horarioConsultado===desired&&catalogo?.servicos.some(s=>s.nome===service))
+  const racaPet=pets.find(p=>p.id===petKey)?.raca
   const banho = Boolean(selecionado?.nome.toLowerCase().includes('banho'))
   const adicional = banho && personalizar ? 500 : 0
   const whatsapp = matilhaWhatsAppUrl('Olá! Gostaria de consultar serviços e horários para ' + (pets.find(p => p.id === petKey)?.nome || 'meu pet') + (desired ? ' em ' + desired.replace('T', ' às ') : '') + '.')
@@ -152,7 +155,7 @@ export function BookingRequests() {
           <p className="text-sm text-muted-foreground">
             {directMode
               ? 'Escolha pet, serviço, data e horário. O Siggma valida o expediente antes de confirmar.'
-              : 'Escolha seu pet e um horário de preferência. A solicitação só vira reserva após a confirmação da equipe.'}
+              : 'Escolha o pet, veja os serviços disponíveis para a raça e depois selecione a data. A equipe confirma a reserva.'}
           </p>
         </div>
 
@@ -208,13 +211,14 @@ export function BookingRequests() {
               required
               className="mt-1 h-11 w-full rounded-md border bg-background px-3"
               value={petKey}
-              onChange={(e) => { setPetKey(e.target.value); setCatalogo(null); setService('') }}
+              onChange={(e) => { setPetKey(e.target.value); setCatalogo(null); setService('');setHorarioConsultado('');setPersonalizar(false);setGravataFoto(null);setGravataIdeia('') }}
             >
               <option value="">Selecione seu pet</option>
               {pets.map((p) => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
+                <option key={p.id} value={p.id}>{p.nome}{p.raca?' · '+p.raca:''}</option>
               ))}
             </select>
+            {petKey&&<p className="mt-1 text-xs text-muted-foreground">Raça: {racaPet||'Não informada no cadastro do pet'}</p>}
           </div>
 
           <div>
@@ -233,7 +237,7 @@ export function BookingRequests() {
                 ))}
               </select>
             ) : (
-              <select id="request-service" required disabled={consultando || !disponiveis.length} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
+              <select id="request-service" required disabled={!petKey || !disponiveis.length} className="mt-1 h-11 w-full rounded-md border bg-background px-3" value={service} onChange={e => setService(e.target.value)}>
                 <option value="">{consultando ? 'Consultando...' : 'Selecione o serviço'}</option>
                 {disponiveis.map(s => <option value={s.nome} key={s.chave}>{s.nome} · {preco(s.precoCentavos)} · {s.duracaoMinutos} min</option>)}
               </select>
@@ -241,10 +245,14 @@ export function BookingRequests() {
             {!directMode && (
               <>
                 {selecionado && <p className="mt-1 text-xs text-muted-foreground">Valor: {preco(selecionado.precoCentavos)} · Duração prevista: {selecionado.duracaoMinutos} min.</p>}
-                {(!petKey || !desired) && <p className="mt-1 text-xs text-muted-foreground">Escolha o pet e a data para consultar os serviços.</p>}
+                {!petKey&&<p className="mt-1 text-xs text-muted-foreground">Escolha o pet para consultar os serviços.</p>}
+                {selecionado&&!desired&&<p className="mt-1 text-xs text-muted-foreground">Agora escolha a data e o horário.</p>}
+                {selecionado&&desired&&consultando&&<p className="mt-1 text-xs text-muted-foreground">Conferindo disponibilidade da equipe...</p>}
+                {selecionado&&desired&&!consultando&&horarioConsultado===desired&&<p className={'mt-1 text-xs '+(horarioDisponivel?'text-green-700':'text-amber-700')}>{horarioDisponivel?'Horário disponível para solicitação.':'Serviço cadastrado, mas sem profissional disponível neste horário. Escolha outro horário ou fale com a equipe.'}</p>}
                 {erroCatalogo && <p className="mt-1 text-xs text-destructive">{erroCatalogo}</p>}
-                {catalogo && !disponiveis.length && <p className="mt-1 text-xs text-muted-foreground">{catalogo.motivo === 'raca-nao-cadastrada' ? 'A raça não consta na tabela de serviços confirmados.' : 'Não encontramos serviços disponíveis neste horário.'}</p>}
-                {petKey && desired && !consultando && !disponiveis.length && <Button asChild variant="outline" size="sm" className="mt-2"><a href={whatsapp} target="_blank" rel="noopener noreferrer">Consultar pelo WhatsApp</a></Button>}
+                {catalogo&&!disponiveis.length&&<p className="mt-1 text-xs text-muted-foreground">{catalogo.motivo==='servicos-pendentes'?'A equipe ainda precisa confirmar os preços e tempos dos serviços.':'Não encontramos serviços cadastrados para esta raça.'}</p>}
+                {!!catalogo?.pendentes?.length&&<details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer">Serviços sob consulta ({catalogo.pendentes.length})</summary><ul className="mt-1 space-y-1">{catalogo.pendentes.map(s=><li key={s.chave}>{s.nome}</li>)}</ul></details>}
+                {petKey && !consultando && (!disponiveis.length||(!!selecionado&&!!desired&&!horarioDisponivel)) && <Button asChild variant="outline" size="sm" className="mt-2"><a href={whatsapp} target="_blank" rel="noopener noreferrer">Consultar pelo WhatsApp</a></Button>}
                 {sugestoesRecentes.length > 0 && <div className="mt-2 space-y-1">
                   <p className="text-xs font-medium">Últimos serviços concluídos deste pet</p>
                   <div className="flex flex-wrap gap-1.5">
@@ -264,7 +272,7 @@ export function BookingRequests() {
               type="datetime-local"
               required
               value={desired}
-              onChange={(e) => { setDesired(e.target.value); setCatalogo(null); setService('') }}
+              onChange={(e) => { setDesired(e.target.value); setHorarioConsultado('') }}
             />
           </div>
 
@@ -291,7 +299,7 @@ export function BookingRequests() {
             disabled={
               busy || fotoBusy || (banho && personalizar && !gravataFoto) ||
               !pets.length ||
-              (directMode ? (!serviceId || !petKey.startsWith('zetta:')) : (consultando || !selecionado))
+              (directMode ? (!serviceId || !petKey.startsWith('zetta:')) : (consultando || !selecionado || !horarioDisponivel))
             }
           >
             {busy
