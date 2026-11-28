@@ -28,7 +28,7 @@ export async function POST(req:NextRequest,{params}:Params){
   const input=z.object({processoId:z.string().min(1).max(100).optional()}).strict().parse(await req.json())
   const result=await db.$transaction(async tx=>{
    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'agenda-comanda:'+id}))`
-   const a=await tx.agendamento.findUnique({where:{id},include:{processo:{select},bookingRequest:{select:{id:true,servicoPrecoCentavos:true}},pet:{select:{raca:true,clienteId:true}},profissional:{select:{nome:true}}}})
+   const a=await tx.agendamento.findUnique({where:{id},include:{processo:{select},bookingRequest:{select:{id:true,servicoPrecoCentavos:true,pagamentoVendaId:true}},pet:{select:{raca:true,clienteId:true}},profissional:{select:{nome:true}}}})
    if(!a)return {error:'Agendamento não encontrado.',status:404}
    if(a.processo)return {processo:a.processo}
    if(['cancelado','concluido'].includes(a.status))return {error:'Agendamento encerrado. Não crie novo atendimento.',status:409}
@@ -36,7 +36,8 @@ export async function POST(req:NextRequest,{params}:Params){
    if(input.processoId){
     const p=await tx.processo.findFirst({where:{id:input.processoId,petId:a.petId,agendamentoId:null,status:{in:['novo','em_andamento','aguardando_resposta']}},select})
     if(!p||slugServico(p.servico)!==slugServico(a.servico))return {error:'Selecione um atendimento ativo do mesmo pet e serviço.',status:409}
-    return {processo:await tx.processo.update({where:{id:p.id},data:{agendamentoId:id,...(a.bookingRequest?{bookingRequestId:a.bookingRequest.id,valorServico:(a.bookingRequest.servicoPrecoCentavos??0)/100}:{})},select})}
+    if(a.bookingRequest)return {error:'Use um atendimento novo vinculado à reserva online; não sobrescreva uma comanda existente.',status:409}
+    return {processo:await tx.processo.update({where:{id:p.id},data:{agendamentoId:id},select})}
    }
    if(await tx.processo.count({where:{petId:a.petId,status:{in:['novo','em_andamento','aguardando_resposta']}}}))return {error:'Já existe atendimento ativo deste pet. Vincule o registro correto antes de criar outro.',status:409}
    const configs=await tx.servicoEsteticoConfig.findMany()
@@ -44,6 +45,7 @@ export async function POST(req:NextRequest,{params}:Params){
    if(!preco&&a.bookingRequest?.servicoPrecoCentavos==null)return {error:'Confirme o preço do serviço para esta raça no cadastro antes de abrir a comanda.',status:409}
    const precisaFicha=requiresFichaAtendimento(a.servico)
    const p=await tx.processo.create({data:{agendamentoId:id,bookingRequestId:a.bookingRequest?.id,petId:a.petId,servico:a.servico,valorServico:(a.bookingRequest?.servicoPrecoCentavos??preco!.precoCentavos)/100,responsavel:a.profissional?.nome??null,requiresFicha:precisaFicha,status:'novo',...(precisaFicha?{ficha:{create:{petId:a.petId,clienteId:a.clienteId}}}:{})},select})
+   if(a.bookingRequest?.pagamentoVendaId)await tx.venda.update({where:{id:a.bookingRequest.pagamentoVendaId},data:{comandaProcessoId:p.id}})
    return {processo:p}
   },{isolationLevel:'Serializable'})
   return 'error'in result?json({error:result.error},result.status):json(result)
