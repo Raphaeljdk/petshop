@@ -8,10 +8,10 @@ export function municipioCoerenteComUf(uf:string,codigo:string){
  return Object.prototype.hasOwnProperty.call(PREFIXO_IBGE_UF,uf) &&
  /^\d{7}$/.test(codigo) && codigo.startsWith(PREFIXO_IBGE_UF[uf as keyof typeof PREFIXO_IBGE_UF])
 }
-/** Apenas revenda de mercadoria adquirida de terceiros; não converte operações especiais. */
+/** Revenda de terceiros a consumidor final não contribuinte (indIEDest=9). Não converte operações especiais nem habilita contribuintes. */
 export function cfopRevendaPorDestino(cfop:string,uf:string){
  if(!Object.prototype.hasOwnProperty.call(PREFIXO_IBGE_UF,uf))throw new Error('UF de destino inválida.')
- if(cfop==='5102'||cfop==='6102')return uf==='SP'?'5102':'6102'
+ if(['5102','6102','6108'].includes(cfop))return uf==='SP'?'5102':'6108'
  if(uf==='SP'&&/^5\d{3}$/.test(cfop))return cfop
  throw new Error('CFOP interestadual não suportado. Exige regra fiscal específica.')
 }
