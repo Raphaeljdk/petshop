@@ -6,7 +6,7 @@ import {
   slugServico,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
-  catalogoPorRaca, REGRA_PRECO_FIXO,
+  catalogoPorRaca,
 } from '../src/lib/catalogo-servicos-matilha'
 
 describe('Catálogo estético sem valores fictícios', () => {
@@ -135,22 +135,22 @@ describe('Catálogo estético sem valores fictícios', () => {
   })
 })
 
-describe('Catálogo público por raça e preço único',()=>{
-  const banho={chave:'banho',precoCentavos:15000,duracaoMinutos:120,regrasPreco:REGRA_PRECO_FIXO,observacoes:null,confirmado:true,updatedAt:null}
-  test('preço igual em diferentes raças e sem necessidade de grupo',()=>{
-    for(const raca of ['Husky Siberiano','Pit Bull Terrier','Chihuahua']){
-      expect(catalogoPorRaca([banho],raca).opcoes.find(s=>s.chave==='banho')).toMatchObject({precoCentavos:15000,duracaoMinutos:120})
-    }
-  })
-  test('não oferece preço não confirmado nem pet sem raça',()=>{
-    expect(catalogoPorRaca([{...banho,confirmado:false}],'Husky Siberiano').opcoes).toHaveLength(0)
-    expect(catalogoPorRaca([{...banho,regrasPreco:null}],'Husky Siberiano').opcoes).toHaveLength(0)
-    expect(catalogoPorRaca([banho],null).opcoes).toHaveLength(0)
-    expect(catalogoPorRaca([{...banho,confirmado:false}],'Husky Siberiano').pendentes.some(s=>s.chave==='banho')).toBe(true)
-  })
-  test('serviço por porte continua restrito à raça e preserva o preço por raça anterior confirmado',()=>{
-    const item={...banho,chave:'banho-e-tosa',regrasPreco:null,precosPorRaca:[{raca:'Husky Siberiano',precoCentavos:45000}]}
-    expect(catalogoPorRaca([item],' HUSKY siberiano ').opcoes.find(s=>s.chave===item.chave)?.precoCentavos).toBe(45000)
-    expect(catalogoPorRaca([item],'Poodle').opcoes).toHaveLength(0)
-  })
+describe('Catálogo por raça e porte, independentemente do horário',()=>{
+ const grupos=[{porte:'mini',racas:['Chihuahua'],precoCentavos:7000,duracaoMinutos:45},{porte:'pequeno',racas:['Shih Tzu'],precoCentavos:9000,duracaoMinutos:60},{porte:'medio',racas:['Pit Bull Terrier'],precoCentavos:13000,duracaoMinutos:80},{porte:'grande',racas:['Husky Siberiano'],precoCentavos:15000,duracaoMinutos:120},{porte:'extra-grande',racas:['Bernese da Montanha'],precoCentavos:18000,duracaoMinutos:150}]
+ const banho={chave:'banho',precoCentavos:99999,duracaoMinutos:5,regrasPreco:null,observacoes:null,confirmado:true,updatedAt:null,gruposPorte:grupos}
+ test('preço e duração independentes para cada porte, sem usar preço de referência',()=>{
+  for(const g of grupos)expect(catalogoPorRaca([banho],g.racas[0]).opcoes.find(s=>s.chave==='banho')).toMatchObject({precoCentavos:g.precoCentavos,duracaoMinutos:g.duracaoMinutos})
+ })
+ test('lista todos os serviços configurados para a raça sem depender da escala',()=>{
+  const tosa={...banho,chave:'tosa-higienica',gruposPorte:grupos.map(g=>({...g,precoCentavos:3000}))}
+  expect(catalogoPorRaca([banho,tosa],' HUSKY siberiano ').opcoes.map(s=>s.chave)).toEqual(['banho','tosa-higienica'])
+  expect(catalogoPorRaca([banho,tosa],'Poodle').opcoes).toHaveLength(0)
+  expect(catalogoPorRaca([banho,tosa],null).opcoes).toHaveLength(0)
+ })
+ test('serviços cadastrados sem confirmação e preços antigos aparecem sob consulta, não como cobrança',()=>{
+  expect(catalogoPorRaca([{...banho,confirmado:false}],'Husky Siberiano').pendentes).toContainEqual({chave:'banho',nome:'Banho'})
+  const legado={...banho,gruposPorte:[],precosPorRaca:[{raca:'Husky Siberiano',precoCentavos:15000}]}
+  expect(catalogoPorRaca([legado],'Husky Siberiano').opcoes).toHaveLength(0)
+  expect(catalogoPorRaca([legado],'Husky Siberiano').pendentes).toContainEqual({chave:'banho',nome:'Banho'})
+ })
 })
