@@ -215,7 +215,7 @@ function montarNfe55(
       && /^[0-8]$/.test(p.origem || '') && p.csosn === '102'
       && !!p.unidadeFiscal?.trim(), 'Item ' + (index + 1) + ': classificação NCM, CFOP, origem, unidade e CSOSN inválida ou incompleta.')
     const cfop=tpAmb===1?(fiscal.cfop??numerico(p.cfop)):numerico(p.cfop)
-    necessario(idDest==='1'?/^5\d{3}$/.test(cfop):(!!fiscal.cfop&&cfop==='6102'&&['5102','6102'].includes(numerico(p.cfop))), 'CFOP incompatível com a operação ou sem regra interestadual específica.')
+    necessario(idDest==='1'?/^5\d{3}$/.test(cfop):(!!fiscal.cfop&&cfop==='6108'&&['5102','6102','6108'].includes(numerico(p.cfop))), 'CFOP incompatível com a operação ou sem regra interestadual específica.')
     necessario(fiscal.gtin === 'SEM GTIN' || /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(fiscal.gtin),
       'Item ' + (index+1) + ': confirme o GTIN/EAN ou informe SEM GTIN quando aplicável.')
     const pis=xmlTributo('PIS',fiscal.pisCst,fiscal.pis)
