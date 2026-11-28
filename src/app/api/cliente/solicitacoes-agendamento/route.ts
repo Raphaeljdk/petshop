@@ -4,8 +4,9 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { assertSameOrigin } from '@/lib/auth-http'
-import { consultarCatalogoPublico } from '@/lib/catalogo-agenda-publica'
+import { selecionarReservaAutomatica } from '@/lib/catalogo-agenda-publica'
 
+import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
 import { horarioNoIntervalo } from '@/lib/agenda-horarios-portal'
 
 export async function GET() {
@@ -28,6 +29,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    assertSameOrigin(req)
     const user = await getUsuarioLogado()
     if (!user?.cliente)
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -58,39 +60,32 @@ export async function POST(req: NextRequest) {
     })
     if (!pet)
       return NextResponse.json({ error: 'Pet não encontrado' }, { status: 404 })
-    const catalogo = await consultarCatalogoPublico(pet.raca, desired)
-    const servico = catalogo.servicos.find(s => s.nome === input.service)
-    if (!servico)
-      return NextResponse.json({ error: 'Serviço indisponível para esta raça, data ou horário. Consulte a equipe pelo WhatsApp.' }, { status: 409 })
     if ((input.gravataFoto||input.gravataNome) && !input.service.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('banho'))
       return NextResponse.json({ error: 'A gravata personalizada está disponível nos serviços de banho.' }, { status: 400 })
-    const booking = await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.cliente!.id}))`
-      if (
-        (await tx.bookingRequest.count({
-          where: { clienteId: user.cliente!.id, status: 'solicitado' },
-        })) >= 5
-      )
-        return null
-      return tx.bookingRequest.create({
-        data: {
-          ...input,
-          pagamentoOnlineObrigatorio: true,
-          gravataPrecoCentavos: input.gravataFoto||input.gravataNome ? 500 : 0,
-          servicoPrecoCentavos: servico.precoCentavos,
-          desiredAt: desired,
-          clienteId: user.cliente!.id,
-          petName: pet.nome,
-        },
-      })
-    })
-    if (!booking)
-      return NextResponse.json(
-        { error: 'Você já tem cinco solicitações aguardando resposta.' },
-        { status: 409 },
-      )
-    return NextResponse.json(booking, { status: 201 })
+    const result=await db.$transaction(async tx=>{
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('matilha-agenda-reservas'))`
+      const clienteId=user.cliente!.id
+      const existente=await tx.bookingRequest.findUnique({where:{clienteId_petKey_desiredAt:{clienteId,petKey:pet.id,desiredAt:desired}},include:{pagamentoVenda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}}}})
+      if(existente){
+       if(existente.agendamentoId&&existente.status==='confirmado'&&existente.service===input.service)return {booking:existente,reused:true}
+       return {error:'Já existe um registro para este pet neste horário. Consulte seus agendamentos ou escolha outra hora.',status:409}
+      }
+      if(desired<=new Date())return {error:'Este horário já passou. Escolha outro.',status:409}
+      const reserva=await selecionarReservaAutomatica(tx,pet.raca,input.service,desired)
+      if(!reserva)return {error:'O horário não está mais disponível. Atualize a agenda e escolha outro.',status:409}
+      const {servico,profissionalId}=reserva
+      const fim=new Date(desired.getTime()+servico.duracaoMinutos*60000)
+      const conflitos=await tx.agendamento.findMany({where:{petId:pet.id,status:{in:['agendado','confirmado']},dataHora:{gte:new Date(desired.getTime()-1440*60000),lt:fim}},select:{dataHora:true,duracaoMinutos:true}})
+      if(conflitos.some(a=>a.dataHora.getTime()+(a.duracaoMinutos??720)*60000>desired.getTime()))return {error:'Este pet já tem um atendimento que coincide com o horário escolhido.',status:409}
+      const agendamento=await tx.agendamento.create({data:{clienteId,petId:pet.id,profissionalId,servico:servico.nome,categoria:inferirCategoriaAgenda(servico.nome),dataHora:desired,duracaoMinutos:servico.duracaoMinutos,status:'confirmado',observacoes:input.notes||null}})
+      const booking=await tx.bookingRequest.create({data:{...input,clienteId,petName:pet.nome,desiredAt:desired,status:'confirmado',confirmedAt:desired,confirmationRef:agendamento.id,reply:'Agendamento confirmado automaticamente pelo portal.',agendamentoId:agendamento.id,pagamentoOnlineObrigatorio:true,gravataPrecoCentavos:input.gravataFoto||input.gravataNome?500:0,servicoPrecoCentavos:servico.precoCentavos},include:{pagamentoVenda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}}}})
+      await tx.agendaEvento.create({data:{agendamentoId:agendamento.id,acao:'confirmado_automaticamente',autorId:user.id,detalhe:'Reserva pelo portal do cliente'}})
+      return {booking,reused:false}
+    },{isolationLevel:'Serializable'})
+    if('error'in result)return NextResponse.json({error:result.error},{status:result.status})
+    return NextResponse.json(result.booking,{status:result.reused?200:201})
   } catch (error) {
+    if(['P2034','P2002'].includes((error as {code?:string})?.code||''))return NextResponse.json({error:'A agenda mudou durante a reserva. Atualize e tente novamente.'},{status:409})
     return experienceError(error)
   }
 }
