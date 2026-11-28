@@ -5,6 +5,9 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { consultarCatalogoPublico } from '@/lib/catalogo-agenda-publica'
 
+import { adicionalLiberado, adicionalFinanceiramentePendente, pagamentoRealAprovado } from '@/lib/comanda-pagamento-policy'
+import { assertSameOrigin } from '@/lib/auth-http'
+
 export const dynamic = 'force-dynamic'
 type Route = { params: Promise<{id:string}> }
 const json = (data:unknown,status=200) => NextResponse.json(data,{status,headers:{'Cache-Control':'private,no-store'}})
@@ -33,18 +36,19 @@ export async function GET(_req:NextRequest,{params}:Route) {
   const {id}=await params;const ctx=await contexto(id)
   if(!ctx)return json({error:'Comanda não encontrada.'},404)
   const [extras,vendas,catalogo,solicitacoes]=await Promise.all([
-   db.comandaServicoExtra.findMany({where:{processoId:id},include:{venda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true}}},orderBy:{createdAt:'asc'}}),
+   db.comandaServicoExtra.findMany({where:{processoId:id},include:{venda:{select:{id:true,total:true,status:true,mercadoPagoStatus:true,mercadoPagoId:true}}},orderBy:{createdAt:'asc'}}),
    db.venda.findMany({where:{comandaProcessoId:id,comandaExtra:null,bookingPagamento:null},select:{id:true,total:true,status:true,mercadoPagoStatus:true,statusEntrega:true,itens:{select:{quantidade:true,precoUnit:true,produto:{select:{nome:true}}}}},orderBy:{createdAt:'asc'}}),
    aberto(ctx.processo)?consultarCatalogoPublico(ctx.processo.pet.raca,new Date()):Promise.resolve({servicos:[]}),
    ctx.staff&&!ctx.processo.bookingRequestId&&aberto(ctx.processo)?db.bookingRequest.findMany({where:{clienteId:ctx.processo.pet.clienteId,petKey:ctx.processo.petId,status:'confirmado',processo:null},select:{id:true,service:true,confirmedAt:true,gravataPrecoCentavos:true,gravataFoto:true,gravataIdeia:true,pagamentoVenda:{select:{status:true,mercadoPagoStatus:true}}},orderBy:{confirmedAt:'desc'},take:20}):Promise.resolve([]),
   ])
-  return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},aberto:aberto(ctx.processo),extras,vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
+  return json({processo:{id,servico:ctx.processo.servico,status:ctx.processo.status,valorServico:ctx.processo.valorServico,petNome:ctx.processo.pet.nome},aberto:aberto(ctx.processo),extras:extras.map(x=>({...x,venda:x.venda?{id:x.venda.id,total:x.venda.total,status:x.venda.status,mercadoPagoStatus:x.venda.mercadoPagoStatus}:null,liberado:adicionalLiberado(x),pago:pagamentoRealAprovado(x.venda,x.precoCentavos),pendenteFinanceiro:adicionalFinanceiramentePendente(x)})),vendas,servicos:catalogo.servicos,solicitacoes,bookingRequestId:ctx.processo.bookingRequestId})
  }catch(e){return experienceError(e)}
 }
 export async function POST(req:NextRequest,{params}:Route) {
  try{
   const {id}=await params;const ctx=await contexto(id)
   if(!ctx)return json({error:'Comanda não encontrada.'},404)
+  assertSameOrigin(req)
   const input=actions.parse(await experienceBody(req))
   if(input.action==='cobrar'&&ctx.staff)return json({error:'O tutor deve iniciar o pagamento no portal.'},403)
   if(input.action!=='cobrar'&&!aberto(ctx.processo))return json({error:'Atendimento não está aberto para adicionais.'},409)
@@ -90,15 +94,22 @@ export async function POST(req:NextRequest,{params}:Route) {
    const extra=await tx.comandaServicoExtra.findFirst({where:{id:input.extraId,processoId:id},include:{venda:true}})
    if(!extra)return {error:'Adicional não encontrado.',status:404}
    if(input.action==='responder'){
-    if(ctx.staff||extra.status!=='aguardando_tutor')return {error:'Apenas o tutor pode responder uma autorização pendente.',status:403}
-    return {extra:await tx.comandaServicoExtra.update({where:{id:extra.id},data:{status:input.aceitar?'autorizado':'recusado',aceitoPorId:ctx.user.id,respondidoEm:new Date()}})}
+    if(ctx.staff||(!['aguardando_tutor','autorizado'].includes(extra.status))||(!input.aceitar&&extra.status!=='aguardando_tutor'))return {error:'Apenas o tutor pode responder uma autorização pendente.',status:403}
+    if(extra.status==='autorizado'&&extra.aceitoPorId!==ctx.user.id)return {error:'Autorização já registrada.',status:409}
+    const atualizado=extra.status==='aguardando_tutor'?await tx.comandaServicoExtra.update({where:{id:extra.id},data:{status:input.aceitar?'autorizado':'recusado',aceitoPorId:ctx.user.id,respondidoEm:new Date()}}):extra
+    if(!input.aceitar||extra.precoCentavos===0)return {extra:atualizado}
+    if(extra.venda?.status==='cancelada')return {error:'Cobrança cancelada. Solicite conciliação à equipe.',status:409}
+    if(extra.venda)return {extra:atualizado,venda:{id:extra.venda.id,total:extra.venda.total,status:extra.venda.status}}
+    const venda=await tx.venda.create({data:{clienteId:p.pet.clienteId,comandaProcessoId:id,canal:'site',status:'pendente',total:extra.precoCentavos/100,subtotalProdutos:0,observacoes:'Serviço adicional (NFS-e separada): '+extra.nome,tipoEntrega:'retirada',valorFrete:0},select:{id:true,total:true,status:true}})
+    await tx.comandaServicoExtra.update({where:{id:extra.id},data:{vendaId:venda.id}})
+    return {extra:atualizado,venda}
    }
    if(input.action==='confirmar-equipe'){
     if(!ctx.staff||extra.status!=='aguardando_equipe')return {error:'Ação não permitida.',status:403}
     return {extra:await tx.comandaServicoExtra.update({where:{id:extra.id},data:{status:input.aceitar?'autorizado':'recusado',equipePorId:ctx.user.id,equipeEm:new Date()}})}
    }
    if(input.action==='realizar'){
-    if(!ctx.staff||extra.status!=='autorizado'||!extra.aceitoPorId||!extra.equipePorId)return {error:'Serviço sem aceite do tutor e confirmação da equipe.',status:409}
+    if(!ctx.staff||!adicionalLiberado(extra))return {error:'Serviço exige aceite, confirmação da equipe e pagamento real aprovado.',status:409}
     return {extra:await tx.comandaServicoExtra.update({where:{id:extra.id},data:{status:'realizado',realizadoEm:new Date()}})}
    }
    if(!['autorizado','realizado'].includes(extra.status)||!extra.aceitoPorId||!extra.equipePorId||extra.precoCentavos<=0)return {error:'Adicional ainda não autorizado para cobrança.',status:409}
