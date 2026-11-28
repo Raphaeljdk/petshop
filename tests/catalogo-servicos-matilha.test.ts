@@ -10,15 +10,15 @@ import {
 
 describe('Catálogo estético sem valores fictícios', () => {
   test('cada serviço confirmado pela loja recebe chave única e estável', () => {
-    expect(CATALOGO_ESTETICO_MATILHA.length).toBe(9)
-    expect(new Set(CATALOGO_ESTETICO_MATILHA.map((s) => s.chave)).size).toBe(9)
+    expect(CATALOGO_ESTETICO_MATILHA.length).toBe(11)
+    expect(new Set(CATALOGO_ESTETICO_MATILHA.map((s) => s.chave)).size).toBe(11)
     expect(CATALOGO_ESTETICO_MATILHA.find((s) => s.nome === 'Limpeza de ouvidos')?.chave).toBe('limpeza-de-ouvidos')
     expect(CATALOGO_ESTETICO_MATILHA.some((s) => /hospedagem/i.test(s.nome))).toBe(false)
   })
 
   test('retorna dados pendentes, sem inventar preço ou duração', () => {
     const items = listarServicosParaConfiguracao([])
-    expect(items).toHaveLength(9)
+    expect(items).toHaveLength(11)
     for (const item of items) {
       expect(item.precoCentavos).toBeNull()
       expect(item.precosPorRaca).toEqual([])
@@ -62,16 +62,16 @@ describe('Catálogo estético sem valores fictícios', () => {
       confirmado: true, updatedAt: '2026-11-20T00:00:00.000Z',
     }
     const itens = listarServicosParaConfiguracao([item])
-    expect(itens).toHaveLength(10)
+    expect(itens).toHaveLength(12)
     expect(itens[0].nome).toBe('Banho')
-    expect(itens[9]).toMatchObject({
+    expect(itens[11]).toMatchObject({
       chave: 'personalizado-banho-terapeutico',
       nome: 'Banho terapêutico',
       precoCentavos: 12500,
       duracaoMinutos: 90,
       confirmado: true,
     })
-    expect(itens[9].precosPorRaca).toEqual([{ raca: 'Golden Retriever', precoCentavos: 15500 }])
+    expect(itens[11].precosPorRaca).toEqual([{ raca: 'Golden Retriever', precoCentavos: 15500 }])
     expect(itens.find(x => x.chave === 'banho')?.precoCentavos).toBeNull()
   })
 
@@ -82,7 +82,7 @@ describe('Catálogo estético sem valores fictícios', () => {
       duracaoMinutos: null, regrasPreco: null, observacoes: null,
       confirmado: false, updatedAt: null,
     }])
-    expect(items).toHaveLength(9)
+    expect(items).toHaveLength(11)
   })
 
   test('não permite confirmar sem duração e sem regra/preço', () => {
