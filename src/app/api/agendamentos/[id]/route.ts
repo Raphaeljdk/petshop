@@ -5,6 +5,7 @@ import { getUsuarioLogado } from '@/lib/auth-cookies'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { agendamentoPatchSchema } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
+import { conflitoAgenda } from '@/lib/catalogo-agenda-publica'
 import { horarioBloqueado } from '@/lib/agenda-bloqueios-policy'
 type Params = { params: Promise<{ id: string }> }
 async function admin() {
@@ -47,6 +48,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const profissionalId = changes.profissionalId !== undefined ? changes.profissionalId : existing.profissionalId
     const item = await db.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('matilha-agenda-reservas'))`
+      const booking=await tx.bookingRequest.findUnique({where:{agendamentoId:id},include:{pagamentoVenda:true}})
+      if(booking&&(petId!==existing.petId||clienteId!==existing.clienteId||dataHora.getTime()!==existing.dataHora.getTime()||(changes.servico&&changes.servico!==existing.servico)||status==='cancelado'||existing.status==='cancelado'))throw new Error('RESERVA_ONLINE')
+      if(['agendado','confirmado'].includes(status)&&(changes.dataHora||changes.profissionalId!==undefined||changes.servico||changes.petId||existing.status==='cancelado')){const capacidade=await conflitoAgenda(tx,{inicio:dataHora,profissionalId,petId,ignorarId:id,servico:changes.servico||existing.servico});if(capacidade.conflito)throw new Error('AGENDA_BLOQUEADA')}
       if (profissionalId && ['agendado', 'confirmado'].includes(status)) {
         const bloqueio = await tx.agendaBloqueio.findFirst({
           where: { profissionalId, inicio: { lte: dataHora }, fim: { gt: dataHora } },
@@ -74,6 +79,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }, { isolationLevel: 'Serializable' })
     return NextResponse.json(item)
   } catch (error) {
+    if(error instanceof Error&&error.message==='RESERVA_ONLINE')return NextResponse.json({error:'Reserva online vinculada a pagamento. Use a conciliação da reserva antes de alterar data, serviço ou cancelar.'},{status:409})
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues[0]?.message }, { status: 400 })
     if (error instanceof Error && error.message === 'AGENDA_BLOQUEADA') return NextResponse.json({ error: 'O profissional bloqueou este horário. Selecione outro.' }, { status: 409 })
     if ((error as {code?:string})?.code === 'P2034') return NextResponse.json({ error: 'A agenda mudou. Atualize e tente novamente.' }, { status: 409 })
@@ -91,11 +97,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!existing) return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
     if (existing.status === 'cancelado') return NextResponse.json({ success: true, status: 'cancelado' })
     await db.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('matilha-agenda-reservas'))`
+      const booking=await tx.bookingRequest.findUnique({where:{agendamentoId:id},select:{id:true}})
+      if(booking)throw Error('RESERVA_ONLINE')
       await tx.agendamento.update({ where: { id }, data: { status: 'cancelado' } })
       await tx.agendaEvento.create({ data: { agendamentoId: id, acao: 'cancelado', autorId: auth.user!.id } })
     })
     return NextResponse.json({ success: true, status: 'cancelado' })
   } catch (error) {
+    if(error instanceof Error&&error.message==='RESERVA_ONLINE')return NextResponse.json({error:'Reserva online vinculada a pagamento. Concilie antes de cancelar.'},{status:409})
     console.error('agenda DELETE:', error)
     return NextResponse.json({ error: 'Erro ao cancelar o agendamento.' }, { status: 500 })
   }
