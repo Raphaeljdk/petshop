@@ -9,16 +9,16 @@ export async function GET(req: NextRequest) {
   const headers = { 'Cache-Control': 'private, no-store' }
   const petKey = req.nextUrl.searchParams.get('petKey')
   const quando = req.nextUrl.searchParams.get('quando')
-  if (!petKey || !quando) return NextResponse.json(base, { headers })
+  if (!petKey) return NextResponse.json(base, { headers })
   try {
     const user = await getUsuarioLogado()
     if (!user?.cliente) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401, headers })
     const pet = await db.pet.findFirst({ where: { id: petKey, clienteId: user.cliente.id, ativo: true }, select: { raca: true } })
     if (!pet) return NextResponse.json({ error: 'Pet não encontrado.' }, { status: 404, headers })
-    const data = new Date(quando)
-    if (!Number.isFinite(data.getTime()) || data.getTime() <= Date.now() || data.getTime() > Date.now() + 180 * 86400000)
+    const data = quando ? new Date(quando) : undefined
+    if (data && (!Number.isFinite(data.getTime()) || data.getTime() <= Date.now() || data.getTime() > Date.now() + 180 * 86400000))
       return NextResponse.json({ error: 'Escolha uma data futura nos próximos seis meses.' }, { status: 400, headers })
-    return NextResponse.json({ ...base, catalogo: await consultarCatalogoPublico(pet.raca, data) }, { headers })
+    return NextResponse.json({ ...base, raca:pet.raca, catalogo: await consultarCatalogoPublico(pet.raca, data) }, { headers })
   } catch (error) {
     console.error('catalogo de agenda do cliente', error)
     return NextResponse.json({ error: 'Não foi possível consultar a disponibilidade.' }, { status: 500, headers })
