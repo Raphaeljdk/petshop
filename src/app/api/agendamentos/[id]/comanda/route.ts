@@ -42,7 +42,8 @@ export async function POST(req:NextRequest,{params}:Params){
    const configs=await tx.servicoEsteticoConfig.findMany()
    const preco=catalogoPorRaca(configs,a.pet.raca).opcoes.find(s=>slugServico(s.nome)===slugServico(a.servico))
    if(!preco)return {error:'Confirme o preço do serviço para esta raça no cadastro antes de abrir a comanda.',status:409}
-   const p=await tx.processo.create({data:{agendamentoId:id,petId:a.petId,servico:a.servico,valorServico:preco.precoCentavos/100,responsavel:a.profissional?.nome??null,requiresFicha:requiresFichaAtendimento(a.servico),status:'novo'},select})
+   const precisaFicha=requiresFichaAtendimento(a.servico)
+   const p=await tx.processo.create({data:{agendamentoId:id,petId:a.petId,servico:a.servico,valorServico:preco.precoCentavos/100,responsavel:a.profissional?.nome??null,requiresFicha:precisaFicha,status:'novo',...(precisaFicha?{ficha:{create:{petId:a.petId,clienteId:a.clienteId}}}:{})},select})
    return {processo:p}
   },{isolationLevel:'Serializable'})
   return 'error'in result?json({error:result.error},result.status):json(result)
