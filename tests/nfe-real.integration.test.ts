@@ -2,7 +2,7 @@ import { beforeAll, afterAll, test, expect } from 'bun:test'
 import { PrismaClient } from '@prisma/client'
 import forge from 'node-forge'
 import { emissorReal, emissaoAtivaNoServidor, configuracaoPermiteEmissao } from '../src/lib/nfe-real-servico'
-import { conferirAmazon, numeroPedidoAmazon, type ComplementoFiscal } from '../src/lib/nfe-real-venda'
+import { conferirAmazon, numeroPedidoAmazon, gerarParaVenda, carregarOperacao, type ComplementoFiscal } from '../src/lib/nfe-real-venda'
 import { gerarDanfeAutorizado } from '../src/lib/nfe-danfe'
 import { interpretarRetornoReal, inutilizacaoDisponivel, retornoInutilizacao, NFE_NS } from '../src/lib/nfe-real-protocolo'
 import { dispatchNfeEmails, enviarEmailFiscalSelecionado, emailFiscalManualHabilitado } from '../src/lib/fiscal-nfe-email'
@@ -280,4 +280,23 @@ test('envio manual substitui cron apenas em produção e com configuração comp
  expect(configuracaoPermiteEmissao({...base,NODE_ENV:'test'},true)).toBe(false)
  expect(configuracaoPermiteEmissao({...base,NFE_REAL_HABILITADA:'false'},true)).toBe(false)
  expect(configuracaoPermiteEmissao(base,false)).toBe(false)
+})
+
+test('IBS/CBS informativo 2026 não inventa base nem alíquota e bloqueia transição 2027',async()=>{
+ const v=await venda(),empresa=await db.configuracaoFiscal.findUniqueOrThrow({where:{id:'matilha-prado'}})
+ const original=await db.regraFiscalAprovada.findUniqueOrThrow({where:{id:regraId}})
+ await db.produto.update({where:{id:produtoId},data:{ibsCbsCst:'000',ibsCbsClassTrib:'000001'}})
+ const regra=await db.regraFiscalAprovada.update({where:{id:regraId},data:{ibsCbsCst:'000',ibsCbsClassTrib:'000001'}})
+ await db.nfeRealAprovacao.update({where:{regraId_sku:{regraId,sku}},data:{revisaoRegra:regra.atualizadoEm}})
+ try{
+  const op=await carregarOperacao(db,v.id)
+  const x=await gerarParaVenda(db,op,empresa,dados,999,'12345678',new Date('2026-11-27T18:00:00Z'),chaves)
+  expect(x.xml).not.toContain('<IBSCBS>')
+  expect(x.xmlAssinado).toContain('<Signature')
+  await expect(gerarParaVenda(db,op,empresa,dados,999,'12345678',new Date('2027-01-01T03:00:00Z'),chaves)).rejects.toThrow('IBS/CBS')
+ }finally{
+  await db.produto.update({where:{id:produtoId},data:{ibsCbsCst:null,ibsCbsClassTrib:null}})
+  const restaurada=await db.regraFiscalAprovada.update({where:{id:regraId},data:{ibsCbsCst:original.ibsCbsCst,ibsCbsClassTrib:original.ibsCbsClassTrib}})
+  await db.nfeRealAprovacao.update({where:{regraId_sku:{regraId,sku}},data:{revisaoRegra:restaurada.atualizadoEm}})
+ }
 })
