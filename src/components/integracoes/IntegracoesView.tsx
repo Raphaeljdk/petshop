@@ -644,7 +644,7 @@ export function IntegracoesView() {
               Sobre Mercado Livre e Amazon
             </p>
             <p className="text-blue-800 text-xs leading-relaxed">
-              O Hub altera o saldo apenas por movimentações reais e importa vendas pelo evento do canal ou pela consulta manual. A Amazon exige uma integração de notificações de pedidos; sem ela, use a consulta manual. A escrita nos canais depende da liberação de segurança.
+              O Hub importa vendas confirmadas por eventos do Mercado Livre e por consulta diária ou manual de pedidos da Amazon e do Mercado Livre. A consulta não altera saldos se não houver novas vendas. A escrita nos canais depende da liberação de segurança.
             </p>
             <Button
               type="button"
@@ -664,7 +664,7 @@ export function IntegracoesView() {
                 Os pedidos continuam sendo importados para o Hub quando identificados com segurança.
               </p>}
               <p className="text-xs text-blue-800">
-                <strong>Atualização de estoque: por movimentação</strong>
+                <strong>Atualização de estoque: por movimentação · Consulta de segurança diária (6h, Brasília)</strong>
                 {autoSync?.status?.lastFinishedAt
                   ? ' · Última execução: '+new Date(autoSync.status.lastFinishedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})
                   : ' · Aguardando primeira execução'}
