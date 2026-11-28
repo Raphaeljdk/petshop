@@ -24,8 +24,8 @@ export async function POST(req:NextRequest){
     if(b.pagamentoVenda.status==='cancelada')return {error:'Pagamento cancelado. Solicite conciliação à equipe antes de tentar novamente.',status:409}
     return {id:b.pagamentoVenda.id,total:b.pagamentoVenda.total,status:b.pagamentoVenda.status}
    }
-   if(b.processo||!b.confirmedAt||b.confirmedAt<=new Date())return {error:'Consulte a equipe para o pagamento de um atendimento já iniciado.',status:409}
-   const venda=await tx.venda.create({data:{clienteId,canal:'site',status:'pendente',total:(b.servicoPrecoCentavos+b.gravataPrecoCentavos)/100,subtotalProdutos:0,tipoEntrega:'retirada',valorFrete:0,observacoes:'Agendamento'+(b.gravataPrecoCentavos?' e gravata personalizada':'')+' — serviços (NFS-e separada)'},select:{id:true,total:true,status:true}})
+   if(!b.processo&&(!b.confirmedAt||b.confirmedAt<=new Date()))return {error:'Consulte a equipe para o pagamento de um atendimento já iniciado.',status:409}
+   const venda=await tx.venda.create({data:{clienteId,comandaProcessoId:b.processo?.id,canal:'site',status:'pendente',total:(b.servicoPrecoCentavos+b.gravataPrecoCentavos)/100,subtotalProdutos:0,tipoEntrega:'retirada',valorFrete:0,observacoes:'Agendamento'+(b.gravataPrecoCentavos?' e gravata personalizada':'')+' — serviços (NFS-e separada)'},select:{id:true,total:true,status:true}})
    await tx.bookingRequest.update({where:{id:b.id},data:{pagamentoVendaId:venda.id}})
    return venda
   },{isolationLevel:'Serializable'})
