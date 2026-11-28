@@ -17,7 +17,7 @@ export const complementoFiscal=z.object({
   codigoMunicipio:z.string().regex(/^\d{7}$/),uf:z.string().regex(/^[A-Z]{2}$/),cep:z.string().regex(/^\d{8}$/),
   complemento:z.string().trim().max(60).optional(),
  }).strict().refine(e=>municipioCoerenteComUf(e.uf,e.codigoMunicipio),'Código IBGE incompatível com UF de destino.'),
- pagamento:z.enum(['01','17','18','20']),modalidadeFrete:z.enum(['0','1','2','9']),
+ pagamento:z.enum(['01','03','04','15','17','18','20','99']),modalidadeFrete:z.enum(['0','1','2','9']),
  dadosPagamento:z.object({tipoIntegracao:z.enum(['1','2']),cnpjInstituicao:z.string().regex(/^\d{14}$/).optional(),codigoAutorizacao:z.string().trim().min(1).max(128).optional()}).strict().optional(),
  consumidorFinalNaoContribuinte:z.literal(true),semNotaExterna:z.literal(true),
 }).strict()
@@ -112,6 +112,9 @@ export async function carregarLiberacao(tx:TransacaoFiscal,habilitada:boolean){
 
 export async function gerarParaVenda(tx:TransacaoFiscal,venda:Awaited<ReturnType<typeof carregarOperacao>>,empresa:NonNullable<Awaited<ReturnType<typeof carregarLiberacao>>['empresa']>,dados:ComplementoFiscal,numero:number,cNF:string,data:Date,chaves:ChavesA1,inter?:Intermediacao){
  const cliente=compradorFiscal(venda,inter)
+ exigir(data<new Date('2027-01-01T00:00:00-03:00'),'Emissão a partir de 2027 exige revisão da transição IBS/CBS antes de reservar número.')
+ exigir(dados.pagamento!=='99'||venda.canal==='amazon'&&!!inter,'Pagamento não identificado exige marketplace confirmado.')
+ exigir(!['03','04'].includes(dados.pagamento)||venda.canal==='amazon'&&dados.dadosPagamento?.tipoIntegracao==='2','Cartão exige marketplace e pagamento não integrado confirmado.')
  const cep=venda.cepEntrega?.replace(/\D/g,'')
  exigir(!cep||cep===dados.endereco.cep,'CEP fiscal diverge do endereço de entrega. Confira o pedido.')
  const itens:NfeEntrada['itens']=[]
@@ -128,7 +131,8 @@ export async function gerarParaVenda(tx:TransacaoFiscal,venda:Awaited<ReturnType
    'Falta regra fiscal vigente aprovada para produção no SKU '+p.sku+'.')
   exigir(p.csosn==='102'&&regra.csosn===p.csosn&&regra.cest===p.cest&&regra.pisCst===p.pisCst&&regra.cofinsCst===p.cofinsCst,
    'O cadastro do SKU '+p.sku+' diverge da regra aprovada.')
-  exigir(![p.ipiCst,p.ibsCbsCst,p.ibsCbsClassTrib,regra.ipiCst,regra.ibsCbsCst,regra.ibsCbsClassTrib].some(Boolean)
+  const ibsInformativo2026=p.ibsCbsCst==='000'&&p.ibsCbsClassTrib==='000001'&&regra.ibsCbsCst===p.ibsCbsCst&&regra.ibsCbsClassTrib===p.ibsCbsClassTrib&&data<new Date('2027-01-01T00:00:00-03:00')
+  exigir(![p.ipiCst,regra.ipiCst].some(Boolean)&& (ibsInformativo2026||![p.ibsCbsCst,p.ibsCbsClassTrib,regra.ibsCbsCst,regra.ibsCbsClassTrib].some(Boolean))
    &&[regra.aliquotaIcmsSt,regra.aliquotaFcpSt,regra.aliquotaIpi,regra.aliquotaIbsUf,regra.aliquotaIbsMun,regra.aliquotaCbs].every(v=>v==null),
    'A regra exige grupos tributários adicionais para o SKU '+p.sku+'.')
   const outras=(cst:string,aliquota:number|null)=>{
