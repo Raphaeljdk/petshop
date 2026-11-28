@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { getUsuarioLogado } from '@/lib/auth-helpers'
 import { consultarCatalogoPublico } from '@/lib/catalogo-agenda-publica'
 
+import { horarioNoIntervalo } from '@/lib/agenda-horarios-portal'
+
 export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const base = { configured: false, writeConfigured: false, services: [], missing: [], fallback: 'solicitacao-equipe' }
@@ -18,6 +20,7 @@ export async function GET(req: NextRequest) {
     const data = quando ? new Date(quando) : undefined
     if (data && (!Number.isFinite(data.getTime()) || data.getTime() <= Date.now() || data.getTime() > Date.now() + 180 * 86400000))
       return NextResponse.json({ error: 'Escolha uma data futura nos próximos seis meses.' }, { status: 400, headers })
+    if(data&&!horarioNoIntervalo(data))return NextResponse.json({error:'Escolha um horário em intervalos de 10 minutos.'},{status:400,headers})
     return NextResponse.json({ ...base, raca:pet.raca, catalogo: await consultarCatalogoPublico(pet.raca, data) }, { headers })
   } catch (error) {
     console.error('catalogo de agenda do cliente', error)
