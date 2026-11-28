@@ -76,6 +76,18 @@ export function ComandaAtendimento({processoId,equipe=false}:{processoId:string;
 }
 export function MinhasComandas(){
  const [items,setItems]=useState<Array<{id:string}>>([])
- useEffect(()=>{let live=true;const load=()=>portalRequest<{items:Array<{id:string}>}>('/api/comandas').then(r=>{if(live)setItems(r.items)}).catch(()=>{});void load();const timer=setInterval(()=>{if(document.visibilityState==='visible')void load()},15000);return()=>{live=false;clearInterval(timer)}},[])
- return <>{items.map(p=><ComandaAtendimento key={p.id} processoId={p.id}/>)}</>
+ const [falha,setFalha]=useState(false)
+ useEffect(()=>{
+  let live=true
+  const load=()=>portalRequest<{items:Array<{id:string}>}>('/api/comandas').then(r=>{
+   if(!live)return
+   if(!Array.isArray(r?.items))throw Error('Resposta inválida da comanda.')
+   setItems(r.items.filter(p=>typeof p?.id==='string'&&p.id.length>0))
+   setFalha(false)
+  }).catch(()=>{if(live)setFalha(true)})
+  void load()
+  const timer=setInterval(()=>{if(document.visibilityState==='visible')void load()},15000)
+  return()=>{live=false;clearInterval(timer)}
+ },[])
+ return <>{falha&&<p role="status" className="rounded-lg border p-3 text-sm text-muted-foreground">Não foi possível consultar suas comandas. Os agendamentos continuam disponíveis.</p>}{items.map(p=><ComandaAtendimento key={p.id} processoId={p.id}/>)}</>
 }
