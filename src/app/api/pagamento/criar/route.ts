@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    if(equipe&&(!venda.comandaProcessoId||!venda.comandaProcesso||venda.comandaProcesso.comandaFechadaEm||venda.comandaProcesso.status==='cancelado'||metodo!=='pix'||card||boleto||!venda.clienteId))return NextResponse.json({error:'A equipe só pode gerar PIX de uma comanda válida.'},{status:403})
+    if(equipe&&(!venda.comandaProcessoId||!venda.comandaProcesso||venda.comandaProcesso.comandaFechadaEm||venda.comandaProcesso.status==='cancelado'||!['pix','cartao'].includes(metodo)||boleto||!venda.clienteId))return NextResponse.json({error:'A equipe só pode cobrar uma comanda válida via PIX ou cartão.'},{status:403})
     if (!equipe && venda.clienteId !== cliente?.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
