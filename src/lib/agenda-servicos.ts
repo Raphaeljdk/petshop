@@ -19,6 +19,8 @@ export const SERVICOS_ESTETICOS_MATILHA = [
   'Remoção de subpelos e pelos mortos',
   'Desembolo',
   'Limpeza de ouvidos',
+  'Tosa higiênica',
+  'Escovação de dentes',
 ] as const
 
 /** Exemplos editáveis pelo operador. Não atribuem preço ou disponibilidade comercial. */
@@ -43,7 +45,7 @@ export function inferirCategoriaAgenda(servico: string): CategoriaAgenda {
   if(/internac|internad/.test(s))return 'Internações'
   if(/hosped|hotel|pernoite/.test(s))return 'Hospedagens'
   if(/day.?care|creche|recreac/.test(s))return 'Day Care'
-  if(/banho|tosa|estetic|hidratac|cronograma|embelez|unha|ouvido|desembol|subpelo|pelo morto/.test(s))return 'Estéticos'
+  if(/banho|tosa|estetic|hidratac|cronograma|embelez|unha|ouvido|desembol|subpelo|pelo morto|escovacao de dent/.test(s))return 'Estéticos'
   if(/externo|domicili|delivery|transporte/.test(s))return 'Externos'
   if(/clinico|consulta|retorno|exame|avaliac|ultrassom/.test(s))return 'Clínicos'
   return 'Gerais'

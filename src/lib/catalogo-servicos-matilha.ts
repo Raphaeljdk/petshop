@@ -1,6 +1,6 @@
 import { SERVICOS_ESTETICOS_MATILHA } from './agenda-servicos'
-import { lerPrecosPorRaca } from './precos-por-raca'
-import { lerGruposPorte, gruposPorteConfirmaveis } from './servicos-grupos-porte'
+import { chaveRaca, lerPrecosPorRaca } from './precos-por-raca'
+import { lerGruposPorte, gruposPorteConfirmaveis, grupoParaRaca } from './servicos-grupos-porte'
 
 /**
  * Fonte unica para a configuracao interna. A chave nunca vem de dados de clientes.
@@ -65,4 +65,22 @@ export function listarServicosParaConfiguracao(registros: ConfiguracaoServico[])
     confirmado: porChave.get(servico.chave)?.confirmado ?? false,
     updatedAt: porChave.get(servico.chave)?.updatedAt ?? null,
   }))
+}
+
+/** Catálogo e escala são independentes. Valores históricos não confirmados nunca viram uma cobrança. */
+export function catalogoPorRaca(registros: ConfiguracaoServico[], raca: string | null) {
+  const todos = listarServicosParaConfiguracao(registros)
+  const opcoes:Array<{chave:string;nome:string;precoCentavos:number;duracaoMinutos:number}>=[]
+  const pendentes:Array<{chave:string;nome:string}>=[]
+  if (!raca?.trim()) return { todos, opcoes, pendentes }
+  for (const s of todos) {
+    const grupo=grupoParaRaca(s.gruposPorte,raca)
+    const anterior=s.precosPorRaca.find(p=>chaveRaca(p.raca)===chaveRaca(raca))
+    if(s.confirmado && grupo && grupo.precoCentavos!==null && grupo.duracaoMinutos!==null) {
+      opcoes.push({chave:s.chave,nome:s.nome,precoCentavos:grupo.precoCentavos,duracaoMinutos:grupo.duracaoMinutos})
+    } else if(grupo || anterior || s.gruposPorte.some(g=>g.racas.some(r=>chaveRaca(r)===chaveRaca(raca)))) {
+      pendentes.push({chave:s.chave,nome:s.nome})
+    }
+  }
+  return { todos, opcoes, pendentes }
 }

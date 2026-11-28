@@ -14,7 +14,7 @@ const server = spawn(process.execPath, [resolve('.next/standalone/server.js')], 
 })
 let browser
 const customer = { id: 'fixture', nome: 'Marina', email: 'marina@example.test', telefone: '11999999999', endereco: null, cep: null }
-const pet = { id: 'luna', nome: 'Luna', especie: 'cachorro', raca: null, fotoUrl: null }
+const pet = { id: 'luna', nome: 'Luna', especie: 'cachorro', raca: 'Husky Siberiano', fotoUrl: null }
 const dashboard = {
   cliente: customer,
   stats: { totalPets: 1, totalAgendamentos: 1, totalCompras: 0, totalGasto: 0, processosAtivos: 0 },
@@ -36,12 +36,13 @@ try {
   let signedIn = false
   let currentDashboard = dashboard
   await context.route('**/api/**', route => {
-    const path = new URL(route.request().url()).pathname
+    const url=new URL(route.request().url())
+    const path = url.pathname
     const body = path === '/api/comandas' ? { items: [] }
       : path === '/api/auth/me' ? (signedIn ? { autenticado: true, user: { ...customer, role: 'CLIENTE', clienteId: customer.id }, cliente: customer } : { autenticado: false })
       : path === '/api/cliente/dashboard' ? currentDashboard
         : path === '/api/cliente/fidelidade' ? { config: null, earned: 0, used: 0, balance: 0, redemptions: [] }
-          : path === '/api/cliente/agendamentos/servicos' ? { configured: false, writeConfigured: false, services: [], fallback: 'solicitacao-equipe' }
+          : path === '/api/cliente/agendamentos/servicos' ? { configured: false, writeConfigured: false, services: [], fallback: 'solicitacao-equipe', ...(url.searchParams.has('petKey')?{catalogo:{motivo:'escolher-horario',servicos:[],opcoes:[{chave:'banho',nome:'Banho',precoCentavos:15000,duracaoMinutos:120}],pendentes:[{chave:'tosa-higienica',nome:'Tosa higiênica'}]}}:{}) }
             : path === '/api/cliente/pets' ? currentDashboard.pets : []
     return route.fulfill({ json: body })
   })
@@ -87,7 +88,16 @@ try {
   }
   await page.getByRole('button', { name: 'Ver meu agendamento' }).click()
   await page.waitForURL('**/#agendamentos')
+  await page.getByRole('button', { name: 'Solicitar agendamento', exact: true }).click()
   await page.getByRole('heading', { name: 'Solicitar pelo portal', exact: true }).waitFor()
+  await page.locator('#request-pet').selectOption('luna')
+  await page.getByText('Raça: Husky Siberiano',{exact:true}).waitFor()
+  await page.waitForFunction(()=>Array.from(document.querySelectorAll('#request-service option')).some(o=>o.value==='Banho'))
+  assert.equal(await page.locator('#request-date').inputValue(),'')
+  await page.locator('#request-service').selectOption('Banho')
+  assert.equal(await page.getByRole('button',{name:'Enviar solicitação',exact:true}).isDisabled(),true)
+  assert.equal(await page.locator('#request-service option[value="pendente-tosa-higienica"]').isDisabled(),true)
+  console.log('PASS: serviços por raça antes da escolha da data; pendentes não reserváveis')
   currentDashboard = { ...dashboard, stats: { ...dashboard.stats, processosAtivos: 1 } }
   await page.goto(base)
   await page.getByRole('heading', { name: 'Tem cuidado acontecendo por aqui.' }).waitFor()

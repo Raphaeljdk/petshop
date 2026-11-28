@@ -1,16 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarClock, Clock, MessageCircle } from 'lucide-react'
+import { CalendarClock, Clock, MessageCircle, Plus } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { SkeletonLoader } from '@/components/ui/SkeletonLoader'
 import { matilhaWhatsAppUrl } from '@/lib/matilha-contact'
 import type { Agendamento } from '@/lib/types'
@@ -29,11 +26,7 @@ export function ClientAgendamentos() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState(false)
   const [refresh, setRefresh] = useState(0)
-  const [dataPreferida, setDataPreferida] = useState<Date>()
-  const [periodo, setPeriodo] = useState('Sem preferência')
-  const [petNome, setPetNome] = useState('')
-  const [servico, setServico] = useState('')
-  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const formularioRef=useRef<HTMLDetailsElement>(null)
 
   useEffect(() => {
     let active = true
@@ -75,14 +68,7 @@ export function ClientAgendamentos() {
     [agendamentos]
   )
 
-  const whatsapp = matilhaWhatsAppUrl(
-    ['Olá! Vim pelo portal da Matilha Prado e gostaria de consultar as datas e horários disponíveis.',
-      petNome.trim() ? `Pet: ${petNome.trim()}.` : '',
-      servico.trim() ? `Serviço: ${servico.trim()}.` : '',
-      dataPreferida ? `Data de preferência: ${format(dataPreferida, 'dd/MM/yyyy')}. Período: ${periodo}.` : '',
-      'Vocês têm disponibilidade? Se não, podem me informar as próximas datas livres? Aguardo a confirmação do agendamento.',
-    ].filter(Boolean).join('\n')
-  )
+  const whatsapp=matilhaWhatsAppUrl('Olá! Vim pelo portal da Matilha Prado e preciso de ajuda com o agendamento do meu pet.')
 
   async function cancelarAgendamento(item: Agendamento) {
     if (!window.confirm('Cancelar sua reserva para ' + (item.pet?.nome || 'seu pet') + '?')) return
@@ -131,35 +117,20 @@ export function ClientAgendamentos() {
             Acompanhe seus atendimentos e solicite uma nova data.
           </p>
         </div>
-        <Button asChild className="btn-brand">
-          <a href={whatsapp} target="_blank" rel="noreferrer">
-            <MessageCircle className="size-4" />
-            Solicitar agendamento
-          </a>
+        <Button type="button" className="btn-brand" onClick={()=>{if(formularioRef.current){formularioRef.current.open=true;formularioRef.current.scrollIntoView({behavior:'smooth',block:'start'})}}}>
+          <Plus className="size-4"/> Solicitar agendamento
         </Button>
       </div>
 
       <MinhasComandas />
-      <BookingRequests />
-      <details className="rounded-xl border bg-card p-3"><summary className="cursor-pointer text-sm font-semibold">Precisa de ajuda? Consultar pelo WhatsApp</summary>
-      <Card className="mt-3">
-        <CardContent className="grid gap-6 p-4 sm:p-6 md:grid-cols-2">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Quando você prefere vir?</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Escolha uma data para consultar. A disponibilidade e o horário serão confirmados pela equipe no WhatsApp.</p>
-            <Calendar mode="single" locale={ptBR} selected={dataPreferida} onSelect={setDataPreferida} disabled={(day) => format(day, 'yyyy-MM-dd') < hojeSP} className="mx-auto mt-4 max-w-full p-0 [--cell-size:clamp(2rem,9vw,2.75rem)]" />
-          </div>
-          <div className="min-w-0 space-y-4">
-            <div className="space-y-2"><Label htmlFor="agenda-pet">Nome do pet</Label><Input id="agenda-pet" value={petNome} maxLength={80} onChange={(e) => setPetNome(e.target.value)} placeholder="Como seu pet se chama?" className="h-11 text-base" /></div>
-            <div className="space-y-2"><Label htmlFor="agenda-servico">Atendimento desejado</Label><Input id="agenda-servico" value={servico} maxLength={120} onChange={(e) => setServico(e.target.value)} placeholder="Ex.: banho e tosa" className="h-11 text-base" /></div>
-            <fieldset><legend className="mb-2 text-sm font-medium">Período de preferência</legend><div className="flex flex-wrap gap-2">{['Manhã', 'Tarde', 'Sem preferência'].map((opcao) => <Button key={opcao} type="button" variant={periodo === opcao ? 'default' : 'outline'} aria-pressed={periodo === opcao} className="min-h-11" onClick={() => setPeriodo(opcao)}>{opcao}</Button>)}</div></fieldset>
-            <p aria-live="polite" className="rounded-xl bg-primary/5 p-3 text-sm">{dataPreferida ? `Data solicitada: ${format(dataPreferida, 'dd/MM/yyyy')} · ${periodo}` : 'Selecione uma data no calendário.'}</p>
-            <Button asChild className="btn-brand min-h-12 h-auto w-full whitespace-normal py-3"><a href={whatsapp} target="_blank" rel="noreferrer"><MessageCircle className="size-4 shrink-0" /> Consultar disponibilidade no WhatsApp</a></Button>
-            <p className="text-xs text-muted-foreground">A seleção de uma data não reserva um horário.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <details ref={formularioRef} className="rounded-xl border bg-card p-3">
+        <summary className="cursor-pointer text-sm font-semibold">Novo agendamento</summary>
+        <div className="mt-3"><BookingRequests /></div>
       </details>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-3">
+        <span className="text-sm text-muted-foreground">Precisa de ajuda com o agendamento?</span>
+        <Button asChild size="sm" variant="outline"><a href={whatsapp} target="_blank" rel="noopener noreferrer"><MessageCircle className="size-4"/> Consultar pelo WhatsApp</a></Button>
+      </div>
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Próximos</h2>
@@ -172,7 +143,7 @@ export function ClientAgendamentos() {
             <CardContent className="p-8 text-center">
               <CalendarClock className="mx-auto mb-3 size-9 text-muted-foreground/40" />
               <p className="font-medium">Nenhum atendimento futuro</p>
-              <p className="mt-1 text-sm text-muted-foreground">Use o botão acima para falar com a Matilha Prado.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Use o botão acima para solicitar um novo atendimento.</p>
             </CardContent>
           </Card>
         ) : (

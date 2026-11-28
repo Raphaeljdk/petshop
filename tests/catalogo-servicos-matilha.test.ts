@@ -6,19 +6,20 @@ import {
   slugServico,
   configuracaoPodeSerConfirmada,
   listarServicosParaConfiguracao,
+  catalogoPorRaca,
 } from '../src/lib/catalogo-servicos-matilha'
 
 describe('Catálogo estético sem valores fictícios', () => {
   test('cada serviço confirmado pela loja recebe chave única e estável', () => {
-    expect(CATALOGO_ESTETICO_MATILHA.length).toBe(9)
-    expect(new Set(CATALOGO_ESTETICO_MATILHA.map((s) => s.chave)).size).toBe(9)
+    expect(CATALOGO_ESTETICO_MATILHA.length).toBe(11)
+    expect(new Set(CATALOGO_ESTETICO_MATILHA.map((s) => s.chave)).size).toBe(11)
     expect(CATALOGO_ESTETICO_MATILHA.find((s) => s.nome === 'Limpeza de ouvidos')?.chave).toBe('limpeza-de-ouvidos')
     expect(CATALOGO_ESTETICO_MATILHA.some((s) => /hospedagem/i.test(s.nome))).toBe(false)
   })
 
   test('retorna dados pendentes, sem inventar preço ou duração', () => {
     const items = listarServicosParaConfiguracao([])
-    expect(items).toHaveLength(9)
+    expect(items).toHaveLength(11)
     for (const item of items) {
       expect(item.precoCentavos).toBeNull()
       expect(item.precosPorRaca).toEqual([])
@@ -62,16 +63,16 @@ describe('Catálogo estético sem valores fictícios', () => {
       confirmado: true, updatedAt: '2026-11-20T00:00:00.000Z',
     }
     const itens = listarServicosParaConfiguracao([item])
-    expect(itens).toHaveLength(10)
+    expect(itens).toHaveLength(12)
     expect(itens[0].nome).toBe('Banho')
-    expect(itens[9]).toMatchObject({
+    expect(itens[11]).toMatchObject({
       chave: 'personalizado-banho-terapeutico',
       nome: 'Banho terapêutico',
       precoCentavos: 12500,
       duracaoMinutos: 90,
       confirmado: true,
     })
-    expect(itens[9].precosPorRaca).toEqual([{ raca: 'Golden Retriever', precoCentavos: 15500 }])
+    expect(itens[11].precosPorRaca).toEqual([{ raca: 'Golden Retriever', precoCentavos: 15500 }])
     expect(itens.find(x => x.chave === 'banho')?.precoCentavos).toBeNull()
   })
 
@@ -82,7 +83,7 @@ describe('Catálogo estético sem valores fictícios', () => {
       duracaoMinutos: null, regrasPreco: null, observacoes: null,
       confirmado: false, updatedAt: null,
     }])
-    expect(items).toHaveLength(9)
+    expect(items).toHaveLength(11)
   })
 
   test('não permite confirmar sem duração e sem regra/preço', () => {
@@ -132,4 +133,24 @@ describe('Catálogo estético sem valores fictícios', () => {
     expect(precosPorRacaSchema.safeParse([{ raca: 'Poodle', precoCentavos: 100.5 }]).success).toBe(false)
     expect(lerPrecosPorRaca(null)).toEqual([])
   })
+})
+
+describe('Catálogo por raça e porte, independentemente do horário',()=>{
+ const grupos=[{porte:'mini',racas:['Chihuahua'],precoCentavos:7000,duracaoMinutos:45},{porte:'pequeno',racas:['Shih Tzu'],precoCentavos:9000,duracaoMinutos:60},{porte:'medio',racas:['Pit Bull Terrier'],precoCentavos:13000,duracaoMinutos:80},{porte:'grande',racas:['Husky Siberiano'],precoCentavos:15000,duracaoMinutos:120},{porte:'extra-grande',racas:['Bernese da Montanha'],precoCentavos:18000,duracaoMinutos:150}]
+ const banho={chave:'banho',precoCentavos:99999,duracaoMinutos:5,regrasPreco:null,observacoes:null,confirmado:true,updatedAt:null,gruposPorte:grupos}
+ test('preço e duração independentes para cada porte, sem usar preço de referência',()=>{
+  for(const g of grupos)expect(catalogoPorRaca([banho],g.racas[0]).opcoes.find(s=>s.chave==='banho')).toMatchObject({precoCentavos:g.precoCentavos,duracaoMinutos:g.duracaoMinutos})
+ })
+ test('lista todos os serviços configurados para a raça sem depender da escala',()=>{
+  const tosa={...banho,chave:'tosa-higienica',gruposPorte:grupos.map(g=>({...g,precoCentavos:3000}))}
+  expect(catalogoPorRaca([banho,tosa],' HUSKY siberiano ').opcoes.map(s=>s.chave)).toEqual(['banho','tosa-higienica'])
+  expect(catalogoPorRaca([banho,tosa],'Poodle').opcoes).toHaveLength(0)
+  expect(catalogoPorRaca([banho,tosa],null).opcoes).toHaveLength(0)
+ })
+ test('serviços cadastrados sem confirmação e preços antigos aparecem sob consulta, não como cobrança',()=>{
+  expect(catalogoPorRaca([{...banho,confirmado:false}],'Husky Siberiano').pendentes).toContainEqual({chave:'banho',nome:'Banho'})
+  const legado={...banho,gruposPorte:[],precosPorRaca:[{raca:'Husky Siberiano',precoCentavos:15000}]}
+  expect(catalogoPorRaca([legado],'Husky Siberiano').opcoes).toHaveLength(0)
+  expect(catalogoPorRaca([legado],'Husky Siberiano').pendentes).toContainEqual({chave:'banho',nome:'Banho'})
+ })
 })

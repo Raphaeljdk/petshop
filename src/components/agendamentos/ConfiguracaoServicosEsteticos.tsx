@@ -56,6 +56,7 @@ function lerDuracao(valor: string) {
 }
 
 export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCriado?: (nome: string) => void } = {}) {
+  const [aberto,setAberto]=useState<string|null>(null)
   const [items, setItems] = useState<Servico[]>([])
   const [drafts, setDrafts] = useState<Record<string, Rascunho>>({})
   const [loading, setLoading] = useState(true)
@@ -124,6 +125,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
       const item = data.item as Servico
       setItems(prev => [...prev, item])
       setDrafts(prev => ({ ...prev, [item.chave]: editar(item) }))
+      setAberto(item.chave)
       setNomeNovo('')
       setMostrarNovo(false)
       onServicoCriado?.(item.nome)
@@ -177,7 +179,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
         Configurar serviços, preços e duração ({loading ? 'carregando' : `${confirmados}/${items.length} confirmados`})
       </summary>
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-        Configure as raças, o preço e a duração de cada grupo. Os valores antigos ficam preservados para conferência. A confirmação desta tabela não ativa reservas automáticas nem configura impostos.
+        Abra apenas o serviço que deseja editar. Cada porte tem preço e duração próprios. Os preços antigos ficam preservados para conferência.
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
         <div>
@@ -206,28 +208,29 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
       </form>}
       {loading && <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Carregando...</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 space-y-2">
         {items.map((item) => {
           const r = drafts[item.chave]
           if (!r) return null
           const id = item.chave
           return (
             <div key={id} className="rounded-lg border bg-background p-3">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">{item.nome}</h3>
+              <button type="button" aria-expanded={aberto===id} aria-controls={"servico-"+id} className="flex w-full items-center justify-between gap-2 text-left" onClick={()=>setAberto(a=>a===id?null:id)}>
+                <span className="text-sm font-semibold">{aberto===id?"▾":"▸"} {item.nome}</span>
                 <span className={`inline-flex items-center gap-1 text-xs ${item.gruposConfirmados ? 'text-green-700' : 'text-muted-foreground'}`}>
                   {item.gruposConfirmados ? <CheckCircle2 className="size-4" /> : <CircleHelp className="size-4" />}
                   {item.gruposConfirmados ? 'Confirmado' : 'Pendente'}
                 </span>
-              </div>
+              </button>
+              <div id={"servico-"+id} hidden={aberto!==id} className="mt-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 space-y-3">
                   {r.grupos.map(g => {
                     const nome = GRUPOS_PORTE.find(p => p.chave === g.porte)?.nome || g.porte
                     const prefixo = id + '-' + g.porte
-                    return <div key={g.porte} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                      <h4 className="text-sm font-semibold">Porte {nome}</h4>
-                      <div className="grid grid-cols-2 gap-2">
+                    return <details key={g.porte} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                      <summary className="cursor-pointer text-sm font-semibold">Porte {nome} · {g.racas.split(/\n/).filter(x=>x.trim()).length} raça(s){g.preco? " · R$ "+g.preco:""}{g.duracao?" · "+g.duracao+" min":""}</summary>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label htmlFor={prefixo + '-preco'}>Preço (R$)</Label>
                           <Input id={prefixo + '-preco'} inputMode="decimal" value={g.preco} placeholder="A confirmar" onChange={e => alterarGrupo(id, g.porte, 'preco', e.target.value)} />
@@ -241,7 +244,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
                           <Textarea id={prefixo + '-racas'} rows={2} value={g.racas} placeholder="Informe as raças atendidas" onChange={e => alterarGrupo(id, g.porte, 'racas', e.target.value)} />
                         </div>
                       </div>
-                    </div>
+                    </details>
                   })}
                   {item.precosPorRaca.length > 0 && <details className="rounded-md border p-2 text-xs">
                     <summary className="cursor-pointer font-medium">Consultar preços por raça anteriores (somente leitura)</summary>
@@ -267,6 +270,7 @@ export function ConfiguracaoServicosEsteticos({ onServicoCriado }: { onServicoCr
                   {saving === id ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Save className="mr-1 size-4" />}
                   Salvar
                 </Button>
+              </div>
               </div>
             </div>
           )
