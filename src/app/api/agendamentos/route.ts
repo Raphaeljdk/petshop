@@ -7,6 +7,7 @@ import { agendamentoSchema, statusAgenda } from '@/lib/agenda-validation'
 import { inferirCategoriaAgenda } from '@/lib/agenda-servicos'
 import { canViewAppointments, canScheduleBath, isOperationalOperator } from '@/lib/operational-access'
 import { getOperationalProfessional } from '@/lib/agenda-bloqueios'
+import { conflitoAgenda } from '@/lib/catalogo-agenda-publica'
 import { horarioBloqueado } from '@/lib/agenda-bloqueios-policy'
 
 export const dynamic = 'force-dynamic'
@@ -88,6 +89,9 @@ export async function POST(req: NextRequest) {
     if (isOperationalOperator(auth.user) && (!propria || !propria.ativo)) return NextResponse.json({ error: 'Seu cadastro de profissional está indisponível.' }, { status: 409 })
     const profissionalId = propria?.id || data.profissionalId || null
     const item = await db.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('matilha-agenda-reservas'))`
+      const capacidade=await conflitoAgenda(tx,{inicio:dataHora,profissionalId,petId:data.petId,servico:data.servico})
+      if(capacidade.conflito)throw new Error('AGENDA_BLOQUEADA')
       if (profissionalId) {
         const bloqueio = await tx.agendaBloqueio.findFirst({
           where: { profissionalId, inicio: { lte: dataHora }, fim: { gt: dataHora } },
@@ -98,7 +102,7 @@ export async function POST(req: NextRequest) {
       const created = await tx.agendamento.create({
         data: { clienteId: data.clienteId, petId: data.petId, dataHora, servico: data.servico,
           categoria: data.categoria || inferirCategoriaAgenda(data.servico),
-          observacoes: data.observacoes || null, profissionalId },
+          observacoes: data.observacoes || null, profissionalId,duracaoMinutos:capacidade.duracao },
         include: { pet: true, cliente: true },
       })
       await tx.agendaEvento.create({ data: { agendamentoId: created.id, acao: 'criado', autorId: auth.user!.id } })

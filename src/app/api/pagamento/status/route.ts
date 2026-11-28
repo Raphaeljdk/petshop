@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getClienteLogado } from '@/lib/auth-helpers'
+import { getClienteLogado,getUsuarioLogado } from '@/lib/auth-helpers'
 import { getOuCriarConfigPagamento } from '@/lib/mercado-pago'
 import {
   consultarOrderMercadoPago,
@@ -22,8 +22,10 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const cliente = await getClienteLogado()
-    if (!cliente) {
+    const usuario=await getUsuarioLogado()
+    const equipe=usuario?.role==='ADMIN'||usuario?.role==='KANBAN'
+    const cliente=equipe?null:await getClienteLogado()
+    if (!equipe&&!cliente) {
       return NextResponse.json(
         { error: 'Cliente não autenticado' },
         { status: 401 }
@@ -63,7 +65,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 })
     }
 
-    if (venda.clienteId !== cliente.id) {
+    if (equipe?!venda.comandaProcessoId:venda.clienteId!==cliente?.id) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 

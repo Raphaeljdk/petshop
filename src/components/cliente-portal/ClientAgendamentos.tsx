@@ -114,18 +114,18 @@ export function ClientAgendamentos() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Meus Agendamentos</h1>
           <p className="text-sm text-muted-foreground">
-            Acompanhe seus atendimentos e solicite uma nova data.
+            Acompanhe seus atendimentos e agende uma nova data.
           </p>
         </div>
         <Button type="button" className="btn-brand" onClick={()=>{if(formularioRef.current){formularioRef.current.open=true;formularioRef.current.scrollIntoView({behavior:'smooth',block:'start'})}}}>
-          <Plus className="size-4"/> Solicitar agendamento
+          <Plus className="size-4"/> Novo agendamento
         </Button>
       </div>
 
       <MinhasComandas />
       <details ref={formularioRef} className="rounded-xl border bg-card p-3">
         <summary className="cursor-pointer text-sm font-semibold">Novo agendamento</summary>
-        <div className="mt-3"><BookingRequests /></div>
+        <div className="mt-3"><BookingRequests onBooked={()=>setRefresh(v=>v+1)}/></div>
       </details>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-3">
         <span className="text-sm text-muted-foreground">Precisa de ajuda com o agendamento?</span>
@@ -143,7 +143,7 @@ export function ClientAgendamentos() {
             <CardContent className="p-8 text-center">
               <CalendarClock className="mx-auto mb-3 size-9 text-muted-foreground/40" />
               <p className="font-medium">Nenhum atendimento futuro</p>
-              <p className="mt-1 text-sm text-muted-foreground">Use o botão acima para solicitar um novo atendimento.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Use o botão acima para agendar um novo atendimento.</p>
             </CardContent>
           </Card>
         ) : (

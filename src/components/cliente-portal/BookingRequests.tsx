@@ -50,7 +50,7 @@ const dateLabel = (value: string) =>
     timeStyle: 'short',
   })
 
-export function BookingRequests() {
+export function BookingRequests({onBooked}:{onBooked?:()=>void}={}) {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [historicoServicos, setHistoricoServicos] = useState<Array<{ petId: string; servico: string; status: string; dataHora: string }>>([])
   const [pets, setPets] = useState<{ id: string; nome: string; raca?:string|null; ativo?:boolean }[]>([])
@@ -155,12 +155,12 @@ export function BookingRequests() {
             ) : (
               <CalendarClock className="size-5 text-primary" />
             )}
-            {directMode ? 'Agendar direto no Siggma' : 'Solicitar pelo portal'}
+            {directMode ? 'Agendar direto no Siggma' : 'Agendar pelo portal'}
           </h2>
           <p className="text-sm text-muted-foreground">
             {directMode
               ? 'Escolha pet, serviço, data e horário. O Siggma valida o expediente antes de confirmar.'
-              : 'Escolha o pet, veja os serviços disponíveis para a raça e depois selecione a data. A equipe confirma a reserva.'}
+              : 'Escolha o pet, veja os serviços disponíveis para a raça e depois selecione a data. O horário disponível é reservado automaticamente. Depois, realize o pagamento.'}
           </p>
         </div>
 
@@ -185,7 +185,7 @@ export function BookingRequests() {
                 setNotes('')
                 window.setTimeout(() => window.location.reload(), 700)
               } else {
-                await portalRequest('/api/cliente/solicitacoes-agendamento', {
+                const reserva=await portalRequest<Booking>('/api/cliente/solicitacoes-agendamento', {
                   method: 'POST',
                   body: JSON.stringify({
                     petKey,
@@ -195,12 +195,12 @@ export function BookingRequests() {
                     ...(banho && personalizar && (gravataFoto||gravataNome.trim()) ? { ...(gravataFoto?{gravataFoto}:{}), ...(gravataNome.trim()?{gravataNome:gravataNome.trim()}:{}), gravataIdeia } : {}),
                   }),
                 })
-                toast.success(
-                  'Solicitação enviada. Aguarde a confirmação da equipe no portal.',
-                )
+                toast.success('Agendamento confirmado! Realize o pagamento para concluir a parte financeira.')
+                onBooked?.()
                 setDesired('')
                 setNotes(''); setPersonalizar(false); setGravataFoto(null); setGravataNome(''); setGravataIdeia('')
                 await load()
+                try{const v=await portalRequest<{id:string;total:number;status:string}>('/api/cliente/solicitacoes-agendamento/pagamento',{method:'POST',body:JSON.stringify({id:reserva.id})});if(v.status==='pendente')setPagamento(v);await load()}catch(e){toast.error('Sua reserva foi confirmada. '+(e instanceof Error?e.message:'Abra o pagamento em Meus Agendamentos.'))}
               }
             } catch (error) {
               toast.error((error as Error).message)
@@ -254,7 +254,7 @@ export function BookingRequests() {
                 {!petKey&&<p className="mt-1 text-xs text-muted-foreground">Escolha o pet para consultar os serviços.</p>}
                 {selecionado&&!desired&&<p className="mt-1 text-xs text-muted-foreground">Agora escolha a data e o horário.</p>}
                 {selecionado&&desired&&consultando&&<p className="mt-1 text-xs text-muted-foreground">Conferindo disponibilidade da equipe...</p>}
-                {selecionado&&desired&&!consultando&&horarioConsultado===desired&&<p className={'mt-1 text-xs '+(horarioDisponivel?'text-green-700':'text-amber-700')}>{horarioDisponivel?'Horário disponível para solicitação.':'Serviço cadastrado, mas sem profissional disponível neste horário. Escolha outro horário ou fale com a equipe.'}</p>}
+                {selecionado&&desired&&!consultando&&horarioConsultado===desired&&<p className={'mt-1 text-xs '+(horarioDisponivel?'text-green-700':'text-amber-700')}>{horarioDisponivel?'Horário disponível para agendamento.':'Serviço cadastrado, mas sem profissional disponível neste horário. Escolha outro horário ou fale com a equipe.'}</p>}
                 {erroCatalogo && <p className="mt-1 text-xs text-destructive">{erroCatalogo}</p>}
                 {catalogo&&!disponiveis.length&&<p className="mt-1 text-xs text-muted-foreground">{catalogo.motivo==='servicos-pendentes'?'A equipe ainda precisa confirmar os preços e tempos dos serviços.':'Não encontramos serviços cadastrados para esta raça.'}</p>}
                 {!!catalogo?.pendentes?.length&&<div className="mt-2 rounded-md border p-2 text-xs text-muted-foreground"><p className="font-medium">Serviços cadastrados para esta raça, sob consulta:</p><p className="mt-1">{catalogo.pendentes.map(s=>s.nome).join(" · ")}</p></div>}
@@ -304,7 +304,7 @@ export function BookingRequests() {
               ? 'Enviando...'
               : directMode
                 ? 'Confirmar agendamento'
-                : 'Enviar solicitação'}
+                : 'Confirmar agendamento'}
           </Button>
         </form>
 
@@ -320,10 +320,10 @@ export function BookingRequests() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-semibold">{b.petName} · {b.service}</h3>
                 <span className="rounded-full bg-primary/10 px-3 py-1 text-xs">
-                  {b.status === 'solicitado' ? 'Aguardando confirmação' : b.status}
+                  {b.status === 'solicitado' ? 'Aguardando confirmação' : b.status==='confirmado'?'Agendado':b.status}
                 </span>
               </div>
-              <p className="mt-2 text-sm">Preferência: {dateLabel(b.desiredAt)}</p>
+              <p className="mt-2 text-sm">{b.status==='solicitado'?'Preferência:':'Data agendada:'} {dateLabel(b.confirmedAt||b.desiredAt)}</p>
               {!!b.gravataPrecoCentavos && <p className="mt-2 text-sm">Gravata personalizada · {preco(b.gravataPrecoCentavos)}</p>}
               {b.confirmedAt && (
                 <p className="text-sm font-semibold text-green-700">

@@ -111,6 +111,7 @@ model Agendamento {
   servico   String
   categoria String @default("Gerais")
   dataHora  DateTime
+  duracaoMinutos Int?
   status    String   @default("agendado")
   observacoes String?
   profissionalId String?
@@ -120,6 +121,7 @@ model Agendamento {
   pet     Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   processo Processo?
+  bookingRequest BookingRequest?
   @@index([dataHora, status])
   @@index([profissionalId, dataHora])
 }
@@ -447,6 +449,8 @@ model ProductReview {
 
 model BookingRequest {
   id String @id @default(cuid())
+  agendamentoId String? @unique
+  agendamento Agendamento? @relation(fields:[agendamentoId],references:[id],onDelete:Restrict)
   gravataFoto String? @db.Text
   gravataNome String? @db.VarChar(80)
   gravataIdeia String? @db.VarChar(400)

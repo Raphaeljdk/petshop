@@ -63,7 +63,7 @@ export function AgendaDateTimePicker({petKey,servicoChave,value,onChange,disable
       {carregando?<Loader2 className="size-4 animate-spin text-primary"/>:<Clock3 className="size-4 shrink-0 text-primary"/>}<span className="min-w-0 flex-1 truncate text-left">{value.slice(11)||'Escolher hora'}</span><ChevronDown className="size-4 shrink-0 text-muted-foreground"/>
      </Button></PopoverTrigger>
      <PopoverContent align="start" className="w-[min(21rem,calc(100vw-1.5rem))] max-h-[min(24rem,var(--radix-popover-content-available-height))] overflow-y-auto rounded-xl p-3">
-      <p className="text-sm font-semibold">Horários para solicitar</p><p className="mb-3 text-xs text-muted-foreground">Intervalos de 10 minutos · horário de Brasília</p>
+      <p className="text-sm font-semibold">Horários disponíveis</p><p className="mb-3 text-xs text-muted-foreground">Intervalos de 10 minutos · horário de Brasília</p>
       {periodos.map(p=>{const horas=slots.filter(h=>Number(h.slice(0,2))>=p.de&&Number(h.slice(0,2))<p.ate);return horas.length>0&&<div key={p.nome} className="mb-3"><p className="mb-1.5 text-xs font-semibold text-muted-foreground">{p.nome}</p><div className="grid grid-cols-3 gap-1.5">{horas.map(h=><Button key={h} type="button" size="sm" variant={value===dia+'T'+h?'default':'outline'} aria-pressed={value===dia+'T'+h} className="h-9 rounded-lg tabular-nums" onClick={()=>{onChange(dia+'T'+h);setHoraAberta(false)}}>{h}</Button>)}</div></div>})}
      </PopoverContent>
     </Popover>
@@ -74,6 +74,6 @@ export function AgendaDateTimePicker({petKey,servicoChave,value,onChange,disable
   {carregando&&<p role="status" className="text-xs text-muted-foreground">Consultando a agenda da equipe...</p>}
   {erro&&<div className="flex items-center gap-2 text-xs text-destructive">{erro}<Button type="button" size="sm" variant="ghost" onClick={()=>{setErro('');setResultado(null);setTentativa(t=>t+1)}}>Tentar novamente</Button></div>}
   {dia&&atual&&!slots.length&&<p className="text-xs text-amber-700">{atual.motivo==='dia-sem-escala'?'O pet shop não tem expediente disponível nesta data.':atual.motivo==='sem-profissional-servico'?'Nenhum profissional está escalado para este serviço neste dia.':'Os horários deste dia estão ocupados ou não comportam a duração do serviço.'} Escolha outra data ou consulte a equipe.</p>}
-  {dia&&slots.length>0&&<p className="text-xs text-muted-foreground">Horários de 10 em 10 minutos. A equipe confirma a reserva.</p>}
+  {dia&&slots.length>0&&<p className="text-xs text-muted-foreground">Horários de 10 em 10 minutos. A reserva é confirmada automaticamente ao agendar.</p>}
  </div>
 }

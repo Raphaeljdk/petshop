@@ -32,6 +32,7 @@ interface PagamentoCheckoutProps {
   vendaId: string
   total: number
   onAprovado?: () => void
+  equipe?:boolean
   onCancelar?: () => void
 }
 
@@ -95,6 +96,7 @@ export function PagamentoCheckout({
   total,
   onAprovado,
   onCancelar,
+  equipe=false,
 }: PagamentoCheckoutProps) {
   const [config, setConfig] = useState<ConfigPublica | null>(null)
   const [loadingConfig, setLoadingConfig] = useState(true)
@@ -135,6 +137,7 @@ export function PagamentoCheckout({
 
   // Métodos disponíveis conforme config
   const metodosDisponiveis = METODOS.filter((m) => {
+    if(equipe&&m.id==='boleto')return false
     if (!config) return true
     if (m.id === 'pix') return config.pixAtivo
     if (m.id === 'cartao') return config.cartaoAtivo
