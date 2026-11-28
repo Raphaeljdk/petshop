@@ -6,6 +6,8 @@ import { experienceBody, experienceError } from '@/lib/customer-experience'
 import { assertSameOrigin } from '@/lib/auth-http'
 import { consultarCatalogoPublico } from '@/lib/catalogo-agenda-publica'
 
+import { horarioNoIntervalo } from '@/lib/agenda-horarios-portal'
+
 export async function GET() {
   try {
     const user = await getUsuarioLogado()
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
         { error: 'Escolha uma data futura nos próximos seis meses.' },
         { status: 400 },
       )
+    if(!horarioNoIntervalo(desired))return NextResponse.json({error:'Escolha um horário em intervalos de 10 minutos.'},{status:400})
     const pet = await db.pet.findFirst({
       where: { id: input.petKey, clienteId: user.cliente.id, ativo: true },
     })
