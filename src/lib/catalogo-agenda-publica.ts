@@ -93,3 +93,21 @@ export async function selecionarReservaAutomatica(tx:Prisma.TransactionClient,ra
  const profissionalId=ids.sort((a,b)=>carga(a)-carga(b)||a.localeCompare(b))[0]
  return {servico,profissionalId}
 }
+
+/** Protege reservas automáticas também das alterações manuais e bloqueios. */
+export async function conflitoAgenda(tx:Prisma.TransactionClient,params:{inicio:Date;fim?:Date;profissionalId?:string|null;petId?:string;ignorarId?:string;servico?:string}){
+ const {inicio,profissionalId,petId,ignorarId}=params
+ const configs=await tx.servicoEsteticoConfig.findMany()
+ const todos=listarServicosParaConfiguracao(configs)
+ const minutos=(nome:string,raca:string|null)=>{const c=todos.find(s=>slugServico(s.nome)===slugServico(nome));return (c?grupoParaRaca(c.gruposPorte,raca)?.duracaoMinutos??c.duracaoMinutos:null)??720}
+ const pet=petId?await tx.pet.findUnique({where:{id:petId},select:{raca:true}}):null
+ const duracao=params.servico?minutos(params.servico,pet?.raca??null):720
+ const fim=params.fim??new Date(inicio.getTime()+duracao*60000)
+ const or=[...(profissionalId?[{profissionalId}]:[]),...(petId?[{petId}]:[])]
+ if(or.length){
+  const rows=await tx.agendamento.findMany({where:{...(ignorarId?{id:{not:ignorarId}}:{}),OR:or,status:{in:['agendado','confirmado']},dataHora:{gte:new Date(inicio.getTime()-1440*60000),lt:fim}},select:{dataHora:true,duracaoMinutos:true,servico:true,pet:{select:{raca:true}}}})
+  if(rows.some(r=>r.dataHora.getTime()+(r.duracaoMinutos??minutos(r.servico,r.pet.raca))*60000>inicio.getTime()))return {conflito:true,duracao}
+ }
+ if(profissionalId&&await tx.agendaBloqueio.findFirst({where:{profissionalId,inicio:{lt:fim},fim:{gt:inicio}},select:{id:true}}))return {conflito:true,duracao}
+ return {conflito:false,duracao}
+}
